@@ -3,6 +3,10 @@ import type { Where } from "payload";
 import { publicContentConstraint } from "@/lib/payload/access";
 import { getPayloadClient } from "@/lib/payload/client";
 
+type QueryOptions = {
+  limit?: number;
+};
+
 const withPublicConstraint = (where?: Where): Where => {
   const baseConstraint = publicContentConstraint();
 
@@ -16,12 +20,16 @@ const withPublicConstraint = (where?: Where): Where => {
 };
 
 export const getPublicPosts = async () => {
+  return getPublicPostsWithOptions();
+};
+
+export const getPublicPostsWithOptions = async ({ limit = 24 }: QueryOptions = {}) => {
   const payload = await getPayloadClient();
 
   return payload.find({
     collection: "posts",
     depth: 1,
-    limit: 24,
+    limit,
     sort: "-publishedAt",
     where: publicContentConstraint(),
   });
@@ -45,36 +53,51 @@ export const getPublicPostBySlug = async (slug: string) => {
   return result.docs[0] ?? null;
 };
 
-export const getPublicNotes = async () => {
+export const getPublicNotes = async ({ limit = 30 }: QueryOptions = {}) => {
   const payload = await getPayloadClient();
 
   return payload.find({
     collection: "notes",
-    limit: 30,
+    limit,
     sort: "-createdAt",
     where: publicContentConstraint(),
   });
 };
 
-export const getPublicUpdates = async () => {
+export const getPublicUpdates = async ({ limit = 30 }: QueryOptions = {}) => {
   const payload = await getPayloadClient();
 
   return payload.find({
     collection: "updates",
-    limit: 30,
+    limit,
     sort: "-createdAt",
     where: publicContentConstraint(),
   });
 };
 
-export const getPublicTimelineEvents = async () => {
+type TimelineQueryOptions = QueryOptions & {
+  featuredOnly?: boolean;
+};
+
+export const getPublicTimelineEvents = async ({
+  featuredOnly = false,
+  limit = 100,
+}: TimelineQueryOptions = {}) => {
   const payload = await getPayloadClient();
 
   return payload.find({
     collection: "timeline-events",
     depth: 1,
-    limit: 100,
+    limit,
     sort: "-eventDate",
-    where: publicContentConstraint(),
+    where: withPublicConstraint(
+      featuredOnly
+        ? {
+            isFeatured: {
+              equals: true,
+            },
+          }
+        : undefined,
+    ),
   });
 };
