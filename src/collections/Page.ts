@@ -1,0 +1,43 @@
+import type { CollectionConfig } from "payload";
+
+import { adminsOnly, adminsOrPublished, canAccessAdmin } from "../lib/payload/access.ts";
+import {
+  createSlugField,
+  statusField,
+  visibilityField,
+} from "../lib/payload/fields.ts";
+
+export const Page: CollectionConfig = {
+  slug: "pages",
+  access: {
+    admin: canAccessAdmin,
+    create: adminsOnly,
+    delete: adminsOnly,
+    read: adminsOrPublished,
+    update: adminsOnly,
+  },
+  admin: {
+    defaultColumns: ["title", "status", "visibility", "updatedAt"],
+    useAsTitle: "title",
+  },
+  defaultSort: "title",
+  fields: [
+    {
+      name: "title",
+      type: "text",
+      required: true,
+    },
+    createSlugField(),
+    {
+      name: "content",
+      type: "richText",
+      required: true,
+    },
+    statusField,
+    visibilityField(),
+  ],
+  labels: {
+    plural: "Pages",
+    singular: "Page",
+  },
+};

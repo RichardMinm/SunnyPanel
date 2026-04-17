@@ -2,8 +2,17 @@ import path from "node:path";
 
 import type { CollectionConfig } from "payload";
 
+import { adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+
 export const Media: CollectionConfig = {
   slug: "media",
+  access: {
+    admin: canAccessAdmin,
+    create: adminsOnly,
+    delete: adminsOnly,
+    read: () => true,
+    update: adminsOnly,
+  },
   admin: {
     defaultColumns: ["filename", "alt", "updatedAt"],
   },

@@ -6,8 +6,14 @@ import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import sharp from "sharp";
 import { buildConfig } from "payload";
 
-import { Media } from "./src/collections/Media.js";
-import { Users } from "./src/collections/Users.js";
+import { Media } from "./src/collections/Media.ts";
+import { Note } from "./src/collections/Note.ts";
+import { Page } from "./src/collections/Page.ts";
+import { Plan } from "./src/collections/Plan.ts";
+import { Post } from "./src/collections/Post.ts";
+import { TimelineEvent } from "./src/collections/TimelineEvent.ts";
+import { Update } from "./src/collections/Update.ts";
+import { Users } from "./src/collections/Users.ts";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -22,7 +28,7 @@ export default buildConfig({
       importMapFile: path.resolve(dirname, "src/app/(payload)/admin/importMap.js"),
     },
   },
-  collections: [Users, Media],
+  collections: [Users, Media, Post, Note, Update, TimelineEvent, Plan, Page],
   cors: [serverURL],
   csrf: [serverURL],
   db: postgresAdapter({

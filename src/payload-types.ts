@@ -69,6 +69,12 @@ export interface Config {
   collections: {
     users: User;
     media: Media;
+    posts: Post;
+    notes: Note;
+    updates: Update;
+    'timeline-events': TimelineEvent;
+    plans: Plan;
+    pages: Page;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -78,6 +84,12 @@ export interface Config {
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    posts: PostsSelect<false> | PostsSelect<true>;
+    notes: NotesSelect<false> | NotesSelect<true>;
+    updates: UpdatesSelect<false> | UpdatesSelect<true>;
+    'timeline-events': TimelineEventsSelect<false> | TimelineEventsSelect<true>;
+    plans: PlansSelect<false> | PlansSelect<true>;
+    pages: PagesSelect<false> | PagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -185,6 +197,141 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  title: string;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
+  slug: string;
+  summary: string;
+  content: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  tags?: string[] | null;
+  coverImage?: (number | null) | Media;
+  status: 'draft' | 'published';
+  /**
+   * Optional publish date for sorting and display.
+   */
+  publishedAt?: string | null;
+  visibility: 'public' | 'private';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notes".
+ */
+export interface Note {
+  id: number;
+  content: string;
+  mood?: string | null;
+  category: string;
+  pinned?: boolean | null;
+  status: 'draft' | 'published';
+  visibility: 'public' | 'private';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "updates".
+ */
+export interface Update {
+  id: number;
+  type: 'life' | 'work' | 'project';
+  content: string;
+  link?: string | null;
+  status: 'draft' | 'published';
+  visibility: 'public' | 'private';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "timeline-events".
+ */
+export interface TimelineEvent {
+  id: number;
+  title: string;
+  description?: string | null;
+  eventDate: string;
+  type: 'milestone' | 'project' | 'life';
+  relatedPost?: (number | null) | Post;
+  relatedUpdate?: (number | null) | Update;
+  isFeatured?: boolean | null;
+  sortOrder?: number | null;
+  status: 'draft' | 'published';
+  visibility: 'public' | 'private';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "plans".
+ */
+export interface Plan {
+  id: number;
+  title: string;
+  description?: string | null;
+  status: 'draft' | 'published';
+  priority: 'low' | 'medium' | 'high';
+  startDate?: string | null;
+  dueDate?: string | null;
+  visibility: 'public' | 'private';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages".
+ */
+export interface Page {
+  id: number;
+  title: string;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
+  slug: string;
+  content: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  status: 'draft' | 'published';
+  visibility: 'public' | 'private';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -214,6 +361,30 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'posts';
+        value: number | Post;
+      } | null)
+    | ({
+        relationTo: 'notes';
+        value: number | Note;
+      } | null)
+    | ({
+        relationTo: 'updates';
+        value: number | Update;
+      } | null)
+    | ({
+        relationTo: 'timeline-events';
+        value: number | TimelineEvent;
+      } | null)
+    | ({
+        relationTo: 'plans';
+        value: number | Plan;
+      } | null)
+    | ({
+        relationTo: 'pages';
+        value: number | Page;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -321,6 +492,98 @@ export interface MediaSelect<T extends boolean = true> {
               filename?: T;
             };
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts_select".
+ */
+export interface PostsSelect<T extends boolean = true> {
+  title?: T;
+  generateSlug?: T;
+  slug?: T;
+  summary?: T;
+  content?: T;
+  tags?: T;
+  coverImage?: T;
+  status?: T;
+  publishedAt?: T;
+  visibility?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notes_select".
+ */
+export interface NotesSelect<T extends boolean = true> {
+  content?: T;
+  mood?: T;
+  category?: T;
+  pinned?: T;
+  status?: T;
+  visibility?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "updates_select".
+ */
+export interface UpdatesSelect<T extends boolean = true> {
+  type?: T;
+  content?: T;
+  link?: T;
+  status?: T;
+  visibility?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "timeline-events_select".
+ */
+export interface TimelineEventsSelect<T extends boolean = true> {
+  title?: T;
+  description?: T;
+  eventDate?: T;
+  type?: T;
+  relatedPost?: T;
+  relatedUpdate?: T;
+  isFeatured?: T;
+  sortOrder?: T;
+  status?: T;
+  visibility?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "plans_select".
+ */
+export interface PlansSelect<T extends boolean = true> {
+  title?: T;
+  description?: T;
+  status?: T;
+  priority?: T;
+  startDate?: T;
+  dueDate?: T;
+  visibility?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages_select".
+ */
+export interface PagesSelect<T extends boolean = true> {
+  title?: T;
+  generateSlug?: T;
+  slug?: T;
+  content?: T;
+  status?: T;
+  visibility?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

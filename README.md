@@ -14,11 +14,19 @@ It combines a public expression layer with a private management workspace.
 ## Local Development
 
 1. Copy `.env.example` to `.env`
-2. Start PostgreSQL with Docker, or run the whole stack with Docker Compose
+2. Start PostgreSQL with `docker compose up -d postgres`
 3. Install dependencies with `npm install`
 4. Start the app with `npm run dev`
 5. Open [http://localhost:3000](http://localhost:3000)
 6. Open [http://localhost:3000/admin](http://localhost:3000/admin) to create the first admin user
+
+`DATABASE_URL` in `.env` is for host-side development and should point to `127.0.0.1:${POSTGRES_PORT}`.
+When you run the full stack with Docker Compose, the `app` service automatically switches to the internal `postgres:5432` address.
+
+## Docker Compose
+
+- Start only PostgreSQL: `docker compose up -d postgres`
+- Start the full stack: `docker compose up --build`
 
 ## Useful Commands
 
