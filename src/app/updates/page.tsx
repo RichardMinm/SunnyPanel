@@ -1,47 +1,63 @@
 import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
+import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDate } from "@/lib/formatters";
 import { getPublicUpdates } from "@/lib/payload/public";
 
 export default async function UpdatesPage() {
   const { docs: updates } = await getPublicUpdates();
+  const linkedCount = updates.filter((update) => Boolean(update.link)).length;
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-8 md:px-10">
-      <SectionIntro
-        eyebrow="Updates"
-        title="Progress in motion"
-        description="A running stream for life, work, and project changes that do not need a full article but still deserve a place in the system."
-      />
-
-      {updates.length === 0 ? (
-        <CollectionEmptyState
-          title="还没有公开动态"
-          body="后台 `Update` collection 已经可用。发布内容后，这里会自动形成一条时间顺序的动态流。"
+    <PublicSiteFrame>
+      <main className="flex flex-1 flex-col gap-8 pb-4">
+        <SectionIntro
+          eyebrow="Updates"
+          title="保持流动的近况与推进记录"
+          description="Updates 不是长文章的替代品，而是一条更轻、更连续的动态带。适合留下那些值得被看见、但还没到写成正文的变化。"
+          stats={[
+            { label: "公开动态", value: updates.length },
+            { label: "带链接记录", value: linkedCount },
+            { label: "类型覆盖", value: new Set(updates.map((update) => update.type)).size },
+          ]}
         />
-      ) : (
-        <section className="grid gap-4">
-          {updates.map((update) => (
-            <article key={update.id} className="sunny-card rounded-[1.8rem] p-6">
-              <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
-                <span className="rounded-full border border-border px-2 py-1">{update.type}</span>
-                <span>{formatDate(update.createdAt)}</span>
+
+        {updates.length === 0 ? (
+          <CollectionEmptyState
+            title="还没有公开动态"
+            body="后台 `Update` collection 已经可用。发布内容后，这里会自动形成一条时间顺序的动态流。"
+          />
+        ) : (
+          <section className="sunny-card rounded-[2.2rem] p-8">
+            <div className="relative">
+              <div className="absolute left-5 top-4 bottom-4 hidden w-px bg-[linear-gradient(180deg,rgba(24,34,44,0.14),rgba(24,34,44,0.02))] md:block" />
+
+              <div className="space-y-5">
+                {updates.map((update) => (
+                  <article key={update.id} className="relative rounded-[1.7rem] border border-border bg-white/60 p-6 md:ml-12">
+                    <div className="absolute -left-[2.55rem] top-7 hidden h-4 w-4 rounded-full border-4 border-background bg-accent md:block" />
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+                      <span className="sunny-badge sunny-badge-accent">{update.type}</span>
+                      <span>{formatDate(update.createdAt)}</span>
+                    </div>
+                    <p className="mt-4 text-[1.02rem] leading-8 text-foreground">{update.content}</p>
+                    {update.link ? (
+                      <a
+                        className="mt-4 inline-flex text-sm font-semibold text-accent-strong"
+                        href={update.link}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        查看关联链接
+                      </a>
+                    ) : null}
+                  </article>
+                ))}
               </div>
-              <p className="mt-4 leading-8 text-foreground">{update.content}</p>
-              {update.link ? (
-                <a
-                  className="mt-4 inline-flex text-sm font-semibold text-accent-strong"
-                  href={update.link}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Visit link
-                </a>
-              ) : null}
-            </article>
-          ))}
-        </section>
-      )}
-    </main>
+            </div>
+          </section>
+        )}
+      </main>
+    </PublicSiteFrame>
   );
 }

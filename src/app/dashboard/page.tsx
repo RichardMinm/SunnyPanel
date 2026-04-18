@@ -90,24 +90,50 @@ export default async function DashboardPage() {
   const displayName = snapshot.user.displayName || snapshot.user.email;
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-6 py-8 md:px-10">
-      <section className="sunny-card sunny-card-strong rounded-[2rem] p-8 md:p-10">
-        <p className="sunny-kicker text-xs text-muted">Private workspace</p>
-        <h1 className="sunny-display mt-4 text-4xl text-foreground md:text-5xl">Dashboard</h1>
-        <p className="mt-5 max-w-3xl text-base leading-8 text-muted">
-          你好，{displayName}。这个页面现在已经是登录感知的私有工作台，会把计划、草稿、
-          最近内容和公开面状态收拢到一个地方，方便你从这里继续运营 SunnyPanel。
-        </p>
+    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
+      <section className="sunny-card sunny-card-strong rounded-[2.3rem] p-8 md:p-10">
+        <div className="flex flex-wrap gap-3">
+          <span className="sunny-chip">Private workspace</span>
+          <span className="sunny-chip">计划流转已接入</span>
+          <span className="sunny-chip">登录态感知</span>
+        </div>
+
+        <div className="mt-8 grid gap-8 xl:grid-cols-[1.25fr_0.75fr]">
+          <div>
+            <p className="sunny-kicker text-xs text-muted">Private workspace</p>
+            <h1 className="sunny-display mt-4 text-4xl leading-none text-foreground md:text-6xl">
+              Dashboard
+            </h1>
+            <p className="mt-5 max-w-3xl text-base leading-8 text-muted">
+              你好，{displayName}。这里已经不只是入口页，而是一个真正会汇总计划、草稿、
+              最近内容和公开侧状态的私有工作台，方便你从同一处继续运营 SunnyPanel。
+            </p>
+          </div>
+
+          <div className="sunny-panel rounded-[1.9rem] p-6">
+            <p className="sunny-kicker text-xs text-muted">Today at a glance</p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="rounded-[1.4rem] border border-border bg-white/55 p-4">
+                <p className="text-sm text-muted">活跃计划</p>
+                <p className="mt-2 text-3xl font-semibold text-foreground">{snapshot.counts.activePlans}</p>
+              </div>
+              <div className="rounded-[1.4rem] border border-border bg-white/55 p-4">
+                <p className="text-sm text-muted">草稿积压</p>
+                <p className="mt-2 text-3xl font-semibold text-foreground">{snapshot.counts.draftSurfaces}</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
-            className="rounded-full bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent-strong"
+            className="sunny-button-primary"
             href="/admin"
           >
             Open Payload Admin
           </Link>
           <Link
-            className="rounded-full border border-border px-5 py-3 text-sm font-semibold text-foreground transition hover:bg-white/60"
+            className="sunny-button-secondary"
             href="/timeline"
           >
             Review Public Timeline
@@ -116,7 +142,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="sunny-card rounded-[1.75rem] p-6">
+        <div className="sunny-card rounded-[1.9rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(255,245,230,0.72))] p-6">
           <p className="sunny-kicker text-xs text-muted">Plans</p>
           <p className="mt-4 text-4xl font-semibold text-foreground">{snapshot.counts.plans}</p>
           <p className="mt-3 text-sm leading-7 text-muted">
@@ -124,7 +150,7 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <div className="sunny-card rounded-[1.75rem] p-6">
+        <div className="sunny-card rounded-[1.9rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(238,246,243,0.8))] p-6">
           <p className="sunny-kicker text-xs text-muted">Plan flow</p>
           <p className="mt-4 text-4xl font-semibold text-foreground">
             {snapshot.counts.backlogPlans}
@@ -134,7 +160,7 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <div className="sunny-card rounded-[1.75rem] p-6">
+        <div className="sunny-card rounded-[1.9rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(246,238,224,0.82))] p-6">
           <p className="sunny-kicker text-xs text-muted">Draft backlog</p>
           <p className="mt-4 text-4xl font-semibold text-foreground">
             {snapshot.counts.draftSurfaces}
@@ -144,7 +170,7 @@ export default async function DashboardPage() {
           </p>
         </div>
 
-        <div className="sunny-card rounded-[1.75rem] p-6">
+        <div className="sunny-card rounded-[1.9rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(235,242,240,0.78))] p-6">
           <p className="sunny-kicker text-xs text-muted">Public surface</p>
           <p className="mt-4 text-4xl font-semibold text-foreground">
             {snapshot.counts.publicSurfaces}
@@ -156,7 +182,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="sunny-card rounded-[2rem] p-8">
+        <div className="sunny-card rounded-[2.1rem] p-8">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="sunny-kicker text-xs text-muted">Quick operations</p>
@@ -172,8 +198,9 @@ export default async function DashboardPage() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-[1.5rem] border border-border bg-white/65 p-5 transition hover:-translate-y-1 hover:bg-white"
+                className="rounded-[1.6rem] border border-border bg-white/65 p-5 transition hover:-translate-y-1 hover:bg-white"
               >
+                <span className="sunny-badge sunny-badge-muted">Shortcut</span>
                 <h3 className="text-lg font-semibold text-foreground">{item.label}</h3>
                 <p className="mt-2 text-sm leading-7 text-muted">{item.description}</p>
               </Link>
@@ -181,13 +208,14 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="sunny-card rounded-[2rem] p-8">
+        <div className="sunny-card rounded-[2.1rem] p-8">
           <p className="sunny-kicker text-xs text-muted">Build notes</p>
           <h2 className="sunny-display mt-2 text-3xl text-foreground">What this dashboard is doing</h2>
 
           <div className="mt-6 space-y-5 text-sm leading-7 text-muted">
-            {workspaceTracks.map((item) => (
-              <div key={item.title} className="rounded-[1.5rem] border border-border bg-white/55 p-5">
+            {workspaceTracks.map((item, index) => (
+              <div key={item.title} className="rounded-[1.6rem] border border-border bg-white/55 p-5">
+                <span className="sunny-badge sunny-badge-accent">0{index + 1}</span>
                 <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
                 <p className="mt-2">{item.body}</p>
               </div>
@@ -197,7 +225,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="sunny-card rounded-[2rem] p-8">
+        <div className="sunny-card rounded-[2.1rem] p-8">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="sunny-kicker text-xs text-muted">Plans</p>
@@ -215,7 +243,7 @@ export default async function DashboardPage() {
               return (
                 <div
                   key={column.key}
-                  className="rounded-[1.5rem] border border-border bg-white/50 p-5"
+                  className="rounded-[1.65rem] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.64),rgba(250,244,236,0.66))] p-5"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-lg font-semibold text-foreground">{column.label}</h3>
@@ -229,7 +257,7 @@ export default async function DashboardPage() {
                       plans.map((plan) => (
                         <div
                           key={plan.id}
-                          className="rounded-[1.25rem] border border-border bg-white/70 p-4"
+                          className="rounded-[1.35rem] border border-border bg-white/72 p-4"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <h4 className="text-base font-semibold text-foreground">{plan.title}</h4>
@@ -267,7 +295,7 @@ export default async function DashboardPage() {
         </div>
 
         <div className="grid gap-6">
-          <div className="sunny-card rounded-[2rem] p-8">
+          <div className="sunny-card rounded-[2.1rem] p-8">
             <p className="sunny-kicker text-xs text-muted">Account</p>
             <p className="mt-4 text-lg font-semibold text-foreground">{snapshot.user.email}</p>
             <p className="mt-3 text-sm leading-7 text-muted">
@@ -275,7 +303,7 @@ export default async function DashboardPage() {
             </p>
           </div>
 
-          <div className="sunny-card rounded-[2rem] p-8">
+          <div className="sunny-card rounded-[2.1rem] p-8">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="sunny-kicker text-xs text-muted">Completed</p>
@@ -289,7 +317,7 @@ export default async function DashboardPage() {
             <div className="mt-6 space-y-4">
               {snapshot.plans.done.length > 0 ? (
                 snapshot.plans.done.slice(0, 5).map((plan) => (
-                  <div key={plan.id} className="rounded-[1.25rem] border border-border bg-white/60 p-4">
+                  <div key={plan.id} className="rounded-[1.35rem] border border-border bg-white/60 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-base font-semibold text-foreground">{plan.title}</h3>
                       <span
@@ -313,7 +341,7 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <section className="sunny-card rounded-[2rem] p-8">
+      <section className="sunny-card rounded-[2.1rem] p-8">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="sunny-kicker text-xs text-muted">Editorial queue</p>
@@ -327,7 +355,7 @@ export default async function DashboardPage() {
         <div className="mt-6 space-y-4">
           {snapshot.recentPosts.length > 0 ? (
             snapshot.recentPosts.map((post) => (
-              <div key={post.id} className="rounded-[1.5rem] border border-border bg-white/60 p-5">
+              <div key={post.id} className="rounded-[1.6rem] border border-border bg-white/60 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-lg font-semibold text-foreground">{post.title}</h3>
                   <div className="flex flex-wrap gap-2">
@@ -354,7 +382,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-3">
-        <div className="sunny-card rounded-[2rem] p-8">
+        <div className="sunny-card rounded-[2.1rem] p-8">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="sunny-kicker text-xs text-muted">Notes</p>
@@ -368,7 +396,7 @@ export default async function DashboardPage() {
           <div className="mt-6 space-y-4">
             {snapshot.recentNotes.length > 0 ? (
               snapshot.recentNotes.map((note) => (
-                <div key={note.id} className="rounded-[1.25rem] border border-border bg-white/60 p-4">
+                <div key={note.id} className="rounded-[1.35rem] border border-border bg-white/60 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs uppercase tracking-[0.24em] text-muted">{note.category}</span>
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(note.status)}`}>
@@ -385,7 +413,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="sunny-card rounded-[2rem] p-8">
+        <div className="sunny-card rounded-[2.1rem] p-8">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="sunny-kicker text-xs text-muted">Updates</p>
@@ -399,7 +427,7 @@ export default async function DashboardPage() {
           <div className="mt-6 space-y-4">
             {snapshot.recentUpdates.length > 0 ? (
               snapshot.recentUpdates.map((update) => (
-                <div key={update.id} className="rounded-[1.25rem] border border-border bg-white/60 p-4">
+                <div key={update.id} className="rounded-[1.35rem] border border-border bg-white/60 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs uppercase tracking-[0.24em] text-muted">{update.type}</span>
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(update.status)}`}>
@@ -416,7 +444,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="sunny-card rounded-[2rem] p-8">
+        <div className="sunny-card rounded-[2.1rem] p-8">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="sunny-kicker text-xs text-muted">Timeline</p>
@@ -433,7 +461,7 @@ export default async function DashboardPage() {
           <div className="mt-6 space-y-4">
             {snapshot.recentTimelineEvents.length > 0 ? (
               snapshot.recentTimelineEvents.map((event) => (
-                <div key={event.id} className="rounded-[1.25rem] border border-border bg-white/60 p-4">
+                <div key={event.id} className="rounded-[1.35rem] border border-border bg-white/60 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold text-foreground">{event.title}</span>
                     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(event.status)}`}>
