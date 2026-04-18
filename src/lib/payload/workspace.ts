@@ -33,15 +33,35 @@ const highPriorityPlanConstraint = {
   ],
 };
 
+const planStateConstraint = (state: "active" | "backlog" | "done" | "paused") => ({
+  and: [
+    {
+      state: {
+        equals: state,
+      },
+    },
+    privateConstraint,
+  ],
+});
+
 export type WorkspaceSnapshot = {
   counts: {
+    activePlans: number;
+    backlogPlans: number;
+    completedPlans: number;
     draftPosts: number;
     draftSurfaces: number;
     highPriorityPlans: number;
     plans: number;
+    pausedPlans: number;
     publicSurfaces: number;
   };
-  plans: Plan[];
+  plans: {
+    active: Plan[];
+    backlog: Plan[];
+    done: Plan[];
+    paused: Plan[];
+  };
   recentNotes: Note[];
   recentPosts: Post[];
   recentTimelineEvents: TimelineEvent[];
@@ -76,7 +96,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
     payload.find({
       collection: "plans",
       depth: 0,
-      limit: 6,
+      limit: 24,
       overrideAccess: true,
       sort: "dueDate",
     }),
@@ -112,6 +132,10 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
 
   const [
     totalPlans,
+    activePlans,
+    backlogPlans,
+    pausedPlans,
+    completedPlans,
     highPriorityPlans,
     draftPosts,
     draftNotes,
@@ -126,6 +150,26 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       collection: "plans",
       overrideAccess: true,
       where: privateConstraint,
+    }),
+    payload.count({
+      collection: "plans",
+      overrideAccess: true,
+      where: planStateConstraint("active"),
+    }),
+    payload.count({
+      collection: "plans",
+      overrideAccess: true,
+      where: planStateConstraint("backlog"),
+    }),
+    payload.count({
+      collection: "plans",
+      overrideAccess: true,
+      where: planStateConstraint("paused"),
+    }),
+    payload.count({
+      collection: "plans",
+      overrideAccess: true,
+      where: planStateConstraint("done"),
     }),
     payload.count({
       collection: "plans",
@@ -176,6 +220,9 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
 
   return {
     counts: {
+      activePlans: activePlans.totalDocs,
+      backlogPlans: backlogPlans.totalDocs,
+      completedPlans: completedPlans.totalDocs,
       draftPosts: draftPosts.totalDocs,
       draftSurfaces:
         draftPosts.totalDocs +
@@ -184,13 +231,19 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
         draftTimelineEvents.totalDocs,
       highPriorityPlans: highPriorityPlans.totalDocs,
       plans: totalPlans.totalDocs,
+      pausedPlans: pausedPlans.totalDocs,
       publicSurfaces:
         publicPosts.totalDocs +
         publicNotes.totalDocs +
         publicUpdates.totalDocs +
         publicTimelineEvents.totalDocs,
     },
-    plans: plans.docs,
+    plans: {
+      active: plans.docs.filter((plan) => plan.state === "active"),
+      backlog: plans.docs.filter((plan) => plan.state === "backlog"),
+      done: plans.docs.filter((plan) => plan.state === "done"),
+      paused: plans.docs.filter((plan) => plan.state === "paused"),
+    },
     recentNotes: recentNotes.docs,
     recentPosts: recentPosts.docs,
     recentTimelineEvents: recentTimelineEvents.docs,

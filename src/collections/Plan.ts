@@ -13,7 +13,7 @@ export const Plan: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
-    defaultColumns: ["title", "priority", "status", "dueDate", "updatedAt"],
+    defaultColumns: ["title", "state", "priority", "status", "dueDate", "updatedAt"],
     useAsTitle: "title",
   },
   defaultSort: "dueDate",
@@ -26,6 +26,30 @@ export const Plan: CollectionConfig = {
     {
       name: "description",
       type: "textarea",
+    },
+    {
+      name: "state",
+      type: "select",
+      defaultValue: "backlog",
+      options: [
+        {
+          label: "Backlog",
+          value: "backlog",
+        },
+        {
+          label: "Active",
+          value: "active",
+        },
+        {
+          label: "Paused",
+          value: "paused",
+        },
+        {
+          label: "Done",
+          value: "done",
+        },
+      ],
+      required: true,
     },
     statusField,
     {

@@ -290,6 +290,7 @@ export interface Plan {
   id: number;
   title: string;
   description?: string | null;
+  state: 'backlog' | 'active' | 'paused' | 'done';
   status: 'draft' | 'published';
   priority: 'low' | 'medium' | 'high';
   startDate?: string | null;
@@ -563,6 +564,7 @@ export interface TimelineEventsSelect<T extends boolean = true> {
 export interface PlansSelect<T extends boolean = true> {
   title?: T;
   description?: T;
+  state?: T;
   status?: T;
   priority?: T;
   startDate?: T;
