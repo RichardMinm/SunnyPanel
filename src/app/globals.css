@@ -94,6 +94,38 @@ a {
   animation: sunny-fade-up 0.7s ease-out both;
 }
 
+.sunny-prose {
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-links: var(--accent-strong);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted);
+  --tw-prose-bullets: color-mix(in srgb, var(--accent) 70%, white);
+  --tw-prose-hr: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: color-mix(in srgb, var(--accent) 40%, white);
+}
+
+.sunny-prose :where(h2, h3, h4) {
+  letter-spacing: -0.02em;
+}
+
+.sunny-prose :where(p, li, blockquote) {
+  line-height: 1.95;
+}
+
+.sunny-prose :where(blockquote) {
+  border-left-width: 3px;
+  border-left-color: color-mix(in srgb, var(--accent) 45%, white);
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 0 1.25rem 1.25rem 0;
+  padding: 1rem 1.25rem;
+}
+
+.sunny-prose :where(img) {
+  border-radius: 1.5rem;
+}
+
 @keyframes sunny-fade-up {
   from {
     opacity: 0;

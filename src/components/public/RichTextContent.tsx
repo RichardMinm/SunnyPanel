@@ -8,7 +8,7 @@ type RichTextContentProps = {
 
 export function RichTextContent({ data }: RichTextContentProps) {
   return (
-    <div className="prose prose-zinc max-w-none prose-headings:font-semibold prose-a:text-accent-strong">
+    <div className="sunny-prose prose prose-zinc max-w-none prose-headings:font-semibold prose-a:text-accent-strong">
       <RichText data={data} />
     </div>
   );
