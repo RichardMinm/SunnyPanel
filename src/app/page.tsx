@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PostPreviewCard } from "@/components/public/PostPreviewCard";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { formatDate } from "@/lib/formatters";
 import {
@@ -196,22 +197,11 @@ export default async function Home() {
             <div className="mt-6 grid gap-4">
               {posts.docs.length > 0 ? (
                 posts.docs.map((post, index) => (
-                  <Link
+                  <PostPreviewCard
                     key={post.id}
-                    href={`/blog/${post.slug}`}
-                    className={`rounded-[1.7rem] border border-border p-6 transition hover:-translate-y-1 ${
-                      index === 0 ? "bg-[linear-gradient(135deg,rgba(255,255,255,0.78),rgba(239,226,204,0.92))]" : "bg-white/60 hover:bg-white/82"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <span className="sunny-kicker text-[0.7rem] text-muted">{formatDate(post.publishedAt)}</span>
-                      <span className="rounded-full border border-border px-3 py-1 text-xs text-muted">
-                        {post.visibility}
-                      </span>
-                    </div>
-                    <h3 className="mt-4 text-2xl font-semibold text-foreground">{post.title}</h3>
-                    <p className="mt-3 max-w-3xl text-sm leading-7 text-muted">{post.summary}</p>
-                  </Link>
+                    post={post}
+                    variant={index === 0 ? "featured" : "compact"}
+                  />
                 ))
               ) : (
                 <div className="rounded-[1.7rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">

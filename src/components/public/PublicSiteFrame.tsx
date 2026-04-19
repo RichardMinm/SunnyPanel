@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 
 const navigation = [
   { href: "/", label: "首页" },
@@ -14,6 +17,8 @@ type PublicSiteFrameProps = {
 };
 
 export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
+  const pathname = usePathname();
+
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-4 md:px-8 lg:px-10">
       <header className="sunny-panel sticky top-4 z-20 rounded-[1.9rem] px-5 py-4 md:px-7">
@@ -32,7 +37,15 @@ export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
 
           <nav className="flex flex-wrap gap-1">
             {navigation.map((item) => (
-              <Link key={item.href} href={item.href} className="sunny-nav-link">
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`sunny-nav-link ${
+                  pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
+                    ? "sunny-nav-link-active"
+                    : ""
+                }`}
+              >
                 {item.label}
               </Link>
             ))}

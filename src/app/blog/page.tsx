@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
+import { PostPreviewCard } from "@/components/public/PostPreviewCard";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDate } from "@/lib/formatters";
@@ -42,48 +43,11 @@ export default async function BlogIndexPage() {
           />
         ) : (
           <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            <Link
-              href={`/blog/${posts[0].slug}`}
-              className="sunny-card sunny-card-strong rounded-[2.2rem] p-8 transition hover:-translate-y-1"
-            >
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="sunny-badge sunny-badge-accent">Latest essay</span>
-                <span className="text-sm text-muted">{formatDate(posts[0].publishedAt)}</span>
-              </div>
-              <h2 className="sunny-display mt-6 text-4xl leading-tight text-foreground">
-                {posts[0].title}
-              </h2>
-              <p className="mt-5 max-w-2xl text-base leading-8 text-muted">{posts[0].summary}</p>
-              {posts[0].tags && posts[0].tags.length > 0 ? (
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {posts[0].tags.map((tag) => (
-                    <span
-                      key={`${posts[0].id}-${tag}`}
-                      className="rounded-full bg-white/70 px-3 py-1 text-xs text-accent-strong"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </Link>
+            <PostPreviewCard post={posts[0]} variant="featured" />
 
             <div className="grid gap-4">
               {posts.slice(1).map((post) => (
-                <Link
-                  key={post.id}
-                  href={`/blog/${post.slug}`}
-                  className="sunny-card rounded-[1.8rem] p-6 transition hover:-translate-y-1"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="sunny-kicker text-xs text-muted">{formatDate(post.publishedAt)}</span>
-                    <span className="rounded-full border border-border px-3 py-1 text-xs text-muted">
-                      {post.visibility}
-                    </span>
-                  </div>
-                  <h2 className="mt-4 text-2xl font-semibold text-foreground">{post.title}</h2>
-                  <p className="mt-3 max-w-3xl text-sm leading-8 text-muted">{post.summary}</p>
-                </Link>
+                <PostPreviewCard key={post.id} post={post} variant="compact" />
               ))}
             </div>
           </section>

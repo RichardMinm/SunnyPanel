@@ -216,6 +216,12 @@ a {
   color: var(--foreground);
 }
 
+.sunny-nav-link-active {
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 1px rgba(211, 107, 45, 0.12);
+}
+
 .sunny-badge {
   display: inline-flex;
   align-items: center;

@@ -6,30 +6,14 @@ import { notFound } from "next/navigation";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { RichTextContent } from "@/components/public/RichTextContent";
 import { formatDate, formatDateTime } from "@/lib/formatters";
+import { getMediaAsset, getMediaDisplayUrl } from "@/lib/media";
 import { getPublicPostBySlug } from "@/lib/payload/public";
 import { estimateReadingMinutes, extractLexicalPlainText } from "@/lib/richtext";
-import type { Media } from "@/payload-types";
 
 type BlogPostPageProps = {
   params: Promise<{
     slug: string;
   }>;
-};
-
-type MediaWithUrl = Media & {
-  url: string;
-};
-
-const getCoverImage = (value: Media | number | null | undefined): MediaWithUrl | null => {
-  if (!value || typeof value === "number") {
-    return null;
-  }
-
-  if (typeof value.url !== "string" || value.url.length === 0) {
-    return null;
-  }
-
-  return value as MediaWithUrl;
 };
 
 export async function generateMetadata({ params }: BlogPostPageProps): Promise<Metadata> {
@@ -42,7 +26,7 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
     };
   }
 
-  const coverImage = getCoverImage(post.coverImage);
+  const coverImage = getMediaAsset(post.coverImage);
 
   return {
     title: `${post.title} | SunnyPanel`,
@@ -64,7 +48,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     notFound();
   }
 
-  const coverImage = getCoverImage(post.coverImage);
+  const coverImage = getMediaAsset(post.coverImage);
   const readingTime = estimateReadingMinutes(extractLexicalPlainText(post.content));
 
   return (
@@ -123,7 +107,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                   className="h-[280px] w-full object-cover md:h-[380px]"
                   height={coverImage.height || 900}
                   priority
-                  src={coverImage.url}
+                  src={getMediaDisplayUrl(coverImage)}
                   unoptimized
                   width={coverImage.width || 1600}
                 />
