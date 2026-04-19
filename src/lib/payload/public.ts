@@ -53,6 +53,36 @@ export const getPublicPostBySlug = async (slug: string) => {
   return result.docs[0] ?? null;
 };
 
+export const getPublicPageBySlug = async (slug: string) => {
+  const payload = await getPayloadClient();
+
+  const result = await payload.find({
+    collection: "pages",
+    depth: 0,
+    limit: 1,
+    pagination: false,
+    where: withPublicConstraint({
+      slug: {
+        equals: slug,
+      },
+    }),
+  });
+
+  return result.docs[0] ?? null;
+};
+
+export const getPublicPages = async ({ limit = 20 }: QueryOptions = {}) => {
+  const payload = await getPayloadClient();
+
+  return payload.find({
+    collection: "pages",
+    depth: 0,
+    limit,
+    sort: "title",
+    where: publicContentConstraint(),
+  });
+};
+
 export const getPublicNotes = async ({ limit = 30 }: QueryOptions = {}) => {
   const payload = await getPayloadClient();
 

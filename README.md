@@ -22,6 +22,7 @@ SunnyPanel 被设计成两个层面同时存在的系统：
 - 已启用 `Users` 认证 collection 和统一的 `Media` 资源 collection
 - 核心内容模型已落地：`Post`、`Note`、`Update`、`TimelineEvent`、`Plan`、`Page`
 - 公开路由已经可访问：`/blog`、`/notes`、`/updates`、`/timeline`
+- `Page` 前台路由已接入，可通过后台发布 `/about`、`/now` 等固定页面
 - 首页已经接入真实内容数据，不再是纯占位页面
 - `/dashboard` 已经是登录感知的私有工作台入口
 - 本地开发可通过 Docker Compose 启 PostgreSQL，也支持整栈本地编排
@@ -53,6 +54,8 @@ SunnyPanel 被设计成两个层面同时存在的系统：
 - `/`
 - `/blog`
 - `/blog/[slug]`
+- `/about`
+- `/now`
 - `/notes`
 - `/updates`
 - `/timeline`
@@ -138,6 +141,7 @@ It combines a public publishing surface with a private workspace for planning, r
 - `Users` auth and centralized `Media` management are already in place
 - Core collections are implemented: `Post`, `Note`, `Update`, `TimelineEvent`, `Plan`, and `Page`
 - Public routes are live: `/blog`, `/notes`, `/updates`, `/timeline`
+- `Page` collection can now power static public pages such as `/about` and `/now`
 - The homepage already reads real content from Payload
 - `/dashboard` is now an auth-aware private workspace entry
 - Docker Compose is available for local PostgreSQL and full-stack local setup

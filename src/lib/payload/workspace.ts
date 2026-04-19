@@ -145,6 +145,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
     publicNotes,
     publicUpdates,
     publicTimelineEvents,
+    publicPages,
   ] = await Promise.all([
     payload.count({
       collection: "plans",
@@ -216,6 +217,11 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       overrideAccess: true,
       where: publicContentConstraint(),
     }),
+    payload.count({
+      collection: "pages",
+      overrideAccess: true,
+      where: publicContentConstraint(),
+    }),
   ]);
 
   return {
@@ -236,7 +242,8 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
         publicPosts.totalDocs +
         publicNotes.totalDocs +
         publicUpdates.totalDocs +
-        publicTimelineEvents.totalDocs,
+        publicTimelineEvents.totalDocs +
+        publicPages.totalDocs,
     },
     plans: {
       active: plans.docs.filter((plan) => plan.state === "active"),

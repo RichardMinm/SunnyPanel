@@ -34,6 +34,11 @@ const workspaceShortcuts = [
     label: "Upload Media",
     description: "Centralized images and file assets for the whole system.",
   },
+  {
+    href: "/admin/collections/pages",
+    label: "Manage Pages",
+    description: "About, Now, and other long-lived public pages.",
+  },
 ];
 
 const workspaceTracks = [
@@ -176,7 +181,7 @@ export default async function DashboardPage() {
             {snapshot.counts.publicSurfaces}
           </p>
           <p className="mt-3 text-sm leading-7 text-muted">
-            目前公开层已有内容在 Blog、Notes、Updates 和 Timeline 中可被访问。
+            目前公开层已有内容在 Blog、Notes、Updates、Timeline 和固定 Page 中可被访问。
           </p>
         </div>
       </section>
