@@ -45,17 +45,26 @@ const planStateConstraint = (state: "active" | "backlog" | "done" | "paused") =>
   ],
 });
 
+const hasLinkedOutputs = (plan: Plan) => Array.isArray(plan.linkedContent) && plan.linkedContent.length > 0;
+
 export type WorkspaceSnapshot = {
   counts: {
     activePlans: number;
+    activePlansWithoutOutputs: number;
     backlogPlans: number;
     completedPlans: number;
     draftPosts: number;
     draftSurfaces: number;
     highPriorityPlans: number;
     plans: number;
+    plansWithOutputs: number;
+    plansWithoutOutputs: number;
     pausedPlans: number;
     publicSurfaces: number;
+  };
+  execution: {
+    plansWithOutputs: Plan[];
+    plansWithoutOutputs: Plan[];
   };
   onboarding: {
     completed: number;
@@ -242,10 +251,16 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
 
   const publicContentItems =
     publicPosts.totalDocs + publicNotes.totalDocs + publicUpdates.totalDocs + publicTimelineEvents.totalDocs;
+  const plansWithOutputs = plans.docs.filter(hasLinkedOutputs);
+  const plansWithoutOutputs = plans.docs.filter((plan) => !hasLinkedOutputs(plan));
+  const activePlansWithoutOutputs = plans.docs.filter(
+    (plan) => plan.state === "active" && !hasLinkedOutputs(plan),
+  );
 
   return {
     counts: {
       activePlans: activePlans.totalDocs,
+      activePlansWithoutOutputs: activePlansWithoutOutputs.length,
       backlogPlans: backlogPlans.totalDocs,
       completedPlans: completedPlans.totalDocs,
       draftPosts: draftPosts.totalDocs,
@@ -256,9 +271,15 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
         draftTimelineEvents.totalDocs,
       highPriorityPlans: highPriorityPlans.totalDocs,
       plans: totalPlans.totalDocs,
+      plansWithOutputs: plansWithOutputs.length,
+      plansWithoutOutputs: plansWithoutOutputs.length,
       pausedPlans: pausedPlans.totalDocs,
       publicSurfaces:
         publicContentItems + publicPages.totalDocs,
+    },
+    execution: {
+      plansWithOutputs: plansWithOutputs.slice(0, 6),
+      plansWithoutOutputs: plansWithoutOutputs.slice(0, 6),
     },
     onboarding: buildOnboardingChecklist({
       activePlans: activePlans.totalDocs,
