@@ -100,6 +100,14 @@ const relationLabelMap: Record<string, string> = {
   updates: "Update",
 };
 
+const contentKindLabelMap = {
+  notes: "Note",
+  pages: "Page",
+  posts: "Post",
+  "timeline-events": "Timeline",
+  updates: "Update",
+} as const;
+
 type LinkedContentItem = NonNullable<Plan["linkedContent"]>[number];
 
 const getLinkedContent = (plan: Plan) =>
@@ -333,6 +341,102 @@ export default async function DashboardPage() {
             ) : (
               <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
                 还没有计划真正挂住内容成果。给任意计划关联一个 Post、Page 或 Timeline 节点后，这里就会开始形成“产出视图”。
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-2">
+        <div className="sunny-card rounded-[2.1rem] p-8">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="sunny-kicker text-xs text-muted">Orphan content</p>
+              <h2 className="sunny-display mt-2 text-3xl text-foreground">Recent content not linked to a plan</h2>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone("draft")}`}>
+              {snapshot.counts.recentContentWithoutPlans}
+            </span>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {snapshot.execution.recentContentWithoutPlans.length > 0 ? (
+              snapshot.execution.recentContentWithoutPlans.map((item) => (
+                <div key={`${item.kind}-${item.id}`} className="rounded-[1.45rem] border border-border bg-white/60 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-white px-3 py-1 text-xs text-muted shadow-[0_2px_10px_rgba(24,34,44,0.06)]">
+                        {contentKindLabelMap[item.kind]}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(item.status)}`}>
+                        {item.status}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-muted">
+                    最近更新：{formatDateTime(item.updatedAt)}。这条内容还没有挂接到任何 Plan。
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link className="sunny-button-secondary px-4 py-2 text-sm" href={item.href}>
+                      打开内容
+                    </Link>
+                    <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/plans">
+                      关联到计划
+                    </Link>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
+                最近的内容都已经归到了计划里，内容和执行层没有出现新的脱节。
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="sunny-card rounded-[2.1rem] p-8">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="sunny-kicker text-xs text-muted">Linked recently</p>
+              <h2 className="sunny-display mt-2 text-3xl text-foreground">Recent content already inside the workflow</h2>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone("published")}`}>
+              {snapshot.counts.recentContentWithPlans}
+            </span>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {snapshot.execution.recentContentWithPlans.length > 0 ? (
+              snapshot.execution.recentContentWithPlans.map((item) => (
+                <div key={`${item.kind}-${item.id}`} className="rounded-[1.45rem] border border-border bg-white/60 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-white px-3 py-1 text-xs text-muted shadow-[0_2px_10px_rgba(24,34,44,0.06)]">
+                        {contentKindLabelMap[item.kind]}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(item.status)}`}>
+                        {item.status}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-muted">
+                    最近更新：{formatDateTime(item.updatedAt)}。这条内容已经被纳入某个 Plan。
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link className="sunny-button-secondary px-4 py-2 text-sm" href={item.href}>
+                      打开内容
+                    </Link>
+                    <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/plans">
+                      查看计划
+                    </Link>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
+                还没有最近内容被稳定挂到计划上。先把一条新内容关联到某个 Plan，这里就会开始出现真正的工作流痕迹。
               </div>
             )}
           </div>

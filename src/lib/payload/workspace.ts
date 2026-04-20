@@ -1,7 +1,7 @@
 import { headers as getHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 
-import type { Note, Plan, Post, TimelineEvent, Update, User } from "@/payload-types";
+import type { Note, Page, Plan, Post, TimelineEvent, Update, User } from "@/payload-types";
 
 import { publicContentConstraint } from "@/lib/payload/access";
 import { getPayloadClient } from "@/lib/payload/client";
@@ -47,6 +47,92 @@ const planStateConstraint = (state: "active" | "backlog" | "done" | "paused") =>
 
 const hasLinkedOutputs = (plan: Plan) => Array.isArray(plan.linkedContent) && plan.linkedContent.length > 0;
 
+const summarizeText = (value: string, fallback: string, maxLength = 56) => {
+  const normalized = value.trim().replace(/\s+/g, " ");
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength).trimEnd()}...`;
+};
+
+const getLinkedContentKey = (item: NonNullable<Plan["linkedContent"]>[number]) => {
+  const value = item.value;
+  const id = typeof value === "number" ? value : value?.id;
+
+  return typeof id === "number" ? `${item.relationTo}:${id}` : null;
+};
+
+type WorkspaceContentSummary = {
+  href: string;
+  id: number;
+  kind: "notes" | "pages" | "posts" | "timeline-events" | "updates";
+  status: "draft" | "published";
+  title: string;
+  updatedAt: string;
+};
+
+const createContentSummary = (
+  kind: WorkspaceContentSummary["kind"],
+  doc: Note | Page | Post | TimelineEvent | Update,
+): WorkspaceContentSummary => {
+  switch (kind) {
+    case "posts":
+      return {
+        href: `/admin/collections/posts/${doc.id}`,
+        id: doc.id,
+        kind,
+        status: doc.status,
+        title: "title" in doc ? doc.title : "Untitled Post",
+        updatedAt: doc.updatedAt,
+      };
+    case "pages":
+      return {
+        href: `/admin/collections/pages/${doc.id}`,
+        id: doc.id,
+        kind,
+        status: doc.status,
+        title: "title" in doc ? doc.title : "Untitled Page",
+        updatedAt: doc.updatedAt,
+      };
+    case "timeline-events":
+      return {
+        href: `/admin/collections/timeline-events/${doc.id}`,
+        id: doc.id,
+        kind,
+        status: doc.status,
+        title: "title" in doc ? doc.title : "Untitled Timeline Event",
+        updatedAt: doc.updatedAt,
+      };
+    case "updates":
+      return {
+        href: `/admin/collections/updates/${doc.id}`,
+        id: doc.id,
+        kind,
+        status: doc.status,
+        title:
+          "content" in doc && typeof doc.content === "string"
+            ? summarizeText(doc.content, "Untitled Update")
+            : "Untitled Update",
+        updatedAt: doc.updatedAt,
+      };
+    case "notes":
+    default:
+      return {
+        href: `/admin/collections/notes/${doc.id}`,
+        id: doc.id,
+        kind: "notes",
+        status: doc.status,
+        title:
+          "content" in doc && typeof doc.content === "string"
+            ? summarizeText(doc.content, "Untitled Note")
+            : "Untitled Note",
+        updatedAt: doc.updatedAt,
+      };
+  }
+};
+
 export type WorkspaceSnapshot = {
   counts: {
     activePlans: number;
@@ -57,12 +143,16 @@ export type WorkspaceSnapshot = {
     draftSurfaces: number;
     highPriorityPlans: number;
     plans: number;
+    recentContentWithPlans: number;
+    recentContentWithoutPlans: number;
     plansWithOutputs: number;
     plansWithoutOutputs: number;
     pausedPlans: number;
     publicSurfaces: number;
   };
   execution: {
+    recentContentWithPlans: WorkspaceContentSummary[];
+    recentContentWithoutPlans: WorkspaceContentSummary[];
     plansWithOutputs: Plan[];
     plansWithoutOutputs: Plan[];
   };
@@ -83,6 +173,7 @@ export type WorkspaceSnapshot = {
     paused: Plan[];
   };
   recentNotes: Note[];
+  recentPages: Page[];
   recentPosts: Post[];
   recentTimelineEvents: TimelineEvent[];
   recentUpdates: Update[];
@@ -112,7 +203,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
     redirect(buildAdminRoute("/admin/login"));
   }
 
-  const [plans, recentPosts, recentNotes, recentUpdates, recentTimelineEvents] = await Promise.all([
+  const [plans, recentPosts, recentNotes, recentUpdates, recentTimelineEvents, recentPages] = await Promise.all([
     payload.find({
       collection: "plans",
       depth: 1,
@@ -147,6 +238,13 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       limit: 5,
       overrideAccess: true,
       sort: "-eventDate",
+    }),
+    payload.find({
+      collection: "pages",
+      depth: 0,
+      limit: 5,
+      overrideAccess: true,
+      sort: "-updatedAt",
     }),
   ]);
 
@@ -256,6 +354,24 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
   const activePlansWithoutOutputs = plans.docs.filter(
     (plan) => plan.state === "active" && !hasLinkedOutputs(plan),
   );
+  const linkedContentKeys = new Set(
+    plans.docs.flatMap((plan) =>
+      (plan.linkedContent ?? []).map((item) => getLinkedContentKey(item)).filter((item): item is string => Boolean(item)),
+    ),
+  );
+  const recentContent = [
+    ...recentPosts.docs.map((doc) => createContentSummary("posts", doc)),
+    ...recentNotes.docs.map((doc) => createContentSummary("notes", doc)),
+    ...recentUpdates.docs.map((doc) => createContentSummary("updates", doc)),
+    ...recentTimelineEvents.docs.map((doc) => createContentSummary("timeline-events", doc)),
+    ...recentPages.docs.map((doc) => createContentSummary("pages", doc)),
+  ].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const recentContentWithPlans = recentContent
+    .filter((item) => linkedContentKeys.has(`${item.kind}:${item.id}`))
+    .slice(0, 6);
+  const recentContentWithoutPlans = recentContent
+    .filter((item) => !linkedContentKeys.has(`${item.kind}:${item.id}`))
+    .slice(0, 6);
 
   return {
     counts: {
@@ -271,6 +387,8 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
         draftTimelineEvents.totalDocs,
       highPriorityPlans: highPriorityPlans.totalDocs,
       plans: totalPlans.totalDocs,
+      recentContentWithPlans: recentContentWithPlans.length,
+      recentContentWithoutPlans: recentContentWithoutPlans.length,
       plansWithOutputs: plansWithOutputs.length,
       plansWithoutOutputs: plansWithoutOutputs.length,
       pausedPlans: pausedPlans.totalDocs,
@@ -278,6 +396,8 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
         publicContentItems + publicPages.totalDocs,
     },
     execution: {
+      recentContentWithPlans,
+      recentContentWithoutPlans,
       plansWithOutputs: plansWithOutputs.slice(0, 6),
       plansWithoutOutputs: plansWithoutOutputs.slice(0, 6),
     },
@@ -294,6 +414,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       paused: plans.docs.filter((plan) => plan.state === "paused"),
     },
     recentNotes: recentNotes.docs,
+    recentPages: recentPages.docs,
     recentPosts: recentPosts.docs,
     recentTimelineEvents: recentTimelineEvents.docs,
     recentUpdates: recentUpdates.docs,
