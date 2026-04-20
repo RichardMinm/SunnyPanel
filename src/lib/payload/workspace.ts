@@ -143,6 +143,7 @@ export type WorkspaceSnapshot = {
     draftSurfaces: number;
     highPriorityPlans: number;
     plans: number;
+    recentTimelineCandidates: number;
     recentContentWithPlans: number;
     recentContentWithoutPlans: number;
     plansWithOutputs: number;
@@ -151,6 +152,7 @@ export type WorkspaceSnapshot = {
     publicSurfaces: number;
   };
   execution: {
+    timelineCandidates: WorkspaceContentSummary[];
     recentContentWithPlans: WorkspaceContentSummary[];
     recentContentWithoutPlans: WorkspaceContentSummary[];
     plansWithOutputs: Plan[];
@@ -203,7 +205,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
     redirect(buildAdminRoute("/admin/login"));
   }
 
-  const [plans, recentPosts, recentNotes, recentUpdates, recentTimelineEvents, recentPages] = await Promise.all([
+  const [plans, recentPosts, recentNotes, recentUpdates, recentTimelineEvents, recentPages, timelineReferences] = await Promise.all([
     payload.find({
       collection: "plans",
       depth: 1,
@@ -245,6 +247,13 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       limit: 5,
       overrideAccess: true,
       sort: "-updatedAt",
+    }),
+    payload.find({
+      collection: "timeline-events",
+      depth: 0,
+      limit: 100,
+      overrideAccess: true,
+      sort: "-eventDate",
     }),
   ]);
 
@@ -372,6 +381,27 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
   const recentContentWithoutPlans = recentContent
     .filter((item) => !linkedContentKeys.has(`${item.kind}:${item.id}`))
     .slice(0, 6);
+  const linkedTimelineContentKeys = new Set(
+    timelineReferences.docs.flatMap((event) => {
+      const keys: string[] = [];
+
+      if (event.relatedPost) {
+        keys.push(`posts:${typeof event.relatedPost === "number" ? event.relatedPost : event.relatedPost.id}`);
+      }
+
+      if (event.relatedUpdate) {
+        keys.push(`updates:${typeof event.relatedUpdate === "number" ? event.relatedUpdate : event.relatedUpdate.id}`);
+      }
+
+      return keys;
+    }),
+  );
+  const timelineCandidates = [
+    ...recentPosts.docs.map((doc) => createContentSummary("posts", doc)),
+    ...recentUpdates.docs.map((doc) => createContentSummary("updates", doc)),
+  ]
+    .filter((item) => !linkedTimelineContentKeys.has(`${item.kind}:${item.id}`))
+    .slice(0, 6);
 
   return {
     counts: {
@@ -387,6 +417,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
         draftTimelineEvents.totalDocs,
       highPriorityPlans: highPriorityPlans.totalDocs,
       plans: totalPlans.totalDocs,
+      recentTimelineCandidates: timelineCandidates.length,
       recentContentWithPlans: recentContentWithPlans.length,
       recentContentWithoutPlans: recentContentWithoutPlans.length,
       plansWithOutputs: plansWithOutputs.length,
@@ -396,6 +427,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
         publicContentItems + publicPages.totalDocs,
     },
     execution: {
+      timelineCandidates,
       recentContentWithPlans,
       recentContentWithoutPlans,
       plansWithOutputs: plansWithOutputs.slice(0, 6),

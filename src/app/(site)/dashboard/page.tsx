@@ -347,6 +347,53 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      <section className="sunny-card rounded-[2.1rem] p-8">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="sunny-kicker text-xs text-muted">Timeline candidates</p>
+            <h2 className="sunny-display mt-2 text-3xl text-foreground">Recent content not yet folded into the narrative spine</h2>
+          </div>
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone("draft")}`}>
+            {snapshot.counts.recentTimelineCandidates}
+          </span>
+        </div>
+
+        <div className="mt-6 grid gap-4 xl:grid-cols-2">
+          {snapshot.execution.timelineCandidates.length > 0 ? (
+            snapshot.execution.timelineCandidates.map((item) => (
+              <div key={`${item.kind}-${item.id}`} className="rounded-[1.45rem] border border-border bg-white/60 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-white px-3 py-1 text-xs text-muted shadow-[0_2px_10px_rgba(24,34,44,0.06)]">
+                      {contentKindLabelMap[item.kind]}
+                    </span>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(item.status)}`}>
+                      {item.status}
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm text-muted">
+                  最近更新：{formatDateTime(item.updatedAt)}。如果它代表一个阶段节点，可以考虑把它挂到 Timeline。
+                </p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link className="sunny-button-secondary px-4 py-2 text-sm" href={item.href}>
+                    打开内容
+                  </Link>
+                  <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/timeline-events">
+                    新建 Timeline 节点
+                  </Link>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted xl:col-span-2">
+              最近的 Post 和 Update 都已经被整理进 Timeline，叙事主轴没有出现新的空档。
+            </div>
+          )}
+        </div>
+      </section>
+
       <section className="grid gap-6 xl:grid-cols-2">
         <div className="sunny-card rounded-[2.1rem] p-8">
           <div className="flex items-center justify-between gap-4">
