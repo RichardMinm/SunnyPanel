@@ -186,6 +186,59 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="sunny-card rounded-[2.1rem] p-8">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="sunny-kicker text-xs text-muted">First-use flow</p>
+              <h2 className="sunny-display mt-2 text-3xl text-foreground">Next actions</h2>
+            </div>
+            <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
+              {snapshot.onboarding.completed}/{snapshot.onboarding.total}
+            </span>
+          </div>
+
+          <div className="mt-6 grid gap-4">
+            {snapshot.onboarding.tasks.map((task) => (
+              <Link
+                key={task.title}
+                href={task.href}
+                className="rounded-[1.5rem] border border-border bg-white/65 p-5 transition hover:-translate-y-1 hover:bg-white"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">{task.title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-muted">{task.description}</p>
+                  </div>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${task.done ? getTone("published") : getTone("draft")}`}
+                  >
+                    {task.done ? "Done" : "Pending"}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="sunny-card rounded-[2.1rem] p-8">
+          <p className="sunny-kicker text-xs text-muted">Why this matters</p>
+          <h2 className="sunny-display mt-2 text-3xl text-foreground">Keep the first week lightweight</h2>
+
+          <div className="mt-6 space-y-4 text-sm leading-7 text-muted">
+            <div className="rounded-[1.5rem] border border-border bg-white/55 p-5">
+              现在系统已经会自动帮你准备 `About`、`Now` 和第一组私有计划，所以首次使用不再从空白 collection 开始。
+            </div>
+            <div className="rounded-[1.5rem] border border-border bg-white/55 p-5">
+              建议先完成一条公开内容、一条时间线节点，再回头继续打磨页面视觉。这样更容易验证产品方向是否成立。
+            </div>
+            <div className="rounded-[1.5rem] border border-border bg-white/55 p-5">
+              当这些最小内容都落下之后，dashboard 才会开始真正体现“公开表达 + 私有运营”的双层价值。
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="sunny-card rounded-[2.1rem] p-8">
           <div className="flex items-center justify-between gap-4">

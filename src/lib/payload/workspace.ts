@@ -5,6 +5,7 @@ import type { Note, Plan, Post, TimelineEvent, Update, User } from "@/payload-ty
 
 import { publicContentConstraint } from "@/lib/payload/access";
 import { getPayloadClient } from "@/lib/payload/client";
+import { buildOnboardingChecklist } from "@/lib/payload/onboarding";
 
 const dashboardPath = "/dashboard";
 
@@ -55,6 +56,16 @@ export type WorkspaceSnapshot = {
     plans: number;
     pausedPlans: number;
     publicSurfaces: number;
+  };
+  onboarding: {
+    completed: number;
+    tasks: {
+      description: string;
+      done: boolean;
+      href: string;
+      title: string;
+    }[];
+    total: number;
   };
   plans: {
     active: Plan[];
@@ -146,6 +157,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
     publicUpdates,
     publicTimelineEvents,
     publicPages,
+    totalTimelineEvents,
   ] = await Promise.all([
     payload.count({
       collection: "plans",
@@ -222,7 +234,14 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       overrideAccess: true,
       where: publicContentConstraint(),
     }),
+    payload.count({
+      collection: "timeline-events",
+      overrideAccess: true,
+    }),
   ]);
+
+  const publicContentItems =
+    publicPosts.totalDocs + publicNotes.totalDocs + publicUpdates.totalDocs + publicTimelineEvents.totalDocs;
 
   return {
     counts: {
@@ -239,12 +258,14 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       plans: totalPlans.totalDocs,
       pausedPlans: pausedPlans.totalDocs,
       publicSurfaces:
-        publicPosts.totalDocs +
-        publicNotes.totalDocs +
-        publicUpdates.totalDocs +
-        publicTimelineEvents.totalDocs +
-        publicPages.totalDocs,
+        publicContentItems + publicPages.totalDocs,
     },
+    onboarding: buildOnboardingChecklist({
+      activePlans: activePlans.totalDocs,
+      publicContentItems,
+      publicPages: publicPages.totalDocs,
+      timelineEvents: totalTimelineEvents.totalDocs,
+    }),
     plans: {
       active: plans.docs.filter((plan) => plan.state === "active"),
       backlog: plans.docs.filter((plan) => plan.state === "backlog"),

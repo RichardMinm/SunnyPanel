@@ -1,6 +1,28 @@
-import type { CollectionConfig } from "payload";
+import type { CollectionAfterChangeHook, CollectionConfig } from "payload";
 
+import type { User } from "@/payload-types";
+
+import { ensureInitialWorkspace } from "../lib/payload/onboarding.ts";
 import { adminsOrFirstUser, adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+
+const seedInitialWorkspace: CollectionAfterChangeHook<User> = async ({ doc, operation, req }) => {
+  if (operation !== "create") {
+    return doc;
+  }
+
+  const totalUsers = await req.payload.count({
+    collection: "users",
+    overrideAccess: true,
+  });
+
+  if (totalUsers.totalDocs !== 1) {
+    return doc;
+  }
+
+  await ensureInitialWorkspace(req.payload, doc);
+
+  return doc;
+};
 
 export const Users: CollectionConfig = {
   slug: "users",
@@ -15,6 +37,9 @@ export const Users: CollectionConfig = {
     useAsTitle: "email",
   },
   auth: true,
+  hooks: {
+    afterChange: [seedInitialWorkspace],
+  },
   fields: [
     {
       name: "displayName",
