@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import type { Plan } from "@/payload-types";
+
 import { formatDate, formatDateTime, formatShortDate } from "@/lib/formatters";
 import { getWorkspaceSnapshot } from "@/lib/payload/workspace";
 
@@ -89,6 +91,58 @@ const planColumns = [
 ] as const;
 
 const getTone = (value: string) => statusTone[value] ?? "bg-stone-200 text-stone-700";
+
+const relationLabelMap: Record<string, string> = {
+  notes: "Note",
+  pages: "Page",
+  posts: "Post",
+  "timeline-events": "Timeline",
+  updates: "Update",
+};
+
+type LinkedContentItem = NonNullable<Plan["linkedContent"]>[number];
+
+const getLinkedContent = (plan: Plan) =>
+  ((plan.linkedContent ?? []) as LinkedContentItem[])
+    .map((item: LinkedContentItem) => {
+      if (!item || typeof item !== "object" || !("relationTo" in item)) {
+        return null;
+      }
+
+      const relationTo = item.relationTo;
+      const value = item.value;
+
+      if (!value || typeof value === "number") {
+        return {
+          label: relationLabelMap[relationTo] ?? "Content",
+          title: `#${value}`,
+        };
+      }
+
+      if ("title" in value && typeof value.title === "string") {
+        return {
+          label: relationLabelMap[relationTo] ?? "Content",
+          title: value.title,
+        };
+      }
+
+      if ("content" in value && typeof value.content === "string") {
+        return {
+          label: relationLabelMap[relationTo] ?? "Content",
+          title: value.content,
+        };
+      }
+
+      if ("type" in value && typeof value.type === "string") {
+        return {
+          label: relationLabelMap[relationTo] ?? "Content",
+          title: value.type,
+        };
+      }
+
+      return null;
+    })
+    .filter((item): item is { label: string; title: string } => Boolean(item));
 
 export default async function DashboardPage() {
   const snapshot = await getWorkspaceSnapshot();
@@ -313,10 +367,7 @@ export default async function DashboardPage() {
                   <div className="mt-4 space-y-4">
                     {plans.length > 0 ? (
                       plans.map((plan) => (
-                        <div
-                          key={plan.id}
-                          className="rounded-[1.35rem] border border-border bg-white/72 p-4"
-                        >
+                        <div key={plan.id} className="rounded-[1.35rem] border border-border bg-white/72 p-4">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <h4 className="text-base font-semibold text-foreground">{plan.title}</h4>
                             <div className="flex flex-wrap gap-2">
@@ -335,6 +386,19 @@ export default async function DashboardPage() {
 
                           {plan.description ? (
                             <p className="mt-3 text-sm leading-7 text-muted">{plan.description}</p>
+                          ) : null}
+
+                          {getLinkedContent(plan).length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {getLinkedContent(plan).map((item) => (
+                                <span
+                                  key={`${plan.id}-${item.label}-${item.title}`}
+                                  className="rounded-full bg-white px-3 py-1 text-xs text-muted shadow-[0_2px_10px_rgba(24,34,44,0.06)]"
+                                >
+                                  {item.label}: {item.title}
+                                </span>
+                              ))}
+                            </div>
                           ) : null}
 
                           <p className="mt-3 text-sm text-muted">
@@ -387,6 +451,18 @@ export default async function DashboardPage() {
                     <p className="mt-3 text-sm text-muted">
                       更新于 {formatDateTime(plan.updatedAt)}
                     </p>
+                    {getLinkedContent(plan).length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {getLinkedContent(plan).map((item) => (
+                          <span
+                            key={`${plan.id}-${item.label}-${item.title}`}
+                            className="rounded-full bg-white px-3 py-1 text-xs text-muted shadow-[0_2px_10px_rgba(24,34,44,0.06)]"
+                          >
+                            {item.label}: {item.title}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))
               ) : (

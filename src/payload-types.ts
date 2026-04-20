@@ -290,6 +290,33 @@ export interface Plan {
   id: number;
   title: string;
   description?: string | null;
+  /**
+   * Attach the posts, notes, updates, timeline events, or pages that this plan is producing.
+   */
+  linkedContent?:
+    | (
+        | {
+            relationTo: 'posts';
+            value: number | Post;
+          }
+        | {
+            relationTo: 'notes';
+            value: number | Note;
+          }
+        | {
+            relationTo: 'updates';
+            value: number | Update;
+          }
+        | {
+            relationTo: 'timeline-events';
+            value: number | TimelineEvent;
+          }
+        | {
+            relationTo: 'pages';
+            value: number | Page;
+          }
+      )[]
+    | null;
   state: 'backlog' | 'active' | 'paused' | 'done';
   status: 'draft' | 'published';
   priority: 'low' | 'medium' | 'high';
@@ -564,6 +591,7 @@ export interface TimelineEventsSelect<T extends boolean = true> {
 export interface PlansSelect<T extends boolean = true> {
   title?: T;
   description?: T;
+  linkedContent?: T;
   state?: T;
   status?: T;
   priority?: T;

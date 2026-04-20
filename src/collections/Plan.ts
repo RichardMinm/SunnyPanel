@@ -28,6 +28,15 @@ export const Plan: CollectionConfig = {
       type: "textarea",
     },
     {
+      name: "linkedContent",
+      type: "relationship",
+      admin: {
+        description: "Attach the posts, notes, updates, timeline events, or pages that this plan is producing.",
+      },
+      hasMany: true,
+      relationTo: ["posts", "notes", "updates", "timeline-events", "pages"],
+    },
+    {
       name: "state",
       type: "select",
       defaultValue: "backlog",

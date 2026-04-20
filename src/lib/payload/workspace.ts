@@ -106,7 +106,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
   const [plans, recentPosts, recentNotes, recentUpdates, recentTimelineEvents] = await Promise.all([
     payload.find({
       collection: "plans",
-      depth: 0,
+      depth: 1,
       limit: 24,
       overrideAccess: true,
       sort: "dueDate",
