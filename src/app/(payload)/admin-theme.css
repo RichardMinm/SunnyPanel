@@ -105,6 +105,14 @@
     backdrop-filter: blur(14px);
   }
 
+  .app-header {
+    margin-bottom: 14px;
+  }
+
+  .doc-controls {
+    margin-bottom: 16px;
+  }
+
   html[data-theme="dark"] .app-header,
   html[data-theme="dark"] .doc-controls,
   html[data-theme="dark"] .nav,

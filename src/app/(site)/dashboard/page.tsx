@@ -8,58 +8,58 @@ import { getWorkspaceSnapshot } from "@/lib/payload/workspace";
 const workspaceShortcuts = [
   {
     href: "/admin/collections/posts",
-    label: "Write a Post",
-    description: "Long-form publishing, summary writing, and cover image setup.",
+    label: "写文章",
+    description: "长文发布、摘要整理和封面配置。",
   },
   {
     href: "/admin/collections/notes",
-    label: "Capture a Note",
-    description: "Quick fragments, short reflections, and lightweight entries.",
+    label: "记录 Note",
+    description: "碎片、短想法和轻量记录。",
   },
   {
     href: "/admin/collections/updates",
-    label: "Log an Update",
-    description: "Short progress logs for work, life, and project movement.",
+    label: "记录 Update",
+    description: "工作、生活与项目推进的短日志。",
   },
   {
     href: "/admin/collections/timeline-events",
-    label: "Add Timeline Event",
-    description: "Attach milestones to the public narrative spine.",
+    label: "新增时间线节点",
+    description: "把阶段节点挂到公开叙事主轴上。",
   },
   {
     href: "/admin/collections/plans",
-    label: "Manage Plans",
-    description: "Private goals, active priorities, and lightweight planning.",
+    label: "管理 Plans",
+    description: "私有目标、当前优先级与轻量规划。",
   },
   {
     href: "/admin/collections/media",
-    label: "Upload Media",
-    description: "Centralized images and file assets for the whole system.",
+    label: "上传媒体",
+    description: "统一管理全站图片和文件资源。",
   },
   {
     href: "/admin/collections/pages",
-    label: "Manage Pages",
-    description: "About, Now, and other long-lived public pages.",
+    label: "管理页面",
+    description: "About、Now 和其他长期存在的公开页面。",
   },
   {
     href: "/admin/collections/checklists",
-    label: "Manage Checklists",
-    description: "Grouped learning lists, task trees, and timeline-ready completion records.",
+    label: "管理清单",
+    description: "分组学习清单、任务树和可回看的完成记录。",
   },
 ];
 
 const workspaceTracks = [
   {
-    title: "Content operations",
-    body: "Use Payload Admin as the source of truth for creation, publishing, and media management while the custom private UI is still being assembled.",
+    title: "内容运营",
+    body: "Admin 负责录入、发布和媒体管理，Dashboard 负责把这些动作重新组织成更适合日常推进的总览。",
   },
   {
-    title: "Planning layer",
-    body: "Plans now have their own workflow state, so the dashboard can act more like a real workspace instead of a passive summary screen.",
+    title: "计划层",
+    body: "Plans 已经有了状态流转，所以这里更像工作台，而不是单纯的数据列表。",
   },
   {
-    title: "Review rhythm",
-    body: "Timeline and updates are already readable on the public side, which means every new record you add immediately reinforces the site's long-term memory.",
+    title: "回顾节奏",
+    body: "Timeline 和 Updates 已经会自动承接公开侧内容，因此这里更强调推进和回看，而不是逐条编辑。",
   },
 ];
 
@@ -167,9 +167,9 @@ export default async function DashboardPage() {
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-6 py-8 md:px-10 lg:px-12">
       <section className="sunny-card sunny-card-strong rounded-[2.3rem] p-8 md:p-10">
         <div className="flex flex-wrap gap-3">
-          <span className="sunny-chip">Private workspace</span>
+          <span className="sunny-chip">私有工作台</span>
           <span className="sunny-chip">计划流转已接入</span>
-          <span className="sunny-chip">登录态感知</span>
+          <span className="sunny-chip">总览优先，不做逐条编辑</span>
         </div>
 
         <div className="mt-8 grid gap-8 xl:grid-cols-[1.25fr_0.75fr]">
@@ -179,13 +179,13 @@ export default async function DashboardPage() {
               Dashboard
             </h1>
             <p className="mt-5 max-w-3xl text-base leading-8 text-muted">
-              你好，{displayName}。这里已经不只是入口页，而是一个真正会汇总计划、草稿、
-              最近内容和公开侧状态的私有工作台，方便你从同一处继续运营 SunnyPanel。
+              你好，{displayName}。这里负责看整体推进情况、执行缺口和最近变化；
+              `Admin` 则负责真正去创建、编辑和发布内容。两者相关，但职责并不一样。
             </p>
           </div>
 
           <div className="sunny-panel rounded-[1.9rem] p-6">
-            <p className="sunny-kicker text-xs text-muted">Today at a glance</p>
+            <p className="sunny-kicker text-xs text-muted">今天概览</p>
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
               <div className="rounded-[1.4rem] border border-border bg-white/55 p-4">
                 <p className="text-sm text-muted">活跃计划</p>
@@ -207,13 +207,13 @@ export default async function DashboardPage() {
             className="sunny-button-primary"
             href="/admin"
           >
-            Open Payload Admin
+            进入 Admin 编辑
           </Link>
           <Link
             className="sunny-button-secondary"
             href="/timeline"
           >
-            Review Public Timeline
+            查看公开时间线
           </Link>
         </div>
       </section>

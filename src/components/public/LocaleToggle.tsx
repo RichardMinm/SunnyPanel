@@ -11,6 +11,10 @@ type LocaleToggleProps = {
 };
 
 const locales: SiteLocale[] = ["zh", "en"];
+const localeLabels: Record<SiteLocale, string> = {
+  en: "EN",
+  zh: "中文",
+};
 
 export function LocaleToggle({ currentLocale, label }: LocaleToggleProps) {
   const router = useRouter();
@@ -44,7 +48,7 @@ export function LocaleToggle({ currentLocale, label }: LocaleToggleProps) {
           onClick={() => switchLocale(locale)}
           type="button"
         >
-          {locale.toUpperCase()}
+          {localeLabels[locale]}
         </button>
       ))}
     </div>

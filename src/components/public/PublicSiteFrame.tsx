@@ -60,14 +60,20 @@ export function PublicSiteFrame({ children, locale }: PublicSiteFrameProps) {
             </nav>
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
-            <LocaleToggle currentLocale={locale} label={copy.common.localeLabel} />
-            <Link href="/dashboard" className="sunny-button-secondary w-full sm:w-auto">
-              {copy.frame.dashboard}
-            </Link>
-            <Link href="/admin" className="sunny-button-primary w-full sm:w-auto">
-              {copy.frame.admin}
-            </Link>
+          <div className="flex flex-col gap-2 sm:items-end">
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="text-[0.72rem] font-semibold text-muted">{copy.common.localeLabel}</span>
+              <LocaleToggle currentLocale={locale} label={copy.common.localeLabel} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+              <Link href="/dashboard" className="sunny-button-secondary w-full sm:w-auto">
+                {copy.frame.dashboard}
+              </Link>
+              <Link href="/admin" className="sunny-button-primary w-full sm:w-auto">
+                {copy.frame.admin}
+              </Link>
+            </div>
           </div>
         </div>
       </header>
