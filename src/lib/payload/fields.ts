@@ -1,5 +1,39 @@
-import type { Field } from "payload";
-import { slugField } from "payload";
+import type { Field, FieldHook } from "payload";
+
+const normalizeSlug = (value: string) =>
+  value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const createSlugAutofillHook = (useAsSlug: string): FieldHook => ({ data, originalDoc, value }) => {
+  if (typeof value === "string" && value.trim()) {
+    return normalizeSlug(value);
+  }
+
+  if (
+    originalDoc &&
+    typeof originalDoc === "object" &&
+    "slug" in originalDoc &&
+    typeof originalDoc.slug === "string" &&
+    originalDoc.slug.trim()
+  ) {
+    return originalDoc.slug;
+  }
+
+  const sourceValue = data?.[useAsSlug];
+
+  if (typeof sourceValue !== "string" || !sourceValue.trim()) {
+    return value;
+  }
+
+  const generated = normalizeSlug(sourceValue);
+
+  return generated || value;
+};
 
 export const statusField: Field = {
   name: "status",
@@ -46,41 +80,19 @@ export const publishedAtField: Field = {
   },
 };
 
-export const createSlugField = (useAsSlug = "title"): Field =>
-  slugField({
-    overrides: (field) => ({
-      ...field,
-      fields: field.fields.map((subField, index) => {
-        if (index !== 0) {
-          return subField;
-        }
-
-        const generateField = subField as Field & {
-          admin?: {
-            description?: string;
-            hidden?: boolean;
-          };
-          defaultValue?: boolean;
-          label?: string;
-          name?: string;
-        };
-
-        if (generateField.name !== "generateSlug") {
-          return subField;
-        }
-
-        return {
-          ...generateField,
-          admin: {
-            ...generateField.admin,
-            description: "需要自动生成时再勾选；默认可直接手动输入 slug。",
-            hidden: false,
-          },
-          defaultValue: false,
-          label: "Auto-generate slug",
-        } as Field;
-      }),
-    }),
-    useAsSlug,
+export const createSlugField = (useAsSlug = "title"): Field => ({
+  name: "slug",
+  type: "text",
+  index: true,
+  localized: false,
+  required: true,
+  unique: true,
+  admin: {
+    description: "可直接手动输入。若留空，系统会尝试根据标题自动生成。",
+    placeholder: "例如：math-functions",
     position: "sidebar",
-  });
+  },
+  hooks: {
+    beforeValidate: [createSlugAutofillHook(useAsSlug)],
+  },
+});

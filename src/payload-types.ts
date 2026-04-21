@@ -205,9 +205,8 @@ export interface Post {
   id: number;
   title: string;
   /**
-   * 需要自动生成时再勾选；默认可直接手动输入 slug。
+   * 可直接手动输入。若留空，系统会尝试根据标题自动生成。
    */
-  generateSlug?: boolean | null;
   slug: string;
   summary: string;
   content: {
@@ -276,9 +275,8 @@ export interface Checklist {
    */
   title: string;
   /**
-   * 需要自动生成时再勾选；默认可直接手动输入 slug。
+   * 可直接手动输入。若留空，系统会尝试根据标题自动生成。
    */
-  generateSlug?: boolean | null;
   slug: string;
   summary?: string | null;
   /**
@@ -395,9 +393,8 @@ export interface Page {
   id: number;
   title: string;
   /**
-   * 需要自动生成时再勾选；默认可直接手动输入 slug。
+   * 可直接手动输入。若留空，系统会尝试根据标题自动生成。
    */
-  generateSlug?: boolean | null;
   slug: string;
   content: {
     root: {
@@ -592,7 +589,6 @@ export interface MediaSelect<T extends boolean = true> {
  */
 export interface PostsSelect<T extends boolean = true> {
   title?: T;
-  generateSlug?: T;
   slug?: T;
   summary?: T;
   content?: T;
@@ -637,7 +633,6 @@ export interface UpdatesSelect<T extends boolean = true> {
  */
 export interface ChecklistsSelect<T extends boolean = true> {
   title?: T;
-  generateSlug?: T;
   slug?: T;
   summary?: T;
   groups?:
@@ -705,7 +700,6 @@ export interface PlansSelect<T extends boolean = true> {
  */
 export interface PagesSelect<T extends boolean = true> {
   title?: T;
-  generateSlug?: T;
   slug?: T;
   content?: T;
   status?: T;
