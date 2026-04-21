@@ -11,6 +11,7 @@ import { Note } from "./src/collections/Note.ts";
 import { Page } from "./src/collections/Page.ts";
 import { Plan } from "./src/collections/Plan.ts";
 import { Post } from "./src/collections/Post.ts";
+import { Checklist } from "./src/collections/Checklist.ts";
 import { TimelineEvent } from "./src/collections/TimelineEvent.ts";
 import { Update } from "./src/collections/Update.ts";
 import { Users } from "./src/collections/Users.ts";
@@ -28,7 +29,7 @@ export default buildConfig({
       importMapFile: path.resolve(dirname, "src/app/(payload)/admin/importMap.js"),
     },
   },
-  collections: [Users, Media, Post, Note, Update, TimelineEvent, Plan, Page],
+  collections: [Users, Media, Post, Note, Update, Checklist, TimelineEvent, Plan, Page],
   cors: [serverURL],
   csrf: [serverURL],
   db: postgresAdapter({

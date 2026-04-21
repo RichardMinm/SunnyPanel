@@ -63,6 +63,19 @@ export const TimelineEvent: CollectionConfig = {
       relationTo: "updates",
     },
     {
+      name: "relatedChecklist",
+      type: "relationship",
+      relationTo: "checklists",
+    },
+    {
+      name: "relatedTaskKey",
+      type: "text",
+      admin: {
+        description: "Used internally to prevent duplicate task completion records.",
+        readOnly: true,
+      },
+    },
+    {
       name: "isFeatured",
       type: "checkbox",
       defaultValue: false,

@@ -41,6 +41,11 @@ const workspaceShortcuts = [
     label: "Manage Pages",
     description: "About, Now, and other long-lived public pages.",
   },
+  {
+    href: "/admin/collections/checklists",
+    label: "Manage Checklists",
+    description: "Grouped learning lists, task trees, and timeline-ready completion records.",
+  },
 ];
 
 const workspaceTracks = [
@@ -93,6 +98,7 @@ const planColumns = [
 const getTone = (value: string) => statusTone[value] ?? "bg-stone-200 text-stone-700";
 
 const relationLabelMap: Record<string, string> = {
+  checklists: "Checklist",
   notes: "Note",
   pages: "Page",
   posts: "Post",
@@ -101,6 +107,7 @@ const relationLabelMap: Record<string, string> = {
 };
 
 const contentKindLabelMap = {
+  checklists: "Checklist",
   notes: "Note",
   pages: "Page",
   posts: "Post",

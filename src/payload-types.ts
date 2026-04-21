@@ -72,6 +72,7 @@ export interface Config {
     posts: Post;
     notes: Note;
     updates: Update;
+    checklists: Checklist;
     'timeline-events': TimelineEvent;
     plans: Plan;
     pages: Page;
@@ -87,6 +88,7 @@ export interface Config {
     posts: PostsSelect<false> | PostsSelect<true>;
     notes: NotesSelect<false> | NotesSelect<true>;
     updates: UpdatesSelect<false> | UpdatesSelect<true>;
+    checklists: ChecklistsSelect<false> | ChecklistsSelect<true>;
     'timeline-events': TimelineEventsSelect<false> | TimelineEventsSelect<true>;
     plans: PlansSelect<false> | PlansSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
@@ -265,6 +267,53 @@ export interface Update {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "checklists".
+ */
+export interface Checklist {
+  id: number;
+  title: string;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
+  slug: string;
+  summary?: string | null;
+  /**
+   * Use groups such as subjects, chapters, or modules. Each group can hold its own checklist items.
+   */
+  groups?:
+    | {
+        title: string;
+        /**
+         * Mark an item complete, add a note, and SunnyPanel will create a timeline entry automatically.
+         */
+        items?:
+          | {
+              title: string;
+              description?: string | null;
+              isCompleted?: boolean | null;
+              /**
+               * Optional. If omitted, the timeline record will use the current time.
+               */
+              completedAt?: string | null;
+              completionNote?: string | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  status: 'draft' | 'published';
+  /**
+   * Optional publish date for sorting and display.
+   */
+  publishedAt?: string | null;
+  visibility: 'public' | 'private';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "timeline-events".
  */
 export interface TimelineEvent {
@@ -275,6 +324,11 @@ export interface TimelineEvent {
   type: 'milestone' | 'project' | 'life';
   relatedPost?: (number | null) | Post;
   relatedUpdate?: (number | null) | Update;
+  relatedChecklist?: (number | null) | Checklist;
+  /**
+   * Used internally to prevent duplicate task completion records.
+   */
+  relatedTaskKey?: string | null;
   isFeatured?: boolean | null;
   sortOrder?: number | null;
   status: 'draft' | 'published';
@@ -291,7 +345,7 @@ export interface Plan {
   title: string;
   description?: string | null;
   /**
-   * Attach the posts, notes, updates, timeline events, or pages that this plan is producing.
+   * Attach the posts, notes, updates, checklists, timeline events, or pages that this plan is producing.
    */
   linkedContent?:
     | (
@@ -306,6 +360,10 @@ export interface Plan {
         | {
             relationTo: 'updates';
             value: number | Update;
+          }
+        | {
+            relationTo: 'checklists';
+            value: number | Checklist;
           }
         | {
             relationTo: 'timeline-events';
@@ -401,6 +459,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'updates';
         value: number | Update;
+      } | null)
+    | ({
+        relationTo: 'checklists';
+        value: number | Checklist;
       } | null)
     | ({
         relationTo: 'timeline-events';
@@ -568,6 +630,37 @@ export interface UpdatesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "checklists_select".
+ */
+export interface ChecklistsSelect<T extends boolean = true> {
+  title?: T;
+  generateSlug?: T;
+  slug?: T;
+  summary?: T;
+  groups?:
+    | T
+    | {
+        title?: T;
+        items?:
+          | T
+          | {
+              title?: T;
+              description?: T;
+              isCompleted?: T;
+              completedAt?: T;
+              completionNote?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  status?: T;
+  publishedAt?: T;
+  visibility?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "timeline-events_select".
  */
 export interface TimelineEventsSelect<T extends boolean = true> {
@@ -577,6 +670,8 @@ export interface TimelineEventsSelect<T extends boolean = true> {
   type?: T;
   relatedPost?: T;
   relatedUpdate?: T;
+  relatedChecklist?: T;
+  relatedTaskKey?: T;
   isFeatured?: T;
   sortOrder?: T;
   status?: T;

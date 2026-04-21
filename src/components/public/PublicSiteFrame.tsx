@@ -8,6 +8,7 @@ const navigation = [
   { href: "/", label: "首页" },
   { href: "/about", label: "About" },
   { href: "/now", label: "Now" },
+  { href: "/checklists", label: "清单" },
   { href: "/blog", label: "Blog" },
   { href: "/notes", label: "Notes" },
   { href: "/updates", label: "Updates" },
@@ -22,17 +23,17 @@ export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
   const pathname = usePathname();
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-4 md:px-8 lg:px-10">
-      <header className="sunny-panel sticky top-4 z-20 rounded-[1.9rem] px-5 py-4 md:px-7">
+    <div className="mx-auto flex w-full max-w-[74rem] flex-1 flex-col px-4 py-4 md:px-6 lg:px-8">
+      <header className="sunny-panel sticky top-4 z-20 rounded-[1.7rem] px-4 py-3.5 md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="group inline-flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-base font-bold text-white shadow-[0_14px_30px_rgba(143,53,16,0.22)] transition group-hover:-translate-y-0.5">
+              <span className="flex h-10 w-10 items-center justify-center rounded-[1.15rem] bg-accent text-sm font-bold text-white shadow-[0_14px_30px_rgba(143,53,16,0.22)] transition group-hover:-translate-y-0.5">
                 S
               </span>
               <div>
                 <p className="sunny-kicker text-[0.68rem] text-accent-strong">SunnyPanel</p>
-                <p className="text-sm text-muted">个人表达与私有运营面板</p>
+                <p className="text-[0.82rem] text-muted">个人表达与私有运营面板</p>
               </div>
             </Link>
           </div>
@@ -70,7 +71,7 @@ export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
         {children}
       </div>
 
-      <footer className="mt-10 rounded-[2rem] border border-border/80 bg-white/45 px-6 py-7 backdrop-blur md:px-8">
+      <footer className="mt-9 rounded-[1.8rem] border border-border/80 bg-white/45 px-5 py-6 backdrop-blur md:px-7">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <p className="sunny-kicker text-xs text-muted">SunnyPanel</p>

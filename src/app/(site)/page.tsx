@@ -4,6 +4,7 @@ import { PostPreviewCard } from "@/components/public/PostPreviewCard";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { formatDate } from "@/lib/formatters";
 import {
+  getPublicChecklists,
   getPublicNotes,
   getPublicPages,
   getPublicPostsWithOptions,
@@ -14,6 +15,7 @@ import {
 const publicSurfaces = [
   { href: "/about", label: "About", description: "适合放个人介绍、方法论与站点说明。", status: "Ready" },
   { href: "/now", label: "Now", description: "适合记录当前正在做的事与近期状态。", status: "Ready" },
+  { href: "/checklists", label: "清单", description: "分组折叠的课程、任务与长期学习列表。", status: "New" },
   { href: "/blog", label: "Blog", description: "长文章、项目复盘与成体系的写作。", status: "Live" },
   { href: "/notes", label: "Notes", description: "适合碎片灵感、短想法和过程片段。", status: "Rolling" },
   { href: "/updates", label: "Updates", description: "记录生活、工作和项目推进的动态流。", status: "Rolling" },
@@ -26,12 +28,13 @@ const privateSurfaces = [
 ];
 
 export default async function Home() {
-  const [posts, notes, updates, timeline, pages] = await Promise.all([
+  const [posts, notes, updates, timeline, pages, checklists] = await Promise.all([
     getPublicPostsWithOptions({ limit: 3 }),
     getPublicNotes({ limit: 4 }),
     getPublicUpdates({ limit: 4 }),
     getPublicTimelineEvents({ featuredOnly: true, limit: 3 }),
     getPublicPages({ limit: 6 }),
+    getPublicChecklists({ limit: 6 }),
   ]);
 
   const pinnedNotes = notes.docs.filter((note) => note.pinned).length;
@@ -71,10 +74,15 @@ export default async function Home() {
               <div className="rounded-[1.6rem] border border-border bg-white/55 p-5">
                 <p className="sunny-kicker text-[0.7rem] text-muted">Public records</p>
                 <p className="mt-3 text-3xl font-semibold text-foreground">
-                  {posts.totalDocs + notes.totalDocs + updates.totalDocs + timeline.totalDocs + pages.totalDocs}
+                  {posts.totalDocs +
+                    notes.totalDocs +
+                    updates.totalDocs +
+                    timeline.totalDocs +
+                    pages.totalDocs +
+                    checklists.totalDocs}
                 </p>
                 <p className="mt-2 text-sm leading-7 text-muted">
-                  公开层已接入首页、列表页、时间线叙事和固定页面。
+                  公开层已接入首页、列表页、时间线叙事、固定页面和折叠清单。
                 </p>
               </div>
               <div className="rounded-[1.6rem] border border-border bg-white/55 p-5">

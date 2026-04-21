@@ -1,7 +1,7 @@
 import { headers as getHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 
-import type { Note, Page, Plan, Post, TimelineEvent, Update, User } from "@/payload-types";
+import type { Checklist, Note, Page, Plan, Post, TimelineEvent, Update, User } from "@/payload-types";
 
 import { publicContentConstraint } from "@/lib/payload/access";
 import { getPayloadClient } from "@/lib/payload/client";
@@ -67,7 +67,7 @@ const getLinkedContentKey = (item: NonNullable<Plan["linkedContent"]>[number]) =
 type WorkspaceContentSummary = {
   href: string;
   id: number;
-  kind: "notes" | "pages" | "posts" | "timeline-events" | "updates";
+  kind: "checklists" | "notes" | "pages" | "posts" | "timeline-events" | "updates";
   status: "draft" | "published";
   title: string;
   updatedAt: string;
@@ -75,9 +75,18 @@ type WorkspaceContentSummary = {
 
 const createContentSummary = (
   kind: WorkspaceContentSummary["kind"],
-  doc: Note | Page | Post | TimelineEvent | Update,
+  doc: Checklist | Note | Page | Post | TimelineEvent | Update,
 ): WorkspaceContentSummary => {
   switch (kind) {
+    case "checklists":
+      return {
+        href: `/admin/collections/checklists/${doc.id}`,
+        id: doc.id,
+        kind,
+        status: doc.status,
+        title: "title" in doc ? doc.title : "Untitled Checklist",
+        updatedAt: doc.updatedAt,
+      };
     case "posts":
       return {
         href: `/admin/collections/posts/${doc.id}`,
@@ -205,7 +214,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
     redirect(buildAdminRoute("/admin/login"));
   }
 
-  const [plans, recentPosts, recentNotes, recentUpdates, recentTimelineEvents, recentPages, timelineReferences] = await Promise.all([
+  const [plans, recentPosts, recentNotes, recentUpdates, recentTimelineEvents, recentPages, recentChecklists, timelineReferences] = await Promise.all([
     payload.find({
       collection: "plans",
       depth: 1,
@@ -249,6 +258,13 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       sort: "-updatedAt",
     }),
     payload.find({
+      collection: "checklists",
+      depth: 0,
+      limit: 5,
+      overrideAccess: true,
+      sort: "-updatedAt",
+    }),
+    payload.find({
       collection: "timeline-events",
       depth: 0,
       limit: 100,
@@ -273,6 +289,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
     publicUpdates,
     publicTimelineEvents,
     publicPages,
+    publicChecklists,
     totalTimelineEvents,
   ] = await Promise.all([
     payload.count({
@@ -351,6 +368,11 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       where: publicContentConstraint(),
     }),
     payload.count({
+      collection: "checklists",
+      overrideAccess: true,
+      where: publicContentConstraint(),
+    }),
+    payload.count({
       collection: "timeline-events",
       overrideAccess: true,
     }),
@@ -374,6 +396,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
     ...recentUpdates.docs.map((doc) => createContentSummary("updates", doc)),
     ...recentTimelineEvents.docs.map((doc) => createContentSummary("timeline-events", doc)),
     ...recentPages.docs.map((doc) => createContentSummary("pages", doc)),
+    ...recentChecklists.docs.map((doc) => createContentSummary("checklists", doc)),
   ].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   const recentContentWithPlans = recentContent
     .filter((item) => linkedContentKeys.has(`${item.kind}:${item.id}`))
@@ -424,7 +447,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       plansWithoutOutputs: plansWithoutOutputs.length,
       pausedPlans: pausedPlans.totalDocs,
       publicSurfaces:
-        publicContentItems + publicPages.totalDocs,
+        publicContentItems + publicPages.totalDocs + publicChecklists.totalDocs,
     },
     execution: {
       timelineCandidates,

@@ -31,10 +31,10 @@ export const Plan: CollectionConfig = {
       name: "linkedContent",
       type: "relationship",
       admin: {
-        description: "Attach the posts, notes, updates, timeline events, or pages that this plan is producing.",
+        description: "Attach the posts, notes, updates, checklists, timeline events, or pages that this plan is producing.",
       },
       hasMany: true,
-      relationTo: ["posts", "notes", "updates", "timeline-events", "pages"],
+      relationTo: ["posts", "notes", "updates", "checklists", "timeline-events", "pages"],
     },
     {
       name: "state",

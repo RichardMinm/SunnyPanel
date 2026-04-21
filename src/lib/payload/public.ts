@@ -87,6 +87,7 @@ export const getPublicNotes = async ({ limit = 30 }: QueryOptions = {}) => {
   const payload = await getPayloadClient();
 
   return payload.find({
+    depth: 0,
     collection: "notes",
     limit,
     sort: "-createdAt",
@@ -98,9 +99,22 @@ export const getPublicUpdates = async ({ limit = 30 }: QueryOptions = {}) => {
   const payload = await getPayloadClient();
 
   return payload.find({
+    depth: 0,
     collection: "updates",
     limit,
     sort: "-createdAt",
+    where: publicContentConstraint(),
+  });
+};
+
+export const getPublicChecklists = async ({ limit = 20 }: QueryOptions = {}) => {
+  const payload = await getPayloadClient();
+
+  return payload.find({
+    collection: "checklists",
+    depth: 0,
+    limit,
+    sort: "-updatedAt",
     where: publicContentConstraint(),
   });
 };
