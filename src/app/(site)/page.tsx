@@ -1,7 +1,10 @@
+import Image from "next/image";
+
 import type { Checklist } from "@/payload-types";
 
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { formatDate } from "@/lib/formatters";
+import { getMediaAssetFromRecord, getMediaDisplayUrl } from "@/lib/media";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicChecklists, getPublicUpdates } from "@/lib/payload/public";
@@ -26,7 +29,7 @@ export default async function Home() {
   ]);
 
   return (
-    <PublicSiteFrame locale={locale}>
+    <PublicSiteFrame locale={locale} showTimelineRail={false}>
       <main className="flex flex-1 flex-col gap-5 pb-5 md:gap-6">
         <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr] xl:gap-6">
           <div className="sunny-card rounded-[1.55rem] p-5 sm:p-6 md:rounded-[1.9rem] md:p-7">
@@ -141,6 +144,22 @@ export default async function Home() {
                       <span className="sunny-badge sunny-badge-accent">{update.type}</span>
                       <span className="text-sm text-muted">{formatDate(update.createdAt)}</span>
                     </div>
+                    {(() => {
+                      const coverImage = getMediaAssetFromRecord(update as unknown as Record<string, unknown>);
+
+                      return coverImage ? (
+                        <div className="mt-4 overflow-hidden rounded-[1rem] border border-border/80">
+                          <Image
+                            alt={coverImage.alt}
+                            className="h-44 w-full object-cover"
+                            height={coverImage.height || 720}
+                            src={getMediaDisplayUrl(coverImage, "thumbnail")}
+                            unoptimized
+                            width={coverImage.width || 1280}
+                          />
+                        </div>
+                      ) : null;
+                    })()}
                     <p className="mt-4 text-sm leading-8 text-foreground">{update.content}</p>
                     {update.link ? (
                       <a

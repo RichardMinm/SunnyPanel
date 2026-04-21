@@ -1,102 +1,81 @@
-"use client";
-
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
 
-import { LocaleToggle } from "@/components/public/LocaleToggle";
+import { PublicSiteFooter, PublicSiteHeader } from "@/components/public/PublicSiteChrome";
+import { formatShortDate } from "@/lib/formatters";
 import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
+import { getPublicTimelineEvents } from "@/lib/payload/public";
 
 type PublicSiteFrameProps = {
   children: ReactNode;
   locale: SiteLocale;
+  showTimelineRail?: boolean;
+  themeToggle?: ReactNode;
 };
 
-export function PublicSiteFrame({ children, locale }: PublicSiteFrameProps) {
-  const pathname = usePathname();
+export async function PublicSiteFrame({
+  children,
+  locale,
+  showTimelineRail = true,
+  themeToggle,
+}: PublicSiteFrameProps) {
   const copy = getSiteCopy(locale);
-  const navigation = [
-    { href: "/", label: copy.nav.home },
-    { href: "/about", label: copy.nav.about },
-    { href: "/now", label: copy.nav.now },
-    { href: "/checklists", label: copy.nav.checklists },
-    { href: "/blog", label: copy.nav.blog },
-    { href: "/notes", label: copy.nav.notes },
-    { href: "/updates", label: copy.nav.updates },
-    { href: "/timeline", label: copy.nav.timeline },
-  ];
+  const recentTimeline = showTimelineRail
+    ? (await getPublicTimelineEvents({ limit: 5 })).docs
+    : [];
 
   return (
     <div className="mx-auto flex w-full max-w-[74rem] flex-1 flex-col px-3 py-3 sm:px-4 md:px-6 lg:px-8">
-      <header className="sunny-panel rounded-[1.45rem] px-3 py-3 md:rounded-[1.7rem] md:px-6 md:py-3.5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="group inline-flex min-w-0 items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.95rem] bg-accent text-sm font-bold text-white shadow-[0_10px_24px_rgba(143,53,16,0.18)] transition group-hover:-translate-y-0.5 md:h-10 md:w-10">
-                S
-              </span>
-              <div className="min-w-0">
-                <p className="sunny-kicker text-[0.68rem] text-accent-strong">SunnyPanel</p>
-                <p className="truncate text-[0.78rem] text-muted md:text-[0.82rem]">{copy.frame.tagline}</p>
-              </div>
-            </Link>
-          </div>
+      <PublicSiteHeader locale={locale} themeToggle={themeToggle} />
 
-          <div className="-mx-1 overflow-x-auto pb-1">
-            <nav className="flex min-w-max flex-nowrap gap-1 px-1">
-              {navigation.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`sunny-nav-link shrink-0 whitespace-nowrap ${
-                    pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
-                      ? "sunny-nav-link-active"
-                      : ""
-                  }`}
-                >
-                  {item.label}
+      <div
+        className={`mt-5 flex-1 ${showTimelineRail ? "grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start" : ""} md:mt-6`}
+      >
+        <div className="min-w-0">{children}</div>
+
+        {showTimelineRail ? (
+          <aside className="hidden xl:block">
+            <div className="sunny-panel sticky top-6 rounded-[1.6rem] px-5 py-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="sunny-kicker text-[0.68rem] text-muted">Timeline</p>
+                  <h2 className="mt-2 text-xl font-semibold text-foreground">{copy.nav.timeline}</h2>
+                </div>
+                <Link href="/timeline" className="text-sm font-semibold text-accent-strong">
+                  {locale === "en" ? "All" : "全部"}
                 </Link>
-              ))}
-            </nav>
-          </div>
+              </div>
 
-          <div className="flex flex-col gap-2 sm:items-end">
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <span className="text-[0.72rem] font-semibold text-muted">{copy.common.localeLabel}</span>
-              <LocaleToggle currentLocale={locale} label={copy.common.localeLabel} />
+              <div className="mt-5 space-y-3">
+                {recentTimeline.length > 0 ? (
+                  recentTimeline.map((event) => (
+                    <Link
+                      key={event.id}
+                      href="/timeline"
+                      className="block rounded-[1.15rem] border border-border bg-white/62 px-4 py-4 transition hover:-translate-y-1 hover:bg-white"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="sunny-badge sunny-badge-accent">{event.type}</span>
+                        <span className="text-xs text-muted">{formatShortDate(event.eventDate)}</span>
+                      </div>
+                      <p className="mt-3 text-sm font-semibold leading-7 text-foreground">{event.title}</p>
+                      {event.description ? (
+                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted">{event.description}</p>
+                      ) : null}
+                    </Link>
+                  ))
+                ) : (
+                  <div className="rounded-[1.15rem] border border-dashed border-border bg-white/45 px-4 py-4 text-sm leading-7 text-muted">
+                    {copy.timeline.emptyBody}
+                  </div>
+                )}
+              </div>
             </div>
+          </aside>
+        ) : null}
+      </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-              <Link href="/dashboard" className="sunny-button-secondary w-full sm:w-auto">
-                {copy.frame.dashboard}
-              </Link>
-              <Link href="/admin" className="sunny-button-primary w-full sm:w-auto">
-                {copy.frame.admin}
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="mt-5 flex-1 md:mt-6">{children}</div>
-
-      <footer className="mt-8 rounded-[1.45rem] border border-border/80 bg-white/45 px-4 py-4 backdrop-blur md:mt-9 md:rounded-[1.8rem] md:px-6 md:py-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <p className="text-[0.82rem] text-muted md:text-sm">SunnyPanel</p>
-
-          <div className="flex flex-wrap gap-3 text-[0.9rem] text-muted md:text-sm">
-            <Link href="/blog" className="sunny-nav-link px-0 py-0 hover:bg-transparent">
-              {copy.frame.footerBlog}
-            </Link>
-            <Link href="/timeline" className="sunny-nav-link px-0 py-0 hover:bg-transparent">
-              {copy.frame.footerTimeline}
-            </Link>
-            <Link href="/dashboard" className="sunny-nav-link px-0 py-0 hover:bg-transparent">
-              {copy.frame.footerWorkspace}
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <PublicSiteFooter locale={locale} />
     </div>
   );
 }

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { RichTextContent } from "@/components/public/RichTextContent";
 import { formatDateTime } from "@/lib/formatters";
+import { getMediaAssetFromRecord, getMediaDisplayUrl } from "@/lib/media";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPageBySlug, getPublicPages } from "@/lib/payload/public";
@@ -99,6 +101,8 @@ export default async function StaticPage({ params }: StaticPageProps) {
     notFound();
   }
 
+  const coverImage = getMediaAssetFromRecord(page as unknown as Record<string, unknown>);
+
   return (
     <PublicSiteFrame locale={locale}>
       <main className="flex flex-1 flex-col gap-6 pb-4">
@@ -118,6 +122,18 @@ export default async function StaticPage({ params }: StaticPageProps) {
         </section>
 
         <article className="sunny-card rounded-[1.8rem] p-6 md:p-8">
+          {coverImage ? (
+            <div className="mb-6 overflow-hidden rounded-[1.45rem] border border-border/80">
+              <Image
+                alt={coverImage.alt}
+                className="h-64 w-full object-cover md:h-80"
+                height={coverImage.height || 900}
+                src={getMediaDisplayUrl(coverImage, "card")}
+                unoptimized
+                width={coverImage.width || 1600}
+              />
+            </div>
+          ) : null}
           <RichTextContent data={page.content} />
         </article>
       </main>

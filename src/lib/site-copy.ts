@@ -44,6 +44,10 @@ export const siteCopy = {
       publicVisibility: "Public",
       privateVisibility: "Private",
       localeLabel: "Language",
+      themeLabel: "Theme",
+      themeLight: "Light",
+      themeDark: "Dark",
+      themeSystem: "System",
     },
     home: {
       checklistTitle: "Current Checklists",
@@ -155,6 +159,10 @@ export const siteCopy = {
       publicVisibility: "公开",
       privateVisibility: "私有",
       localeLabel: "语言",
+      themeLabel: "主题",
+      themeLight: "浅色",
+      themeDark: "深色",
+      themeSystem: "系统",
     },
     home: {
       checklistTitle: "当前清单",

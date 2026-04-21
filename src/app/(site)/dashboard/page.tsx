@@ -600,9 +600,14 @@ export default async function DashboardPage() {
               <p className="sunny-kicker text-xs text-muted">Plans</p>
               <h2 className="sunny-display mt-2 text-3xl text-foreground">Plan board</h2>
             </div>
-            <Link className="text-sm font-semibold text-accent-strong" href="/admin/collections/plans">
-              Open all plans
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link className="text-sm font-semibold text-accent-strong" href="/admin/collections/plans">
+                Open all plans
+              </Link>
+              <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/plans/create">
+                New plan
+              </Link>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-4 xl:grid-cols-3">
@@ -661,6 +666,21 @@ export default async function DashboardPage() {
                           <p className="mt-3 text-sm text-muted">
                             截止日期：{formatDate(plan.dueDate)}
                           </p>
+
+                          <div className="mt-4 flex flex-wrap gap-3">
+                            <Link
+                              className="sunny-button-secondary px-4 py-2 text-sm"
+                              href={`/admin/collections/plans/${plan.id}`}
+                            >
+                              编辑计划
+                            </Link>
+                            <Link
+                              className="sunny-button-secondary px-4 py-2 text-sm"
+                              href="/admin"
+                            >
+                              去关联内容
+                            </Link>
+                          </div>
                         </div>
                       ))
                     ) : (
@@ -720,6 +740,14 @@ export default async function DashboardPage() {
                         ))}
                       </div>
                     ) : null}
+                    <div className="mt-4">
+                      <Link
+                        className="sunny-button-secondary px-4 py-2 text-sm"
+                        href={`/admin/collections/plans/${plan.id}`}
+                      >
+                        查看计划详情
+                      </Link>
+                    </div>
                   </div>
                 ))
               ) : (

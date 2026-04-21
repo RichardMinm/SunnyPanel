@@ -21,3 +21,14 @@ export const getMediaDisplayUrl = (asset: MediaAsset, preferredSize: "card" | "t
 
   return typeof sizedUrl === "string" && sizedUrl.length > 0 ? sizedUrl : asset.url;
 };
+
+export const getMediaAssetFromRecord = (
+  record: null | Record<string, unknown> | undefined,
+  key = "coverImage",
+): MediaAsset | null => {
+  if (!record || !(key in record)) {
+    return null;
+  }
+
+  return getMediaAsset(record[key] as Media | number | null | undefined);
+};

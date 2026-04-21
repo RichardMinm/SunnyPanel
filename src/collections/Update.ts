@@ -47,6 +47,11 @@ export const Update: CollectionConfig = {
       name: "link",
       type: "text",
     },
+    {
+      name: "coverImage",
+      type: "relationship",
+      relationTo: "media",
+    },
     statusField,
     visibilityField(),
   ],

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 
+import { SiteThemeProvider } from "@/components/public/SiteThemeProvider";
 import "../globals.css";
 import { getSiteLocale } from "@/lib/site-locale";
 
@@ -34,8 +35,11 @@ export default async function SiteLayout({
       lang={locale === "en" ? "en" : "zh-CN"}
       data-scroll-behavior="smooth"
       className={`${manrope.variable} ${cormorant.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col sunny-shell">{children}</body>
+      <body className="min-h-full flex flex-col sunny-shell">
+        <SiteThemeProvider>{children}</SiteThemeProvider>
+      </body>
     </html>
   );
 }

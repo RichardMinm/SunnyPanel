@@ -33,6 +33,11 @@ export const Page: CollectionConfig = {
       type: "richText",
       required: true,
     },
+    {
+      name: "coverImage",
+      type: "relationship",
+      relationTo: "media",
+    },
     statusField,
     visibilityField(),
   ],

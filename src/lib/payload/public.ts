@@ -58,7 +58,7 @@ export const getPublicPageBySlug = async (slug: string) => {
 
   const result = await payload.find({
     collection: "pages",
-    depth: 0,
+    depth: 1,
     limit: 1,
     pagination: false,
     where: withPublicConstraint({
@@ -76,7 +76,7 @@ export const getPublicPages = async ({ limit = 20 }: QueryOptions = {}) => {
 
   return payload.find({
     collection: "pages",
-    depth: 0,
+    depth: 1,
     limit,
     sort: "title",
     where: publicContentConstraint(),
@@ -87,7 +87,7 @@ export const getPublicNotes = async ({ limit = 30 }: QueryOptions = {}) => {
   const payload = await getPayloadClient();
 
   return payload.find({
-    depth: 0,
+    depth: 1,
     collection: "notes",
     limit,
     sort: "-createdAt",
@@ -99,7 +99,7 @@ export const getPublicUpdates = async ({ limit = 30 }: QueryOptions = {}) => {
   const payload = await getPayloadClient();
 
   return payload.find({
-    depth: 0,
+    depth: 1,
     collection: "updates",
     limit,
     sort: "-createdAt",

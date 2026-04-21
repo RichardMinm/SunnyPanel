@@ -38,6 +38,11 @@ export const Note: CollectionConfig = {
       type: "checkbox",
       defaultValue: false,
     },
+    {
+      name: "coverImage",
+      type: "relationship",
+      relationTo: "media",
+    },
     statusField,
     visibilityField(),
   ],

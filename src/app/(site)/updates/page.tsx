@@ -1,7 +1,10 @@
+import Image from "next/image";
+
 import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDate } from "@/lib/formatters";
+import { getMediaAssetFromRecord, getMediaDisplayUrl } from "@/lib/media";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicUpdates } from "@/lib/payload/public";
@@ -43,6 +46,22 @@ export default async function UpdatesPage() {
                       <span className="sunny-badge sunny-badge-accent">{update.type}</span>
                       <span>{formatDate(update.createdAt)}</span>
                     </div>
+                    {(() => {
+                      const coverImage = getMediaAssetFromRecord(update as unknown as Record<string, unknown>);
+
+                      return coverImage ? (
+                        <div className="mt-4 overflow-hidden rounded-[1.15rem] border border-border/80">
+                          <Image
+                            alt={coverImage.alt}
+                            className="h-52 w-full object-cover"
+                            height={coverImage.height || 720}
+                            src={getMediaDisplayUrl(coverImage, "card")}
+                            unoptimized
+                            width={coverImage.width || 1280}
+                          />
+                        </div>
+                      ) : null;
+                    })()}
                     <p className="mt-4 text-[0.97rem] leading-7 text-foreground md:text-[1.02rem] md:leading-8">{update.content}</p>
                     {update.link ? (
                       <a
