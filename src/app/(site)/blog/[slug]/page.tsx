@@ -7,6 +7,8 @@ import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { RichTextContent } from "@/components/public/RichTextContent";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { getMediaAsset, getMediaDisplayUrl } from "@/lib/media";
+import { getSiteLocale } from "@/lib/site-locale";
+import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPostBySlug } from "@/lib/payload/public";
 import { estimateReadingMinutes, extractLexicalPlainText } from "@/lib/richtext";
 
@@ -18,11 +20,13 @@ type BlogPostPageProps = {
 
 export async function generateMetadata({ params }: BlogPostPageProps): Promise<Metadata> {
   const { slug } = await params;
+  const locale = await getSiteLocale();
+  const copy = getSiteCopy(locale);
   const post = await getPublicPostBySlug(slug);
 
   if (!post) {
     return {
-      title: "文章未找到 | SunnyPanel",
+      title: copy.blogPost.notFound,
     };
   }
 
@@ -42,6 +46,8 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const { slug } = await params;
+  const locale = await getSiteLocale();
+  const copy = getSiteCopy(locale);
   const post = await getPublicPostBySlug(slug);
 
   if (!post) {
@@ -52,19 +58,21 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const readingTime = estimateReadingMinutes(extractLexicalPlainText(post.content));
 
   return (
-    <PublicSiteFrame>
+    <PublicSiteFrame locale={locale}>
       <main className="flex flex-1 flex-col gap-6 pb-4">
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
           <Link href="/blog" className="sunny-button-secondary px-4 py-2 text-sm">
-            返回文章列表
+            {copy.blogPost.backList}
           </Link>
           <span className="sunny-badge sunny-badge-muted">{formatDate(post.publishedAt)}</span>
-          <span className="sunny-badge sunny-badge-accent">约 {readingTime} 分钟阅读</span>
+          <span className="sunny-badge sunny-badge-accent">
+            {copy.blogPost.approxRead} {readingTime} {copy.common.readMinutes}
+          </span>
         </div>
 
         <article className="grid gap-6 xl:grid-cols-[0.88fr_1.52fr]">
           <aside className="sunny-card rounded-[2.2rem] p-8">
-            <p className="sunny-kicker text-xs text-muted">Article overview</p>
+            <p className="sunny-kicker text-xs text-muted">{copy.blogPost.overview}</p>
             <h1 className="sunny-display mt-4 text-4xl leading-none text-foreground md:text-5xl">
               {post.title}
             </h1>
@@ -72,16 +80,16 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
             <div className="mt-8 space-y-4 border-t border-border pt-6 text-sm text-muted">
               <div className="flex items-center justify-between gap-3">
-                <span>发布时间</span>
+                <span>{copy.blogPost.publishedAt}</span>
                 <span className="text-foreground">{formatDate(post.publishedAt)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span>最近更新</span>
+                <span>{copy.blogPost.updatedAt}</span>
                 <span className="text-foreground">{formatDateTime(post.updatedAt)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span>阅读时长</span>
-                <span className="text-foreground">{readingTime} 分钟</span>
+                <span>{copy.blogPost.readingTime}</span>
+                <span className="text-foreground">{readingTime} {copy.common.readMinutes}</span>
               </div>
             </div>
 
@@ -119,8 +127,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
             <div className="p-8 md:p-10">
               <div className="mb-8 rounded-[1.65rem] border border-border bg-white/45 p-5 text-sm leading-8 text-muted">
-                这篇文章属于 SunnyPanel 的公开写作层。它会和首页、Blog 列表以及 Timeline
-                一起构成长期可回看的个人表达系统。
+                {copy.blogPost.articleLayer}
               </div>
 
               <RichTextContent data={post.content} />

@@ -2,6 +2,8 @@ import type { Checklist } from "@/payload-types";
 
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { formatDate } from "@/lib/formatters";
+import { getSiteLocale } from "@/lib/site-locale";
+import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicChecklists, getPublicUpdates } from "@/lib/payload/public";
 
 type ChecklistGroup = NonNullable<Checklist["groups"]>[number];
@@ -16,22 +18,24 @@ const getChecklistCompletedCount = (groups: null | ChecklistGroup[] = []) =>
   );
 
 export default async function Home() {
+  const locale = await getSiteLocale();
+  const copy = getSiteCopy(locale);
   const [checklists, updates] = await Promise.all([
     getPublicChecklists({ limit: 4 }),
     getPublicUpdates({ limit: 4 }),
   ]);
 
   return (
-    <PublicSiteFrame>
+    <PublicSiteFrame locale={locale}>
       <main className="flex flex-1 flex-col gap-5 pb-5 md:gap-6">
         <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr] xl:gap-6">
           <div className="sunny-card rounded-[1.55rem] p-5 sm:p-6 md:rounded-[1.9rem] md:p-7">
             <div>
               <div>
                 <p className="sunny-kicker text-xs text-muted">Checklist</p>
-                <h2 className="sunny-display mt-2 text-[2rem] text-foreground md:text-3xl">当前清单</h2>
+                <h2 className="sunny-display mt-2 text-[2rem] text-foreground md:text-3xl">{copy.home.checklistTitle}</h2>
                 <p className="mt-3 text-sm leading-7 text-muted">
-                  直接在首页展开最近的清单内容，不再额外放一层跳转按钮。
+                  {copy.home.checklistDescription}
                 </p>
               </div>
             </div>
@@ -52,14 +56,16 @@ export default async function Home() {
                       <div className="flex flex-wrap gap-2">
                         <span className="sunny-badge sunny-badge-accent">Checklist</span>
                         <span className="sunny-badge sunny-badge-muted">
-                          {completedCount}/{itemCount || 0} 完成
+                          {completedCount}/{itemCount || 0} {copy.home.checklistCompleted}
                         </span>
                       </div>
                       <h3 className="mt-4 text-lg font-semibold text-foreground md:text-xl">{checklist.title}</h3>
                       {checklist.summary ? (
                         <p className="mt-2 text-sm leading-7 text-muted">{checklist.summary}</p>
                       ) : null}
-                      <p className="mt-3 text-sm text-muted">分组 {groups.length} · 条目 {itemCount}</p>
+                      <p className="mt-3 text-sm text-muted">
+                        {copy.home.checklistGroups} {groups.length} · {copy.home.checklistItems} {itemCount}
+                      </p>
 
                       <div className="mt-4 space-y-3">
                         {previewGroups.map((group, groupIndex) => (
@@ -107,7 +113,7 @@ export default async function Home() {
                 })
               ) : (
                 <div className="rounded-[1.35rem] border border-dashed border-border bg-white/45 px-5 py-5 text-sm leading-7 text-muted">
-                  还没有公开的 Checklist。你可以先在后台建一个课程型清单，比如“高等数学”。
+                  {copy.home.checklistEmpty}
                 </div>
               )}
             </div>
@@ -117,9 +123,9 @@ export default async function Home() {
             <div>
               <div>
                 <p className="sunny-kicker text-xs text-muted">Updates</p>
-                <h2 className="sunny-display mt-2 text-[2rem] text-foreground md:text-3xl">最近更新</h2>
+                <h2 className="sunny-display mt-2 text-[2rem] text-foreground md:text-3xl">{copy.home.updatesTitle}</h2>
                 <p className="mt-3 text-sm leading-7 text-muted">
-                  Update 直接在首页展示正文片段，减少来回跳转。
+                  {copy.home.updatesDescription}
                 </p>
               </div>
             </div>
@@ -143,14 +149,14 @@ export default async function Home() {
                         rel="noreferrer"
                         target="_blank"
                       >
-                        查看关联资源
+                        {copy.common.relatedLink}
                       </a>
                     ) : null}
                   </article>
                 ))
               ) : (
                 <div className="rounded-[1.35rem] border border-dashed border-border bg-white/45 px-5 py-5 text-sm leading-7 text-muted">
-                  还没有公开的 Update。发布后，这里会成为首页最轻量的动态入口。
+                  {copy.home.updatesEmpty}
                 </div>
               )}
             </div>

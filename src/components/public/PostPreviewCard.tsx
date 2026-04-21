@@ -4,14 +4,17 @@ import Link from "next/link";
 import { formatDate } from "@/lib/formatters";
 import { getMediaAsset, getMediaDisplayUrl } from "@/lib/media";
 import { estimateReadingMinutes, extractLexicalPlainText } from "@/lib/richtext";
+import type { SiteLocale } from "@/lib/site-copy";
 import type { Post } from "@/payload-types";
 
 type PostPreviewCardProps = {
+  locale: SiteLocale;
   post: Post;
   variant?: "compact" | "featured" | "stack";
 };
 
 export function PostPreviewCard({
+  locale,
   post,
   variant = "stack",
 }: PostPreviewCardProps) {
@@ -45,9 +48,17 @@ export function PostPreviewCard({
       <div className={isFeatured ? "p-8" : "p-6"}>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
           <span className="sunny-kicker text-[0.7rem] text-muted">{formatDate(post.publishedAt)}</span>
-          <span className="sunny-badge sunny-badge-muted">{readingTime} 分钟阅读</span>
+          <span className="sunny-badge sunny-badge-muted">
+            {readingTime} {locale === "en" ? "min read" : "分钟阅读"}
+          </span>
           <span className="sunny-badge sunny-badge-accent">
-            {post.visibility === "public" ? "公开" : "私有"}
+            {post.visibility === "public"
+              ? locale === "en"
+                ? "Public"
+                : "公开"
+              : locale === "en"
+                ? "Private"
+                : "私有"}
           </span>
         </div>
 

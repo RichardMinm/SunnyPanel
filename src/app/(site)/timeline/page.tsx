@@ -4,29 +4,33 @@ import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDate, formatShortDate } from "@/lib/formatters";
+import { getSiteLocale } from "@/lib/site-locale";
+import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicTimelineEvents } from "@/lib/payload/public";
 
 export default async function TimelinePage() {
+  const locale = await getSiteLocale();
+  const copy = getSiteCopy(locale);
   const { docs: events } = await getPublicTimelineEvents();
   const featuredCount = events.filter((event) => event.isFeatured).length;
 
   return (
-    <PublicSiteFrame>
+    <PublicSiteFrame locale={locale}>
       <main className="flex flex-1 flex-col gap-8 pb-4">
         <SectionIntro
           eyebrow="Timeline"
           title="Timeline"
           stats={[
-            { label: "公开节点", value: events.length },
-            { label: "精选事件", value: featuredCount },
-            { label: "事件类型", value: new Set(events.map((event) => event.type)).size },
+            { label: copy.timeline.statsEvents, value: events.length },
+            { label: copy.timeline.statsFeatured, value: featuredCount },
+            { label: copy.timeline.statsTypes, value: new Set(events.map((event) => event.type)).size },
           ]}
         />
 
         {events.length === 0 ? (
           <CollectionEmptyState
-            title="时间线还是空的"
-            body="等你在后台添加第一条 `TimelineEvent` 并公开发布后，这里就会开始形成年度回顾结构。"
+            title={copy.timeline.emptyTitle}
+            body={copy.timeline.emptyBody}
           />
         ) : (
           <section className="sunny-card rounded-[2.2rem] px-6 py-8 md:px-8">
@@ -48,7 +52,7 @@ export default async function TimelinePage() {
                         <span className="sunny-badge sunny-badge-accent">{event.type}</span>
                         <span className="text-sm text-muted md:hidden">{formatDate(event.eventDate)}</span>
                         {event.isFeatured ? (
-                          <span className="sunny-badge sunny-badge-muted">Featured</span>
+                          <span className="sunny-badge sunny-badge-muted">{copy.common.featured}</span>
                         ) : null}
                       </div>
 
@@ -59,10 +63,10 @@ export default async function TimelinePage() {
 
                       <div className="mt-5 flex flex-wrap gap-3 text-sm font-semibold text-accent-strong">
                         {typeof event.relatedPost === "object" && event.relatedPost?.slug ? (
-                          <Link href={`/blog/${event.relatedPost.slug}`}>查看关联文章</Link>
+                          <Link href={`/blog/${event.relatedPost.slug}`}>{copy.common.relatedPost}</Link>
                         ) : null}
                         {typeof event.relatedUpdate === "object" && event.relatedUpdate?.id ? (
-                          <Link href="/updates">查看关联动态</Link>
+                          <Link href="/updates">{copy.common.relatedUpdates}</Link>
                         ) : null}
                       </div>
                     </div>

@@ -4,23 +4,27 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
-const navigation = [
-  { href: "/", label: "首页" },
-  { href: "/about", label: "About" },
-  { href: "/now", label: "Now" },
-  { href: "/checklists", label: "清单" },
-  { href: "/blog", label: "Blog" },
-  { href: "/notes", label: "Notes" },
-  { href: "/updates", label: "Updates" },
-  { href: "/timeline", label: "Timeline" },
-];
+import { LocaleToggle } from "@/components/public/LocaleToggle";
+import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
 
 type PublicSiteFrameProps = {
   children: ReactNode;
+  locale: SiteLocale;
 };
 
-export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
+export function PublicSiteFrame({ children, locale }: PublicSiteFrameProps) {
   const pathname = usePathname();
+  const copy = getSiteCopy(locale);
+  const navigation = [
+    { href: "/", label: copy.nav.home },
+    { href: "/about", label: copy.nav.about },
+    { href: "/now", label: copy.nav.now },
+    { href: "/checklists", label: copy.nav.checklists },
+    { href: "/blog", label: copy.nav.blog },
+    { href: "/notes", label: copy.nav.notes },
+    { href: "/updates", label: copy.nav.updates },
+    { href: "/timeline", label: copy.nav.timeline },
+  ];
 
   return (
     <div className="mx-auto flex w-full max-w-[74rem] flex-1 flex-col px-3 py-3 sm:px-4 md:px-6 lg:px-8">
@@ -33,7 +37,7 @@ export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
               </span>
               <div className="min-w-0">
                 <p className="sunny-kicker text-[0.68rem] text-accent-strong">SunnyPanel</p>
-                <p className="truncate text-[0.78rem] text-muted md:text-[0.82rem]">Personal expression and workflow</p>
+                <p className="truncate text-[0.78rem] text-muted md:text-[0.82rem]">{copy.frame.tagline}</p>
               </div>
             </Link>
           </div>
@@ -56,12 +60,13 @@ export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
             </nav>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <LocaleToggle currentLocale={locale} label={copy.common.localeLabel} />
             <Link href="/dashboard" className="sunny-button-secondary w-full sm:w-auto">
-              私有工作台
+              {copy.frame.dashboard}
             </Link>
             <Link href="/admin" className="sunny-button-primary w-full sm:w-auto">
-              进入后台
+              {copy.frame.admin}
             </Link>
           </div>
         </div>
@@ -75,13 +80,13 @@ export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
 
           <div className="flex flex-wrap gap-3 text-[0.9rem] text-muted md:text-sm">
             <Link href="/blog" className="sunny-nav-link px-0 py-0 hover:bg-transparent">
-              写作
+              {copy.frame.footerBlog}
             </Link>
             <Link href="/timeline" className="sunny-nav-link px-0 py-0 hover:bg-transparent">
-              时间线
+              {copy.frame.footerTimeline}
             </Link>
             <Link href="/dashboard" className="sunny-nav-link px-0 py-0 hover:bg-transparent">
-              工作台
+              {copy.frame.footerWorkspace}
             </Link>
           </div>
         </div>

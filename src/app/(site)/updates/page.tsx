@@ -2,29 +2,33 @@ import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDate } from "@/lib/formatters";
+import { getSiteLocale } from "@/lib/site-locale";
+import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicUpdates } from "@/lib/payload/public";
 
 export default async function UpdatesPage() {
+  const locale = await getSiteLocale();
+  const copy = getSiteCopy(locale);
   const { docs: updates } = await getPublicUpdates();
   const linkedCount = updates.filter((update) => Boolean(update.link)).length;
 
   return (
-    <PublicSiteFrame>
+    <PublicSiteFrame locale={locale}>
       <main className="flex flex-1 flex-col gap-6 pb-4 md:gap-8">
         <SectionIntro
           eyebrow="Updates"
           title="Updates"
           stats={[
-            { label: "公开动态", value: updates.length },
-            { label: "带链接记录", value: linkedCount },
-            { label: "类型覆盖", value: new Set(updates.map((update) => update.type)).size },
+            { label: copy.updates.statsUpdates, value: updates.length },
+            { label: copy.updates.statsLinked, value: linkedCount },
+            { label: copy.updates.statsTypes, value: new Set(updates.map((update) => update.type)).size },
           ]}
         />
 
         {updates.length === 0 ? (
           <CollectionEmptyState
-            title="还没有公开动态"
-            body="后台 `Update` collection 已经可用。发布内容后，这里会自动形成一条时间顺序的动态流。"
+            title={copy.updates.emptyTitle}
+            body={copy.updates.emptyBody}
           />
         ) : (
           <section className="sunny-card rounded-[1.6rem] p-5 sm:p-6 md:rounded-[2.2rem] md:p-8">
@@ -47,7 +51,7 @@ export default async function UpdatesPage() {
                         rel="noreferrer"
                         target="_blank"
                       >
-                        查看关联链接
+                        {copy.common.relatedLink}
                       </a>
                     ) : null}
                   </article>

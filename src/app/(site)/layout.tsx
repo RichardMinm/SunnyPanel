@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 
 import "../globals.css";
+import { getSiteLocale } from "@/lib/site-locale";
 
 const manrope = Manrope({
   variable: "--font-geist-sans",
@@ -21,14 +22,16 @@ export const metadata: Metadata = {
   description: "A personal panel system for publishing, reflection, and private planning.",
 };
 
-export default function SiteLayout({
+export default async function SiteLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getSiteLocale();
+
   return (
     <html
-      lang="zh-CN"
+      lang={locale === "en" ? "en" : "zh-CN"}
       data-scroll-behavior="smooth"
       className={`${manrope.variable} ${cormorant.variable} h-full antialiased`}
     >

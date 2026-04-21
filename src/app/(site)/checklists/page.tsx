@@ -5,6 +5,8 @@ import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDateTime } from "@/lib/formatters";
+import { getSiteLocale } from "@/lib/site-locale";
+import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicChecklists } from "@/lib/payload/public";
 
 type ChecklistGroup = NonNullable<Checklist["groups"]>[number];
@@ -19,6 +21,8 @@ const getItemCount = (groups: null | ChecklistGroup[] = []) =>
   (groups ?? []).reduce((total, group) => total + (group.items?.length ?? 0), 0);
 
 export default async function ChecklistsPage() {
+  const locale = await getSiteLocale();
+  const copy = getSiteCopy(locale);
   const checklists = await getPublicChecklists({ limit: 24 });
   const totalGroups = checklists.docs.reduce((total, checklist) => total + (checklist.groups?.length ?? 0), 0);
   const totalItems = checklists.docs.reduce(
@@ -31,19 +35,19 @@ export default async function ChecklistsPage() {
   );
 
   return (
-    <PublicSiteFrame>
+    <PublicSiteFrame locale={locale}>
       <main className="flex flex-1 flex-col gap-5 pb-6 md:gap-7">
         <SectionIntro
           eyebrow="Checklists"
           title="Checklist"
           stats={[
-            { label: "清单", value: checklists.docs.length },
-            { label: "分组", value: totalGroups },
-            { label: "已完成", value: `${totalCompleted}/${totalItems}` },
+            { label: copy.checklists.statsChecklists, value: checklists.docs.length },
+            { label: copy.checklists.statsGroups, value: totalGroups },
+            { label: copy.checklists.statsCompleted, value: `${totalCompleted}/${totalItems}` },
           ]}
           actions={
             <Link href="/admin/collections/checklists" className="sunny-button-secondary">
-              管理清单
+              {copy.common.manageChecklists}
             </Link>
           }
         />
@@ -60,9 +64,9 @@ export default async function ChecklistsPage() {
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div className="max-w-3xl">
                       <div className="flex flex-wrap gap-2">
-                        <span className="sunny-badge sunny-badge-accent">Checklist</span>
+                        <span className="sunny-badge sunny-badge-accent">{copy.checklists.badgeChecklist}</span>
                         <span className="sunny-badge sunny-badge-muted">
-                          {completedItems}/{totalItems || 0} 完成
+                          {completedItems}/{totalItems || 0} {copy.checklists.completed}
                         </span>
                       </div>
                       <h2 className="sunny-display mt-4 text-[2rem] text-foreground md:text-3xl">{checklist.title}</h2>
@@ -72,9 +76,9 @@ export default async function ChecklistsPage() {
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 rounded-[1.15rem] border border-border bg-white/55 px-4 py-4 text-center text-sm text-muted md:min-w-[10rem] md:grid-cols-1 md:gap-0 md:rounded-[1.35rem] md:text-left">
-                      <p>分组 {groups.length}</p>
-                      <p className="md:mt-2">条目 {totalItems}</p>
-                      <p className="md:mt-2">已完成 {completedItems}</p>
+                      <p>{copy.checklists.groups} {groups.length}</p>
+                      <p className="md:mt-2">{copy.checklists.items} {totalItems}</p>
+                      <p className="md:mt-2">{copy.checklists.completed} {completedItems}</p>
                     </div>
                   </div>
 
@@ -93,10 +97,10 @@ export default async function ChecklistsPage() {
                             <div className="min-w-0">
                               <p className="text-base font-semibold text-foreground md:text-lg">{group.title}</p>
                               <p className="mt-1 text-sm text-muted">
-                                {completedInGroup}/{items.length} 已完成
+                                {completedInGroup}/{items.length} {copy.checklists.groupCompleted}
                               </p>
                             </div>
-                            <span className="sunny-badge sunny-badge-muted self-start sm:self-auto">展开条目</span>
+                            <span className="sunny-badge sunny-badge-muted self-start sm:self-auto">{copy.common.expandItems}</span>
                           </summary>
 
                           <div className="mt-4 space-y-3">
@@ -130,7 +134,7 @@ export default async function ChecklistsPage() {
                                         item.isCompleted ? "sunny-badge-accent" : "sunny-badge-muted"
                                       }`}
                                     >
-                                      {item.isCompleted ? "已完成" : "未完成"}
+                                      {item.isCompleted ? copy.common.done : copy.common.pending}
                                     </span>
                                     {item.completedAt ? (
                                       <span className="sunny-badge sunny-badge-muted">
@@ -142,7 +146,7 @@ export default async function ChecklistsPage() {
 
                                 {item.completionNote ? (
                                   <div className="mt-3 rounded-[1rem] bg-white/72 px-4 py-3">
-                                    <p className="sunny-kicker text-[0.65rem] text-muted">Completion note</p>
+                                    <p className="sunny-kicker text-[0.65rem] text-muted">{copy.common.completionNote}</p>
                                     <p className="mt-2 text-sm leading-7 text-muted">{item.completionNote}</p>
                                   </div>
                                 ) : null}
@@ -159,8 +163,8 @@ export default async function ChecklistsPage() {
           </section>
         ) : (
           <CollectionEmptyState
-            title="还没有公开清单"
-            body="先在后台新建一个 Checklist，再加入分组和条目，这里就会自动展示。"
+            title={copy.checklists.emptyTitle}
+            body={copy.checklists.emptyBody}
           />
         )}
       </main>
