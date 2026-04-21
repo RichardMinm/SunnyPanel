@@ -15,8 +15,7 @@ export default async function TimelinePage() {
       <main className="flex flex-1 flex-col gap-8 pb-4">
         <SectionIntro
           eyebrow="Timeline"
-          title="把阶段节点组织成可回看的长期叙事"
-          description="Timeline 是 SunnyPanel 的主轴。它负责把长文、动态与独立事件连起来，让内容不只是被发布，也能被按时间重新理解。"
+          title="Timeline"
           stats={[
             { label: "公开节点", value: events.length },
             { label: "精选事件", value: featuredCount },
@@ -44,7 +43,7 @@ export default async function TimelinePage() {
                       </div>
                     </div>
 
-                    <div className="rounded-[1.8rem] border border-border bg-white/62 p-6">
+                    <div className="rounded-[1.45rem] border border-border bg-white/62 p-5 md:p-6">
                       <div className="flex flex-wrap items-center gap-3">
                         <span className="sunny-badge sunny-badge-accent">{event.type}</span>
                         <span className="text-sm text-muted md:hidden">{formatDate(event.eventDate)}</span>

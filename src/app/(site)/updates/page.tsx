@@ -13,8 +13,7 @@ export default async function UpdatesPage() {
       <main className="flex flex-1 flex-col gap-6 pb-4 md:gap-8">
         <SectionIntro
           eyebrow="Updates"
-          title="保持流动的近况与推进记录"
-          description="Updates 不是长文章的替代品，而是一条更轻、更连续的动态带。适合留下那些值得被看见、但还没到写成正文的变化。"
+          title="Updates"
           stats={[
             { label: "公开动态", value: updates.length },
             { label: "带链接记录", value: linkedCount },

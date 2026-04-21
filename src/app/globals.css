@@ -2,11 +2,11 @@
 
 :root {
   --site-scale: 0.92;
-  --background: #f5efe3;
+  --background: #f3efe7;
   --foreground: #18222c;
-  --surface: rgba(255, 252, 246, 0.82);
-  --surface-strong: rgba(255, 248, 238, 0.94);
-  --surface-tint: rgba(247, 236, 221, 0.78);
+  --surface: rgba(255, 252, 248, 0.88);
+  --surface-strong: rgba(255, 250, 244, 0.96);
+  --surface-tint: rgba(248, 241, 232, 0.82);
   --border: rgba(24, 34, 44, 0.12);
   --accent: #d36b2d;
   --accent-strong: #8f3510;
@@ -47,9 +47,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   background-image:
-    radial-gradient(circle at top left, rgba(239, 185, 126, 0.45), transparent 34%),
-    radial-gradient(circle at 85% 18%, rgba(133, 177, 162, 0.26), transparent 22%),
-    linear-gradient(180deg, #f8f2e6 0%, #efe6d5 45%, #e9ddcc 100%);
+    radial-gradient(circle at top left, rgba(239, 185, 126, 0.26), transparent 28%),
+    linear-gradient(180deg, #f8f4ed 0%, #f1ebe1 46%, #ede5d9 100%);
   font-family: var(--font-sans), sans-serif;
 }
 
@@ -73,18 +72,18 @@ a {
   content: "";
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(24, 34, 44, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(24, 34, 44, 0.03) 1px, transparent 1px);
-  background-size: 36px 36px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.25));
+    linear-gradient(rgba(24, 34, 44, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(24, 34, 44, 0.018) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.12));
 }
 
 .sunny-shell::after {
   position: fixed;
   inset: auto 0 0 auto;
   z-index: -1;
-  width: min(34rem, 45vw);
-  height: min(34rem, 45vw);
+  width: min(28rem, 40vw);
+  height: min(28rem, 40vw);
   content: "";
   pointer-events: none;
   border-radius: 999px;
@@ -100,19 +99,19 @@ a {
   border: 1px solid var(--border);
   background: var(--surface);
   backdrop-filter: blur(18px);
-  box-shadow: 0 18px 60px rgba(64, 42, 16, 0.08);
+  box-shadow: 0 10px 30px rgba(64, 42, 16, 0.06);
 }
 
 .sunny-card::after {
   position: absolute;
   top: -4rem;
   right: -4rem;
-  width: 12rem;
-  height: 12rem;
+  width: 8rem;
+  height: 8rem;
   content: "";
   pointer-events: none;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(211, 107, 45, 0.12), transparent 70%);
+  background: radial-gradient(circle, rgba(211, 107, 45, 0.08), transparent 70%);
 }
 
 .sunny-card > * {
@@ -148,7 +147,7 @@ a {
   font-size: calc(0.95rem * var(--site-scale));
   font-weight: 700;
   color: white;
-  box-shadow: 0 16px 34px rgba(143, 53, 16, 0.18);
+  box-shadow: 0 10px 24px rgba(143, 53, 16, 0.16);
   transition:
     transform 180ms ease,
     box-shadow 180ms ease,
@@ -157,7 +156,7 @@ a {
 
 .sunny-button-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 20px 38px rgba(143, 53, 16, 0.24);
+  box-shadow: 0 14px 30px rgba(143, 53, 16, 0.2);
 }
 
 .sunny-button-secondary {
@@ -266,23 +265,18 @@ a {
 .sunny-panel {
   border: 1px solid var(--border);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 252, 246, 0.42)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 252, 246, 0.52)),
     var(--surface-tint);
   backdrop-filter: blur(18px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 8px 24px rgba(64, 42, 16, 0.04);
 }
 
 .sunny-section-line {
   height: 1px;
   flex: 1;
   background: linear-gradient(90deg, rgba(24, 34, 44, 0.18), transparent 92%);
-}
-
-.sunny-orbit {
-  position: absolute;
-  border-radius: 999px;
-  border: 1px solid rgba(24, 34, 44, 0.08);
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.08));
 }
 
 .sunny-prose {

@@ -28,12 +28,12 @@ export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className="group inline-flex min-w-0 items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[1rem] bg-accent text-sm font-bold text-white shadow-[0_14px_30px_rgba(143,53,16,0.22)] transition group-hover:-translate-y-0.5 md:h-10 md:w-10 md:rounded-[1.15rem]">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.95rem] bg-accent text-sm font-bold text-white shadow-[0_10px_24px_rgba(143,53,16,0.18)] transition group-hover:-translate-y-0.5 md:h-10 md:w-10">
                 S
               </span>
               <div className="min-w-0">
                 <p className="sunny-kicker text-[0.68rem] text-accent-strong">SunnyPanel</p>
-                <p className="truncate text-[0.78rem] text-muted md:text-[0.82rem]">个人表达与私有运营面板</p>
+                <p className="truncate text-[0.78rem] text-muted md:text-[0.82rem]">Personal expression and workflow</p>
               </div>
             </Link>
           </div>
@@ -67,23 +67,13 @@ export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
         </div>
       </header>
 
-      <div className="relative mt-5 flex-1 md:mt-6">
-        <div className="sunny-orbit right-[-2rem] top-12 hidden h-28 w-28 lg:block" />
-        <div className="sunny-orbit left-[-1rem] top-[32rem] hidden h-20 w-20 lg:block" />
-        {children}
-      </div>
+      <div className="mt-5 flex-1 md:mt-6">{children}</div>
 
-      <footer className="mt-8 rounded-[1.45rem] border border-border/80 bg-white/45 px-4 py-5 backdrop-blur md:mt-9 md:rounded-[1.8rem] md:px-7 md:py-6">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="sunny-kicker text-xs text-muted">SunnyPanel</p>
-            <p className="mt-3 text-[0.92rem] leading-7 text-muted md:text-sm">
-              一个给个人长期使用的系统原型：公开侧负责表达、记录和回看，私有侧负责计划、
-              内容运营和媒体管理。
-            </p>
-          </div>
+      <footer className="mt-8 rounded-[1.45rem] border border-border/80 bg-white/45 px-4 py-4 backdrop-blur md:mt-9 md:rounded-[1.8rem] md:px-6 md:py-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <p className="text-[0.82rem] text-muted md:text-sm">SunnyPanel</p>
 
-          <div className="flex flex-wrap gap-3 text-[0.92rem] text-muted md:text-sm">
+          <div className="flex flex-wrap gap-3 text-[0.9rem] text-muted md:text-sm">
             <Link href="/blog" className="sunny-nav-link px-0 py-0 hover:bg-transparent">
               写作
             </Link>

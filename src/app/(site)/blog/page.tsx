@@ -17,22 +17,16 @@ export default async function BlogIndexPage() {
       <main className="flex flex-1 flex-col gap-8 pb-4">
         <SectionIntro
           eyebrow="Blog"
-          title="长篇写作与系统化表达"
-          description="这里适合承载更完整的观点、项目记录和阶段复盘。相比 Notes 与 Updates，Blog 更偏向可反复回看的正文层。"
+          title="Blog"
           stats={[
             { label: "公开文章", value: posts.length },
             { label: "主题标签", value: uniqueTags },
             { label: "最近发布", value: latestPostDate },
           ]}
           actions={
-            <>
-              <Link href="/timeline" className="sunny-button-secondary">
-                查看时间线
-              </Link>
-              <Link href="/admin/collections/posts" className="sunny-button-primary">
-                写新文章
-              </Link>
-            </>
+            <Link href="/admin/collections/posts" className="sunny-button-secondary">
+              管理文章
+            </Link>
           }
         />
 

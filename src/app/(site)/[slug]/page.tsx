@@ -74,22 +74,16 @@ export default async function StaticPage({ params }: StaticPageProps) {
               <span className="sunny-badge sunny-badge-muted">{fallbackMeta.title}</span>
             </div>
 
-            <section className="sunny-card sunny-card-strong rounded-[2.2rem] p-8 md:p-10">
-              <p className="sunny-kicker text-xs text-muted">Static page</p>
-              <h1 className="sunny-display mt-4 text-4xl leading-none text-foreground md:text-6xl">
+            <section className="sunny-panel rounded-[1.6rem] px-5 py-5 md:px-6">
+              <p className="sunny-kicker text-[0.68rem] text-muted">{fallbackMeta.title}</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground md:text-4xl">
                 {fallbackMeta.title}
               </h1>
-              <p className="mt-5 max-w-3xl text-base leading-8 text-muted">
-                {fallbackMeta.description}
-              </p>
+              <p className="mt-2 text-sm leading-7 text-muted">{fallbackMeta.description}</p>
             </section>
 
-            <section className="sunny-card rounded-[2.2rem] p-8 md:p-10">
-              <span className="sunny-badge sunny-badge-muted">Waiting for content</span>
-              <p className="mt-5 text-base leading-8 text-muted">
-                这个固定页面的前台能力已经接好。你只需要在 Payload 后台新建一个
-                `Page`，把 slug 设为 `{slug}`，并发布为 `public`，这里就会自动展示正式内容。
-              </p>
+            <section className="sunny-panel rounded-[1.6rem] border-dashed px-5 py-5 text-sm leading-7 text-muted md:px-6">
+              在后台创建一个 `Page`，并把 slug 设为 `{slug}`，这里就会显示正式内容。
             </section>
           </main>
         </PublicSiteFrame>
@@ -110,17 +104,14 @@ export default async function StaticPage({ params }: StaticPageProps) {
           <span className="text-sm text-muted">最近更新：{formatDateTime(page.updatedAt)}</span>
         </div>
 
-        <section className="sunny-card sunny-card-strong rounded-[2.2rem] p-8 md:p-10">
-          <p className="sunny-kicker text-xs text-muted">Static page</p>
-          <h1 className="sunny-display mt-4 text-4xl leading-none text-foreground md:text-6xl">
+        <section className="sunny-panel rounded-[1.6rem] px-5 py-5 md:px-6">
+          <p className="sunny-kicker text-[0.68rem] text-muted">Page</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground md:text-4xl">
             {page.title}
           </h1>
-          <p className="mt-5 max-w-3xl text-base leading-8 text-muted">
-            这个页面来自 Payload 的 `Page` collection，适合承载 About、Now 这类长期存在的固定内容。
-          </p>
         </section>
 
-        <article className="sunny-card rounded-[2.2rem] p-8 md:p-10">
+        <article className="sunny-card rounded-[1.8rem] p-6 md:p-8">
           <RichTextContent data={page.content} />
         </article>
       </main>

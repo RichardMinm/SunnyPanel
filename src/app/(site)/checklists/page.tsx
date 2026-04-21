@@ -1,6 +1,9 @@
+import Link from "next/link";
 import type { Checklist } from "@/payload-types";
 
+import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
+import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDateTime } from "@/lib/formatters";
 import { getPublicChecklists } from "@/lib/payload/public";
 
@@ -17,28 +20,33 @@ const getItemCount = (groups: null | ChecklistGroup[] = []) =>
 
 export default async function ChecklistsPage() {
   const checklists = await getPublicChecklists({ limit: 24 });
+  const totalGroups = checklists.docs.reduce((total, checklist) => total + (checklist.groups?.length ?? 0), 0);
+  const totalItems = checklists.docs.reduce(
+    (total, checklist) => total + getItemCount(checklist.groups ?? []),
+    0,
+  );
+  const totalCompleted = checklists.docs.reduce(
+    (total, checklist) => total + getCompletedCount(checklist.groups ?? []),
+    0,
+  );
 
   return (
     <PublicSiteFrame>
       <main className="flex flex-1 flex-col gap-5 pb-6 md:gap-7">
-        <section className="sunny-card sunny-card-strong rounded-[1.6rem] px-5 py-6 sm:px-6 sm:py-7 md:rounded-[2rem] md:px-9 md:py-9">
-          <div className="flex flex-wrap gap-3">
-            <span className="sunny-chip">折叠清单</span>
-            <span className="sunny-chip">后台可自定义</span>
-            <span className="sunny-chip">完成自动进入 Timeline</span>
-          </div>
-
-          <div className="mt-6 max-w-4xl md:mt-8">
-            <p className="sunny-kicker text-[0.7rem] text-accent-strong">Structured learning lists</p>
-            <h1 className="sunny-display mt-4 text-[2.2rem] leading-[0.95] text-foreground sm:text-5xl md:text-6xl">
-              把长期任务拆成可折叠、可勾选、可回看的清单。
-            </h1>
-            <p className="mt-5 max-w-3xl text-sm leading-7 text-muted md:text-base md:leading-8">
-              你可以在后台维护课程、章节、主题和条目。每个条目都支持手动标记完成、记录时间和备注，
-              并在完成时自动沉淀到 Timeline，形成一条持续可回顾的进度线。
-            </p>
-          </div>
-        </section>
+        <SectionIntro
+          eyebrow="Checklists"
+          title="Checklist"
+          stats={[
+            { label: "清单", value: checklists.docs.length },
+            { label: "分组", value: totalGroups },
+            { label: "已完成", value: `${totalCompleted}/${totalItems}` },
+          ]}
+          actions={
+            <Link href="/admin/collections/checklists" className="sunny-button-secondary">
+              管理清单
+            </Link>
+          }
+        />
 
         {checklists.docs.length > 0 ? (
           <section className="grid gap-5">
@@ -150,10 +158,10 @@ export default async function ChecklistsPage() {
             })}
           </section>
         ) : (
-          <section className="sunny-card rounded-[1.5rem] px-5 py-6 text-sm leading-7 text-muted md:rounded-[1.8rem] md:px-6 md:py-7">
-            还没有公开的清单。你可以先在后台新建一个 `Checklist`，例如“高等数学”，再在其中加入
-            “映射与函数”这类可勾选条目。
-          </section>
+          <CollectionEmptyState
+            title="还没有公开清单"
+            body="先在后台新建一个 Checklist，再加入分组和条目，这里就会自动展示。"
+          />
         )}
       </main>
     </PublicSiteFrame>

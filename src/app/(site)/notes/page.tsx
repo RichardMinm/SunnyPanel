@@ -13,8 +13,7 @@ export default async function NotesPage() {
       <main className="flex flex-1 flex-col gap-8 pb-4">
         <SectionIntro
           eyebrow="Notes"
-          title="短想法、碎片与未必要变成长文的东西"
-          description="Notes 更轻，也更贴近日常。它适合记录一个瞬间、一句判断、一个没完全展开但值得保留的念头。"
+          title="Notes"
           stats={[
             { label: "公开短文", value: notes.length },
             { label: "置顶条目", value: notes.filter((note) => note.pinned).length },
@@ -32,7 +31,7 @@ export default async function NotesPage() {
             {notes.map((note, index) => (
               <article
                 key={note.id}
-                className={`sunny-card rounded-[1.9rem] p-6 ${index % 3 === 0 ? "md:translate-y-4" : ""}`}
+                className={`sunny-card rounded-[1.6rem] p-5 ${index % 3 === 0 ? "md:translate-y-2" : ""}`}
               >
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
                   <span className="sunny-badge sunny-badge-muted">{note.category}</span>
