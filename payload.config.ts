@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { postgresAdapter } from "@payloadcms/db-postgres";
 import { lexicalEditor } from "@payloadcms/richtext-lexical";
+import { en } from "payload/i18n/en";
+import { zh } from "payload/i18n/zh";
 import sharp from "sharp";
 import { buildConfig } from "payload";
 
@@ -40,6 +42,13 @@ export default buildConfig({
   editor: lexicalEditor(),
   graphQL: {
     disablePlaygroundInProduction: true,
+  },
+  i18n: {
+    fallbackLanguage: "zh",
+    supportedLanguages: {
+      en,
+      zh,
+    },
   },
   routes: {
     admin: "/admin",

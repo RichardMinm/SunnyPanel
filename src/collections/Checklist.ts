@@ -254,7 +254,13 @@ export const Checklist: CollectionConfig = {
     afterChange: [syncChecklistCompletionsToTimeline],
   },
   labels: {
-    plural: "Checklists",
-    singular: "Checklist",
+    plural: {
+      en: "Checklists",
+      zh: "清单",
+    },
+    singular: {
+      en: "Checklist",
+      zh: "清单",
+    },
   },
 };

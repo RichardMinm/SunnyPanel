@@ -89,7 +89,13 @@ export const TimelineEvent: CollectionConfig = {
     visibilityField(),
   ],
   labels: {
-    plural: "Timeline Events",
-    singular: "Timeline Event",
+    plural: {
+      en: "Timeline Events",
+      zh: "时间线",
+    },
+    singular: {
+      en: "Timeline Event",
+      zh: "时间节点",
+    },
   },
 };

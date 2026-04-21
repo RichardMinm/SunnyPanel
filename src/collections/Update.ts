@@ -51,7 +51,13 @@ export const Update: CollectionConfig = {
     visibilityField(),
   ],
   labels: {
-    plural: "Updates",
-    singular: "Update",
+    plural: {
+      en: "Updates",
+      zh: "更新",
+    },
+    singular: {
+      en: "Update",
+      zh: "更新",
+    },
   },
 };

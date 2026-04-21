@@ -54,7 +54,13 @@ export const Post: CollectionConfig = {
     visibilityField(),
   ],
   labels: {
-    plural: "Posts",
-    singular: "Post",
+    plural: {
+      en: "Posts",
+      zh: "文章",
+    },
+    singular: {
+      en: "Post",
+      zh: "文章",
+    },
   },
 };

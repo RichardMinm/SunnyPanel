@@ -40,4 +40,14 @@ export const Media: CollectionConfig = {
     ],
     mimeTypes: ["image/*"],
   },
+  labels: {
+    plural: {
+      en: "Media",
+      zh: "媒体",
+    },
+    singular: {
+      en: "Media",
+      zh: "媒体",
+    },
+  },
 };

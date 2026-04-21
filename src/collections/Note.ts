@@ -42,7 +42,13 @@ export const Note: CollectionConfig = {
     visibilityField(),
   ],
   labels: {
-    plural: "Notes",
-    singular: "Note",
+    plural: {
+      en: "Notes",
+      zh: "短札",
+    },
+    singular: {
+      en: "Note",
+      zh: "短札",
+    },
   },
 };

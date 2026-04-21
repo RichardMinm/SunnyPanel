@@ -92,7 +92,13 @@ export const Plan: CollectionConfig = {
     visibilityField("private"),
   ],
   labels: {
-    plural: "Plans",
-    singular: "Plan",
+    plural: {
+      en: "Plans",
+      zh: "计划",
+    },
+    singular: {
+      en: "Plan",
+      zh: "计划",
+    },
   },
 };

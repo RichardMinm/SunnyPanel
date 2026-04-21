@@ -49,4 +49,14 @@ export const Users: CollectionConfig = {
       },
     },
   ],
+  labels: {
+    plural: {
+      en: "Users",
+      zh: "用户",
+    },
+    singular: {
+      en: "User",
+      zh: "用户",
+    },
+  },
 };

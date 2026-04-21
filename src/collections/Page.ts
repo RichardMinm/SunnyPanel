@@ -37,7 +37,13 @@ export const Page: CollectionConfig = {
     visibilityField(),
   ],
   labels: {
-    plural: "Pages",
-    singular: "Page",
+    plural: {
+      en: "Pages",
+      zh: "页面",
+    },
+    singular: {
+      en: "Page",
+      zh: "页面",
+    },
   },
 };
