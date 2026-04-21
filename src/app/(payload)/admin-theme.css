@@ -138,6 +138,14 @@
     margin-bottom: 16px;
   }
 
+  .collection-list {
+    padding-top: 18px;
+  }
+
+  .collection-list .list-header {
+    margin-top: 2px;
+  }
+
   html[data-theme="dark"] .app-header,
   html[data-theme="dark"] .doc-controls,
   html[data-theme="dark"] .nav,
