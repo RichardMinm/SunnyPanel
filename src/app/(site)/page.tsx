@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import type { Checklist } from "@/payload-types";
 
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
@@ -44,15 +42,6 @@ export default async function Home() {
             </p>
           </div>
 
-          <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap">
-            <Link className="sunny-button-primary w-full sm:w-auto" href="/checklists">
-              打开 Checklist
-            </Link>
-            <Link className="sunny-button-secondary w-full sm:w-auto" href="/updates">
-              查看 Updates
-            </Link>
-          </div>
-
           <div className="mt-7 grid gap-3 sm:grid-cols-2 md:mt-8 md:gap-4">
             <div className="rounded-[1.2rem] border border-border bg-white/58 px-4 py-4 md:rounded-[1.4rem] md:px-5 md:py-5">
               <p className="sunny-kicker text-[0.68rem] text-muted">Checklists</p>
@@ -69,14 +58,14 @@ export default async function Home() {
 
         <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr] xl:gap-6">
           <div className="sunny-card rounded-[1.55rem] p-5 sm:p-6 md:rounded-[1.9rem] md:p-7">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
               <div>
                 <p className="sunny-kicker text-xs text-muted">Checklist</p>
                 <h2 className="sunny-display mt-2 text-[2rem] text-foreground md:text-3xl">当前清单</h2>
+                <p className="mt-3 text-sm leading-7 text-muted">
+                  直接在首页展开最近的清单内容，不再额外放一层跳转按钮。
+                </p>
               </div>
-              <Link className="sunny-button-secondary w-full sm:w-auto" href="/checklists">
-                全部查看
-              </Link>
             </div>
 
             <div className="mt-5 grid gap-3 md:mt-6 md:gap-4">
@@ -85,12 +74,12 @@ export default async function Home() {
                   const groups = checklist.groups ?? [];
                   const itemCount = getChecklistItemCount(groups);
                   const completedCount = getChecklistCompletedCount(groups);
+                  const previewGroups = groups.slice(0, 2);
 
                   return (
-                    <Link
+                    <article
                       key={checklist.id}
-                      href="/checklists"
-                      className="rounded-[1.15rem] border border-border bg-white/60 px-4 py-4 transition hover:-translate-y-0.5 hover:bg-white/80 md:rounded-[1.35rem] md:px-5 md:py-5"
+                      className="rounded-[1.15rem] border border-border bg-white/60 px-4 py-4 md:rounded-[1.35rem] md:px-5 md:py-5"
                     >
                       <div className="flex flex-wrap gap-2">
                         <span className="sunny-badge sunny-badge-accent">Checklist</span>
@@ -103,7 +92,49 @@ export default async function Home() {
                         <p className="mt-2 text-sm leading-7 text-muted">{checklist.summary}</p>
                       ) : null}
                       <p className="mt-3 text-sm text-muted">分组 {groups.length} · 条目 {itemCount}</p>
-                    </Link>
+
+                      <div className="mt-4 space-y-3">
+                        {previewGroups.map((group, groupIndex) => (
+                          <div
+                            key={group.id ?? `${checklist.id}-${groupIndex}`}
+                            className="rounded-[1rem] border border-border/80 bg-background/55 px-4 py-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-foreground md:text-base">{group.title}</p>
+                              <span className="text-xs text-muted">
+                                {(group.items ?? []).filter((item) => item?.isCompleted).length}/
+                                {group.items?.length ?? 0}
+                              </span>
+                            </div>
+
+                            <div className="mt-3 space-y-2">
+                              {(group.items ?? []).slice(0, 3).map((item, itemIndex) => (
+                                <div
+                                  key={item.id ?? `${group.id ?? groupIndex}-${itemIndex}`}
+                                  className="flex items-start gap-3 rounded-[0.85rem] bg-white/70 px-3 py-2.5"
+                                >
+                                  <span
+                                    className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[0.7rem] ${
+                                      item?.isCompleted
+                                        ? "border-emerald-300 bg-emerald-100 text-emerald-700"
+                                        : "border-border bg-white text-muted"
+                                    }`}
+                                  >
+                                    {item?.isCompleted ? "✓" : ""}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="text-sm text-foreground">{item?.title}</p>
+                                    {item?.completionNote ? (
+                                      <p className="mt-1 text-xs leading-6 text-muted">{item.completionNote}</p>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
                   );
                 })
               ) : (
@@ -115,14 +146,14 @@ export default async function Home() {
           </div>
 
           <div className="sunny-card rounded-[1.55rem] p-5 sm:p-6 md:rounded-[1.9rem] md:p-7">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
               <div>
                 <p className="sunny-kicker text-xs text-muted">Updates</p>
                 <h2 className="sunny-display mt-2 text-[2rem] text-foreground md:text-3xl">最近更新</h2>
+                <p className="mt-3 text-sm leading-7 text-muted">
+                  Update 直接在首页展示正文片段，减少来回跳转。
+                </p>
               </div>
-              <Link className="sunny-button-secondary w-full sm:w-auto" href="/updates">
-                全部查看
-              </Link>
             </div>
 
             <div className="mt-5 space-y-3 md:mt-6 md:space-y-4">

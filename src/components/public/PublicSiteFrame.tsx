@@ -24,7 +24,7 @@ export function PublicSiteFrame({ children }: PublicSiteFrameProps) {
 
   return (
     <div className="mx-auto flex w-full max-w-[74rem] flex-1 flex-col px-3 py-3 sm:px-4 md:px-6 lg:px-8">
-      <header className="sunny-panel sticky top-3 z-20 rounded-[1.45rem] px-3 py-3 md:top-4 md:rounded-[1.7rem] md:px-6 md:py-3.5">
+      <header className="sunny-panel rounded-[1.45rem] px-3 py-3 md:rounded-[1.7rem] md:px-6 md:py-3.5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className="group inline-flex min-w-0 items-center gap-3">
