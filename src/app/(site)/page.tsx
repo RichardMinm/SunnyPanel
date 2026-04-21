@@ -25,17 +25,17 @@ export default async function Home() {
 
   return (
     <PublicSiteFrame>
-      <main className="flex flex-1 flex-col gap-6 pb-5">
-        <section className="sunny-fade-up sunny-card sunny-card-strong rounded-[2rem] px-7 py-8 md:px-9 md:py-9">
+      <main className="flex flex-1 flex-col gap-5 pb-5 md:gap-6">
+        <section className="sunny-fade-up sunny-card sunny-card-strong rounded-[1.6rem] px-5 py-6 sm:px-6 sm:py-7 md:rounded-[2rem] md:px-9 md:py-9">
           <div className="flex flex-wrap gap-3">
             <span className="sunny-chip">Checklist first</span>
             <span className="sunny-chip">Updates rolling</span>
             <span className="sunny-chip">更轻的首页</span>
           </div>
 
-          <div className="mt-8 max-w-4xl">
+          <div className="mt-6 max-w-4xl md:mt-8">
             <p className="sunny-kicker text-[0.72rem] text-accent-strong">Focused home</p>
-            <h1 className="sunny-display mt-4 text-4xl leading-none text-foreground md:text-6xl">
+            <h1 className="sunny-display mt-4 text-[2.2rem] leading-[0.95] text-foreground sm:text-5xl md:text-6xl">
               首页只保留正在推进的清单，和最近发生的更新。
             </h1>
             <p className="mt-5 max-w-3xl text-sm leading-7 text-muted md:text-base md:leading-8">
@@ -44,42 +44,42 @@ export default async function Home() {
             </p>
           </div>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link className="sunny-button-primary" href="/checklists">
+          <div className="mt-7 grid gap-3 sm:flex sm:flex-wrap">
+            <Link className="sunny-button-primary w-full sm:w-auto" href="/checklists">
               打开 Checklist
             </Link>
-            <Link className="sunny-button-secondary" href="/updates">
+            <Link className="sunny-button-secondary w-full sm:w-auto" href="/updates">
               查看 Updates
             </Link>
           </div>
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-[1.4rem] border border-border bg-white/58 px-5 py-5">
+          <div className="mt-7 grid gap-3 sm:grid-cols-2 md:mt-8 md:gap-4">
+            <div className="rounded-[1.2rem] border border-border bg-white/58 px-4 py-4 md:rounded-[1.4rem] md:px-5 md:py-5">
               <p className="sunny-kicker text-[0.68rem] text-muted">Checklists</p>
-              <p className="mt-3 text-3xl font-semibold text-foreground">{checklists.totalDocs}</p>
+              <p className="mt-3 text-[1.9rem] font-semibold text-foreground md:text-3xl">{checklists.totalDocs}</p>
               <p className="mt-2 text-sm leading-7 text-muted">分组任务、课程章节和可回看的完成记录。</p>
             </div>
-            <div className="rounded-[1.4rem] border border-border bg-white/58 px-5 py-5">
+            <div className="rounded-[1.2rem] border border-border bg-white/58 px-4 py-4 md:rounded-[1.4rem] md:px-5 md:py-5">
               <p className="sunny-kicker text-[0.68rem] text-muted">Updates</p>
-              <p className="mt-3 text-3xl font-semibold text-foreground">{updates.totalDocs}</p>
+              <p className="mt-3 text-[1.9rem] font-semibold text-foreground md:text-3xl">{updates.totalDocs}</p>
               <p className="mt-2 text-sm leading-7 text-muted">最近的生活、工作或项目推进会先出现在这里。</p>
             </div>
           </div>
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="sunny-card rounded-[1.9rem] p-7">
-            <div className="flex items-center justify-between gap-4">
+        <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr] xl:gap-6">
+          <div className="sunny-card rounded-[1.55rem] p-5 sm:p-6 md:rounded-[1.9rem] md:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="sunny-kicker text-xs text-muted">Checklist</p>
-                <h2 className="sunny-display mt-2 text-3xl text-foreground">当前清单</h2>
+                <h2 className="sunny-display mt-2 text-[2rem] text-foreground md:text-3xl">当前清单</h2>
               </div>
-              <Link className="sunny-button-secondary" href="/checklists">
+              <Link className="sunny-button-secondary w-full sm:w-auto" href="/checklists">
                 全部查看
               </Link>
             </div>
 
-            <div className="mt-6 grid gap-4">
+            <div className="mt-5 grid gap-3 md:mt-6 md:gap-4">
               {checklists.docs.length > 0 ? (
                 checklists.docs.map((checklist) => {
                   const groups = checklist.groups ?? [];
@@ -90,7 +90,7 @@ export default async function Home() {
                     <Link
                       key={checklist.id}
                       href="/checklists"
-                      className="rounded-[1.35rem] border border-border bg-white/60 px-5 py-5 transition hover:-translate-y-0.5 hover:bg-white/80"
+                      className="rounded-[1.15rem] border border-border bg-white/60 px-4 py-4 transition hover:-translate-y-0.5 hover:bg-white/80 md:rounded-[1.35rem] md:px-5 md:py-5"
                     >
                       <div className="flex flex-wrap gap-2">
                         <span className="sunny-badge sunny-badge-accent">Checklist</span>
@@ -98,7 +98,7 @@ export default async function Home() {
                           {completedCount}/{itemCount || 0} 完成
                         </span>
                       </div>
-                      <h3 className="mt-4 text-xl font-semibold text-foreground">{checklist.title}</h3>
+                      <h3 className="mt-4 text-lg font-semibold text-foreground md:text-xl">{checklist.title}</h3>
                       {checklist.summary ? (
                         <p className="mt-2 text-sm leading-7 text-muted">{checklist.summary}</p>
                       ) : null}
@@ -114,23 +114,23 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="sunny-card rounded-[1.9rem] p-7">
-            <div className="flex items-center justify-between gap-4">
+          <div className="sunny-card rounded-[1.55rem] p-5 sm:p-6 md:rounded-[1.9rem] md:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="sunny-kicker text-xs text-muted">Updates</p>
-                <h2 className="sunny-display mt-2 text-3xl text-foreground">最近更新</h2>
+                <h2 className="sunny-display mt-2 text-[2rem] text-foreground md:text-3xl">最近更新</h2>
               </div>
-              <Link className="sunny-button-secondary" href="/updates">
+              <Link className="sunny-button-secondary w-full sm:w-auto" href="/updates">
                 全部查看
               </Link>
             </div>
 
-            <div className="mt-6 space-y-4">
+            <div className="mt-5 space-y-3 md:mt-6 md:space-y-4">
               {updates.docs.length > 0 ? (
                 updates.docs.map((update) => (
                   <article
                     key={update.id}
-                    className="rounded-[1.35rem] border border-border bg-white/60 px-5 py-5"
+                    className="rounded-[1.15rem] border border-border bg-white/60 px-4 py-4 md:rounded-[1.35rem] md:px-5 md:py-5"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <span className="sunny-badge sunny-badge-accent">{update.type}</span>

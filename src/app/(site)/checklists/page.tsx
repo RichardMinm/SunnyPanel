@@ -20,17 +20,17 @@ export default async function ChecklistsPage() {
 
   return (
     <PublicSiteFrame>
-      <main className="flex flex-1 flex-col gap-7 pb-6">
-        <section className="sunny-card sunny-card-strong rounded-[2rem] px-7 py-8 md:px-9 md:py-9">
+      <main className="flex flex-1 flex-col gap-5 pb-6 md:gap-7">
+        <section className="sunny-card sunny-card-strong rounded-[1.6rem] px-5 py-6 sm:px-6 sm:py-7 md:rounded-[2rem] md:px-9 md:py-9">
           <div className="flex flex-wrap gap-3">
             <span className="sunny-chip">折叠清单</span>
             <span className="sunny-chip">后台可自定义</span>
             <span className="sunny-chip">完成自动进入 Timeline</span>
           </div>
 
-          <div className="mt-8 max-w-4xl">
+          <div className="mt-6 max-w-4xl md:mt-8">
             <p className="sunny-kicker text-[0.7rem] text-accent-strong">Structured learning lists</p>
-            <h1 className="sunny-display mt-4 text-4xl leading-none text-foreground md:text-6xl">
+            <h1 className="sunny-display mt-4 text-[2.2rem] leading-[0.95] text-foreground sm:text-5xl md:text-6xl">
               把长期任务拆成可折叠、可勾选、可回看的清单。
             </h1>
             <p className="mt-5 max-w-3xl text-sm leading-7 text-muted md:text-base md:leading-8">
@@ -48,7 +48,7 @@ export default async function ChecklistsPage() {
               const completedItems = getCompletedCount(groups);
 
               return (
-                <article key={checklist.id} className="sunny-card rounded-[1.8rem] px-6 py-6 md:px-7">
+                <article key={checklist.id} className="sunny-card rounded-[1.5rem] px-4 py-5 sm:px-5 md:rounded-[1.8rem] md:px-7 md:py-6">
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div className="max-w-3xl">
                       <div className="flex flex-wrap gap-2">
@@ -57,20 +57,20 @@ export default async function ChecklistsPage() {
                           {completedItems}/{totalItems || 0} 完成
                         </span>
                       </div>
-                      <h2 className="sunny-display mt-4 text-3xl text-foreground">{checklist.title}</h2>
+                      <h2 className="sunny-display mt-4 text-[2rem] text-foreground md:text-3xl">{checklist.title}</h2>
                       {checklist.summary ? (
                         <p className="mt-3 text-sm leading-7 text-muted">{checklist.summary}</p>
                       ) : null}
                     </div>
 
-                    <div className="min-w-[10rem] rounded-[1.35rem] border border-border bg-white/55 px-4 py-4 text-sm text-muted">
+                    <div className="grid grid-cols-3 gap-2 rounded-[1.15rem] border border-border bg-white/55 px-4 py-4 text-center text-sm text-muted md:min-w-[10rem] md:grid-cols-1 md:gap-0 md:rounded-[1.35rem] md:text-left">
                       <p>分组 {groups.length}</p>
-                      <p className="mt-2">条目 {totalItems}</p>
-                      <p className="mt-2">已完成 {completedItems}</p>
+                      <p className="md:mt-2">条目 {totalItems}</p>
+                      <p className="md:mt-2">已完成 {completedItems}</p>
                     </div>
                   </div>
 
-                  <div className="mt-6 space-y-4">
+                  <div className="mt-5 space-y-3 md:mt-6 md:space-y-4">
                     {groups.map((group, groupIndex) => {
                       const items = group.items ?? [];
                       const completedInGroup = items.filter((item) => item.isCompleted).length;
@@ -78,24 +78,24 @@ export default async function ChecklistsPage() {
                       return (
                         <details
                           key={group.id ?? `${checklist.id}-${groupIndex}`}
-                          className="rounded-[1.4rem] border border-border bg-white/58 px-5 py-4"
+                          className="rounded-[1.15rem] border border-border bg-white/58 px-4 py-4 md:rounded-[1.4rem] md:px-5"
                           open={groupIndex === 0}
                         >
-                          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left">
-                            <div>
-                              <p className="text-lg font-semibold text-foreground">{group.title}</p>
+                          <summary className="flex cursor-pointer list-none flex-col gap-3 text-left sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                            <div className="min-w-0">
+                              <p className="text-base font-semibold text-foreground md:text-lg">{group.title}</p>
                               <p className="mt-1 text-sm text-muted">
                                 {completedInGroup}/{items.length} 已完成
                               </p>
                             </div>
-                            <span className="sunny-badge sunny-badge-muted">展开条目</span>
+                            <span className="sunny-badge sunny-badge-muted self-start sm:self-auto">展开条目</span>
                           </summary>
 
                           <div className="mt-4 space-y-3">
                             {items.map((item, itemIndex) => (
                               <div
                                 key={item.id ?? `${group.id ?? groupIndex}-${itemIndex}`}
-                                className="rounded-[1.15rem] border border-border/80 bg-background/55 px-4 py-4"
+                                className="rounded-[1rem] border border-border/80 bg-background/55 px-4 py-4 md:rounded-[1.15rem]"
                               >
                                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                                   <div className="min-w-0">
@@ -109,14 +109,14 @@ export default async function ChecklistsPage() {
                                       >
                                         {item.isCompleted ? "✓" : ""}
                                       </span>
-                                      <p className="text-base font-medium text-foreground">{item.title}</p>
+                                      <p className="text-[0.97rem] font-medium text-foreground md:text-base">{item.title}</p>
                                     </div>
                                     {item.description ? (
-                                      <p className="mt-2 pl-7 text-sm leading-7 text-muted">{item.description}</p>
+                                      <p className="mt-2 pl-7 text-sm leading-7 text-muted md:pr-4">{item.description}</p>
                                     ) : null}
                                   </div>
 
-                                  <div className="flex flex-wrap gap-2 pl-7 md:pl-0">
+                                  <div className="flex flex-wrap gap-2 pl-7 md:max-w-[45%] md:justify-end md:pl-0">
                                     <span
                                       className={`sunny-badge ${
                                         item.isCompleted ? "sunny-badge-accent" : "sunny-badge-muted"
@@ -150,7 +150,7 @@ export default async function ChecklistsPage() {
             })}
           </section>
         ) : (
-          <section className="sunny-card rounded-[1.8rem] px-6 py-7 text-sm leading-7 text-muted">
+          <section className="sunny-card rounded-[1.5rem] px-5 py-6 text-sm leading-7 text-muted md:rounded-[1.8rem] md:px-6 md:py-7">
             还没有公开的清单。你可以先在后台新建一个 `Checklist`，例如“高等数学”，再在其中加入
             “映射与函数”这类可勾选条目。
           </section>

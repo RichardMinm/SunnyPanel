@@ -10,7 +10,7 @@ export default async function UpdatesPage() {
 
   return (
     <PublicSiteFrame>
-      <main className="flex flex-1 flex-col gap-8 pb-4">
+      <main className="flex flex-1 flex-col gap-6 pb-4 md:gap-8">
         <SectionIntro
           eyebrow="Updates"
           title="保持流动的近况与推进记录"
@@ -28,19 +28,19 @@ export default async function UpdatesPage() {
             body="后台 `Update` collection 已经可用。发布内容后，这里会自动形成一条时间顺序的动态流。"
           />
         ) : (
-          <section className="sunny-card rounded-[2.2rem] p-8">
+          <section className="sunny-card rounded-[1.6rem] p-5 sm:p-6 md:rounded-[2.2rem] md:p-8">
             <div className="relative">
               <div className="absolute left-5 top-4 bottom-4 hidden w-px bg-[linear-gradient(180deg,rgba(24,34,44,0.14),rgba(24,34,44,0.02))] md:block" />
 
-              <div className="space-y-5">
+              <div className="space-y-4 md:space-y-5">
                 {updates.map((update) => (
-                  <article key={update.id} className="relative rounded-[1.7rem] border border-border bg-white/60 p-6 md:ml-12">
+                  <article key={update.id} className="relative rounded-[1.3rem] border border-border bg-white/60 p-4 sm:p-5 md:ml-12 md:rounded-[1.7rem] md:p-6">
                     <div className="absolute -left-[2.55rem] top-7 hidden h-4 w-4 rounded-full border-4 border-background bg-accent md:block" />
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+                    <div className="flex flex-col items-start gap-2 text-xs text-muted sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
                       <span className="sunny-badge sunny-badge-accent">{update.type}</span>
                       <span>{formatDate(update.createdAt)}</span>
                     </div>
-                    <p className="mt-4 text-[1.02rem] leading-8 text-foreground">{update.content}</p>
+                    <p className="mt-4 text-[0.97rem] leading-7 text-foreground md:text-[1.02rem] md:leading-8">{update.content}</p>
                     {update.link ? (
                       <a
                         className="mt-4 inline-flex text-sm font-semibold text-accent-strong"

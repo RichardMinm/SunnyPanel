@@ -29,6 +29,7 @@ export default function SiteLayout({
   return (
     <html
       lang="zh-CN"
+      data-scroll-behavior="smooth"
       className={`${manrope.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col sunny-shell">{children}</body>
