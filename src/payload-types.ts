@@ -205,7 +205,7 @@ export interface Post {
   id: number;
   title: string;
   /**
-   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   * 需要自动生成时再勾选；默认可直接手动输入 slug。
    */
   generateSlug?: boolean | null;
   slug: string;
@@ -276,7 +276,7 @@ export interface Checklist {
    */
   title: string;
   /**
-   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   * 需要自动生成时再勾选；默认可直接手动输入 slug。
    */
   generateSlug?: boolean | null;
   slug: string;
@@ -395,7 +395,7 @@ export interface Page {
   id: number;
   title: string;
   /**
-   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   * 需要自动生成时再勾选；默认可直接手动输入 slug。
    */
   generateSlug?: boolean | null;
   slug: string;

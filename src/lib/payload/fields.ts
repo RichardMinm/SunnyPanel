@@ -48,6 +48,39 @@ export const publishedAtField: Field = {
 
 export const createSlugField = (useAsSlug = "title"): Field =>
   slugField({
+    overrides: (field) => ({
+      ...field,
+      fields: field.fields.map((subField, index) => {
+        if (index !== 0) {
+          return subField;
+        }
+
+        const generateField = subField as Field & {
+          admin?: {
+            description?: string;
+            hidden?: boolean;
+          };
+          defaultValue?: boolean;
+          label?: string;
+          name?: string;
+        };
+
+        if (generateField.name !== "generateSlug") {
+          return subField;
+        }
+
+        return {
+          ...generateField,
+          admin: {
+            ...generateField.admin,
+            description: "需要自动生成时再勾选；默认可直接手动输入 slug。",
+            hidden: false,
+          },
+          defaultValue: false,
+          label: "Auto-generate slug",
+        } as Field;
+      }),
+    }),
     useAsSlug,
     position: "sidebar",
   });
