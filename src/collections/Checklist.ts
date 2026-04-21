@@ -141,40 +141,85 @@ export const Checklist: CollectionConfig = {
     {
       name: "title",
       type: "text",
+      admin: {
+        description: "Checklist name, for example: 高等数学 / Linear Algebra / Reading Plan.",
+        placeholder: "例如：高等数学",
+      },
       required: true,
     },
     createSlugField(),
     {
       name: "summary",
       type: "textarea",
+      admin: {
+        placeholder: "补一句这份清单的用途，例如：用于整理高数各章节学习进度。",
+      },
     },
     {
       name: "groups",
       type: "array",
       admin: {
-        description: "Use groups such as subjects, chapters, or modules. Each group can hold its own checklist items.",
+        description: "Create chapter-level groups first, then add structured items inside each group.",
+        initCollapsed: false,
       },
+      defaultValue: [
+        {
+          items: [
+            {
+              isCompleted: false,
+              title: "",
+            },
+          ],
+          title: "",
+        },
+      ],
+      labels: {
+        plural: "章节 / 分组",
+        singular: "分组",
+      },
+      minRows: 1,
       fields: [
         {
           name: "title",
           type: "text",
+          admin: {
+            placeholder: "例如：映射与函数",
+          },
           required: true,
         },
         {
           name: "items",
           type: "array",
           admin: {
-            description: "Mark an item complete, add a note, and SunnyPanel will create a timeline entry automatically.",
+            description: "Add the exact topics or tasks inside this group. Completing an item will automatically create a timeline record.",
+            initCollapsed: false,
           },
+          defaultValue: [
+            {
+              isCompleted: false,
+              title: "",
+            },
+          ],
+          labels: {
+            plural: "条目 / 任务",
+            singular: "条目",
+          },
+          minRows: 1,
           fields: [
             {
               name: "title",
               type: "text",
+              admin: {
+                placeholder: "例如：定义域、值域与映射关系",
+              },
               required: true,
             },
             {
               name: "description",
               type: "textarea",
+              admin: {
+                placeholder: "可选：补充这一条要做什么，或者记录学习重点。",
+              },
             },
             {
               name: "isCompleted",
@@ -194,6 +239,7 @@ export const Checklist: CollectionConfig = {
               type: "textarea",
               admin: {
                 condition: (_, siblingData) => Boolean(siblingData?.isCompleted),
+                placeholder: "可选：例如，已完成习题 1-10，难点在反函数理解。",
               },
             },
           ],

@@ -271,6 +271,9 @@ export interface Update {
  */
 export interface Checklist {
   id: number;
+  /**
+   * Checklist name, for example: 高等数学 / Linear Algebra / Reading Plan.
+   */
   title: string;
   /**
    * When enabled, the slug will auto-generate from the title field on save and autosave.
@@ -279,13 +282,13 @@ export interface Checklist {
   slug: string;
   summary?: string | null;
   /**
-   * Use groups such as subjects, chapters, or modules. Each group can hold its own checklist items.
+   * Create chapter-level groups first, then add structured items inside each group.
    */
   groups?:
     | {
         title: string;
         /**
-         * Mark an item complete, add a note, and SunnyPanel will create a timeline entry automatically.
+         * Add the exact topics or tasks inside this group. Completing an item will automatically create a timeline record.
          */
         items?:
           | {

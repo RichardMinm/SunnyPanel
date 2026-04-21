@@ -24,38 +24,6 @@ export default async function Home() {
   return (
     <PublicSiteFrame>
       <main className="flex flex-1 flex-col gap-5 pb-5 md:gap-6">
-        <section className="sunny-fade-up sunny-card sunny-card-strong rounded-[1.6rem] px-5 py-6 sm:px-6 sm:py-7 md:rounded-[2rem] md:px-9 md:py-9">
-          <div className="flex flex-wrap gap-3">
-            <span className="sunny-chip">Checklist first</span>
-            <span className="sunny-chip">Updates rolling</span>
-            <span className="sunny-chip">更轻的首页</span>
-          </div>
-
-          <div className="mt-6 max-w-4xl md:mt-8">
-            <p className="sunny-kicker text-[0.72rem] text-accent-strong">Focused home</p>
-            <h1 className="sunny-display mt-4 text-[2.2rem] leading-[0.95] text-foreground sm:text-5xl md:text-6xl">
-              首页只保留正在推进的清单，和最近发生的更新。
-            </h1>
-            <p className="mt-5 max-w-3xl text-sm leading-7 text-muted md:text-base md:leading-8">
-              这样首页会更像一个真正的起点，而不是系统说明页。清单负责长期任务结构，
-              Updates 负责最近的变化与推进节奏。
-            </p>
-          </div>
-
-          <div className="mt-7 grid gap-3 sm:grid-cols-2 md:mt-8 md:gap-4">
-            <div className="rounded-[1.2rem] border border-border bg-white/58 px-4 py-4 md:rounded-[1.4rem] md:px-5 md:py-5">
-              <p className="sunny-kicker text-[0.68rem] text-muted">Checklists</p>
-              <p className="mt-3 text-[1.9rem] font-semibold text-foreground md:text-3xl">{checklists.totalDocs}</p>
-              <p className="mt-2 text-sm leading-7 text-muted">分组任务、课程章节和可回看的完成记录。</p>
-            </div>
-            <div className="rounded-[1.2rem] border border-border bg-white/58 px-4 py-4 md:rounded-[1.4rem] md:px-5 md:py-5">
-              <p className="sunny-kicker text-[0.68rem] text-muted">Updates</p>
-              <p className="mt-3 text-[1.9rem] font-semibold text-foreground md:text-3xl">{updates.totalDocs}</p>
-              <p className="mt-2 text-sm leading-7 text-muted">最近的生活、工作或项目推进会先出现在这里。</p>
-            </div>
-          </div>
-        </section>
-
         <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr] xl:gap-6">
           <div className="sunny-card rounded-[1.55rem] p-5 sm:p-6 md:rounded-[1.9rem] md:p-7">
             <div>
