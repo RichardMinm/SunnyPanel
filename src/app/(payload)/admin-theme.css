@@ -109,6 +109,31 @@
     margin-bottom: 14px;
   }
 
+  .app-header__step-nav-wrapper {
+    margin-bottom: 6px;
+    opacity: 0.58;
+  }
+
+  .app-header__step-nav .step-nav {
+    gap: 0.35rem;
+  }
+
+  .app-header__step-nav .step-nav,
+  .app-header__step-nav .step-nav a,
+  .app-header__step-nav .step-nav button,
+  .app-header__step-nav .step-nav span {
+    font-size: 0.86rem;
+    letter-spacing: 0.01em;
+  }
+
+  body:has(.collection-list) .app-header__step-nav-wrapper {
+    display: none;
+  }
+
+  body:has(.collection-list) .app-header {
+    margin-bottom: 8px;
+  }
+
   .doc-controls {
     margin-bottom: 16px;
   }
