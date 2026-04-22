@@ -225,6 +225,8 @@
   .render-fields,
   .collection-edit__auth {
     gap: 22px;
+    padding-inline: 14px;
+    padding-top: 14px;
   }
 
   .render-fields .field-type,
@@ -268,6 +270,13 @@
   .collection-edit .collection-edit__edit-main,
   .collection-edit .collection-edit__sidebar-wrap {
     padding-top: 8px;
+  }
+
+  .render-fields > .field-type:first-child,
+  .render-fields > .row-field:first-child,
+  .collection-edit__auth > .field-type:first-child,
+  .collection-edit__auth > .row-field:first-child {
+    margin-top: 6px;
   }
 
   .field-type input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
