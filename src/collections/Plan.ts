@@ -22,12 +22,18 @@ export const Plan: CollectionConfig = {
       name: "title",
       type: "text",
       label: "计划标题",
+      admin: {
+        placeholder: "例如：完成高数第一章复习，或补完 SunnyPanel 的工作台体验",
+      },
       required: true,
     },
     {
       name: "description",
       type: "textarea",
       label: "说明",
+      admin: {
+        placeholder: "可选：先记一句这项计划要达到什么结果。",
+      },
     },
     {
       name: "linkedContent",
@@ -35,6 +41,7 @@ export const Plan: CollectionConfig = {
       label: "关联内容",
       admin: {
         description: "把这项计划正在产出的文章、短札、更新、清单、时间线节点或页面关联进来。",
+        position: "sidebar",
       },
       hasMany: true,
       relationTo: ["posts", "notes", "updates", "checklists", "timeline-events", "pages"],
@@ -90,11 +97,17 @@ export const Plan: CollectionConfig = {
       name: "startDate",
       type: "date",
       label: "开始时间",
+      admin: {
+        position: "sidebar",
+      },
     },
     {
       name: "dueDate",
       type: "date",
       label: "截止时间",
+      admin: {
+        position: "sidebar",
+      },
     },
     visibilityField("private"),
   ],

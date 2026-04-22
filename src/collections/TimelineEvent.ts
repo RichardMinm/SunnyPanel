@@ -22,23 +22,36 @@ export const TimelineEvent: CollectionConfig = {
       name: "title",
       type: "text",
       label: "节点标题",
+      admin: {
+        placeholder: "例如：SunnyPanel 完成第一版私有工作台",
+      },
       required: true,
     },
     {
       name: "description",
       type: "textarea",
       label: "说明",
+      admin: {
+        placeholder: "可选：补一句这个节点为什么重要。",
+      },
     },
     {
       name: "eventDate",
       type: "date",
       label: "发生时间",
+      admin: {
+        description: "记录这个节点真正发生的时间。",
+        position: "sidebar",
+      },
       required: true,
     },
     {
       name: "type",
       type: "select",
       label: "节点类型",
+      admin: {
+        position: "sidebar",
+      },
       defaultValue: "milestone",
       options: [
         {
@@ -60,18 +73,27 @@ export const TimelineEvent: CollectionConfig = {
       name: "relatedPost",
       type: "relationship",
       label: "关联文章",
+      admin: {
+        position: "sidebar",
+      },
       relationTo: "posts",
     },
     {
       name: "relatedUpdate",
       type: "relationship",
       label: "关联更新",
+      admin: {
+        position: "sidebar",
+      },
       relationTo: "updates",
     },
     {
       name: "relatedChecklist",
       type: "relationship",
       label: "关联清单",
+      admin: {
+        position: "sidebar",
+      },
       relationTo: "checklists",
     },
     {
@@ -87,12 +109,18 @@ export const TimelineEvent: CollectionConfig = {
       name: "isFeatured",
       type: "checkbox",
       label: "设为精选",
+      admin: {
+        position: "sidebar",
+      },
       defaultValue: false,
     },
     {
       name: "sortOrder",
       type: "number",
       label: "排序权重",
+      admin: {
+        position: "sidebar",
+      },
       defaultValue: 0,
     },
     statusField,

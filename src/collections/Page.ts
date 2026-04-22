@@ -26,6 +26,9 @@ export const Page: CollectionConfig = {
       name: "title",
       type: "text",
       label: "页面标题",
+      admin: {
+        placeholder: "例如：About、Now、Uses",
+      },
       required: true,
     },
     createSlugField(),
@@ -33,12 +36,18 @@ export const Page: CollectionConfig = {
       name: "content",
       type: "richText",
       label: "页面内容",
+      admin: {
+        description: "先把页面的核心内容写出来，版式可以之后再慢慢调整。",
+      },
       required: true,
     },
     {
       name: "coverImage",
       type: "relationship",
       label: "头图",
+      admin: {
+        position: "sidebar",
+      },
       relationTo: "media",
     },
     statusField,

@@ -22,6 +22,10 @@ export const Update: CollectionConfig = {
       name: "type",
       type: "select",
       label: "更新类型",
+      admin: {
+        description: "先选一个最接近的类型即可。",
+        position: "sidebar",
+      },
       defaultValue: "life",
       options: [
         {
@@ -43,17 +47,28 @@ export const Update: CollectionConfig = {
       name: "content",
       type: "textarea",
       label: "内容",
+      admin: {
+        placeholder: "例如：今天把首页收得更轻了，Dashboard 也开始更像真正工作台。",
+      },
       required: true,
     },
     {
       name: "link",
       type: "text",
       label: "关联链接",
+      admin: {
+        description: "可选。需要时再补。",
+        placeholder: "例如：https://...",
+        position: "sidebar",
+      },
     },
     {
       name: "coverImage",
       type: "relationship",
       label: "配图",
+      admin: {
+        position: "sidebar",
+      },
       relationTo: "media",
     },
     statusField,
