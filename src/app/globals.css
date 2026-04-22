@@ -334,6 +334,58 @@ html[data-theme="dark"] .sunny-locale-switch {
     color 180ms ease;
 }
 
+.sunny-settings-menu {
+  position: relative;
+}
+
+.sunny-settings-trigger {
+  min-width: 0;
+  cursor: pointer;
+  padding-inline: calc(1rem * var(--site-scale));
+}
+
+.sunny-settings-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.sunny-settings-panel {
+  position: absolute;
+  top: calc(100% + 0.65rem);
+  right: 0;
+  z-index: 30;
+  min-width: 14rem;
+  display: grid;
+  gap: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 1.15rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 250, 244, 0.88)),
+    var(--surface-strong);
+  padding: 0.9rem;
+  box-shadow: 0 14px 34px rgba(64, 42, 16, 0.1);
+  backdrop-filter: blur(18px);
+}
+
+html[data-theme="dark"] .sunny-settings-panel {
+  background:
+    linear-gradient(180deg, rgba(35, 42, 50, 0.96), rgba(26, 31, 37, 0.96)),
+    var(--surface-strong);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.28);
+}
+
+.sunny-settings-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sunny-settings-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .sunny-locale-option-active {
   background: rgba(255, 255, 255, 0.9);
   color: var(--foreground);

@@ -10,14 +10,12 @@ type PublicSiteFrameProps = {
   children: ReactNode;
   locale: SiteLocale;
   showTimelineRail?: boolean;
-  themeToggle?: ReactNode;
 };
 
 export async function PublicSiteFrame({
   children,
   locale,
   showTimelineRail = true,
-  themeToggle,
 }: PublicSiteFrameProps) {
   const copy = getSiteCopy(locale);
   const recentTimeline = showTimelineRail
@@ -26,7 +24,7 @@ export async function PublicSiteFrame({
 
   return (
     <div className="mx-auto flex w-full max-w-[74rem] flex-1 flex-col px-3 py-3 sm:px-4 md:px-6 lg:px-8">
-      <PublicSiteHeader locale={locale} themeToggle={themeToggle} />
+      <PublicSiteHeader locale={locale} />
 
       <div
         className={`mt-5 flex-1 ${showTimelineRail ? "grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start" : ""} md:mt-6`}

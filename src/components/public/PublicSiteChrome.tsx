@@ -1,19 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 
-import { LocaleToggle } from "@/components/public/LocaleToggle";
-import { ThemeToggle } from "@/components/public/ThemeToggle";
+import { SettingsMenu } from "@/components/public/SettingsMenu";
 import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
 
-type PublicSiteChromeProps = {
-  locale: SiteLocale;
-  themeToggle?: ReactNode;
-};
-
-export function PublicSiteHeader({ locale, themeToggle }: PublicSiteChromeProps) {
+export function PublicSiteHeader({ locale }: { locale: SiteLocale }) {
   const pathname = usePathname();
   const copy = getSiteCopy(locale);
   const navigation = [
@@ -61,14 +54,8 @@ export function PublicSiteHeader({ locale, themeToggle }: PublicSiteChromeProps)
         </div>
 
         <div className="flex flex-col gap-2 sm:items-end">
-          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-            <span className="text-[0.72rem] font-semibold text-muted">{copy.common.localeLabel}</span>
-            <LocaleToggle currentLocale={locale} label={copy.common.localeLabel} />
-            <span className="text-[0.72rem] font-semibold text-muted">{copy.common.themeLabel}</span>
-            {themeToggle ?? <ThemeToggle locale={locale} />}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+          <div className="grid grid-cols-[auto_1fr_1fr] gap-2 sm:flex sm:flex-wrap sm:justify-end">
+            <SettingsMenu locale={locale} />
             <Link href="/dashboard" className="sunny-button-secondary w-full sm:w-auto">
               {copy.frame.dashboard}
             </Link>
