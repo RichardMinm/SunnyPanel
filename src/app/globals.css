@@ -336,6 +336,8 @@ html[data-theme="dark"] .sunny-locale-switch {
 
 .sunny-settings-menu {
   position: relative;
+  isolation: isolate;
+  z-index: 60;
 }
 
 .sunny-settings-trigger {
@@ -352,7 +354,7 @@ html[data-theme="dark"] .sunny-locale-switch {
   position: absolute;
   top: calc(100% + 0.65rem);
   right: 0;
-  z-index: 30;
+  z-index: 80;
   min-width: 14rem;
   display: grid;
   gap: 0.85rem;
