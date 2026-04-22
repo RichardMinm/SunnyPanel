@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { MotionReveal } from "@/components/public/MotionReveal";
 import { PublicSiteFooter, PublicSiteHeader } from "@/components/public/PublicSiteChrome";
 import { formatShortDate } from "@/lib/formatters";
 import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
@@ -46,21 +47,24 @@ export async function PublicSiteFrame({
 
               <div className="mt-5 space-y-3">
                 {recentTimeline.length > 0 ? (
-                  recentTimeline.map((event) => (
-                    <Link
-                      key={event.id}
-                      href="/timeline"
-                      className="block rounded-[1.15rem] border border-border bg-white/62 px-4 py-4 transition hover:-translate-y-1 hover:bg-white"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="sunny-badge sunny-badge-accent">{event.type}</span>
-                        <span className="text-xs text-muted">{formatShortDate(event.eventDate)}</span>
-                      </div>
-                      <p className="mt-3 text-sm font-semibold leading-7 text-foreground">{event.title}</p>
-                      {event.description ? (
-                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted">{event.description}</p>
-                      ) : null}
-                    </Link>
+                  recentTimeline.map((event, index) => (
+                    <MotionReveal key={event.id} delay={index * 0.05}>
+                      <Link
+                        href="/timeline"
+                        className="block rounded-[1.15rem] border border-border bg-white/62 px-4 py-4 transition hover:-translate-y-1 hover:bg-white"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="sunny-badge sunny-badge-accent">{event.type}</span>
+                          <span className="text-xs text-muted">
+                            {formatShortDate(event.eventDate, locale)}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm font-semibold leading-7 text-foreground">{event.title}</p>
+                        {event.description ? (
+                          <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted">{event.description}</p>
+                        ) : null}
+                      </Link>
+                    </MotionReveal>
                   ))
                 ) : (
                   <div className="rounded-[1.15rem] border border-dashed border-border bg-white/45 px-4 py-4 text-sm leading-7 text-muted">

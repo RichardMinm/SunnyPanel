@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
 
 import { SettingsMenu } from "@/components/public/SettingsMenu";
@@ -21,7 +22,12 @@ export function PublicSiteHeader({ locale }: { locale: SiteLocale }) {
   ];
 
   return (
-    <header className="sunny-panel relative z-40 overflow-visible rounded-[1.45rem] px-3 py-3 md:rounded-[1.7rem] md:px-6 md:py-3.5">
+    <motion.header
+      className="sunny-panel relative z-40 overflow-visible rounded-[1.45rem] px-3 py-3 md:rounded-[1.7rem] md:px-6 md:py-3.5"
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+    >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="group inline-flex min-w-0 items-center gap-3">
@@ -37,18 +43,24 @@ export function PublicSiteHeader({ locale }: { locale: SiteLocale }) {
 
         <div className="-mx-1 overflow-x-auto pb-1">
           <nav className="flex min-w-max flex-nowrap gap-1 px-1">
-            {navigation.map((item) => (
-              <Link
+            {navigation.map((item, index) => (
+              <motion.div
                 key={item.href}
-                href={item.href}
-                className={`sunny-nav-link shrink-0 whitespace-nowrap ${
-                  pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
-                    ? "sunny-nav-link-active"
-                    : ""
-                }`}
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: 0.04 * index, ease: "easeOut" }}
               >
-                {item.label}
-              </Link>
+                <Link
+                  href={item.href}
+                  className={`sunny-nav-link shrink-0 whitespace-nowrap ${
+                    pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
+                      ? "sunny-nav-link-active"
+                      : ""
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              </motion.div>
             ))}
           </nav>
         </div>
@@ -65,7 +77,7 @@ export function PublicSiteHeader({ locale }: { locale: SiteLocale }) {
           </div>
         </div>
       </div>
-    </header>
+    </motion.header>
   );
 }
 

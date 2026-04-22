@@ -17,6 +17,7 @@ import { Checklist } from "./src/collections/Checklist.ts";
 import { TimelineEvent } from "./src/collections/TimelineEvent.ts";
 import { Update } from "./src/collections/Update.ts";
 import { Users } from "./src/collections/Users.ts";
+import { buildLivePreviewPath, isPreviewCollectionSlug, livePreviewBreakpoints } from "./src/lib/payload/preview.ts";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -25,6 +26,24 @@ const serverURL = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3000";
 
 export default buildConfig({
   admin: {
+    livePreview: {
+      breakpoints: [...livePreviewBreakpoints],
+      collections: ["posts", "pages", "notes", "updates", "checklists", "timeline-events"],
+      url: ({ collectionConfig, data }) => {
+        const collectionSlug = collectionConfig?.slug;
+
+        if (!collectionSlug || !isPreviewCollectionSlug(collectionSlug)) {
+          return null;
+        }
+
+        const id = typeof data?.id === "number" || typeof data?.id === "string" ? data.id : undefined;
+
+        return buildLivePreviewPath({
+          collection: collectionSlug,
+          id,
+        });
+      },
+    },
     user: Users.slug,
     importMap: {
       baseDir: path.resolve(dirname, "src"),

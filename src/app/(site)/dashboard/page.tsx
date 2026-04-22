@@ -424,6 +424,93 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      <section className="grid gap-6 xl:grid-cols-2">
+        <div className="sunny-card rounded-[2.1rem] p-8">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="sunny-kicker text-xs text-muted">内容待处理</p>
+              <h2 className="sunny-display mt-2 text-3xl text-foreground">最近草稿和未归档内容</h2>
+            </div>
+            <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
+              {snapshot.execution.recentContentWithoutPlans.length} 条
+            </span>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {snapshot.execution.recentContentWithoutPlans.length > 0 ? (
+              snapshot.execution.recentContentWithoutPlans.slice(0, 4).map((item) => (
+                <div key={`${item.kind}-${item.id}`} className="rounded-[1.35rem] border border-border bg-white/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-white px-3 py-1 text-xs text-muted shadow-[0_2px_10px_rgba(24,34,44,0.06)]">
+                        {relationLabelMap[item.kind]}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(item.status)}`}>
+                        {item.status}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-muted">最近更新：{formatDateTime(item.updatedAt)}</p>
+                  <div className="mt-4">
+                    <Link className="sunny-button-secondary px-4 py-2 text-sm" href={item.href}>
+                      打开内容
+                    </Link>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
+                最近没有游离内容，计划和内容的关联状态比较完整。
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="sunny-card rounded-[2.1rem] p-8">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="sunny-kicker text-xs text-muted">叙事补位</p>
+              <h2 className="sunny-display mt-2 text-3xl text-foreground">还没进入 Timeline 的变化</h2>
+            </div>
+            <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
+              {snapshot.execution.timelineCandidates.length} 条
+            </span>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {snapshot.execution.timelineCandidates.length > 0 ? (
+              snapshot.execution.timelineCandidates.slice(0, 4).map((item) => (
+                <div key={`${item.kind}-${item.id}`} className="rounded-[1.35rem] border border-border bg-white/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs text-muted shadow-[0_2px_10px_rgba(24,34,44,0.06)]">
+                      {relationLabelMap[item.kind]}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm text-muted">最近更新：{formatDateTime(item.updatedAt)}</p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link className="sunny-button-secondary px-4 py-2 text-sm" href={item.href}>
+                      打开内容
+                    </Link>
+                    <Link
+                      className="sunny-button-secondary px-4 py-2 text-sm"
+                      href="/admin/collections/timeline-events/create"
+                    >
+                      新建节点
+                    </Link>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
+                最近的重要变化都已经整理进 Timeline。
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="sunny-card rounded-[2.1rem] p-8">
           <div className="flex items-center justify-between gap-4">
