@@ -21,17 +21,20 @@ export const Plan: CollectionConfig = {
     {
       name: "title",
       type: "text",
+      label: "计划标题",
       required: true,
     },
     {
       name: "description",
       type: "textarea",
+      label: "说明",
     },
     {
       name: "linkedContent",
       type: "relationship",
+      label: "关联内容",
       admin: {
-        description: "Attach the posts, notes, updates, checklists, timeline events, or pages that this plan is producing.",
+        description: "把这项计划正在产出的文章、短札、更新、清单、时间线节点或页面关联进来。",
       },
       hasMany: true,
       relationTo: ["posts", "notes", "updates", "checklists", "timeline-events", "pages"],
@@ -39,22 +42,23 @@ export const Plan: CollectionConfig = {
     {
       name: "state",
       type: "select",
+      label: "推进状态",
       defaultValue: "backlog",
       options: [
         {
-          label: "Backlog",
+          label: "待开始",
           value: "backlog",
         },
         {
-          label: "Active",
+          label: "进行中",
           value: "active",
         },
         {
-          label: "Paused",
+          label: "暂停中",
           value: "paused",
         },
         {
-          label: "Done",
+          label: "已完成",
           value: "done",
         },
       ],
@@ -64,18 +68,19 @@ export const Plan: CollectionConfig = {
     {
       name: "priority",
       type: "select",
+      label: "优先级",
       defaultValue: "medium",
       options: [
         {
-          label: "Low",
+          label: "低",
           value: "low",
         },
         {
-          label: "Medium",
+          label: "中",
           value: "medium",
         },
         {
-          label: "High",
+          label: "高",
           value: "high",
         },
       ],
@@ -84,10 +89,12 @@ export const Plan: CollectionConfig = {
     {
       name: "startDate",
       type: "date",
+      label: "开始时间",
     },
     {
       name: "dueDate",
       type: "date",
+      label: "截止时间",
     },
     visibilityField("private"),
   ],

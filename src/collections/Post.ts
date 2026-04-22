@@ -26,27 +26,32 @@ export const Post: CollectionConfig = {
     {
       name: "title",
       type: "text",
+      label: "标题",
       required: true,
     },
     createSlugField(),
     {
       name: "summary",
       type: "textarea",
+      label: "摘要",
       required: true,
     },
     {
       name: "content",
       type: "richText",
+      label: "正文",
       required: true,
     },
     {
       name: "tags",
       type: "text",
+      label: "标签",
       hasMany: true,
     },
     {
       name: "coverImage",
       type: "relationship",
+      label: "封面图",
       relationTo: "media",
     },
     statusField,

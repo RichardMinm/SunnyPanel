@@ -21,18 +21,19 @@ export const Update: CollectionConfig = {
     {
       name: "type",
       type: "select",
+      label: "更新类型",
       defaultValue: "life",
       options: [
         {
-          label: "Life",
+          label: "生活",
           value: "life",
         },
         {
-          label: "Work",
+          label: "工作",
           value: "work",
         },
         {
-          label: "Project",
+          label: "项目",
           value: "project",
         },
       ],
@@ -41,15 +42,18 @@ export const Update: CollectionConfig = {
     {
       name: "content",
       type: "textarea",
+      label: "内容",
       required: true,
     },
     {
       name: "link",
       type: "text",
+      label: "关联链接",
     },
     {
       name: "coverImage",
       type: "relationship",
+      label: "配图",
       relationTo: "media",
     },
     statusField,

@@ -222,6 +222,47 @@
     box-shadow: none;
   }
 
+  .render-fields,
+  .collection-edit__auth {
+    gap: 22px;
+  }
+
+  .render-fields .field-type,
+  .collection-edit__auth .field-type {
+    margin-bottom: 22px;
+  }
+
+  .render-fields .row-field,
+  .collection-edit__auth .row-field {
+    margin-bottom: 22px;
+  }
+
+  .render-fields .field-label,
+  .collection-edit__auth .field-label {
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .render-fields .field-description,
+  .collection-edit__auth .field-description {
+    margin-top: 8px;
+    font-size: 0.86rem;
+    line-height: 1.65;
+    color: var(--theme-elevation-600);
+  }
+
+  .render-fields textarea,
+  .collection-edit__auth textarea {
+    min-height: 132px;
+  }
+
+  .collection-edit .collection-edit__edit-main,
+  .collection-edit .collection-edit__sidebar-wrap {
+    padding-top: 8px;
+  }
+
   .field-type input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
   .field-type textarea:focus,
   .field-type select:focus {

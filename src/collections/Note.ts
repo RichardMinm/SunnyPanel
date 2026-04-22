@@ -21,26 +21,31 @@ export const Note: CollectionConfig = {
     {
       name: "content",
       type: "textarea",
+      label: "内容",
       required: true,
     },
     {
       name: "mood",
       type: "text",
+      label: "心情 / 氛围",
     },
     {
       name: "category",
       type: "text",
+      label: "分类",
       defaultValue: "note",
       required: true,
     },
     {
       name: "pinned",
       type: "checkbox",
+      label: "置顶",
       defaultValue: false,
     },
     {
       name: "coverImage",
       type: "relationship",
+      label: "配图",
       relationTo: "media",
     },
     statusField,

@@ -44,8 +44,9 @@ export const Users: CollectionConfig = {
     {
       name: "displayName",
       type: "text",
+      label: "显示名称",
       admin: {
-        description: "Optional display name for the single admin account.",
+        description: "可选。用于后台和工作台里显示你的称呼。",
       },
     },
   ],

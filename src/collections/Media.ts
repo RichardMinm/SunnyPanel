@@ -20,6 +20,10 @@ export const Media: CollectionConfig = {
     {
       name: "alt",
       type: "text",
+      label: "替代文本",
+      admin: {
+        description: "简短说明这张图片的内容，方便无障碍阅读和 SEO。",
+      },
       required: true,
     },
   ],

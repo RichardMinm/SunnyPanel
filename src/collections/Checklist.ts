@@ -141,8 +141,9 @@ export const Checklist: CollectionConfig = {
     {
       name: "title",
       type: "text",
+      label: "清单标题",
       admin: {
-        description: "Checklist name, for example: 高等数学 / Linear Algebra / Reading Plan.",
+        description: "例如：高等数学、线性代数、阅读计划。",
         placeholder: "例如：高等数学",
       },
       required: true,
@@ -151,6 +152,7 @@ export const Checklist: CollectionConfig = {
     {
       name: "summary",
       type: "textarea",
+      label: "说明",
       admin: {
         placeholder: "补一句这份清单的用途，例如：用于整理高数各章节学习进度。",
       },
@@ -158,8 +160,9 @@ export const Checklist: CollectionConfig = {
     {
       name: "groups",
       type: "array",
+      label: "分组",
       admin: {
-        description: "Create chapter-level groups first, then add structured items inside each group.",
+        description: "先创建章节或模块，再往每个分组里补具体条目。",
         initCollapsed: false,
       },
       defaultValue: [
@@ -182,6 +185,7 @@ export const Checklist: CollectionConfig = {
         {
           name: "title",
           type: "text",
+          label: "分组名称",
           admin: {
             placeholder: "例如：映射与函数",
           },
@@ -190,8 +194,9 @@ export const Checklist: CollectionConfig = {
         {
           name: "items",
           type: "array",
+          label: "条目",
           admin: {
-            description: "Add the exact topics or tasks inside this group. Completing an item will automatically create a timeline record.",
+            description: "把具体知识点或任务写在这里。标记完成后会自动写入时间线。",
             initCollapsed: false,
           },
           defaultValue: [
@@ -209,6 +214,7 @@ export const Checklist: CollectionConfig = {
             {
               name: "title",
               type: "text",
+              label: "条目名称",
               admin: {
                 placeholder: "例如：定义域、值域与映射关系",
               },
@@ -217,6 +223,7 @@ export const Checklist: CollectionConfig = {
             {
               name: "description",
               type: "textarea",
+              label: "条目说明",
               admin: {
                 placeholder: "可选：补充这一条要做什么，或者记录学习重点。",
               },
@@ -224,19 +231,22 @@ export const Checklist: CollectionConfig = {
             {
               name: "isCompleted",
               type: "checkbox",
+              label: "已完成",
               defaultValue: false,
             },
             {
               name: "completedAt",
               type: "date",
+              label: "完成时间",
               admin: {
                 condition: (_, siblingData) => Boolean(siblingData?.isCompleted),
-                description: "Optional. If omitted, the timeline record will use the current time.",
+                description: "可选。不填时，时间线会自动使用当前时间。",
               },
             },
             {
               name: "completionNote",
               type: "textarea",
+              label: "完成备注",
               admin: {
                 condition: (_, siblingData) => Boolean(siblingData?.isCompleted),
                 placeholder: "可选：例如，已完成习题 1-10，难点在反函数理解。",

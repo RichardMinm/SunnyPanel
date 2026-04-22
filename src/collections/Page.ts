@@ -25,17 +25,20 @@ export const Page: CollectionConfig = {
     {
       name: "title",
       type: "text",
+      label: "页面标题",
       required: true,
     },
     createSlugField(),
     {
       name: "content",
       type: "richText",
+      label: "页面内容",
       required: true,
     },
     {
       name: "coverImage",
       type: "relationship",
+      label: "头图",
       relationTo: "media",
     },
     statusField,
