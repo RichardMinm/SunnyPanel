@@ -1,24 +1,13 @@
 import Link from "next/link";
-import type { Checklist } from "@/payload-types";
 
 import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDateTime } from "@/lib/formatters";
+import { getChecklistCompletedCount, getChecklistItemCount } from "@/lib/checklists";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicChecklists } from "@/lib/payload/public";
-
-type ChecklistGroup = NonNullable<Checklist["groups"]>[number];
-
-const getCompletedCount = (groups: null | ChecklistGroup[] = []) =>
-  (groups ?? []).reduce(
-    (total, group) => total + (group.items ?? []).filter((item) => item?.isCompleted).length,
-    0,
-  );
-
-const getItemCount = (groups: null | ChecklistGroup[] = []) =>
-  (groups ?? []).reduce((total, group) => total + (group.items?.length ?? 0), 0);
 
 export default async function ChecklistsPage() {
   const locale = await getSiteLocale();
@@ -26,11 +15,11 @@ export default async function ChecklistsPage() {
   const checklists = await getPublicChecklists({ limit: 24 });
   const totalGroups = checklists.docs.reduce((total, checklist) => total + (checklist.groups?.length ?? 0), 0);
   const totalItems = checklists.docs.reduce(
-    (total, checklist) => total + getItemCount(checklist.groups ?? []),
+    (total, checklist) => total + getChecklistItemCount(checklist.groups ?? []),
     0,
   );
   const totalCompleted = checklists.docs.reduce(
-    (total, checklist) => total + getCompletedCount(checklist.groups ?? []),
+    (total, checklist) => total + getChecklistCompletedCount(checklist.groups ?? []),
     0,
   );
 
@@ -56,8 +45,8 @@ export default async function ChecklistsPage() {
           <section className="grid gap-5">
             {checklists.docs.map((checklist) => {
               const groups = checklist.groups ?? [];
-              const totalItems = getItemCount(groups);
-              const completedItems = getCompletedCount(groups);
+              const totalItems = getChecklistItemCount(groups);
+              const completedItems = getChecklistCompletedCount(groups);
 
               return (
                 <article key={checklist.id} className="sunny-card rounded-[1.5rem] px-4 py-5 sm:px-5 md:rounded-[1.8rem] md:px-7 md:py-6">
@@ -138,7 +127,7 @@ export default async function ChecklistsPage() {
                                     </span>
                                     {item.completedAt ? (
                                       <span className="sunny-badge sunny-badge-muted">
-                                        {formatDateTime(item.completedAt)}
+                                        {formatDateTime(item.completedAt, locale)}
                                       </span>
                                     ) : null}
                                   </div>

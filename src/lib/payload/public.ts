@@ -1,10 +1,26 @@
 import type { Where } from "payload";
 
+import type { Config } from "@/payload-types";
 import { publicContentConstraint } from "@/lib/payload/access";
 import { getPayloadClient } from "@/lib/payload/client";
 
 type QueryOptions = {
   limit?: number;
+};
+
+type PublicCollectionSlug =
+  | "checklists"
+  | "notes"
+  | "pages"
+  | "posts"
+  | "timeline-events"
+  | "updates";
+
+type PublicCollectionDocument<TCollection extends PublicCollectionSlug> =
+  Config["collections"][TCollection];
+
+type PublicCollectionResult<TCollection extends PublicCollectionSlug> = {
+  docs: Array<PublicCollectionDocument<TCollection>>;
 };
 
 const withPublicConstraint = (where?: Where): Where => {
@@ -19,103 +35,118 @@ const withPublicConstraint = (where?: Where): Where => {
   };
 };
 
+const findPublicCollection = async <TCollection extends PublicCollectionSlug>({
+  collection,
+  depth = 1,
+  limit,
+  sort,
+  where,
+}: {
+  collection: TCollection;
+  depth?: number;
+  limit: number;
+  sort: string;
+  where?: Where;
+}): Promise<PublicCollectionResult<TCollection>> => {
+  const payload = await getPayloadClient();
+  const result = await payload.find({
+    collection,
+    depth,
+    limit,
+    sort,
+    where: withPublicConstraint(where),
+  });
+
+  return {
+    docs: result.docs as Array<PublicCollectionDocument<TCollection>>,
+  };
+};
+
+const findSinglePublicCollectionDocument = async <TCollection extends PublicCollectionSlug>({
+  collection,
+  depth = 1,
+  where,
+}: {
+  collection: TCollection;
+  depth?: number;
+  where: Where;
+}): Promise<null | PublicCollectionDocument<TCollection>> => {
+  const payload = await getPayloadClient();
+  const result = await payload.find({
+    collection,
+    depth,
+    limit: 1,
+    pagination: false,
+    where: withPublicConstraint(where),
+  });
+
+  return (result.docs[0] ?? null) as null | PublicCollectionDocument<TCollection>;
+};
+
 export const getPublicPosts = async () => {
   return getPublicPostsWithOptions();
 };
 
 export const getPublicPostsWithOptions = async ({ limit = 24 }: QueryOptions = {}) => {
-  const payload = await getPayloadClient();
-
-  return payload.find({
+  return findPublicCollection({
     collection: "posts",
-    depth: 1,
     limit,
     sort: "-publishedAt",
-    where: publicContentConstraint(),
   });
 };
 
 export const getPublicPostBySlug = async (slug: string) => {
-  const payload = await getPayloadClient();
-
-  const result = await payload.find({
+  return findSinglePublicCollectionDocument({
     collection: "posts",
-    depth: 1,
-    limit: 1,
-    pagination: false,
-    where: withPublicConstraint({
+    where: {
       slug: {
         equals: slug,
       },
-    }),
+    },
   });
-
-  return result.docs[0] ?? null;
 };
 
 export const getPublicPageBySlug = async (slug: string) => {
-  const payload = await getPayloadClient();
-
-  const result = await payload.find({
+  return findSinglePublicCollectionDocument({
     collection: "pages",
-    depth: 1,
-    limit: 1,
-    pagination: false,
-    where: withPublicConstraint({
+    where: {
       slug: {
         equals: slug,
       },
-    }),
+    },
   });
-
-  return result.docs[0] ?? null;
 };
 
 export const getPublicPages = async ({ limit = 20 }: QueryOptions = {}) => {
-  const payload = await getPayloadClient();
-
-  return payload.find({
+  return findPublicCollection({
     collection: "pages",
-    depth: 1,
     limit,
     sort: "title",
-    where: publicContentConstraint(),
   });
 };
 
 export const getPublicNotes = async ({ limit = 30 }: QueryOptions = {}) => {
-  const payload = await getPayloadClient();
-
-  return payload.find({
-    depth: 1,
+  return findPublicCollection({
     collection: "notes",
     limit,
     sort: "-createdAt",
-    where: publicContentConstraint(),
   });
 };
 
 export const getPublicUpdates = async ({ limit = 30 }: QueryOptions = {}) => {
-  const payload = await getPayloadClient();
-
-  return payload.find({
-    depth: 1,
+  return findPublicCollection({
     collection: "updates",
     limit,
     sort: "-createdAt",
-    where: publicContentConstraint(),
   });
 };
 
 export const getPublicChecklists = async ({ limit = 20 }: QueryOptions = {}) => {
-  const payload = await getPayloadClient();
-
-  return payload.find({
+  return findPublicCollection({
     collection: "checklists",
     depth: 0,
     limit,
     sort: "-updatedAt",
-    where: publicContentConstraint(),
   });
 };
 
@@ -127,21 +158,16 @@ export const getPublicTimelineEvents = async ({
   featuredOnly = false,
   limit = 100,
 }: TimelineQueryOptions = {}) => {
-  const payload = await getPayloadClient();
-
-  return payload.find({
+  return findPublicCollection({
     collection: "timeline-events",
-    depth: 1,
     limit,
     sort: "-eventDate",
-    where: withPublicConstraint(
-      featuredOnly
-        ? {
-            isFeatured: {
-              equals: true,
-            },
-          }
-        : undefined,
-    ),
+    where: featuredOnly
+      ? {
+          isFeatured: {
+            equals: true,
+          },
+        }
+      : undefined,
   });
 };

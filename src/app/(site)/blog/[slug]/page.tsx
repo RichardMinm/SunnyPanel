@@ -64,7 +64,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           <Link href="/blog" className="sunny-button-secondary px-4 py-2 text-sm">
             {copy.blogPost.backList}
           </Link>
-          <span className="sunny-badge sunny-badge-muted">{formatDate(post.publishedAt)}</span>
+          <span className="sunny-badge sunny-badge-muted">{formatDate(post.publishedAt, locale)}</span>
           <span className="sunny-badge sunny-badge-accent">
             {copy.blogPost.approxRead} {readingTime} {copy.common.readMinutes}
           </span>
@@ -81,11 +81,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             <div className="mt-8 space-y-4 border-t border-border pt-6 text-sm text-muted">
               <div className="flex items-center justify-between gap-3">
                 <span>{copy.blogPost.publishedAt}</span>
-                <span className="text-foreground">{formatDate(post.publishedAt)}</span>
+                <span className="text-foreground">{formatDate(post.publishedAt, locale)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>{copy.blogPost.updatedAt}</span>
-                <span className="text-foreground">{formatDateTime(post.updatedAt)}</span>
+                <span className="text-foreground">{formatDateTime(post.updatedAt, locale)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>{copy.blogPost.readingTime}</span>

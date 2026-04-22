@@ -138,7 +138,7 @@ export interface UserAuthOperations {
 export interface User {
   id: number;
   /**
-   * Optional display name for the single admin account.
+   * 可选。用于后台和工作台里显示你的称呼。
    */
   displayName?: string | null;
   updatedAt: string;
@@ -166,6 +166,9 @@ export interface User {
  */
 export interface Media {
   id: number;
+  /**
+   * 简短说明这张图片的内容，方便无障碍阅读和 SEO。
+   */
   alt: string;
   updatedAt: string;
   createdAt: string;
@@ -205,10 +208,20 @@ export interface Post {
   id: number;
   title: string;
   /**
+   * 保留旧 schema 兼容；slug 现在默认可直接手动输入。
+   */
+  generateSlug?: boolean | null;
+  /**
    * 可直接手动输入。若留空，系统会尝试根据标题自动生成。
    */
   slug: string;
+  /**
+   * 先写一句 1 到 2 行的摘要，后面可以再慢慢补。
+   */
   summary: string;
+  /**
+   * 先把核心内容写下来，格式和细节可以之后再整理。
+   */
   content: {
     root: {
       type: string;
@@ -224,11 +237,14 @@ export interface Post {
     };
     [k: string]: unknown;
   };
+  /**
+   * 可选。先不填也没关系。
+   */
   tags?: string[] | null;
   coverImage?: (number | null) | Media;
   status: 'draft' | 'published';
   /**
-   * Optional publish date for sorting and display.
+   * 可选。用于前台排序和显示时间。
    */
   publishedAt?: string | null;
   visibility: 'public' | 'private';
@@ -245,6 +261,7 @@ export interface Note {
   mood?: string | null;
   category: string;
   pinned?: boolean | null;
+  coverImage?: (number | null) | Media;
   status: 'draft' | 'published';
   visibility: 'public' | 'private';
   updatedAt: string;
@@ -256,9 +273,16 @@ export interface Note {
  */
 export interface Update {
   id: number;
+  /**
+   * 先选一个最接近的类型即可。
+   */
   type: 'life' | 'work' | 'project';
   content: string;
+  /**
+   * 可选。需要时再补。
+   */
   link?: string | null;
+  coverImage?: (number | null) | Media;
   status: 'draft' | 'published';
   visibility: 'public' | 'private';
   updatedAt: string;
@@ -271,22 +295,26 @@ export interface Update {
 export interface Checklist {
   id: number;
   /**
-   * Checklist name, for example: 高等数学 / Linear Algebra / Reading Plan.
+   * 例如：高等数学、线性代数、阅读计划。
    */
   title: string;
+  /**
+   * 保留旧 schema 兼容；slug 现在默认可直接手动输入。
+   */
+  generateSlug?: boolean | null;
   /**
    * 可直接手动输入。若留空，系统会尝试根据标题自动生成。
    */
   slug: string;
   summary?: string | null;
   /**
-   * Create chapter-level groups first, then add structured items inside each group.
+   * 先创建章节或模块，再往每个分组里补具体条目。
    */
   groups?:
     | {
         title: string;
         /**
-         * Add the exact topics or tasks inside this group. Completing an item will automatically create a timeline record.
+         * 把具体知识点或任务写在这里。标记完成后会自动写入时间线。
          */
         items?:
           | {
@@ -294,7 +322,7 @@ export interface Checklist {
               description?: string | null;
               isCompleted?: boolean | null;
               /**
-               * Optional. If omitted, the timeline record will use the current time.
+               * 可选。不填时，时间线会自动使用当前时间。
                */
               completedAt?: string | null;
               completionNote?: string | null;
@@ -306,7 +334,7 @@ export interface Checklist {
     | null;
   status: 'draft' | 'published';
   /**
-   * Optional publish date for sorting and display.
+   * 可选。用于前台排序和显示时间。
    */
   publishedAt?: string | null;
   visibility: 'public' | 'private';
@@ -321,13 +349,16 @@ export interface TimelineEvent {
   id: number;
   title: string;
   description?: string | null;
+  /**
+   * 记录这个节点真正发生的时间。
+   */
   eventDate: string;
   type: 'milestone' | 'project' | 'life';
   relatedPost?: (number | null) | Post;
   relatedUpdate?: (number | null) | Update;
   relatedChecklist?: (number | null) | Checklist;
   /**
-   * Used internally to prevent duplicate task completion records.
+   * 系统内部使用，用来避免重复生成完成记录。
    */
   relatedTaskKey?: string | null;
   isFeatured?: boolean | null;
@@ -346,7 +377,7 @@ export interface Plan {
   title: string;
   description?: string | null;
   /**
-   * Attach the posts, notes, updates, checklists, timeline events, or pages that this plan is producing.
+   * 把这项计划正在产出的文章、短札、更新、清单、时间线节点或页面关联进来。
    */
   linkedContent?:
     | (
@@ -393,9 +424,16 @@ export interface Page {
   id: number;
   title: string;
   /**
+   * 保留旧 schema 兼容；slug 现在默认可直接手动输入。
+   */
+  generateSlug?: boolean | null;
+  /**
    * 可直接手动输入。若留空，系统会尝试根据标题自动生成。
    */
   slug: string;
+  /**
+   * 先把页面的核心内容写出来，版式可以之后再慢慢调整。
+   */
   content: {
     root: {
       type: string;
@@ -411,6 +449,7 @@ export interface Page {
     };
     [k: string]: unknown;
   };
+  coverImage?: (number | null) | Media;
   status: 'draft' | 'published';
   visibility: 'public' | 'private';
   updatedAt: string;
@@ -589,6 +628,7 @@ export interface MediaSelect<T extends boolean = true> {
  */
 export interface PostsSelect<T extends boolean = true> {
   title?: T;
+  generateSlug?: T;
   slug?: T;
   summary?: T;
   content?: T;
@@ -609,6 +649,7 @@ export interface NotesSelect<T extends boolean = true> {
   mood?: T;
   category?: T;
   pinned?: T;
+  coverImage?: T;
   status?: T;
   visibility?: T;
   updatedAt?: T;
@@ -622,6 +663,7 @@ export interface UpdatesSelect<T extends boolean = true> {
   type?: T;
   content?: T;
   link?: T;
+  coverImage?: T;
   status?: T;
   visibility?: T;
   updatedAt?: T;
@@ -633,6 +675,7 @@ export interface UpdatesSelect<T extends boolean = true> {
  */
 export interface ChecklistsSelect<T extends boolean = true> {
   title?: T;
+  generateSlug?: T;
   slug?: T;
   summary?: T;
   groups?:
@@ -700,8 +743,10 @@ export interface PlansSelect<T extends boolean = true> {
  */
 export interface PagesSelect<T extends boolean = true> {
   title?: T;
+  generateSlug?: T;
   slug?: T;
   content?: T;
+  coverImage?: T;
   status?: T;
   visibility?: T;
   updatedAt?: T;

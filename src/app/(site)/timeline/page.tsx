@@ -173,7 +173,9 @@ export default async function TimelinePage({ searchParams }: TimelinePageProps) 
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="sunny-badge sunny-badge-accent">{event.type}</span>
-                            <span className="text-sm text-muted">{formatDate(event.eventDate)}</span>
+                            <span className="text-sm text-muted">
+                              {formatDate(event.eventDate, locale)}
+                            </span>
                             {event.isFeatured ? (
                               <span className="sunny-badge sunny-badge-muted">{copy.common.featured}</span>
                             ) : null}
@@ -200,7 +202,7 @@ export default async function TimelinePage({ searchParams }: TimelinePageProps) 
                         )}
 
                         <div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold text-accent-strong">
-                          <span>{formatShortDate(event.eventDate)}</span>
+                          <span>{formatShortDate(event.eventDate, locale)}</span>
                           {typeof event.relatedPost === "object" && event.relatedPost?.slug ? (
                             <Link href={`/blog/${event.relatedPost.slug}`}>{copy.common.relatedPost}</Link>
                           ) : null}

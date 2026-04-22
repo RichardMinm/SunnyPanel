@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
+import { RecordCoverImage } from "@/components/public/RecordCoverImage";
 import { RichTextContent } from "@/components/public/RichTextContent";
 import { formatDateTime } from "@/lib/formatters";
-import { getMediaAssetFromRecord, getMediaDisplayUrl } from "@/lib/media";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPageBySlug, getPublicPages } from "@/lib/payload/public";
@@ -100,9 +99,6 @@ export default async function StaticPage({ params }: StaticPageProps) {
 
     notFound();
   }
-
-  const coverImage = getMediaAssetFromRecord(page as unknown as Record<string, unknown>);
-
   return (
     <PublicSiteFrame locale={locale}>
       <main className="flex flex-1 flex-col gap-6 pb-4">
@@ -111,7 +107,9 @@ export default async function StaticPage({ params }: StaticPageProps) {
             {copy.common.backHome}
           </Link>
           <span className="sunny-badge sunny-badge-muted">{copy.common.page}</span>
-          <span className="text-sm text-muted">{copy.common.updatedAt}：{formatDateTime(page.updatedAt)}</span>
+          <span className="text-sm text-muted">
+            {copy.common.updatedAt}：{formatDateTime(page.updatedAt, locale)}
+          </span>
         </div>
 
         <section className="sunny-panel rounded-[1.6rem] px-5 py-5 md:px-6">
@@ -122,18 +120,12 @@ export default async function StaticPage({ params }: StaticPageProps) {
         </section>
 
         <article className="sunny-card rounded-[1.8rem] p-6 md:p-8">
-          {coverImage ? (
-            <div className="mb-6 overflow-hidden rounded-[1.45rem] border border-border/80">
-              <Image
-                alt={coverImage.alt}
-                className="h-64 w-full object-cover md:h-80"
-                height={coverImage.height || 900}
-                src={getMediaDisplayUrl(coverImage, "card")}
-                unoptimized
-                width={coverImage.width || 1600}
-              />
-            </div>
-          ) : null}
+          <RecordCoverImage
+            containerClassName="mb-6 overflow-hidden rounded-[1.45rem] border border-border/80"
+            imageClassName="h-64 w-full object-cover md:h-80"
+            preferredSize="card"
+            record={page as unknown as Record<string, unknown>}
+          />
           <RichTextContent data={page.content} />
         </article>
       </main>

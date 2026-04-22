@@ -1,10 +1,8 @@
-import Image from "next/image";
-
 import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
+import { RecordCoverImage } from "@/components/public/RecordCoverImage";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDate } from "@/lib/formatters";
-import { getMediaAssetFromRecord, getMediaDisplayUrl } from "@/lib/media";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicNotes } from "@/lib/payload/public";
@@ -40,32 +38,24 @@ export default async function NotesPage() {
                 key={note.id}
                 className={`sunny-card overflow-hidden rounded-[1.6rem] ${index % 3 === 0 ? "md:translate-y-2" : ""}`}
               >
-                {(() => {
-                  const coverImage = getMediaAssetFromRecord(note as unknown as Record<string, unknown>);
-
-                  return coverImage ? (
-                    <div className="border-b border-border/80">
-                      <Image
-                        alt={coverImage.alt}
-                        className="h-52 w-full object-cover"
-                        height={coverImage.height || 720}
-                        src={getMediaDisplayUrl(coverImage, "thumbnail")}
-                        unoptimized
-                        width={coverImage.width || 1280}
-                      />
-                    </div>
-                  ) : null;
-                })()}
+                <RecordCoverImage
+                  containerClassName="border-b border-border/80"
+                  imageClassName="h-52 w-full object-cover"
+                  preferredSize="thumbnail"
+                  record={note as unknown as Record<string, unknown>}
+                />
                 <div className="p-5">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                  <span className="sunny-badge sunny-badge-muted">{note.category}</span>
-                  {note.mood ? <span className="sunny-badge sunny-badge-accent">{note.mood}</span> : null}
-                  <span>{formatDate(note.createdAt)}</span>
-                  {note.pinned ? (
-                    <span className="rounded-full bg-white/70 px-2 py-1 text-accent-strong">{copy.common.pinned}</span>
-                  ) : null}
-                </div>
-                <p className="mt-5 text-[1.02rem] leading-8 text-foreground">{note.content}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                    <span className="sunny-badge sunny-badge-muted">{note.category}</span>
+                    {note.mood ? <span className="sunny-badge sunny-badge-accent">{note.mood}</span> : null}
+                    <span>{formatDate(note.createdAt, locale)}</span>
+                    {note.pinned ? (
+                      <span className="rounded-full bg-white/70 px-2 py-1 text-accent-strong">
+                        {copy.common.pinned}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-5 text-[1.02rem] leading-8 text-foreground">{note.content}</p>
                 </div>
               </article>
             ))}

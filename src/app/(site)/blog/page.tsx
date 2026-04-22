@@ -13,7 +13,9 @@ export default async function BlogIndexPage() {
   const locale = await getSiteLocale();
   const copy = getSiteCopy(locale);
   const { docs: posts } = await getPublicPosts();
-  const latestPostDate = posts[0]?.publishedAt ? formatDate(posts[0].publishedAt) : copy.blog.latestWaiting;
+  const latestPostDate = posts[0]?.publishedAt
+    ? formatDate(posts[0].publishedAt, locale)
+    : copy.blog.latestWaiting;
   const uniqueTags = new Set(posts.flatMap((post) => post.tags ?? [])).size;
 
   return (
