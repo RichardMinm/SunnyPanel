@@ -69,6 +69,7 @@ type WorkspaceContentSummary = {
   id: number;
   kind: "checklists" | "notes" | "pages" | "posts" | "timeline-events" | "updates";
   status: "draft" | "published";
+  visibility: "private" | "public";
   title: string;
   updatedAt: string;
 };
@@ -86,6 +87,7 @@ const createContentSummary = (
         status: doc.status,
         title: "title" in doc ? doc.title : "Untitled Checklist",
         updatedAt: doc.updatedAt,
+        visibility: doc.visibility,
       };
     case "posts":
       return {
@@ -95,6 +97,7 @@ const createContentSummary = (
         status: doc.status,
         title: "title" in doc ? doc.title : "Untitled Post",
         updatedAt: doc.updatedAt,
+        visibility: doc.visibility,
       };
     case "pages":
       return {
@@ -104,6 +107,7 @@ const createContentSummary = (
         status: doc.status,
         title: "title" in doc ? doc.title : "Untitled Page",
         updatedAt: doc.updatedAt,
+        visibility: doc.visibility,
       };
     case "timeline-events":
       return {
@@ -113,6 +117,7 @@ const createContentSummary = (
         status: doc.status,
         title: "title" in doc ? doc.title : "Untitled Timeline Event",
         updatedAt: doc.updatedAt,
+        visibility: doc.visibility,
       };
     case "updates":
       return {
@@ -125,6 +130,7 @@ const createContentSummary = (
             ? summarizeText(doc.content, "Untitled Update")
             : "Untitled Update",
         updatedAt: doc.updatedAt,
+        visibility: doc.visibility,
       };
     case "notes":
     default:
@@ -138,6 +144,7 @@ const createContentSummary = (
             ? summarizeText(doc.content, "Untitled Note")
             : "Untitled Note",
         updatedAt: doc.updatedAt,
+        visibility: doc.visibility,
       };
   }
 };
@@ -161,7 +168,11 @@ export type WorkspaceSnapshot = {
     publicSurfaces: number;
   };
   execution: {
+    recentDrafts: WorkspaceContentSummary[];
+    recentEdited: WorkspaceContentSummary[];
     timelineCandidates: WorkspaceContentSummary[];
+    recentPrivateReady: WorkspaceContentSummary[];
+    recentPublicContent: WorkspaceContentSummary[];
     recentContentWithPlans: WorkspaceContentSummary[];
     recentContentWithoutPlans: WorkspaceContentSummary[];
     plansWithOutputs: Plan[];
@@ -404,6 +415,13 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
   const recentContentWithoutPlans = recentContent
     .filter((item) => !linkedContentKeys.has(`${item.kind}:${item.id}`))
     .slice(0, 6);
+  const recentDrafts = recentContent.filter((item) => item.status === "draft").slice(0, 6);
+  const recentPrivateReady = recentContent
+    .filter((item) => item.status === "published" && item.visibility === "private")
+    .slice(0, 6);
+  const recentPublicContent = recentContent
+    .filter((item) => item.status === "published" && item.visibility === "public")
+    .slice(0, 6);
   const linkedTimelineContentKeys = new Set(
     timelineReferences.docs.flatMap((event) => {
       const keys: string[] = [];
@@ -450,7 +468,11 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
         publicContentItems + publicPages.totalDocs + publicChecklists.totalDocs,
     },
     execution: {
+      recentDrafts,
+      recentEdited: recentContent.slice(0, 8),
       timelineCandidates,
+      recentPrivateReady,
+      recentPublicContent,
       recentContentWithPlans,
       recentContentWithoutPlans,
       plansWithOutputs: plansWithOutputs.slice(0, 6),

@@ -3,7 +3,8 @@ import Link from "next/link";
 import type { Plan } from "@/payload-types";
 
 import { formatDate, formatDateTime } from "@/lib/formatters";
-import { getWorkspaceSnapshot } from "@/lib/payload/workspace";
+import { getWorkspaceSnapshot, type WorkspaceSnapshot } from "@/lib/payload/workspace";
+import { getSiteLocale } from "@/lib/site-locale";
 
 const quickCreateActions = [
   {
@@ -56,16 +57,23 @@ const quickManageActions = [
 const statusTone: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-700",
   backlog: "bg-amber-100 text-amber-800",
+  checklist: "bg-amber-100 text-amber-800",
   done: "bg-slate-200 text-slate-700",
   draft: "bg-amber-100 text-amber-800",
   high: "bg-rose-100 text-rose-700",
   low: "bg-stone-200 text-stone-700",
   medium: "bg-sky-100 text-sky-700",
+  note: "bg-violet-100 text-violet-700",
   overdue: "bg-rose-100 text-rose-700",
+  page: "bg-sky-100 text-sky-700",
   paused: "bg-violet-100 text-violet-700",
+  plan: "bg-sky-100 text-sky-700",
+  post: "bg-emerald-100 text-emerald-700",
   private: "bg-stone-200 text-stone-700",
   public: "bg-emerald-100 text-emerald-700",
   published: "bg-emerald-100 text-emerald-700",
+  timeline: "bg-rose-100 text-rose-700",
+  update: "bg-orange-100 text-orange-700",
 };
 
 const planColumns = [
@@ -95,6 +103,31 @@ const relationLabelMap: Record<string, string> = {
   updates: "动态",
 };
 
+const relationToneMap: Record<string, string> = {
+  checklists: "checklist",
+  notes: "note",
+  pages: "page",
+  posts: "post",
+  "timeline-events": "timeline",
+  updates: "update",
+};
+
+const visibilityLabelMap: Record<"private" | "public", string> = {
+  private: "私有",
+  public: "公开",
+};
+
+const planPriorityLabelMap: Record<NonNullable<Plan["priority"]>, string> = {
+  high: "高优先级",
+  low: "低优先级",
+  medium: "中优先级",
+};
+
+const planStatusLabelMap: Record<NonNullable<Plan["status"]>, string> = {
+  draft: "草稿",
+  published: "已发布",
+};
+
 type LinkedContentItem = NonNullable<Plan["linkedContent"]>[number];
 type FocusItem = {
   actionLabel: string;
@@ -102,6 +135,15 @@ type FocusItem = {
   summary: string;
   title: string;
   tone: keyof typeof statusTone;
+};
+
+type QueueDescriptor = {
+  actionHref: string;
+  actionLabel: string;
+  empty: string;
+  items: WorkspaceSnapshot["execution"]["recentEdited"];
+  kicker: string;
+  title: string;
 };
 
 const dayInMs = 1000 * 60 * 60 * 24;
@@ -168,7 +210,109 @@ const getDueDayOffset = (value?: null | string) => {
   return Math.round((startOfDueDate.getTime() - startOfToday.getTime()) / dayInMs);
 };
 
+function StatCard({
+  description,
+  label,
+  value,
+}: {
+  description: string;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-border bg-white/60 p-5">
+      <p className="text-sm text-muted">{label}</p>
+      <p className="mt-2 text-3xl font-semibold text-foreground">{value}</p>
+      <p className="mt-2 text-sm leading-7 text-muted">{description}</p>
+    </div>
+  );
+}
+
+function ContentQueueCard({
+  actionHref,
+  actionLabel,
+  empty,
+  items,
+  kicker,
+  locale,
+  title,
+}: QueueDescriptor & { locale: Awaited<ReturnType<typeof getSiteLocale>> }) {
+  return (
+    <div className="rounded-[1.65rem] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.72),rgba(250,244,236,0.56))] p-5">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="sunny-kicker text-xs text-muted">{kicker}</p>
+          <h3 className="mt-2 text-xl font-semibold text-foreground">{title}</h3>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-xs text-muted shadow-[0_2px_10px_rgba(24,34,44,0.06)]">
+          {items.length}
+        </span>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <Link
+              key={`${item.kind}-${item.id}`}
+              href={item.href}
+              className="block rounded-[1.25rem] border border-border bg-white/75 p-4 transition hover:-translate-y-1 hover:bg-white"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h4 className="text-sm font-semibold text-foreground md:text-base">{item.title}</h4>
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(
+                      relationToneMap[item.kind] ?? item.kind,
+                    )}`}
+                  >
+                    {relationLabelMap[item.kind]}
+                  </span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(item.visibility)}`}>
+                    {visibilityLabelMap[item.visibility]}
+                  </span>
+                </div>
+              </div>
+              <p className="mt-3 text-sm text-muted">最近更新：{formatDateTime(item.updatedAt, locale)}</p>
+            </Link>
+          ))
+        ) : (
+          <div className="rounded-[1.25rem] border border-dashed border-border bg-white/45 p-5 text-sm leading-7 text-muted">
+            {empty}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4">
+        <Link className="text-sm font-semibold text-accent-strong" href={actionHref}>
+          {actionLabel}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({
+  badge,
+  title,
+  action,
+}: {
+  action?: React.ReactNode;
+  badge: string;
+  title: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="sunny-kicker text-xs text-muted">{badge}</p>
+        <h2 className="sunny-display mt-2 text-3xl text-foreground">{title}</h2>
+      </div>
+      {action}
+    </div>
+  );
+}
+
 export default async function DashboardPage() {
+  const locale = await getSiteLocale();
   const snapshot = await getWorkspaceSnapshot();
   const displayName = snapshot.user.displayName || snapshot.user.email;
   const nextUndoneOnboardingTask = snapshot.onboarding.tasks.find((task) => !task.done);
@@ -229,6 +373,33 @@ export default async function DashboardPage() {
   const dueSoonPlans = plansWithDeadlines.filter((item) => item.dayOffset >= 0 && item.dayOffset <= 7).slice(0, 3);
   const pendingOnboardingTasks = snapshot.onboarding.tasks.filter((task) => !task.done).slice(0, 4);
 
+  const contentQueues: QueueDescriptor[] = [
+    {
+      actionHref: "/admin",
+      actionLabel: "查看全部草稿",
+      empty: "最近没有待处理草稿，可以直接开始新内容。",
+      items: snapshot.execution.recentDrafts.slice(0, 4),
+      kicker: "内容队列",
+      title: "待整理草稿",
+    },
+    {
+      actionHref: "/admin",
+      actionLabel: "查看私有内容",
+      empty: "暂时没有只留在后台的已完成内容。",
+      items: snapshot.execution.recentPrivateReady.slice(0, 4),
+      kicker: "内容队列",
+      title: "私有待发内容",
+    },
+    {
+      actionHref: "/",
+      actionLabel: "查看公开站点",
+      empty: "最近还没有新的公开内容流转出来。",
+      items: snapshot.execution.recentPublicContent.slice(0, 4),
+      kicker: "内容队列",
+      title: "最近公开内容",
+    },
+  ];
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-6 py-8 md:px-10 lg:px-12">
       <section className="sunny-card sunny-card-strong rounded-[2.3rem] p-8 md:p-10">
@@ -239,50 +410,54 @@ export default async function DashboardPage() {
               Dashboard
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-8 text-muted">
-              你好，{displayName}。这里尽量只保留最值得处理的计划、提醒和创建入口，让你打开后就能开始做事。
+              你好，{displayName}。这里把计划、内容和发布节奏都收在一起，尽量让你打开后就能判断现在该做什么。
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Link className="sunny-button-primary" href="/admin">
                 进入 Admin
               </Link>
-              <Link className="sunny-button-secondary" href="/timeline">
+              <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/timeline">
                 查看公开时间线
+              </Link>
+              <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/">
+                打开首页
               </Link>
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
-            <div className="rounded-[1.5rem] border border-border bg-white/60 p-5">
-              <p className="text-sm text-muted">活跃计划</p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">{snapshot.counts.activePlans}</p>
-              <p className="mt-2 text-sm text-muted">
-                {snapshot.counts.activePlansWithoutOutputs} 项还没有内容产出。
-              </p>
-            </div>
-            <div className="rounded-[1.5rem] border border-border bg-white/60 p-5">
-              <p className="text-sm text-muted">草稿积压</p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">{snapshot.counts.draftSurfaces}</p>
-              <p className="mt-2 text-sm text-muted">适合优先清掉最近开始写的内容。</p>
-            </div>
-            <div className="rounded-[1.5rem] border border-border bg-white/60 p-5">
-              <p className="text-sm text-muted">公开内容</p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">{snapshot.counts.publicSurfaces}</p>
-              <p className="mt-2 text-sm text-muted">站点目前已经对外可见的内容总数。</p>
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+            <StatCard
+              description={`${snapshot.counts.activePlansWithoutOutputs} 项活跃计划还没有产出内容。`}
+              label="活跃计划"
+              value={snapshot.counts.activePlans}
+            />
+            <StatCard
+              description="最近开始写、适合优先清掉的内容总数。"
+              label="草稿积压"
+              value={snapshot.counts.draftSurfaces}
+            />
+            <StatCard
+              description="当前已在前台可见的内容总数。"
+              label="公开内容"
+              value={snapshot.counts.publicSurfaces}
+            />
+            <StatCard
+              description={`${snapshot.counts.recentTimelineCandidates} 条变化还没进入 Timeline。`}
+              label="叙事缺口"
+              value={snapshot.execution.timelineCandidates.length}
+            />
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="sunny-card rounded-[2.1rem] p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="sunny-kicker text-xs text-muted">今日聚焦</p>
-              <h2 className="sunny-display mt-2 text-3xl text-foreground">先做这些</h2>
-            </div>
-            <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">优先队列</span>
-          </div>
+          <SectionHeader
+            badge="今日聚焦"
+            title="先做这些"
+            action={<span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">优先队列</span>}
+          />
 
           <div className="mt-6 grid gap-4">
             {actionableFocusItems.length > 0 ? (
@@ -312,13 +487,11 @@ export default async function DashboardPage() {
         </div>
 
         <div className="sunny-card rounded-[2.1rem] p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="sunny-kicker text-xs text-muted">快速创建</p>
-              <h2 className="sunny-display mt-2 text-3xl text-foreground">点进去就开始写</h2>
-            </div>
-            <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">Create</span>
-          </div>
+          <SectionHeader
+            badge="快速创建"
+            title="点进去就开始写"
+            action={<span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">Create</span>}
+          />
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             {quickCreateActions.map((item) => (
@@ -347,186 +520,28 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="sunny-card rounded-[2.1rem] p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="sunny-kicker text-xs text-muted">截止提醒</p>
-              <h2 className="sunny-display mt-2 text-3xl text-foreground">快到期和已逾期</h2>
-            </div>
-            <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
-              {overduePlans.length + dueSoonPlans.length} 项
-            </span>
-          </div>
-
-          <div className="mt-6 space-y-4 text-sm leading-7 text-muted">
-            {overduePlans.map(({ dayOffset, plan }) => (
-              <div key={`overdue-${plan.id}`} className="rounded-[1.5rem] border border-border bg-white/55 p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-base font-semibold text-foreground">{plan.title}</h3>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone("overdue")}`}>
-                    已逾期 {Math.abs(dayOffset)} 天
-                  </span>
-                </div>
-                <p className="mt-2">原定截止：{formatDate(plan.dueDate)}。</p>
-              </div>
-            ))}
-
-            {dueSoonPlans.map(({ dayOffset, plan }) => (
-              <div key={`soon-${plan.id}`} className="rounded-[1.5rem] border border-border bg-white/55 p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-base font-semibold text-foreground">{plan.title}</h3>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(plan.state)}`}>
-                    {dayOffset === 0 ? "今天到期" : `${dayOffset} 天内到期`}
-                  </span>
-                </div>
-                <p className="mt-2">截止日期：{formatDate(plan.dueDate)}。</p>
-              </div>
-            ))}
-
-            {overduePlans.length === 0 && dueSoonPlans.length === 0 ? (
-              <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
-                最近 7 天内没有临近截止的计划，节奏相对平稳。
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="sunny-card rounded-[2.1rem] p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="sunny-kicker text-xs text-muted">基础检查</p>
-              <h2 className="sunny-display mt-2 text-3xl text-foreground">还没完成的基础项</h2>
-            </div>
-            <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
-              {pendingOnboardingTasks.length} 项
-            </span>
-          </div>
-
-          <div className="mt-6 grid gap-4">
-            {pendingOnboardingTasks.length > 0 ? (
-              pendingOnboardingTasks.map((task) => (
-                <Link
-                  key={task.title}
-                  href={task.href}
-                  className="rounded-[1.5rem] border border-border bg-white/65 p-5 transition hover:-translate-y-1 hover:bg-white"
-                >
-                  <h3 className="text-base font-semibold text-foreground">{task.title}</h3>
-                  <p className="mt-2 text-sm leading-7 text-muted">{task.description}</p>
-                </Link>
-              ))
-            ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
-                基础骨架已经补齐，可以直接把重心放到计划推进和内容发布上。
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-2">
-        <div className="sunny-card rounded-[2.1rem] p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="sunny-kicker text-xs text-muted">内容待处理</p>
-              <h2 className="sunny-display mt-2 text-3xl text-foreground">最近草稿和未归档内容</h2>
-            </div>
-            <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
-              {snapshot.execution.recentContentWithoutPlans.length} 条
-            </span>
-          </div>
-
-          <div className="mt-6 space-y-4">
-            {snapshot.execution.recentContentWithoutPlans.length > 0 ? (
-              snapshot.execution.recentContentWithoutPlans.slice(0, 4).map((item) => (
-                <div key={`${item.kind}-${item.id}`} className="rounded-[1.35rem] border border-border bg-white/60 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="rounded-full bg-white px-3 py-1 text-xs text-muted shadow-[0_2px_10px_rgba(24,34,44,0.06)]">
-                        {relationLabelMap[item.kind]}
-                      </span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(item.status)}`}>
-                        {item.status}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="mt-3 text-sm text-muted">最近更新：{formatDateTime(item.updatedAt)}</p>
-                  <div className="mt-4">
-                    <Link className="sunny-button-secondary px-4 py-2 text-sm" href={item.href}>
-                      打开内容
-                    </Link>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
-                最近没有游离内容，计划和内容的关联状态比较完整。
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="sunny-card rounded-[2.1rem] p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="sunny-kicker text-xs text-muted">叙事补位</p>
-              <h2 className="sunny-display mt-2 text-3xl text-foreground">还没进入 Timeline 的变化</h2>
-            </div>
-            <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
-              {snapshot.execution.timelineCandidates.length} 条
-            </span>
-          </div>
-
-          <div className="mt-6 space-y-4">
-            {snapshot.execution.timelineCandidates.length > 0 ? (
-              snapshot.execution.timelineCandidates.slice(0, 4).map((item) => (
-                <div key={`${item.kind}-${item.id}`} className="rounded-[1.35rem] border border-border bg-white/60 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs text-muted shadow-[0_2px_10px_rgba(24,34,44,0.06)]">
-                      {relationLabelMap[item.kind]}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm text-muted">最近更新：{formatDateTime(item.updatedAt)}</p>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <Link className="sunny-button-secondary px-4 py-2 text-sm" href={item.href}>
-                      打开内容
-                    </Link>
-                    <Link
-                      className="sunny-button-secondary px-4 py-2 text-sm"
-                      href="/admin/collections/timeline-events/create"
-                    >
-                      新建节点
-                    </Link>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
-                最近的重要变化都已经整理进 Timeline。
-              </div>
-            )}
-          </div>
-        </div>
+      <section className="grid gap-6 xl:grid-cols-3">
+        {contentQueues.map((queue) => (
+          <ContentQueueCard key={queue.title} locale={locale} {...queue} />
+        ))}
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="sunny-card rounded-[2.1rem] p-8">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="sunny-kicker text-xs text-muted">计划板</p>
-              <h2 className="sunny-display mt-2 text-3xl text-foreground">当前计划状态</h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link className="text-sm font-semibold text-accent-strong" href="/admin/collections/plans">
-                打开全部计划
-              </Link>
-              <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/plans/create">
-                新建计划
-              </Link>
-            </div>
-          </div>
+          <SectionHeader
+            badge="计划执行"
+            title="当前计划状态"
+            action={
+              <div className="flex flex-wrap items-center gap-3">
+                <Link className="text-sm font-semibold text-accent-strong" href="/admin/collections/plans">
+                  打开全部计划
+                </Link>
+                <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/plans/create">
+                  新建计划
+                </Link>
+              </div>
+            }
+          />
 
           <div className="mt-6 grid gap-4 xl:grid-cols-3">
             {planColumns.map((column) => {
@@ -552,10 +567,10 @@ export default async function DashboardPage() {
                             <h4 className="text-base font-semibold text-foreground">{plan.title}</h4>
                             <div className="flex flex-wrap gap-2">
                               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(plan.priority)}`}>
-                                {plan.priority}
+                                {planPriorityLabelMap[plan.priority]}
                               </span>
                               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(plan.status)}`}>
-                                {plan.status}
+                                {planStatusLabelMap[plan.status]}
                               </span>
                             </div>
                           </div>
@@ -599,8 +614,59 @@ export default async function DashboardPage() {
 
         <div className="grid gap-6">
           <div className="sunny-card rounded-[2.1rem] p-8">
-            <p className="sunny-kicker text-xs text-muted">最近完成</p>
-            <h2 className="sunny-display mt-2 text-3xl text-foreground">Done recently</h2>
+            <SectionHeader
+              badge="截止提醒"
+              title="快到期和已逾期"
+              action={
+                <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
+                  {overduePlans.length + dueSoonPlans.length} 项
+                </span>
+              }
+            />
+
+            <div className="mt-6 space-y-4 text-sm leading-7 text-muted">
+              {overduePlans.map(({ dayOffset, plan }) => (
+                <div key={`overdue-${plan.id}`} className="rounded-[1.5rem] border border-border bg-white/55 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-base font-semibold text-foreground">{plan.title}</h3>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone("overdue")}`}>
+                      已逾期 {Math.abs(dayOffset)} 天
+                    </span>
+                  </div>
+                  <p className="mt-2">原定截止：{formatDate(plan.dueDate, locale)}。</p>
+                </div>
+              ))}
+
+              {dueSoonPlans.map(({ dayOffset, plan }) => (
+                <div key={`soon-${plan.id}`} className="rounded-[1.5rem] border border-border bg-white/55 p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-base font-semibold text-foreground">{plan.title}</h3>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(plan.state)}`}>
+                      {dayOffset === 0 ? "今天到期" : `${dayOffset} 天内到期`}
+                    </span>
+                  </div>
+                  <p className="mt-2">截止日期：{formatDate(plan.dueDate, locale)}。</p>
+                </div>
+              ))}
+
+              {overduePlans.length === 0 && dueSoonPlans.length === 0 ? (
+                <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
+                  最近 7 天内没有临近截止的计划，节奏相对平稳。
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="sunny-card rounded-[2.1rem] p-8">
+            <SectionHeader
+              badge="最近完成"
+              title="最近完成"
+              action={
+                <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
+                  {snapshot.plans.done.length} 项
+                </span>
+              }
+            />
 
             <div className="mt-6 space-y-4">
               {snapshot.plans.done.length > 0 ? (
@@ -609,14 +675,139 @@ export default async function DashboardPage() {
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-base font-semibold text-foreground">{plan.title}</h3>
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(plan.priority)}`}>
-                        {plan.priority}
+                        {planPriorityLabelMap[plan.priority]}
                       </span>
                     </div>
-                    <p className="mt-3 text-sm text-muted">更新于 {formatDateTime(plan.updatedAt)}</p>
+                    <p className="mt-3 text-sm text-muted">更新于 {formatDateTime(plan.updatedAt, locale)}</p>
                   </div>
                 ))
               ) : (
                 <p className="text-sm leading-7 text-muted">完成态计划会沉淀在这里，方便之后回看。</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1fr_1fr_0.8fr]">
+        <div className="sunny-card rounded-[2.1rem] p-8">
+          <SectionHeader
+            badge="最近编辑"
+            title="工作台最新内容"
+            action={
+              <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
+                {snapshot.execution.recentEdited.length} 条
+              </span>
+            }
+          />
+
+          <div className="mt-6 space-y-4">
+            {snapshot.execution.recentEdited.length > 0 ? (
+              snapshot.execution.recentEdited.map((item) => (
+                <Link
+                  key={`${item.kind}-${item.id}`}
+                  href={item.href}
+                  className="block rounded-[1.35rem] border border-border bg-white/60 p-4 transition hover:-translate-y-1 hover:bg-white"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(
+                          relationToneMap[item.kind] ?? item.kind,
+                        )}`}
+                      >
+                        {relationLabelMap[item.kind]}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(item.status)}`}>
+                        {planStatusLabelMap[item.status]}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-muted">最近更新：{formatDateTime(item.updatedAt, locale)}</p>
+                </Link>
+              ))
+            ) : (
+              <p className="text-sm leading-7 text-muted">最近还没有新的内容改动。</p>
+            )}
+          </div>
+        </div>
+
+        <div className="sunny-card rounded-[2.1rem] p-8">
+          <SectionHeader
+            badge="叙事补位"
+            title="还没进入 Timeline 的变化"
+            action={
+              <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
+                {snapshot.execution.timelineCandidates.length} 条
+              </span>
+            }
+          />
+
+          <div className="mt-6 space-y-4">
+            {snapshot.execution.timelineCandidates.length > 0 ? (
+              snapshot.execution.timelineCandidates.slice(0, 5).map((item) => (
+                <div key={`${item.kind}-${item.id}`} className="rounded-[1.35rem] border border-border bg-white/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${getTone(
+                        relationToneMap[item.kind] ?? item.kind,
+                      )}`}
+                    >
+                      {relationLabelMap[item.kind]}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm text-muted">最近更新：{formatDateTime(item.updatedAt, locale)}</p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link className="sunny-button-secondary px-4 py-2 text-sm" href={item.href}>
+                      打开内容
+                    </Link>
+                    <Link
+                      className="sunny-button-secondary px-4 py-2 text-sm"
+                      href="/admin/collections/timeline-events/create"
+                    >
+                      新建节点
+                    </Link>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-border bg-white/45 p-6 text-sm leading-7 text-muted">
+                最近的重要变化都已经整理进 Timeline。
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-6">
+          <div className="sunny-card rounded-[2.1rem] p-8">
+            <SectionHeader
+              badge="基础检查"
+              title="还没完成的基础项"
+              action={
+                <span className="rounded-full bg-white/70 px-3 py-1 text-xs text-muted">
+                  {pendingOnboardingTasks.length} 项
+                </span>
+              }
+            />
+
+            <div className="mt-6 grid gap-4">
+              {pendingOnboardingTasks.length > 0 ? (
+                pendingOnboardingTasks.map((task) => (
+                  <Link
+                    key={task.title}
+                    href={task.href}
+                    className="rounded-[1.35rem] border border-border bg-white/65 p-4 transition hover:-translate-y-1 hover:bg-white"
+                  >
+                    <h3 className="text-base font-semibold text-foreground">{task.title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-muted">{task.description}</p>
+                  </Link>
+                ))
+              ) : (
+                <div className="rounded-[1.35rem] border border-dashed border-border bg-white/45 p-5 text-sm leading-7 text-muted">
+                  基础骨架已经补齐，可以直接把重心放到计划推进和内容发布上。
+                </div>
               )}
             </div>
           </div>
@@ -625,7 +816,7 @@ export default async function DashboardPage() {
             <p className="sunny-kicker text-xs text-muted">账号</p>
             <p className="mt-4 text-lg font-semibold text-foreground">{snapshot.user.email}</p>
             <p className="mt-3 text-sm leading-7 text-muted">
-              需要更细的编辑、筛选和发布操作时，直接进入 Admin 即可。
+              这个 Dashboard 负责帮你看节奏、找缺口、判断下一步；更细的编辑和发布动作仍然会落在 Admin 里。
             </p>
           </div>
         </div>
