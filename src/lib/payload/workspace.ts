@@ -1,11 +1,11 @@
-import { headers as getHeaders } from "next/headers";
 import { redirect } from "next/navigation";
 
-import type { Checklist, Note, Page, Plan, Post, TimelineEvent, Update, User } from "@/payload-types";
+import type { AgentRun, Checklist, Note, Page, Plan, PlanReview, Post, TimelineEvent, Update, User } from "@/payload-types";
 
 import { publicContentConstraint } from "@/lib/payload/access";
+import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
-import { buildOnboardingChecklist } from "@/lib/payload/onboarding";
+import { buildOnboardingChecklist, ensureInitialWorkspace, hasInitialWorkspaceSeed } from "@/lib/payload/onboarding";
 
 const dashboardPath = "/dashboard";
 
@@ -22,28 +22,6 @@ const privateConstraint = {
     equals: "private",
   },
 };
-
-const highPriorityPlanConstraint = {
-  and: [
-    {
-      priority: {
-        equals: "high",
-      },
-    },
-    privateConstraint,
-  ],
-};
-
-const planStateConstraint = (state: "active" | "backlog" | "done" | "paused") => ({
-  and: [
-    {
-      state: {
-        equals: state,
-      },
-    },
-    privateConstraint,
-  ],
-});
 
 const hasLinkedOutputs = (plan: Plan) => Array.isArray(plan.linkedContent) && plan.linkedContent.length > 0;
 
@@ -152,6 +130,12 @@ const createContentSummary = (
 export type WorkspaceSnapshot = {
   counts: {
     activePlans: number;
+    agentBlockedPlans: number;
+    agentReadyPlans: number;
+    agentReviewPlans: number;
+    agentRunningPlans: number;
+    agentRuns: number;
+    planReviews: number;
     activePlansWithoutOutputs: number;
     backlogPlans: number;
     completedPlans: number;
@@ -166,6 +150,14 @@ export type WorkspaceSnapshot = {
     plansWithoutOutputs: number;
     pausedPlans: number;
     publicSurfaces: number;
+  };
+  agent: {
+    blockedPlans: Plan[];
+    readyPlans: Plan[];
+    recentReviews: PlanReview[];
+    recentRuns: AgentRun[];
+    reviewPlans: Plan[];
+    runningPlans: Plan[];
   };
   execution: {
     recentDrafts: WorkspaceContentSummary[];
@@ -205,33 +197,38 @@ export type WorkspaceSnapshot = {
 export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
   const payload = await getPayloadClient();
 
-  const existingUsers = await payload.find({
-    collection: "users",
-    depth: 0,
-    limit: 1,
-    overrideAccess: true,
-    pagination: false,
-  });
-
-  if (existingUsers.totalDocs === 0) {
-    redirect(buildAdminRoute("/admin/create-first-user"));
-  }
-
-  const authResult = await payload.auth({
-    headers: await getHeaders(),
-  });
+  const authResult = await getPayloadAuthResult();
 
   if (!authResult.user) {
+    const existingUsers = await payload.find({
+      collection: "users",
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+      pagination: false,
+    });
+
+    if (existingUsers.totalDocs === 0) {
+      redirect(buildAdminRoute("/admin/create-first-user"));
+    }
+
     redirect(buildAdminRoute("/admin/login"));
   }
 
-  const [plans, recentPosts, recentNotes, recentUpdates, recentTimelineEvents, recentPages, recentChecklists, timelineReferences] = await Promise.all([
+  const hasWorkspaceSeed = await hasInitialWorkspaceSeed(payload);
+
+  if (!hasWorkspaceSeed) {
+    await ensureInitialWorkspace(payload, authResult.user as User);
+  }
+
+  const [plans, recentPosts, recentNotes, recentUpdates, recentTimelineEvents, recentPages, recentChecklists, recentAgentRuns, recentPlanReviews, timelineReferences] = await Promise.all([
     payload.find({
       collection: "plans",
       depth: 1,
-      limit: 24,
+      limit: 100,
       overrideAccess: true,
       sort: "dueDate",
+      where: privateConstraint,
     }),
     payload.find({
       collection: "posts",
@@ -276,6 +273,20 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       sort: "-updatedAt",
     }),
     payload.find({
+      collection: "agent-runs",
+      depth: 1,
+      limit: 6,
+      overrideAccess: true,
+      sort: "-startedAt",
+    }),
+    payload.find({
+      collection: "plan-reviews",
+      depth: 1,
+      limit: 6,
+      overrideAccess: true,
+      sort: "-reviewedAt",
+    }),
+    payload.find({
       collection: "timeline-events",
       depth: 0,
       limit: 100,
@@ -284,55 +295,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
     }),
   ]);
 
-  const [
-    totalPlans,
-    activePlans,
-    backlogPlans,
-    pausedPlans,
-    completedPlans,
-    highPriorityPlans,
-    draftPosts,
-    draftNotes,
-    draftUpdates,
-    draftTimelineEvents,
-    publicPosts,
-    publicNotes,
-    publicUpdates,
-    publicTimelineEvents,
-    publicPages,
-    publicChecklists,
-    totalTimelineEvents,
-  ] = await Promise.all([
-    payload.count({
-      collection: "plans",
-      overrideAccess: true,
-      where: privateConstraint,
-    }),
-    payload.count({
-      collection: "plans",
-      overrideAccess: true,
-      where: planStateConstraint("active"),
-    }),
-    payload.count({
-      collection: "plans",
-      overrideAccess: true,
-      where: planStateConstraint("backlog"),
-    }),
-    payload.count({
-      collection: "plans",
-      overrideAccess: true,
-      where: planStateConstraint("paused"),
-    }),
-    payload.count({
-      collection: "plans",
-      overrideAccess: true,
-      where: planStateConstraint("done"),
-    }),
-    payload.count({
-      collection: "plans",
-      overrideAccess: true,
-      where: highPriorityPlanConstraint,
-    }),
+  const [draftPosts, draftNotes, draftUpdates, draftTimelineEvents, publicPosts, publicNotes, publicUpdates, publicTimelineEvents, publicPages, publicChecklists] = await Promise.all([
     payload.count({
       collection: "posts",
       overrideAccess: true,
@@ -383,19 +346,22 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       overrideAccess: true,
       where: publicContentConstraint(),
     }),
-    payload.count({
-      collection: "timeline-events",
-      overrideAccess: true,
-    }),
   ]);
 
   const publicContentItems =
     publicPosts.totalDocs + publicNotes.totalDocs + publicUpdates.totalDocs + publicTimelineEvents.totalDocs;
+  const readyAgentPlans = plans.docs.filter((plan) => plan.agentState === "ready");
+  const runningAgentPlans = plans.docs.filter((plan) => plan.agentState === "running");
+  const blockedAgentPlans = plans.docs.filter((plan) => plan.agentState === "blocked");
+  const reviewAgentPlans = plans.docs.filter((plan) => plan.agentState === "review");
+  const activePlans = plans.docs.filter((plan) => plan.state === "active");
+  const backlogPlans = plans.docs.filter((plan) => plan.state === "backlog");
+  const pausedPlans = plans.docs.filter((plan) => plan.state === "paused");
+  const completedPlans = plans.docs.filter((plan) => plan.state === "done");
+  const highPriorityPlans = plans.docs.filter((plan) => plan.priority === "high");
   const plansWithOutputs = plans.docs.filter(hasLinkedOutputs);
   const plansWithoutOutputs = plans.docs.filter((plan) => !hasLinkedOutputs(plan));
-  const activePlansWithoutOutputs = plans.docs.filter(
-    (plan) => plan.state === "active" && !hasLinkedOutputs(plan),
-  );
+  const activePlansWithoutOutputs = activePlans.filter((plan) => !hasLinkedOutputs(plan));
   const linkedContentKeys = new Set(
     plans.docs.flatMap((plan) =>
       (plan.linkedContent ?? []).map((item) => getLinkedContentKey(item)).filter((item): item is string => Boolean(item)),
@@ -446,26 +412,40 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
 
   return {
     counts: {
-      activePlans: activePlans.totalDocs,
+      activePlans: activePlans.length,
+      agentBlockedPlans: blockedAgentPlans.length,
+      agentReadyPlans: readyAgentPlans.length,
+      agentReviewPlans: reviewAgentPlans.length,
+      agentRunningPlans: runningAgentPlans.length,
+      agentRuns: recentAgentRuns.totalDocs,
+      planReviews: recentPlanReviews.totalDocs,
       activePlansWithoutOutputs: activePlansWithoutOutputs.length,
-      backlogPlans: backlogPlans.totalDocs,
-      completedPlans: completedPlans.totalDocs,
+      backlogPlans: backlogPlans.length,
+      completedPlans: completedPlans.length,
       draftPosts: draftPosts.totalDocs,
       draftSurfaces:
         draftPosts.totalDocs +
         draftNotes.totalDocs +
         draftUpdates.totalDocs +
         draftTimelineEvents.totalDocs,
-      highPriorityPlans: highPriorityPlans.totalDocs,
-      plans: totalPlans.totalDocs,
+      highPriorityPlans: highPriorityPlans.length,
+      plans: plans.docs.length,
       recentTimelineCandidates: timelineCandidates.length,
       recentContentWithPlans: recentContentWithPlans.length,
       recentContentWithoutPlans: recentContentWithoutPlans.length,
       plansWithOutputs: plansWithOutputs.length,
       plansWithoutOutputs: plansWithoutOutputs.length,
-      pausedPlans: pausedPlans.totalDocs,
+      pausedPlans: pausedPlans.length,
       publicSurfaces:
         publicContentItems + publicPages.totalDocs + publicChecklists.totalDocs,
+    },
+    agent: {
+      blockedPlans: blockedAgentPlans.slice(0, 6),
+      readyPlans: readyAgentPlans.slice(0, 6),
+      recentReviews: recentPlanReviews.docs,
+      recentRuns: recentAgentRuns.docs,
+      reviewPlans: reviewAgentPlans.slice(0, 6),
+      runningPlans: runningAgentPlans.slice(0, 6),
     },
     execution: {
       recentDrafts,
@@ -479,16 +459,18 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       plansWithoutOutputs: plansWithoutOutputs.slice(0, 6),
     },
     onboarding: buildOnboardingChecklist({
-      activePlans: activePlans.totalDocs,
+      activePlans: activePlans.length,
+      agentRuns: recentAgentRuns.totalDocs,
+      agentReadyPlans: readyAgentPlans.length,
       publicContentItems,
       publicPages: publicPages.totalDocs,
-      timelineEvents: totalTimelineEvents.totalDocs,
+      timelineEvents: recentTimelineEvents.totalDocs,
     }),
     plans: {
-      active: plans.docs.filter((plan) => plan.state === "active"),
-      backlog: plans.docs.filter((plan) => plan.state === "backlog"),
-      done: plans.docs.filter((plan) => plan.state === "done"),
-      paused: plans.docs.filter((plan) => plan.state === "paused"),
+      active: activePlans,
+      backlog: backlogPlans,
+      done: completedPlans,
+      paused: pausedPlans,
     },
     recentNotes: recentNotes.docs,
     recentPages: recentPages.docs,

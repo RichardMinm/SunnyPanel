@@ -49,9 +49,14 @@ const findCompletedItemById = (groups: ChecklistDocument["groups"], itemId?: str
 
 const syncChecklistCompletionsToTimeline: CollectionAfterChangeHook = async ({
   doc,
+  operation,
   previousDoc,
   req,
 }) => {
+  if (operation === "create" || !previousDoc || req.context?.skipChecklistTimelineSync) {
+    return doc;
+  }
+
   const checklist = doc as ChecklistDocument;
   const previousChecklist = (previousDoc ?? null) as ChecklistDocument | null;
 

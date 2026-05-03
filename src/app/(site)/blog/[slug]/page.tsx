@@ -12,6 +12,8 @@ import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPostBySlug } from "@/lib/payload/public";
 import { estimateReadingMinutes, extractLexicalPlainText } from "@/lib/richtext";
 
+export const dynamic = "force-dynamic";
+
 type BlogPostPageProps = {
   params: Promise<{
     slug: string;

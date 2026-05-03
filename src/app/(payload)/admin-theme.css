@@ -1,6 +1,9 @@
 @layer payload {
   :root,
   html[data-theme="light"] {
+    --sunny-font-sans: "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    --sunny-font-mono: "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+
     --color-base-0: rgb(255, 250, 244);
     --color-base-50: rgb(251, 246, 239);
     --color-base-100: rgb(245, 239, 230);
@@ -81,6 +84,18 @@
 
   body {
     color: var(--theme-text);
+    font-family: var(--sunny-font-sans);
+    font-feature-settings: "kern";
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--sunny-font-mono);
   }
 
   .app-header,

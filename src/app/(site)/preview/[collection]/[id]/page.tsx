@@ -1,11 +1,13 @@
-import { headers as getHeaders } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { DocumentLivePreview } from "@/components/public/DocumentLivePreview";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
+import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
 import { buildLivePreviewPath, isPreviewCollectionSlug, type PreviewCollectionSlug } from "@/lib/payload/preview";
 import { getSiteLocale } from "@/lib/site-locale";
+
+export const dynamic = "force-dynamic";
 
 type PreviewPageProps = {
   params: Promise<{
@@ -39,9 +41,7 @@ export default async function PreviewDocumentPage({ params }: PreviewPageProps) 
   }
 
   const payload = await getPayloadClient();
-  const authResult = await payload.auth({
-    headers: await getHeaders(),
-  });
+  const authResult = await getPayloadAuthResult();
 
   if (!authResult.user) {
     redirect(buildAdminLoginRedirect(previewPath));

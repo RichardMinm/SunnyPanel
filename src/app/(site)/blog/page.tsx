@@ -9,6 +9,8 @@ import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPosts } from "@/lib/payload/public";
 
+export const dynamic = "force-dynamic";
+
 export default async function BlogIndexPage() {
   const locale = await getSiteLocale();
   const copy = getSiteCopy(locale);

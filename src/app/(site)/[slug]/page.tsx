@@ -8,7 +8,9 @@ import { RichTextContent } from "@/components/public/RichTextContent";
 import { formatDateTime } from "@/lib/formatters";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
-import { getPublicPageBySlug, getPublicPages } from "@/lib/payload/public";
+import { getPublicPageBySlug } from "@/lib/payload/public";
+
+export const dynamic = "force-dynamic";
 
 const managedPageMeta = {
   about: {
@@ -51,15 +53,6 @@ export async function generateMetadata({ params }: StaticPageProps): Promise<Met
     title: `${page.title} | SunnyPanel`,
     description: `${page.title} - SunnyPanel ${copy.page.metaSuffix}`,
   };
-}
-
-export async function generateStaticParams() {
-  const { docs } = await getPublicPages();
-  const managedSlugs = Object.keys(managedPageMeta);
-
-  return [...new Set([...docs.map((page) => page.slug), ...managedSlugs])].map((slug) => ({
-    slug,
-  }));
 }
 
 export default async function StaticPage({ params }: StaticPageProps) {

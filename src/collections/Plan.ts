@@ -13,7 +13,7 @@ export const Plan: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
-    defaultColumns: ["title", "state", "priority", "status", "dueDate", "updatedAt"],
+    defaultColumns: ["title", "state", "agentState", "priority", "status", "dueDate", "updatedAt"],
     useAsTitle: "title",
   },
   defaultSort: "dueDate",
@@ -36,6 +36,72 @@ export const Plan: CollectionConfig = {
       },
     },
     {
+      name: "executionMode",
+      type: "select",
+      label: "执行模式",
+      admin: {
+        description: "为未来接入自动 Agent 预留：这项计划主要由谁推进。",
+        position: "sidebar",
+      },
+      defaultValue: "manual",
+      options: [
+        {
+          label: "人工",
+          value: "manual",
+        },
+        {
+          label: "人工 + Agent",
+          value: "hybrid",
+        },
+        {
+          label: "以 Agent 为主",
+          value: "agent",
+        },
+      ],
+      required: true,
+    },
+    {
+      name: "agentState",
+      type: "select",
+      label: "Agent 状态",
+      admin: {
+        description: "这项计划在 Agent 工作流里的当前阶段。",
+        position: "sidebar",
+      },
+      defaultValue: "idle",
+      options: [
+        {
+          label: "空闲",
+          value: "idle",
+        },
+        {
+          label: "可执行",
+          value: "ready",
+        },
+        {
+          label: "运行中",
+          value: "running",
+        },
+        {
+          label: "阻塞",
+          value: "blocked",
+        },
+        {
+          label: "待复核",
+          value: "review",
+        },
+      ],
+      required: true,
+    },
+    {
+      name: "agentBrief",
+      type: "textarea",
+      label: "Agent Brief",
+      admin: {
+        description: "给未来 Agent 的目标、边界、输入和完成标准。",
+      },
+    },
+    {
       name: "linkedContent",
       type: "relationship",
       label: "关联内容",
@@ -45,6 +111,16 @@ export const Plan: CollectionConfig = {
       },
       hasMany: true,
       relationTo: ["posts", "notes", "updates", "checklists", "timeline-events", "pages"],
+    },
+    {
+      name: "lastAgentRun",
+      type: "relationship",
+      label: "最近一次 Agent Run",
+      admin: {
+        description: "通常由 Agent Run 自动回写，用来追踪最近一次执行记录。",
+        position: "sidebar",
+      },
+      relationTo: "agent-runs",
     },
     {
       name: "state",

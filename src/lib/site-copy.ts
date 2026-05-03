@@ -9,6 +9,7 @@ export const siteCopy = {
     nav: {
       home: "Home",
       about: "About",
+      stream: "Flow",
       now: "Now",
       checklists: "Checklists",
       blog: "Blog",
@@ -61,6 +62,12 @@ export const siteCopy = {
       updatesDescription: "Updates are shown directly on the homepage with less jumping around.",
       updatesEmpty:
         "No public update yet. Once you publish one, this becomes the lightest activity stream on the homepage.",
+      timelineTitle: "Featured Timeline",
+      timelineDescription: "Key milestones are surfaced directly on the homepage so the narrative layer is visible at a glance.",
+      timelineEmpty:
+        "No featured timeline event yet. Mark a Timeline item as featured and it will show up here.",
+      timelineAction: "Open Timeline",
+      timelineExpand: "Open Event",
     },
     blog: {
       latestWaiting: "Waiting for the first post",
@@ -124,6 +131,7 @@ export const siteCopy = {
     nav: {
       home: "首页",
       about: "About",
+      stream: "动态",
       now: "Now",
       checklists: "清单",
       blog: "Blog",
@@ -174,6 +182,11 @@ export const siteCopy = {
       updatesTitle: "最近更新",
       updatesDescription: "Update 直接在首页展示正文片段，减少来回跳转。",
       updatesEmpty: "还没有公开的 Update。发布后，这里会成为首页最轻量的动态入口。",
+      timelineTitle: "精选时间线",
+      timelineDescription: "把关键阶段节点直接放回首页，公开层会更像一个能快速读懂近况的入口。",
+      timelineEmpty: "还没有精选时间线节点。把某条 Timeline 标记为精选后，这里就会显示。",
+      timelineAction: "打开时间线",
+      timelineExpand: "查看节点",
     },
     blog: {
       latestWaiting: "等待第一篇文章",

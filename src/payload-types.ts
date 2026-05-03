@@ -75,6 +75,9 @@ export interface Config {
     checklists: Checklist;
     'timeline-events': TimelineEvent;
     plans: Plan;
+    'plan-reviews': PlanReview;
+    'agent-threads': AgentThread;
+    'agent-runs': AgentRun;
     pages: Page;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -91,6 +94,9 @@ export interface Config {
     checklists: ChecklistsSelect<false> | ChecklistsSelect<true>;
     'timeline-events': TimelineEventsSelect<false> | TimelineEventsSelect<true>;
     plans: PlansSelect<false> | PlansSelect<true>;
+    'plan-reviews': PlanReviewsSelect<false> | PlanReviewsSelect<true>;
+    'agent-threads': AgentThreadsSelect<false> | AgentThreadsSelect<true>;
+    'agent-runs': AgentRunsSelect<false> | AgentRunsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -101,8 +107,12 @@ export interface Config {
     defaultIDType: number;
   };
   fallbackLocale: null;
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    'agent-settings': AgentSetting;
+  };
+  globalsSelect: {
+    'agent-settings': AgentSettingsSelect<false> | AgentSettingsSelect<true>;
+  };
   locale: null;
   widgets: {
     collections: CollectionsWidget;
@@ -377,6 +387,18 @@ export interface Plan {
   title: string;
   description?: string | null;
   /**
+   * 为未来接入自动 Agent 预留：这项计划主要由谁推进。
+   */
+  executionMode: 'manual' | 'hybrid' | 'agent';
+  /**
+   * 这项计划在 Agent 工作流里的当前阶段。
+   */
+  agentState: 'idle' | 'ready' | 'running' | 'blocked' | 'review';
+  /**
+   * 给未来 Agent 的目标、边界、输入和完成标准。
+   */
+  agentBrief?: string | null;
+  /**
    * 把这项计划正在产出的文章、短札、更新、清单、时间线节点或页面关联进来。
    */
   linkedContent?:
@@ -407,6 +429,10 @@ export interface Plan {
           }
       )[]
     | null;
+  /**
+   * 通常由 Agent Run 自动回写，用来追踪最近一次执行记录。
+   */
+  lastAgentRun?: (number | null) | AgentRun;
   state: 'backlog' | 'active' | 'paused' | 'done';
   status: 'draft' | 'published';
   priority: 'low' | 'medium' | 'high';
@@ -452,6 +478,167 @@ export interface Page {
   coverImage?: (number | null) | Media;
   status: 'draft' | 'published';
   visibility: 'public' | 'private';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-runs".
+ */
+export interface AgentRun {
+  id: number;
+  title: string;
+  workflow: 'readiness-audit' | 'planning' | 'content-draft' | 'publishing-review' | 'sync' | 'automation';
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
+  trigger: 'manual' | 'scheduled' | 'webhook' | 'agent';
+  /**
+   * 这次运行的目标、边界或验收标准。
+   */
+  goal?: string | null;
+  /**
+   * 用 1 到 3 句话说明这次运行完成了什么，留下了什么问题。
+   */
+  summary?: string | null;
+  /**
+   * 给下一次运行或人工接手留下可继续推进的动作。
+   */
+  nextAction?: string | null;
+  relatedPlan?: (number | null) | Plan;
+  /**
+   * 把这次运行读写过的内容挂进来，便于后续审计。
+   */
+  relatedContent?:
+    | (
+        | {
+            relationTo: 'posts';
+            value: number | Post;
+          }
+        | {
+            relationTo: 'notes';
+            value: number | Note;
+          }
+        | {
+            relationTo: 'updates';
+            value: number | Update;
+          }
+        | {
+            relationTo: 'checklists';
+            value: number | Checklist;
+          }
+        | {
+            relationTo: 'timeline-events';
+            value: number | TimelineEvent;
+          }
+        | {
+            relationTo: 'plan-reviews';
+            value: number | PlanReview;
+          }
+        | {
+            relationTo: 'pages';
+            value: number | Page;
+          }
+      )[]
+    | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  /**
+   * 可选。便于之后分析执行成本。
+   */
+  durationMs?: number | null;
+  /**
+   * 按时间顺序记录这次运行的关键步骤。
+   */
+  steps?:
+    | {
+        recordedAt?: string | null;
+        level: 'info' | 'warn' | 'error';
+        message: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "plan-reviews".
+ */
+export interface PlanReview {
+  id: number;
+  title: string;
+  scope: 'overall' | 'plan';
+  health: 'healthy' | 'attention' | 'risk';
+  plan?: (number | null) | Plan;
+  summary: string;
+  /**
+   * 由 Agent 根据 Plan / Checklist / Timeline / AgentRun 等真实数据生成。
+   */
+  metrics?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  recommendations?:
+    | {
+        content: string;
+        id?: string | null;
+      }[]
+    | null;
+  source: 'agent' | 'manual';
+  reviewedAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-threads".
+ */
+export interface AgentThread {
+  id: number;
+  title: string;
+  status: 'active' | 'closed';
+  user: number | User;
+  /**
+   * 保留最近的对话上下文，供事务型 Agent 继续承接。
+   */
+  messages?:
+    | {
+        role: 'user' | 'assistant';
+        content: string;
+        recordedAt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * 例如等待用户补 completion note。写入前由 Agent schema 校验。
+   */
+  pendingAction?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  lastIntent?:
+    | (
+        | 'create_plan'
+        | 'append_plan_item'
+        | 'complete_plan_item'
+        | 'add_completion_note'
+        | 'query_progress'
+        | 'evaluate_plan'
+        | 'clarify'
+      )
+    | null;
+  lastEngine?: ('glm' | 'heuristic' | 'workflow') | null;
+  lastConfidence?: number | null;
+  lastInteractionAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -510,6 +697,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'plans';
         value: number | Plan;
+      } | null)
+    | ({
+        relationTo: 'plan-reviews';
+        value: number | PlanReview;
+      } | null)
+    | ({
+        relationTo: 'agent-threads';
+        value: number | AgentThread;
+      } | null)
+    | ({
+        relationTo: 'agent-runs';
+        value: number | AgentRun;
       } | null)
     | ({
         relationTo: 'pages';
@@ -727,13 +926,91 @@ export interface TimelineEventsSelect<T extends boolean = true> {
 export interface PlansSelect<T extends boolean = true> {
   title?: T;
   description?: T;
+  executionMode?: T;
+  agentState?: T;
+  agentBrief?: T;
   linkedContent?: T;
+  lastAgentRun?: T;
   state?: T;
   status?: T;
   priority?: T;
   startDate?: T;
   dueDate?: T;
   visibility?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "plan-reviews_select".
+ */
+export interface PlanReviewsSelect<T extends boolean = true> {
+  title?: T;
+  scope?: T;
+  health?: T;
+  plan?: T;
+  summary?: T;
+  metrics?: T;
+  recommendations?:
+    | T
+    | {
+        content?: T;
+        id?: T;
+      };
+  source?: T;
+  reviewedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-threads_select".
+ */
+export interface AgentThreadsSelect<T extends boolean = true> {
+  title?: T;
+  status?: T;
+  user?: T;
+  messages?:
+    | T
+    | {
+        role?: T;
+        content?: T;
+        recordedAt?: T;
+        id?: T;
+      };
+  pendingAction?: T;
+  lastIntent?: T;
+  lastEngine?: T;
+  lastConfidence?: T;
+  lastInteractionAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-runs_select".
+ */
+export interface AgentRunsSelect<T extends boolean = true> {
+  title?: T;
+  workflow?: T;
+  status?: T;
+  trigger?: T;
+  goal?: T;
+  summary?: T;
+  nextAction?: T;
+  relatedPlan?: T;
+  relatedContent?: T;
+  startedAt?: T;
+  completedAt?: T;
+  durationMs?: T;
+  steps?:
+    | T
+    | {
+        recordedAt?: T;
+        level?: T;
+        message?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -791,6 +1068,51 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-settings".
+ */
+export interface AgentSetting {
+  id: number;
+  /**
+   * 关闭后，系统会直接回退到环境变量里的模型配置。
+   */
+  enabled?: boolean | null;
+  provider: 'openai-compatible' | 'openai' | 'zai';
+  /**
+   * 例如 OpenAI 官方接口，或 GLM 的 OpenAI-compatible 地址。
+   */
+  baseUrl?: string | null;
+  /**
+   * 例如 `gpt-5.4-mini`、`gpt-4.1-mini`、`glm-5.1`。
+   */
+  model?: string | null;
+  /**
+   * 留空时会回退到环境变量；只有管理员能在后台看到和修改这项配置。
+   */
+  apiKey?: string | null;
+  /**
+   * 可选。记录这组模型配置的用途，例如“Agent MVP / 实验用”。
+   */
+  notes?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-settings_select".
+ */
+export interface AgentSettingsSelect<T extends boolean = true> {
+  enabled?: T;
+  provider?: T;
+  baseUrl?: T;
+  model?: T;
+  apiKey?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

@@ -1,22 +1,9 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
 
+import { CommandPalette } from "@/components/public/CommandPalette";
 import { SiteThemeProvider } from "@/components/public/SiteThemeProvider";
 import "../globals.css";
 import { getSiteLocale } from "@/lib/site-locale";
-
-const manrope = Manrope({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const cormorant = Cormorant_Garamond({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "SunnyPanel",
@@ -34,11 +21,14 @@ export default async function SiteLayout({
     <html
       lang={locale === "en" ? "en" : "zh-CN"}
       data-scroll-behavior="smooth"
-      className={`${manrope.variable} ${cormorant.variable} h-full antialiased`}
+      className="h-full antialiased"
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col sunny-shell">
-        <SiteThemeProvider>{children}</SiteThemeProvider>
+        <SiteThemeProvider>
+          {children}
+          <CommandPalette locale={locale} />
+        </SiteThemeProvider>
       </body>
     </html>
   );
