@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/.agent-test-dist
 
 # next.js
 /.next/

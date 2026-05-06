@@ -12,11 +12,28 @@ import {
   StatusBadge,
   type StatusBadgeTone,
 } from "@/components/ui/SunnyComponents";
+import { buildAgentQuickPrompts } from "@/lib/agent/quick-prompts";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { getWorkspaceSnapshot, type WorkspaceSnapshot } from "@/lib/payload/workspace";
 import { getSiteLocale } from "@/lib/site-locale";
 
 export const dynamic = "force-dynamic";
+
+type DashboardPageProps = {
+  searchParams: Promise<{
+    threadId?: string;
+  }>;
+};
+
+const parseThreadId = (value?: string) => {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
 
 const quickCreateActions = [
   {
@@ -267,9 +284,12 @@ function ContentQueueCard({
   );
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+  const { threadId } = await searchParams;
+  const initialThreadId = parseThreadId(threadId);
   const locale = await getSiteLocale();
   const snapshot = await getWorkspaceSnapshot();
+  const agentQuickPrompts = buildAgentQuickPrompts(snapshot);
   const displayName = snapshot.user.displayName || snapshot.user.email;
   const nextUndoneOnboardingTask = snapshot.onboarding.tasks.find((task) => !task.done);
   const plansNeedingOutputs = snapshot.execution.plansWithoutOutputs.filter((plan) => plan.state === "active");
@@ -755,7 +775,7 @@ export default async function DashboardPage() {
         </div>
 
         <aside className="xl:sticky xl:top-5">
-          <AgentChatPanel variant="sidebar" />
+          <AgentChatPanel initialThreadId={initialThreadId} quickPrompts={agentQuickPrompts} variant="sidebar" />
         </aside>
       </div>
     </main>

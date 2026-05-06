@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": false,
+    "incremental": false,
+    "isolatedModules": false,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "noEmit": false,
+    "outDir": ".agent-test-dist",
+    "rootDir": ".",
+    "target": "ES2022",
+    "tsBuildInfoFile": ".agent-test-dist/tsconfig.agent-test.tsbuildinfo"
+  },
+  "include": [
+    "tests/agent/**/*.json",
+    "tests/agent/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    ".agent-test-dist"
+  ]
+}

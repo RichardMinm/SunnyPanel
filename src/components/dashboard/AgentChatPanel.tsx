@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
 import type {
   AgentChatMessage,
   AgentChatResponse,
@@ -15,29 +16,6 @@ import {
   estimateMessagesTokenCount,
   estimateTokenCount,
 } from "@/lib/agent/token-usage";
-
-const quickPrompts = [
-  {
-    label: "新计划",
-    prompt: "帮我创建计划：整理计算机组成原理复习路径",
-  },
-  {
-    label: "补条目",
-    prompt: "给高等数学的映射与函数补一个条目：反函数习题复盘",
-  },
-  {
-    label: "记完成",
-    prompt: "我完成了高等数学的映射与函数",
-  },
-  {
-    label: "查进度",
-    prompt: "查一下整体进度",
-  },
-  {
-    label: "评估",
-    prompt: "评估整体计划",
-  },
-];
 
 const initialMessages: AgentChatMessage[] = [
   {
@@ -90,9 +68,25 @@ const engineLabelMap: Record<AgentChatResponse["engine"], string> = {
   workflow: "流程接力",
 };
 
+const riskLevelLabelMap = {
+  high: "高风险",
+  low: "低风险",
+  medium: "中风险",
+} as const;
+
+const operationLabelMap = {
+  create: "创建",
+  delete: "删除",
+  update: "更新",
+} as const;
+
 const getPendingActionLabel = (pendingAction: PendingAction) => {
   if (pendingAction.type === "await_completion_note") {
     return `等待补备注：${pendingAction.itemTitle}`;
+  }
+
+  if (pendingAction.type === "await_confirmation") {
+    return `等待确认：${riskLevelLabelMap[pendingAction.action.riskLevel]}`;
   }
 
   return `等待澄清：${pendingAction.missingFields.join(" / ") || pendingAction.intent}`;
@@ -145,10 +139,12 @@ const parseStreamBlock = (block: string) => {
 };
 
 type AgentChatPanelProps = {
+  initialThreadId?: number;
+  quickPrompts?: AgentQuickPrompt[];
   variant?: "full" | "sidebar";
 };
 
-export function AgentChatPanel({ variant = "full" }: AgentChatPanelProps) {
+export function AgentChatPanel({ initialThreadId, quickPrompts = [], variant = "full" }: AgentChatPanelProps) {
   const isSidebar = variant === "sidebar";
   const shouldReduceMotion = useReducedMotion();
   const [messages, setMessages] = useState<AgentChatMessage[]>(initialMessages);
@@ -170,6 +166,8 @@ export function AgentChatPanel({ variant = "full" }: AgentChatPanelProps) {
   const inputTokenEstimate = estimateTokenCount(input);
   const usageTotal = Math.max(tokenUsage.totalTokens, 1);
   const traceSummary = getTraceSummary(traceSteps);
+  const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
+  const suggestedPlaceholder = quickPrompts[0]?.prompt ?? "整理今天最应该推进的一个动作";
   const lastMessage = messages[messages.length - 1];
   const isAssistantPlaceholderActive =
     lastMessage?.role === "assistant" && lastMessage.content.length === 0 && isSubmitting;
@@ -241,11 +239,11 @@ export function AgentChatPanel({ variant = "full" }: AgentChatPanelProps) {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadThread();
+      void loadThread(initialThreadId);
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadThread]);
+  }, [initialThreadId, loadThread]);
 
   useEffect(() => {
     const transcript = transcriptRef.current;
@@ -557,6 +555,63 @@ export function AgentChatPanel({ variant = "full" }: AgentChatPanelProps) {
       </div>
     </motion.div>
   );
+  const renderConfirmationCard = () => {
+    if (!confirmationAction) {
+      return null;
+    }
+
+    return (
+      <motion.div
+        initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+        animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+        className={`sunny-agent-confirmation-card sunny-agent-confirmation-card-${confirmationAction.riskLevel}`}
+      >
+        <div className="sunny-agent-confirmation-head">
+          <div>
+            <p className="sunny-kicker text-[0.68rem] text-muted">Pending Action</p>
+            <h3 className="mt-1 text-sm font-semibold text-foreground">{confirmationAction.summary}</h3>
+          </div>
+          <span className="sunny-agent-confirmation-risk">
+            {riskLevelLabelMap[confirmationAction.riskLevel]}
+          </span>
+        </div>
+        <div className="sunny-agent-confirmation-changes">
+          {confirmationAction.changes.map((change, index) => (
+            <div key={`${change.collection}-${change.operation}-${index}`} className="sunny-agent-confirmation-change">
+              <div className="sunny-agent-confirmation-meta">
+                <span>{operationLabelMap[change.operation]}</span>
+                <strong>{change.documentId ? `${change.collection} #${change.documentId}` : change.collection}</strong>
+              </div>
+              <p>{change.preview}</p>
+            </div>
+          ))}
+        </div>
+        <div className="sunny-agent-confirmation-actions">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => {
+              void sendMessage("确认");
+            }}
+            className="sunny-agent-confirmation-confirm disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            确认执行
+          </button>
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => {
+              void sendMessage("取消");
+            }}
+            className="sunny-agent-confirmation-cancel disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            取消
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
 
   return (
     <section className={`sunny-card sunny-agent-console p-0 ${isSidebar ? "sunny-agent-sidebar" : "rounded-[1.4rem]"}`}>
@@ -584,20 +639,22 @@ export function AgentChatPanel({ variant = "full" }: AgentChatPanelProps) {
         </div>
       </div>
 
-      <div className="sunny-agent-command-bar">
-        {quickPrompts.map((item) => (
-          <button
-            key={item.prompt}
-            type="button"
-            onClick={() => {
-              void sendMessage(item.prompt);
-            }}
-            className="sunny-agent-quick text-left text-sm text-foreground transition"
-          >
-            {isSidebar ? item.label : item.prompt}
-          </button>
-        ))}
-      </div>
+      {quickPrompts.length > 0 ? (
+        <div className="sunny-agent-command-bar">
+          {quickPrompts.map((item) => (
+            <button
+              key={item.prompt}
+              type="button"
+              onClick={() => {
+                void sendMessage(item.prompt);
+              }}
+              className="sunny-agent-quick text-left text-sm text-foreground transition"
+            >
+              {isSidebar ? item.label : item.prompt}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="sunny-agent-thread-bar">
         <button
@@ -700,6 +757,8 @@ export function AgentChatPanel({ variant = "full" }: AgentChatPanelProps) {
           </AnimatePresence>
         </div>
 
+        {renderConfirmationCard()}
+
         <div className="sunny-agent-conversation-foot">
           <span className={`sunny-agent-presence-dot ${isThinking ? "sunny-agent-presence-dot-live" : ""}`} aria-hidden="true" />
           <span>{statusLabel}</span>
@@ -716,7 +775,15 @@ export function AgentChatPanel({ variant = "full" }: AgentChatPanelProps) {
             value={input}
             onChange={(event) => setInput(event.target.value)}
             rows={2}
-            placeholder={pendingAction ? "直接补一句完成备注，或者说“不用了”。" : isSidebar ? "想做什么？" : "例如：帮我创建计划，整理计算机组成原理复习路径"}
+            placeholder={
+              confirmationAction
+                ? "回复“确认”执行，或“取消”放弃。"
+                : pendingAction
+                  ? "直接补一句完成备注，或者说“不用了”。"
+                  : isSidebar
+                    ? "想做什么？"
+                    : `例如：${suggestedPlaceholder}`
+            }
             className="sunny-agent-input min-h-20 flex-1 rounded-[0.8rem] px-4 py-3 text-sm outline-none transition"
           />
           <button

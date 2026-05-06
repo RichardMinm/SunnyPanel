@@ -54,6 +54,10 @@ const formatPendingAction = (pendingAction: AgentPromptContext["pendingAction"])
     )}，question=${pendingAction.question}。如果用户回答的是缺失字段，优先接回原动作。`;
   }
 
+  if (pendingAction.type === "await_confirmation") {
+    return `当前有一个等待确认的动作：intent=${pendingAction.action.intent}，risk=${pendingAction.action.riskLevel}，summary=${pendingAction.action.summary}。如果用户明确确认或执行，才能继续；如果用户取消，放弃该动作。`;
+  }
+
   const target = pendingAction.groupTitle
     ? `${pendingAction.checklistTitle} / ${pendingAction.groupTitle} / ${pendingAction.itemTitle}`
     : `${pendingAction.checklistTitle} / ${pendingAction.itemTitle}`;

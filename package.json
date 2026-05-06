@@ -8,6 +8,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "test": "npm run test:agent",
+    "test:agent": "node -e \"require('fs').rmSync('.agent-test-dist', { recursive: true, force: true })\" && tsc --project tsconfig.agent-test.json && node -e \"require('fs').writeFileSync('.agent-test-dist/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node --test .agent-test-dist/tests/agent/*.test.js",
     "smoke:agent": "node scripts/agent-smoke.mjs",
     "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
     "payload": "payload",

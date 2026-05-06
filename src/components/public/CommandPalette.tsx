@@ -1,124 +1,44 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
+import {
+  commandItemMatchesQuery,
+  getStaticCommandItems,
+  groupCommandItems,
+  type CommandSearchGroup,
+  type CommandSearchItem,
+  type CommandSearchResponse,
+} from "@/lib/command/palette";
 import type { SiteLocale } from "@/lib/site-copy";
-
-type CommandItem = {
-  href: string;
-  keywords: string[];
-  label: string;
-  section: "create" | "navigate";
-};
 
 const commandCopy = {
   en: {
     close: "Close",
-    create: "Create",
-    empty: "No command found",
-    navigate: "Navigate",
+    empty: "No result found",
+    error: "Search is unavailable. Static commands are still available.",
+    loading: "Searching...",
     open: "Command",
-    placeholder: "Search pages and actions...",
+    placeholder: "Search actions, pages, writing, plans...",
+    results: "results",
     shortcut: "Cmd K",
-    title: "Command Palette",
+    title: "Command Center",
   },
   zh: {
     close: "关闭",
-    create: "新建",
-    empty: "没有找到匹配命令",
-    navigate: "导航",
+    empty: "没有找到匹配结果",
+    error: "搜索暂时不可用，仍可使用静态命令。",
+    loading: "正在搜索...",
     open: "命令",
-    placeholder: "搜索页面和操作...",
+    placeholder: "搜索操作、页面、文章、计划...",
+    results: "项结果",
     shortcut: "⌘K",
-    title: "命令面板",
+    title: "命令中心",
   },
 } as const;
 
-const getCommandItems = (locale: SiteLocale): CommandItem[] => {
-  const isEn = locale === "en";
-
-  return [
-    {
-      href: "/",
-      keywords: ["home", "index", "首页"],
-      label: isEn ? "Go to Home" : "前往首页",
-      section: "navigate",
-    },
-    {
-      href: "/dashboard",
-      keywords: ["dashboard", "workspace", "工作台", "私有"],
-      label: isEn ? "Go to Dashboard" : "前往工作台",
-      section: "navigate",
-    },
-    {
-      href: "/blog",
-      keywords: ["blog", "post", "writing", "文章", "写作"],
-      label: isEn ? "Go to Blog" : "前往 Blog",
-      section: "navigate",
-    },
-    {
-      href: "/notes",
-      keywords: ["notes", "note", "短札", "笔记"],
-      label: isEn ? "Go to Notes" : "前往 Notes",
-      section: "navigate",
-    },
-    {
-      href: "/updates",
-      keywords: ["updates", "update", "动态"],
-      label: isEn ? "Go to Updates" : "前往 Updates",
-      section: "navigate",
-    },
-    {
-      href: "/timeline",
-      keywords: ["timeline", "memory", "时间线", "记忆"],
-      label: isEn ? "Go to Timeline" : "前往 Timeline",
-      section: "navigate",
-    },
-    {
-      href: "/admin",
-      keywords: ["admin", "payload", "后台"],
-      label: isEn ? "Go to Admin" : "前往后台",
-      section: "navigate",
-    },
-    {
-      href: "/admin/collections/posts/create",
-      keywords: ["new post", "post", "article", "文章"],
-      label: isEn ? "New Post" : "新建文章",
-      section: "create",
-    },
-    {
-      href: "/admin/collections/notes/create",
-      keywords: ["new note", "note", "短札"],
-      label: isEn ? "New Note" : "新建短札",
-      section: "create",
-    },
-    {
-      href: "/admin/collections/updates/create",
-      keywords: ["new update", "update", "动态"],
-      label: isEn ? "New Update" : "新建动态",
-      section: "create",
-    },
-    {
-      href: "/admin/collections/timeline-events/create",
-      keywords: ["new timeline", "timeline event", "时间线", "节点"],
-      label: isEn ? "New Timeline Event" : "新建时间线节点",
-      section: "create",
-    },
-    {
-      href: "/admin/collections/plans/create",
-      keywords: ["new plan", "plan", "计划"],
-      label: isEn ? "New Plan" : "新建计划",
-      section: "create",
-    },
-    {
-      href: "/admin/collections/media/create",
-      keywords: ["upload", "media", "image", "媒体", "上传"],
-      label: isEn ? "Upload Media" : "上传媒体",
-      section: "create",
-    },
-  ];
-};
+const debounceMs = 160;
 
 const isEditableTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) {
@@ -128,51 +48,133 @@ const isEditableTarget = (target: EventTarget | null) => {
   return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 };
 
+const getFallbackGroups = (locale: SiteLocale, query: string) =>
+  groupCommandItems(
+    getStaticCommandItems(locale).filter((item) => commandItemMatchesQuery(item, query)),
+    locale,
+  );
+
+const flattenGroups = (groups: CommandSearchGroup[]) => groups.flatMap((group) => group.items);
+
+const getFocusableElements = (container: HTMLElement) =>
+  Array.from(
+    container.querySelectorAll<HTMLElement>(
+      "a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])",
+    ),
+  ).filter((element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true");
+
 export function CommandPalette({ locale }: { locale: SiteLocale }) {
   const router = useRouter();
+  const pathname = usePathname();
   const copy = commandCopy[locale];
+  const titleId = useId();
+  const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const commands = useMemo(() => getCommandItems(locale), [locale]);
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredCommands = useMemo(() => {
-    if (!normalizedQuery) {
-      return commands;
-    }
-
-    return commands.filter((command) => {
-      const haystack = [command.label, command.href, ...command.keywords].join(" ").toLowerCase();
-
-      return haystack.includes(normalizedQuery);
-    });
-  }, [commands, normalizedQuery]);
-
-  const groupedCommands = filteredCommands.reduce<Record<CommandItem["section"], CommandItem[]>>(
-    (accumulator, command) => {
-      accumulator[command.section].push(command);
-      return accumulator;
-    },
-    { create: [], navigate: [] },
-  );
+  const [groups, setGroups] = useState<CommandSearchGroup[]>(() => getFallbackGroups(locale, ""));
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<null | string>(null);
+  const flatItems = useMemo(() => flattenGroups(groups), [groups]);
+  const resolvedActiveIndex = flatItems.length === 0 ? 0 : Math.min(activeIndex, flatItems.length - 1);
+  const activeItem = flatItems[resolvedActiveIndex] ?? null;
+  const activeOptionId = activeItem ? `${listboxId}-option-${resolvedActiveIndex}` : undefined;
 
   const openPalette = useCallback(() => {
     setIsOpen(true);
     setQuery("");
+    setDebouncedQuery("");
     setActiveIndex(0);
-  }, []);
+    setErrorMessage(null);
+    setGroups(getFallbackGroups(locale, ""));
+  }, [locale]);
 
   const closePalette = useCallback(() => {
     setIsOpen(false);
     setQuery("");
+    setDebouncedQuery("");
     setActiveIndex(0);
+    window.setTimeout(() => triggerRef.current?.focus(), 0);
   }, []);
 
-  const runCommand = useCallback((command: CommandItem) => {
+  const runCommand = useCallback((command: CommandSearchItem) => {
     closePalette();
     router.push(command.href);
   }, [closePalette, router]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setDebouncedQuery(query);
+    }, debounceMs);
+
+    return () => window.clearTimeout(timer);
+  }, [isOpen, query]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const fallbackGroups = getFallbackGroups(locale, debouncedQuery);
+    const startTimer = window.setTimeout(() => {
+      setIsLoading(true);
+      setErrorMessage(null);
+      setGroups(fallbackGroups);
+    }, 0);
+
+    const params = new URLSearchParams({
+      locale,
+      q: debouncedQuery,
+      scope: pathname === "/dashboard" || pathname.startsWith("/dashboard/") ? "private" : "public",
+    });
+
+    fetch(`/api/command/search?${params.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Command search failed with ${response.status}`);
+        }
+
+        return (await response.json()) as CommandSearchResponse;
+      })
+      .then((data) => {
+        setGroups(data.groups.length > 0 ? data.groups : fallbackGroups);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        setErrorMessage(copy.error);
+        setGroups(fallbackGroups);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      window.clearTimeout(startTimer);
+      controller.abort();
+    };
+  }, [copy.error, debouncedQuery, isOpen, locale, pathname]);
+
+  useEffect(() => {
+    if (isOpen) {
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -194,43 +196,67 @@ export function CommandPalette({ locale }: { locale: SiteLocale }) {
         return;
       }
 
+      if (event.key === "Tab" && panelRef.current) {
+        const focusableElements = getFocusableElements(panelRef.current);
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (!firstElement || !lastElement) {
+          return;
+        }
+
+        if (event.shiftKey && document.activeElement === firstElement) {
+          event.preventDefault();
+          lastElement.focus();
+          return;
+        }
+
+        if (!event.shiftKey && document.activeElement === lastElement) {
+          event.preventDefault();
+          firstElement.focus();
+          return;
+        }
+      }
+
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setActiveIndex((current) => (filteredCommands.length === 0 ? 0 : (current + 1) % filteredCommands.length));
+        setActiveIndex((current) => (flatItems.length === 0 ? 0 : (current + 1) % flatItems.length));
         return;
       }
 
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setActiveIndex((current) =>
-          filteredCommands.length === 0 ? 0 : (current - 1 + filteredCommands.length) % filteredCommands.length,
-        );
+        setActiveIndex((current) => (flatItems.length === 0 ? 0 : (current - 1 + flatItems.length) % flatItems.length));
         return;
       }
 
-      if (event.key === "Enter") {
-        event.preventDefault();
-        const activeCommand = filteredCommands[activeIndex];
+      if (event.key === "Enter" && !event.isComposing) {
+        const target = event.target;
+        const shouldSelectActive =
+          target === inputRef.current ||
+          (target instanceof HTMLElement && target.getAttribute("role") === "option");
 
-        if (activeCommand) {
-          runCommand(activeCommand);
+        if (!shouldSelectActive) {
+          return;
+        }
+
+        event.preventDefault();
+        const command = flatItems[resolvedActiveIndex];
+
+        if (command) {
+          runCommand(command);
         }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeIndex, closePalette, filteredCommands, isOpen, openPalette, runCommand]);
-
-  useEffect(() => {
-    if (isOpen) {
-      window.setTimeout(() => inputRef.current?.focus(), 0);
-    }
-  }, [isOpen]);
+  }, [closePalette, flatItems, isOpen, openPalette, resolvedActiveIndex, runCommand]);
 
   return (
     <>
       <button
+        ref={triggerRef}
         aria-label={copy.title}
         className="sunny-command-trigger"
         onClick={openPalette}
@@ -242,6 +268,7 @@ export function CommandPalette({ locale }: { locale: SiteLocale }) {
 
       {isOpen ? (
         <div
+          aria-labelledby={titleId}
           aria-modal="true"
           className="sunny-command-overlay"
           onMouseDown={(event) => {
@@ -251,52 +278,68 @@ export function CommandPalette({ locale }: { locale: SiteLocale }) {
           }}
           role="dialog"
         >
-          <div className="sunny-command-panel">
+          <div ref={panelRef} className="sunny-command-panel">
             <div className="sunny-command-input-row">
-              <input
-                ref={inputRef}
-                aria-label={copy.placeholder}
-                className="sunny-command-input"
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setActiveIndex(0);
-                }}
-                placeholder={copy.placeholder}
-                value={query}
-              />
+              <div className="sunny-command-input-shell">
+                <h2 id={titleId} className="sr-only">
+                  {copy.title}
+                </h2>
+                <input
+                  ref={inputRef}
+                  aria-activedescendant={activeOptionId}
+                  aria-controls={listboxId}
+                  aria-expanded={isOpen}
+                  aria-label={copy.placeholder}
+                  className="sunny-command-input"
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setActiveIndex(0);
+                  }}
+                  placeholder={copy.placeholder}
+                  role="combobox"
+                  value={query}
+                />
+              </div>
               <button className="sunny-command-close" onClick={closePalette} type="button">
                 {copy.close}
               </button>
             </div>
 
-            <div className="sunny-command-list">
-              {filteredCommands.length > 0 ? (
-                (["navigate", "create"] as const).map((section) =>
-                  groupedCommands[section].length > 0 ? (
-                    <div key={section} className="sunny-command-section">
-                      <p className="sunny-command-section-label">
-                        {section === "navigate" ? copy.navigate : copy.create}
-                      </p>
-                      {groupedCommands[section].map((command) => {
-                        const commandIndex = filteredCommands.indexOf(command);
-                        const isActive = commandIndex === activeIndex;
+            <div className="sunny-command-meta">
+              <span>{isLoading ? copy.loading : `${flatItems.length} ${copy.results}`}</span>
+              {errorMessage ? <span>{errorMessage}</span> : null}
+            </div>
 
-                        return (
-                          <button
-                            key={`${command.section}-${command.href}`}
-                            className={`sunny-command-item ${isActive ? "sunny-command-item-active" : ""}`}
-                            onMouseEnter={() => setActiveIndex(commandIndex)}
-                            onClick={() => runCommand(command)}
-                            type="button"
-                          >
-                            <span>{command.label}</span>
-                            <span>{command.href}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null,
-                )
+            <div id={listboxId} className="sunny-command-list" role="listbox">
+              {flatItems.length > 0 ? (
+                groups.map((group) => (
+                  <div key={group.id} className="sunny-command-section">
+                    <p className="sunny-command-section-label">{group.label}</p>
+                    {group.items.map((command) => {
+                      const commandIndex = flatItems.indexOf(command);
+                      const isActive = commandIndex === resolvedActiveIndex;
+
+                      return (
+                        <button
+                          key={command.id}
+                          id={`${listboxId}-option-${commandIndex}`}
+                          aria-selected={isActive}
+                          className={`sunny-command-item ${isActive ? "sunny-command-item-active" : ""}`}
+                          onMouseEnter={() => setActiveIndex(commandIndex)}
+                          onClick={() => runCommand(command)}
+                          role="option"
+                          type="button"
+                        >
+                          <span className="sunny-command-item-main">
+                            <span>{command.title}</span>
+                            {command.subtitle ? <small>{command.subtitle}</small> : null}
+                          </span>
+                          <span className="sunny-command-item-kind">{command.kind}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))
               ) : (
                 <div className="sunny-command-empty">{copy.empty}</div>
               )}

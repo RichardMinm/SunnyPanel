@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 
-import { recordAgentFailure } from "@/lib/agent/audit";
+import { recordAgentConfirmationDecision, recordAgentFailure } from "@/lib/agent/audit";
+import { generateIntentWithAgentModel } from "@/lib/agent/client";
 import { executeAgentIntent } from "@/lib/agent/executor";
-import { resolveAgentIntent, isNegativeReply } from "@/lib/agent/intent";
+import { resolveAgentIntent, isCancellationReply, isConfirmationReply, shouldSkipPendingAction } from "@/lib/agent/intent";
 import { logAgentEvent } from "@/lib/agent/logger";
+import {
+  buildProposedActionMessage,
+  createIntentFromProposedAction,
+  createProposedAgentAction,
+} from "@/lib/agent/safety";
 import { getPayloadClient } from "@/lib/payload/client";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
-import { type AgentChatResponse, type AgentIntent, type AgentTraceStep, parsePendingAction, sanitizeChatMessages } from "@/lib/agent/schemas";
+import { type AgentChatResponse, type AgentEngine, type AgentIntent, type AgentTraceStep, type PendingAction, parsePendingAction, sanitizeChatMessages } from "@/lib/agent/schemas";
 import {
   createTokenUsageSnapshot,
   estimateMessagesTokenCount,
@@ -299,8 +305,11 @@ export async function POST(request: Request) {
     inputTokens: estimateTokenCount(message),
   });
 
-  if (pendingAction && isNegativeReply(message)) {
-    const assistantMessage = "好的，这次先不补备注。你接下来也可以直接继续给我新的计划或完成记录。";
+  if (shouldSkipPendingAction(pendingAction, message)) {
+    const assistantMessage =
+      pendingAction.type === "await_completion_note"
+        ? "好的，这次先不补备注。你接下来也可以直接继续给我新的计划或完成记录。"
+        : "好的，这次先不继续这个待澄清动作。你接下来可以直接给我新的计划、清单或进度指令。";
     const tokenUsage = {
       ...baseTokenUsage,
       outputTokens: estimateTokenCount(assistantMessage),
@@ -355,6 +364,46 @@ export async function POST(request: Request) {
       }
 
       emitTrace(step);
+    };
+    const persistAgentTurn = async ({
+      assistantMessage,
+      confidence,
+      engine,
+      intent,
+      nextPendingAction,
+    }: {
+      assistantMessage: string;
+      confidence?: number;
+      engine: AgentEngine;
+      intent: AgentIntent["intent"];
+      nextPendingAction: null | PendingAction;
+    }) => {
+      emitStatus("正在保存会话上下文...");
+      pushTrace({
+        detail: "会把这轮用户输入、Agent 回复和待处理动作一起写回 AgentThread。",
+        id: "thread-writeback",
+        kind: "write",
+        status: "running",
+        title: "正在保存会话上下文",
+      });
+      const updatedThread = await appendAgentThreadTurn({
+        assistantMessage,
+        confidence,
+        engine,
+        intent,
+        pendingAction: nextPendingAction,
+        thread,
+        userMessage: message,
+      });
+      pushTrace({
+        detail: `Thread #${updatedThread.id} 已更新，可继续承接这轮上下文。`,
+        id: "thread-writeback",
+        kind: "complete",
+        status: "done",
+        title: "会话上下文已保存",
+      });
+
+      return updatedThread;
     };
 
     let tokenUsage = baseTokenUsage;
@@ -412,49 +461,238 @@ export async function POST(request: Request) {
       title: "上下文已就绪",
     });
 
-    emitStatus("正在解析事务意图...");
-    pushTrace({
-      detail: "会结合当前输入、最近对话和待处理动作来判断下一步。",
-      id: "analysis-intent",
-      kind: "analysis",
-      status: "running",
-      title: "正在判断你的真实意图",
-    });
-    const resolution = await resolveAgentIntent({
-      context,
-      history: resolvedHistory,
-      message,
-      pendingAction,
-    });
-    if ("tokenUsage" in resolution && resolution.tokenUsage) {
-      tokenUsage = resolution.tokenUsage;
-      emitUsage(tokenUsage);
-    }
-    const intentSummary = buildIntentTraceSummary(resolution.intent);
-    pushTrace({
-      detail: intentSummary.detail,
-      id: "analysis-intent",
-      kind: "analysis",
-      status: "done",
-      title: intentSummary.title,
-    });
+    let confirmedActionId: null | string = null;
+    let resolution: {
+      engine: AgentEngine;
+      intent: AgentIntent;
+      tokenUsage?: AgentChatResponse["tokenUsage"];
+    };
 
-    logAgentEvent("info", "chat.intent_resolved", {
-      confidence: resolution.intent.confidence,
-      engine: resolution.engine,
-      intent: resolution.intent.intent,
-      threadId: thread.id,
-      userId: user.id,
-    });
+    if (pendingAction?.type === "await_confirmation") {
+      if (isCancellationReply(message)) {
+        emitStatus("正在取消待确认动作...");
+        pushTrace({
+          detail: `${pendingAction.action.summary} · risk=${pendingAction.action.riskLevel}`,
+          id: "confirmation-cancel",
+          kind: "action",
+          status: "running",
+          title: "正在取消待确认动作",
+        });
+        await recordAgentConfirmationDecision({
+          action: pendingAction.action,
+          decision: "canceled",
+          message,
+        });
+        const assistantMessage = `已取消「${pendingAction.action.summary}」。这次没有写入计划、清单或 Timeline。`;
+        const outputTokens = estimateTokenCount(assistantMessage);
+        tokenUsage = {
+          ...tokenUsage,
+          outputTokens,
+          totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+        };
+        pushTrace({
+          detail: "取消决定已经写入 AgentRun 审计记录。",
+          id: "confirmation-cancel",
+          kind: "complete",
+          status: "done",
+          title: "待确认动作已取消",
+        });
+        const updatedThread = await persistAgentTurn({
+          assistantMessage,
+          confidence: 1,
+          engine: "workflow",
+          intent: pendingAction.action.intent,
+          nextPendingAction: null,
+        });
+        logAgentEvent("info", "chat.confirmation_canceled", {
+          actionId: pendingAction.action.id,
+          intent: pendingAction.action.intent,
+          threadId: updatedThread.id,
+          userId: user.id,
+        });
+
+        return {
+          assistantMessage,
+          confidence: 1,
+          engine: "workflow",
+          intent: pendingAction.action.intent,
+          pendingAction: null,
+          trace,
+          threadId: updatedThread.id,
+          tokenUsage,
+        };
+      }
+
+      if (!isConfirmationReply(message)) {
+        const assistantMessage = `这一步还在等待确认：${pendingAction.action.summary}。\n\n回复「确认」或「执行」继续，回复「取消」放弃。`;
+        const outputTokens = estimateTokenCount(assistantMessage);
+        tokenUsage = {
+          ...tokenUsage,
+          outputTokens,
+          totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+        };
+        pushTrace({
+          detail: `待确认动作：${pendingAction.action.summary}`,
+          id: "confirmation-wait",
+          kind: "analysis",
+          status: "done",
+          title: "仍在等待明确确认",
+        });
+        const updatedThread = await persistAgentTurn({
+          assistantMessage,
+          confidence: 1,
+          engine: "workflow",
+          intent: "clarify",
+          nextPendingAction: pendingAction,
+        });
+
+        return {
+          assistantMessage,
+          confidence: 1,
+          engine: "workflow",
+          intent: "clarify",
+          pendingAction,
+          trace,
+          threadId: updatedThread.id,
+          tokenUsage,
+        };
+      }
+
+      const confirmedIntent = createIntentFromProposedAction(pendingAction.action);
+
+      if (!confirmedIntent) {
+        throw new Error("Pending confirmation action could not be restored.");
+      }
+
+      confirmedActionId = pendingAction.action.id;
+      emitStatus("正在执行已确认动作...");
+      pushTrace({
+        detail: `${pendingAction.action.summary} · risk=${pendingAction.action.riskLevel}`,
+        id: "confirmation-received",
+        kind: "action",
+        status: "running",
+        title: "已收到确认",
+      });
+      await recordAgentConfirmationDecision({
+        action: pendingAction.action,
+        decision: "confirmed",
+        message,
+      });
+      pushTrace({
+        detail: "确认决定已经写入 AgentRun 审计记录。",
+        id: "confirmation-received",
+        kind: "action",
+        status: "done",
+        title: "确认已记录",
+      });
+      resolution = {
+        engine: "workflow",
+        intent: confirmedIntent,
+      };
+      pushTrace({
+        detail: "使用待确认动作中保存的参数继续执行，不重新解释为新指令。",
+        id: "analysis-intent",
+        kind: "analysis",
+        status: "done",
+        title: `确认执行：${pendingAction.action.summary}`,
+      });
+    } else {
+      emitStatus("正在解析事务意图...");
+      pushTrace({
+        detail: "会结合当前输入、最近对话和待处理动作来判断下一步。",
+        id: "analysis-intent",
+        kind: "analysis",
+        status: "running",
+        title: "正在判断你的真实意图",
+      });
+      resolution = await resolveAgentIntent({
+        context,
+        history: resolvedHistory,
+        message,
+        modelResolver: generateIntentWithAgentModel,
+        pendingAction,
+      });
+      if (resolution.tokenUsage) {
+        tokenUsage = resolution.tokenUsage;
+        emitUsage(tokenUsage);
+      }
+      const intentSummary = buildIntentTraceSummary(resolution.intent);
+      pushTrace({
+        detail: intentSummary.detail,
+        id: "analysis-intent",
+        kind: "analysis",
+        status: "done",
+        title: intentSummary.title,
+      });
+
+      logAgentEvent("info", "chat.intent_resolved", {
+        confidence: resolution.intent.confidence,
+        engine: resolution.engine,
+        intent: resolution.intent.intent,
+        threadId: thread.id,
+        userId: user.id,
+      });
+    }
 
     try {
       const isDirectAnswer = resolution.intent.intent === "answer_question";
+      const proposedAction = confirmedActionId ? null : createProposedAgentAction(resolution.intent);
+
+      if (proposedAction) {
+        emitStatus("正在等待你确认动作...");
+        const assistantMessage = buildProposedActionMessage(proposedAction);
+        const nextPendingAction: PendingAction = {
+          action: proposedAction,
+          type: "await_confirmation",
+        };
+        const outputTokens = estimateTokenCount(assistantMessage);
+        tokenUsage = {
+          ...tokenUsage,
+          outputTokens,
+          totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+        };
+        pushTrace({
+          detail: `${proposedAction.summary} · risk=${proposedAction.riskLevel}`,
+          id: "action-execute",
+          kind: "action",
+          status: "done",
+          title: "已生成待确认动作",
+        });
+        const updatedThread = await persistAgentTurn({
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: resolution.intent.intent,
+          nextPendingAction,
+        });
+
+        logAgentEvent("info", "chat.confirmation_requested", {
+          actionId: proposedAction.id,
+          intent: proposedAction.intent,
+          riskLevel: proposedAction.riskLevel,
+          threadId: updatedThread.id,
+          userId: user.id,
+        });
+
+        return {
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: resolution.intent.intent,
+          pendingAction: nextPendingAction,
+          trace,
+          threadId: updatedThread.id,
+          tokenUsage,
+        };
+      }
 
       emitStatus(isDirectAnswer ? "正在组织直接回答..." : "正在执行工具并写入数据库...");
       pushTrace({
         detail: isDirectAnswer
           ? "这轮只生成回答，不会写入计划、清单或时间线。"
-          : "接下来会根据识别出的意图执行查询、更新或同步动作。",
+          : confirmedActionId
+            ? "这一步已经收到确认，可以继续执行写入动作。"
+            : "接下来会根据识别出的意图执行查询、更新或同步动作。",
         id: "action-execute",
         kind: "action",
         status: "running",
@@ -479,36 +717,20 @@ export async function POST(request: Request) {
         title: execution.pendingAction ? "动作已执行，进入待补信息状态" : isDirectAnswer ? "回答生成完成" : "动作执行完成",
       });
 
-      emitStatus("正在保存会话上下文...");
-      pushTrace({
-        detail: "会把这轮用户输入、Agent 回复和待处理动作一起写回 AgentThread。",
-        id: "thread-writeback",
-        kind: "write",
-        status: "running",
-        title: "正在保存会话上下文",
-      });
-      const updatedThread = await appendAgentThreadTurn({
+      const updatedThread = await persistAgentTurn({
         assistantMessage: execution.assistantMessage,
         confidence: resolution.intent.confidence,
         engine: resolution.engine,
         intent: resolution.intent.intent,
-        pendingAction: execution.pendingAction,
-        thread,
-        userMessage: message,
+        nextPendingAction: execution.pendingAction,
       });
 
       logAgentEvent("info", "chat.intent_executed", {
+        confirmedActionId,
         intent: resolution.intent.intent,
         pendingAction: execution.pendingAction?.type ?? null,
         threadId: updatedThread.id,
         userId: user.id,
-      });
-      pushTrace({
-        detail: `Thread #${updatedThread.id} 已更新，可继续承接这轮上下文。`,
-        id: "thread-writeback",
-        kind: "complete",
-        status: "done",
-        title: "会话上下文已保存",
       });
 
       return {

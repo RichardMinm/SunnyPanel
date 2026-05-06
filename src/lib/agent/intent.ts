@@ -1,12 +1,21 @@
-import { generateIntentWithAgentModel } from "./client";
 import { logAgentEvent } from "./logger";
 import type { AgentPromptContext } from "./prompts";
 import {
   createClarifyIntent,
   type AgentChatMessage,
   type AgentIntent,
+  type AgentTokenUsage,
   type PendingAction,
 } from "./schemas";
+
+export type AgentModelIntentResolver = (input: {
+  context: AgentPromptContext;
+  history: AgentChatMessage[];
+  message: string;
+}) => Promise<null | {
+  intent: AgentIntent;
+  tokenUsage?: AgentTokenUsage;
+}>;
 
 const createPlanKeywords = ["帮我创建计划", "创建计划", "新建计划", "创建一个计划", "帮我新建计划"];
 const appendItemKeywords = ["补充计划项", "追加计划项", "新增计划项", "添加计划项", "加一个条目", "补一个条目", "添加条目", "新增条目"];
@@ -15,6 +24,8 @@ const noteKeywords = ["补充备注", "添加备注", "备注是", "备注：", 
 const progressKeywords = ["进度", "完成率", "完成情况", "统计"];
 const evaluationKeywords = ["评估", "评价", "建议", "分析", "复盘"];
 const negativeReplyKeywords = ["不用", "不用了", "先不用", "暂时不用", "不需要", "先这样"];
+const confirmationReplyKeywords = ["确认", "确认执行", "执行", "可以执行", "同意", "继续", "继续执行", "没问题", "好的", "好"];
+const cancellationReplyKeywords = ["取消", "不要执行", "不执行", "先别执行", "先别", "放弃", "停止"];
 const mathTwoSyllabusAnswer = `考研数学二通常考两门：高等数学和线性代数，不考概率论与数理统计。分值结构一般是高等数学约 80%，线性代数约 20%，具体以当年官方考试大纲为准。
 
 高等数学常见章节：
@@ -353,6 +364,24 @@ export const isNegativeReply = (message: string) => {
   return negativeReplyKeywords.some((keyword) => normalized.includes(keyword));
 };
 
+export const isConfirmationReply = (message: string) => {
+  const normalized = cleanupText(message).replace(/\s+/g, "");
+
+  return confirmationReplyKeywords.includes(normalized);
+};
+
+export const isCancellationReply = (message: string) => {
+  const normalized = cleanupText(message).replace(/\s+/g, "");
+
+  return cancellationReplyKeywords.some((keyword) => normalized.includes(keyword)) || isNegativeReply(message);
+};
+
+export const shouldSkipPendingAction = (
+  pendingAction: null | PendingAction,
+  message: string,
+): pendingAction is Exclude<PendingAction, { type: "await_confirmation" }> =>
+  Boolean(pendingAction && pendingAction.type !== "await_confirmation" && isNegativeReply(message));
+
 const isNewCommand = (message: string) =>
   createPlanKeywords.some((keyword) => message.includes(keyword)) ||
   appendItemKeywords.some((keyword) => message.includes(keyword)) ||
@@ -452,11 +481,13 @@ export const resolveAgentIntent = async ({
   context,
   history,
   message,
+  modelResolver,
   pendingAction,
 }: {
   context: AgentPromptContext;
   history: AgentChatMessage[];
   message: string;
+  modelResolver?: AgentModelIntentResolver;
   pendingAction: null | PendingAction;
 }) => {
   if (pendingAction?.type === "await_clarification") {
@@ -499,24 +530,26 @@ export const resolveAgentIntent = async ({
     };
   }
 
-  try {
-    const modelIntent = await generateIntentWithAgentModel({
-      context,
-      history,
-      message,
-    });
+  if (modelResolver) {
+    try {
+      const modelIntent = await modelResolver({
+        context,
+        history,
+        message,
+      });
 
-    if (modelIntent) {
-      return {
-        engine: "glm" as const,
-        intent: modelIntent.intent,
-        tokenUsage: modelIntent.tokenUsage,
-      };
+      if (modelIntent) {
+        return {
+          engine: "glm" as const,
+          intent: modelIntent.intent,
+          tokenUsage: modelIntent.tokenUsage,
+        };
+      }
+    } catch (error) {
+      logAgentEvent("warn", "intent.model_fallback", {
+        error: error instanceof Error ? error.message : "Unknown model error",
+      });
     }
-  } catch (error) {
-    logAgentEvent("warn", "intent.model_fallback", {
-      error: error instanceof Error ? error.message : "Unknown model error",
-    });
   }
 
   return {

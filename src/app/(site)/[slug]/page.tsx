@@ -21,6 +21,10 @@ const managedPageMeta = {
     description: "当前正在做的事、近期状态与阶段重点。",
     title: "Now",
   },
+  projects: {
+    description: "正在推进的项目、阶段成果与长期方向。",
+    title: "Projects",
+  },
 } as const;
 
 type StaticPageProps = {
@@ -76,7 +80,7 @@ export default async function StaticPage({ params }: StaticPageProps) {
 
             <section className="sunny-panel rounded-[1.6rem] px-5 py-5 md:px-6">
               <p className="sunny-kicker text-[0.68rem] text-muted">{fallbackMeta.title}</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground md:text-4xl">
+              <h1 className="mt-2 text-3xl font-semibold text-foreground md:text-4xl">
                 {fallbackMeta.title}
               </h1>
               <p className="mt-2 text-sm leading-7 text-muted">{fallbackMeta.description}</p>
@@ -107,7 +111,7 @@ export default async function StaticPage({ params }: StaticPageProps) {
 
         <section className="sunny-panel rounded-[1.6rem] px-5 py-5 md:px-6">
           <p className="sunny-kicker text-[0.68rem] text-muted">{copy.common.page}</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-foreground md:text-4xl">
+          <h1 className="mt-2 text-3xl font-semibold text-foreground md:text-4xl">
             {page.title}
           </h1>
         </section>

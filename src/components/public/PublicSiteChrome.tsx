@@ -13,22 +13,24 @@ export function PublicSiteHeader({ locale }: { locale: SiteLocale }) {
   const copy = getSiteCopy(locale);
   const navigation = [
     { href: "/", label: copy.nav.home },
-    { href: "/about", label: copy.nav.about },
-    { href: "/checklists", label: copy.nav.checklists },
-    { href: "/blog", label: copy.nav.blog },
-    { href: "/timeline", label: copy.nav.timeline },
-  ];
-  const streamItems = [
     { href: "/now", label: copy.nav.now },
-    { href: "/notes", label: copy.nav.notes },
-    { href: "/updates", label: copy.nav.updates },
+    { href: "/blog", label: copy.nav.writing },
+    { href: "/timeline", label: copy.nav.timeline },
+    { href: "/projects", label: copy.nav.projects },
+    { href: "/about", label: copy.nav.about },
   ];
-  const streamActive = streamItems.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+  const workspaceItems = [
+    { href: "/dashboard", label: copy.frame.dashboard },
+    { href: "/admin", label: copy.frame.admin },
+  ];
+  const workspaceActive = workspaceItems.some(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
 
   return (
     <header className="sunny-panel relative z-40 overflow-visible rounded-[1.45rem] px-3 py-3 md:rounded-[1.7rem] md:px-6 md:py-3.5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
           <Link href="/" scroll={false} className="group inline-flex min-w-0 items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.95rem] bg-accent text-sm font-bold text-white shadow-[0_10px_24px_rgba(143,53,16,0.18)] transition group-hover:-translate-y-0.5 md:h-10 md:w-10">
               S
@@ -38,10 +40,19 @@ export function PublicSiteHeader({ locale }: { locale: SiteLocale }) {
               <p className="truncate text-[0.78rem] text-muted md:text-[0.82rem]">{copy.frame.tagline}</p>
             </div>
           </Link>
+
+          <div className="flex shrink-0 items-center gap-2 lg:hidden">
+            <HeaderWorkspaceActions
+              locale={locale}
+              pathname={pathname}
+              workspaceActive={workspaceActive}
+              workspaceItems={workspaceItems}
+            />
+          </div>
         </div>
 
         <div className="min-w-0">
-          <nav className="flex flex-wrap gap-1">
+          <nav className="sunny-public-nav-scroll flex gap-1 overflow-x-auto pb-1 lg:flex-wrap lg:justify-center lg:overflow-visible lg:pb-0">
             {navigation.map((item) => (
               <PublicNavLink
                 key={item.href}
@@ -50,25 +61,47 @@ export function PublicSiteHeader({ locale }: { locale: SiteLocale }) {
                 label={item.label}
               />
             ))}
-            <PublicNavDropdown active={streamActive} items={streamItems} label={copy.nav.stream} pathname={pathname} />
           </nav>
         </div>
 
-        <div className="flex flex-col gap-2 sm:items-end">
-          <div className="grid grid-cols-[auto_1fr_1fr] gap-2 sm:flex sm:flex-wrap sm:justify-end">
-            <SettingsMenu locale={locale} />
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-            <a href="/dashboard" className="sunny-button-secondary w-full sm:w-auto">
-              {copy.frame.dashboard}
-            </a>
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-            <a href="/admin" className="sunny-button-primary w-full sm:w-auto">
-              {copy.frame.admin}
-            </a>
-          </div>
+        <div className="hidden shrink-0 items-center justify-end gap-2 lg:flex">
+          <HeaderWorkspaceActions
+            locale={locale}
+            pathname={pathname}
+            workspaceActive={workspaceActive}
+            workspaceItems={workspaceItems}
+          />
         </div>
       </div>
     </header>
+  );
+}
+
+function HeaderWorkspaceActions({
+  locale,
+  pathname,
+  workspaceActive,
+  workspaceItems,
+}: {
+  locale: SiteLocale;
+  pathname: string;
+  workspaceActive: boolean;
+  workspaceItems: Array<{ href: string; label: string }>;
+}) {
+  const copy = getSiteCopy(locale);
+
+  return (
+    <>
+      <SettingsMenu locale={locale} />
+      <PublicNavDropdown
+        active={workspaceActive}
+        align="right"
+        compact
+        items={workspaceItems}
+        label={copy.frame.footerWorkspace}
+        pathname={pathname}
+      />
+    </>
   );
 }
 
@@ -128,11 +161,15 @@ function PublicNavPendingIndicator() {
 
 function PublicNavDropdown({
   active,
+  align = "left",
+  compact = false,
   items,
   label,
   pathname,
 }: {
   active: boolean;
+  align?: "left" | "right";
+  compact?: boolean;
   items: Array<{ href: string; label: string }>;
   label: string;
   pathname: string;
@@ -146,7 +183,12 @@ function PublicNavDropdown({
   }, [pathname]);
 
   return (
-    <details ref={detailsRef} className={`sunny-nav-dropdown ${active ? "sunny-nav-dropdown-active" : ""}`}>
+    <details
+      ref={detailsRef}
+      className={`sunny-nav-dropdown ${active ? "sunny-nav-dropdown-active" : ""} ${
+        align === "right" ? "sunny-nav-dropdown-align-right" : ""
+      } ${compact ? "sunny-nav-dropdown-compact" : ""}`}
+    >
       <summary
         className={`sunny-nav-link sunny-nav-dropdown-trigger list-none ${
           active ? "sunny-nav-link-active" : ""

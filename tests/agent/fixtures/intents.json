@@ -1,0 +1,53 @@
+[
+  {
+    "name": "create plan from explicit title",
+    "message": "帮我创建计划：整理计算机组成原理复习路径",
+    "expectedIntent": "create_plan",
+    "expectedArgs": {
+      "description": null,
+      "title": "整理计算机组成原理复习路径"
+    }
+  },
+  {
+    "name": "append checklist item with checklist and group",
+    "message": "给高等数学的映射与函数补一个条目：反函数习题复盘",
+    "expectedIntent": "append_plan_item",
+    "expectedArgs": {
+      "checklistTitle": "高等数学",
+      "groupTitle": "映射与函数",
+      "itemTitle": "反函数习题复盘"
+    }
+  },
+  {
+    "name": "complete checklist item from checklist mention",
+    "message": "我完成了高等数学的映射与函数",
+    "expectedIntent": "complete_plan_item",
+    "expectedArgs": {
+      "checklistTitle": "高等数学",
+      "groupTitle": null,
+      "itemTitle": "映射与函数"
+    }
+  },
+  {
+    "name": "query overall progress",
+    "message": "查一下整体进度",
+    "expectedIntent": "query_progress",
+    "expectedArgs": {
+      "checklistTitle": null,
+      "scope": "all"
+    }
+  },
+  {
+    "name": "evaluate overall plan",
+    "message": "评估整体计划",
+    "expectedIntent": "evaluate_plan",
+    "expectedArgs": {
+      "planTitle": null
+    }
+  },
+  {
+    "name": "destructive request is clarified",
+    "message": "把所有内容删掉",
+    "expectedIntent": "clarify"
+  }
+]

@@ -1,6 +1,6 @@
 import { evaluatePlanFromIntent } from "./evaluation";
 import { queryProgressFromIntent } from "./progress";
-import type { AgentIntent, AgentTraceStep } from "./schemas";
+import { type AgentIntent, type AgentTraceStep } from "./schemas";
 import {
   addCompletionNoteFromIntent,
   appendPlanItemFromIntent,

@@ -1,8 +1,24 @@
-import type { Plan } from "@/payload-types";
-
 export type AgentChatMessage = {
   content: string;
   role: "assistant" | "user";
+};
+
+export type PlanExecutionModeValue = "agent" | "hybrid" | "manual";
+export type PlanPriorityValue = "high" | "low" | "medium";
+export type PlanStateValue = "active" | "backlog" | "done" | "paused";
+
+export type ProposedAgentAction = {
+  args: unknown;
+  changes: Array<{
+    collection: string;
+    documentId?: number;
+    operation: "create" | "delete" | "update";
+    preview: string;
+  }>;
+  id: string;
+  intent: AgentIntent["intent"];
+  riskLevel: "high" | "low" | "medium";
+  summary: string;
 };
 
 export type PendingAction = {
@@ -10,6 +26,9 @@ export type PendingAction = {
   groupTitle?: null | string;
   itemTitle: string;
   type: "await_completion_note";
+} | {
+  action: ProposedAgentAction;
+  type: "await_confirmation";
 } | {
   args: Partial<AppendPlanItemArgs | CompletePlanItemArgs | CreatePlanArgs>;
   intent: Extract<AgentIntent["intent"], "append_plan_item" | "complete_plan_item" | "create_plan">;
@@ -22,9 +41,9 @@ export type CreatePlanArgs = {
   agentBrief?: null | string;
   description?: null | string;
   dueDate?: null | string;
-  executionMode?: NonNullable<Plan["executionMode"]>;
-  priority?: NonNullable<Plan["priority"]>;
-  state?: NonNullable<Plan["state"]>;
+  executionMode?: PlanExecutionModeValue;
+  priority?: PlanPriorityValue;
+  state?: PlanStateValue;
   title: string;
 };
 
@@ -156,6 +175,18 @@ const planPriorityValues = ["high", "low", "medium"] as const;
 const planStateValues = ["active", "backlog", "done", "paused"] as const;
 const executionModeValues = ["agent", "hybrid", "manual"] as const;
 const progressScopeValues = ["all", "checklists", "plans"] as const;
+const agentIntentValues = [
+  "add_completion_note",
+  "answer_question",
+  "append_plan_item",
+  "clarify",
+  "complete_plan_item",
+  "create_plan",
+  "evaluate_plan",
+  "query_progress",
+] as const;
+const proposedActionRiskValues = ["high", "low", "medium"] as const;
+const proposedActionOperationValues = ["create", "delete", "update"] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -267,6 +298,19 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
     };
   }
 
+  if (value.type === "await_confirmation") {
+    const action = parseProposedAgentAction(value.action);
+
+    if (!action) {
+      return null;
+    }
+
+    return {
+      action,
+      type: "await_confirmation",
+    };
+  }
+
   if (value.type !== "await_clarification" || !isRecord(value.args)) {
     return null;
   }
@@ -289,6 +333,58 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
       : [],
     question,
     type: "await_clarification",
+  };
+};
+
+export const parseProposedAgentAction = (value: unknown): null | ProposedAgentAction => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const id = getRequiredString(value.id);
+  const intent = getOptionalEnum(value.intent, agentIntentValues);
+  const riskLevel = getOptionalEnum(value.riskLevel, proposedActionRiskValues);
+  const summary = getRequiredString(value.summary);
+
+  if (!id || !intent || !riskLevel || !summary || !Array.isArray(value.changes)) {
+    return null;
+  }
+
+  const changes = value.changes
+    .map((change) => {
+      if (!isRecord(change)) {
+        return null;
+      }
+
+      const collection = getRequiredString(change.collection);
+      const operation = getOptionalEnum(change.operation, proposedActionOperationValues);
+      const preview = getRequiredString(change.preview);
+      const documentId = getOptionalNumber(change.documentId);
+
+      if (!collection || !operation || !preview) {
+        return null;
+      }
+
+      return {
+        collection,
+        ...(documentId ? { documentId } : {}),
+        operation,
+        preview,
+      };
+    })
+    .filter((change): change is ProposedAgentAction["changes"][number] => Boolean(change));
+
+  if (changes.length === 0) {
+    return null;
+  }
+
+  return {
+    args: value.args,
+    changes,
+    id,
+    intent,
+    riskLevel,
+    summary,
   };
 };
 
