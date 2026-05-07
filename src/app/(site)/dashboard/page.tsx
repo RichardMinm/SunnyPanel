@@ -5,10 +5,10 @@ import type { Plan } from "@/payload-types";
 import { AgentChatPanel } from "@/components/dashboard/AgentChatPanel";
 import { FocusActionCard } from "@/components/dashboard/DashboardPrimitives";
 import {
+  DashboardMetricCard,
   EmptyState,
   QuickActionCard,
   SectionHeader,
-  StatCard,
   StatusBadge,
   type StatusBadgeTone,
 } from "@/components/ui/SunnyComponents";
@@ -21,6 +21,7 @@ export const dynamic = "force-dynamic";
 
 type DashboardPageProps = {
   searchParams: Promise<{
+    agent?: string;
     threadId?: string;
   }>;
 };
@@ -85,16 +86,19 @@ const quickManageActions = [
 
 const planColumns = [
   {
+    actionLabel: "继续推进",
     empty: "还没有正在推进的计划。",
     key: "active",
     label: "正在推进",
   },
   {
+    actionLabel: "安排启动",
     empty: "待开始计划会在这里排队。",
     key: "backlog",
     label: "待开始",
   },
   {
+    actionLabel: "恢复评估",
     empty: "暂停计划会先停在这里。",
     key: "paused",
     label: "暂停中",
@@ -154,9 +158,11 @@ const planStateToneMap: Record<Plan["state"], StatusBadgeTone> = {
 };
 
 type LinkedContentItem = NonNullable<Plan["linkedContent"]>[number];
+type FocusMetricKey = "drafts" | "planOutputs" | "timeline";
 type FocusItem = {
   actionLabel: string;
   href: string;
+  metricKey?: FocusMetricKey;
   summary: string;
   title: string;
   tone: StatusBadgeTone;
@@ -243,7 +249,7 @@ function ContentQueueCard({
   title,
 }: QueueDescriptor & { locale: Awaited<ReturnType<typeof getSiteLocale>> }) {
   return (
-    <div className="sunny-dashboard-panel">
+    <div className="sunny-content-operation-lane">
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="sunny-kicker text-[0.68rem] text-muted">{kicker}</p>
@@ -258,7 +264,7 @@ function ContentQueueCard({
             <Link
               key={`${item.kind}-${item.id}`}
               href={item.href}
-              className="sunny-dashboard-row"
+              className="sunny-dashboard-row sunny-content-operation-row"
             >
               <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                 <h4 className="sunny-dashboard-title text-sm font-semibold text-foreground">{item.title}</h4>
@@ -285,8 +291,9 @@ function ContentQueueCard({
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const { threadId } = await searchParams;
+  const { agent, threadId } = await searchParams;
   const initialThreadId = parseThreadId(threadId);
+  const showFullAgentConsole = agent === "full";
   const locale = await getSiteLocale();
   const snapshot = await getWorkspaceSnapshot();
   const agentQuickPrompts = buildAgentQuickPrompts(snapshot);
@@ -300,6 +307,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     actionableFocusItems.push({
       actionLabel: "补产出",
       href: "/admin/collections/plans",
+      metricKey: "planOutputs",
       summary: "这项进行中的计划还没有挂住任何文章、短札、动态或页面。",
       title: `先让「${plansNeedingOutputs[0].title}」出现第一条成果`,
       tone: "warning",
@@ -310,6 +318,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     actionableFocusItems.push({
       actionLabel: "去关联",
       href: "/admin/collections/plans",
+      metricKey: "drafts",
       summary: `「${draftContentWithoutPlans[0].title}」已经开始写了，但还没有归到任何计划里。`,
       title: "把最近的草稿挂回计划流",
       tone: "warning",
@@ -320,6 +329,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     actionableFocusItems.push({
       actionLabel: "补节点",
       href: "/admin/collections/timeline-events",
+      metricKey: "timeline",
       summary: `最近更新的「${snapshot.execution.timelineCandidates[0].title}」还没进入 Timeline。`,
       title: "把最近的重要变化补进时间线",
       tone: "success",
@@ -352,10 +362,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const contentQueues: QueueDescriptor[] = [
     {
       actionHref: "/admin",
+      actionLabel: "查看最近编辑",
+      empty: "最近还没有新的内容改动。",
+      items: snapshot.execution.recentEdited.slice(0, 4),
+      kicker: "内容运营",
+      title: "最新工作台",
+    },
+    {
+      actionHref: "/admin",
       actionLabel: "查看全部草稿",
       empty: "最近没有待处理草稿，可以直接开始新内容。",
       items: snapshot.execution.recentDrafts.slice(0, 4),
-      kicker: "内容队列",
+      kicker: "内容运营",
       title: "待整理草稿",
     },
     {
@@ -363,7 +381,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       actionLabel: "查看私有内容",
       empty: "暂时没有只留在后台的已完成内容。",
       items: snapshot.execution.recentPrivateReady.slice(0, 4),
-      kicker: "内容队列",
+      kicker: "内容运营",
       title: "私有待发内容",
     },
     {
@@ -371,7 +389,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       actionLabel: "查看公开站点",
       empty: "最近还没有新的公开内容流转出来。",
       items: snapshot.execution.recentPublicContent.slice(0, 4),
-      kicker: "内容队列",
+      kicker: "内容运营",
       title: "最近公开内容",
     },
   ];
@@ -384,10 +402,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     tone: "success",
   };
   const primaryFocusItem = actionableFocusItems[0] ?? fallbackFocusItem;
-  const actionQueueItems = actionableFocusItems.length > 0 ? actionableFocusItems : [fallbackFocusItem];
+  const secondaryActionItems = actionableFocusItems.slice(1);
+  const metricToneFor = (metricKey: FocusMetricKey, hasAttention: boolean): StatusBadgeTone =>
+    primaryFocusItem.metricKey === metricKey && hasAttention ? "warning" : "neutral";
   const continueWritingTarget = snapshot.execution.recentDrafts[0];
   const continueWritingHref = continueWritingTarget?.href ?? "/admin/collections/posts/create";
   const continueWritingLabel = continueWritingTarget ? "继续写草稿" : "新建文章";
+  const fullAgentHref = initialThreadId
+    ? `/dashboard?agent=full&threadId=${initialThreadId}`
+    : "/dashboard?agent=full";
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-5 md:px-7 lg:px-8">
@@ -417,10 +440,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
-              <Link className="sunny-dashboard-link" href="/admin">
+              <Link className="sunny-dashboard-utility-link" href="/admin">
                 打开 Admin
               </Link>
-              <Link className="sunny-dashboard-link" href="/">
+              <Link className="sunny-dashboard-utility-link" href="/">
                 查看公开站点
               </Link>
             </div>
@@ -428,7 +451,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
           <div className="sunny-dashboard-hero-focus">
             <SectionHeader
-              kicker="建议下一步"
+              kicker="Today Focus"
               title="最值得先做的一件事"
               action={<StatusBadge tone={primaryFocusItem.tone}>{primaryFocusItem.actionLabel}</StatusBadge>}
             />
@@ -439,53 +462,68 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
       </section>
 
-      <section aria-label="关键状态" className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
+      <section aria-label="关键状态" className="sunny-dashboard-metric-strip">
+        <DashboardMetricCard
           description={`${snapshot.counts.activePlansWithoutOutputs} 项活跃计划还没有产出内容。`}
           label="活跃计划"
+          tone={metricToneFor("planOutputs", snapshot.counts.activePlansWithoutOutputs > 0)}
           value={snapshot.counts.activePlans}
         />
-        <StatCard
+        <DashboardMetricCard
           description="最近开始写、适合优先清掉的内容总数。"
           label="草稿积压"
+          tone={metricToneFor("drafts", draftContentWithoutPlans.length > 0)}
           value={snapshot.counts.draftSurfaces}
         />
-        <StatCard
+        <DashboardMetricCard
           description="当前已在前台可见的内容总数。"
           label="公开内容"
           value={snapshot.counts.publicSurfaces}
         />
-        <StatCard
+        <DashboardMetricCard
           description={`${snapshot.counts.recentTimelineCandidates} 条变化还没进入 Timeline。`}
           label="叙事缺口"
+          tone={metricToneFor("timeline", snapshot.counts.recentTimelineCandidates > 0)}
           value={snapshot.execution.timelineCandidates.length}
         />
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+      {showFullAgentConsole ? (
+        <section>
+          <AgentChatPanel initialThreadId={initialThreadId} quickPrompts={agentQuickPrompts} variant="full" />
+        </section>
+      ) : null}
+
+      <div className={`grid gap-5 xl:items-start ${showFullAgentConsole ? "" : "xl:grid-cols-[minmax(0,1fr)_22rem]"}`}>
         <div className="flex min-w-0 flex-col gap-6">
-          <section className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(18rem,0.95fr)]">
-            <div className="sunny-dashboard-card">
+          <section className="grid gap-5 md:grid-cols-[minmax(0,1.05fr)_minmax(16rem,0.95fr)] md:items-start">
+            <div className="sunny-dashboard-card sunny-dashboard-card-quiet sunny-dashboard-action-queue self-start">
               <SectionHeader
                 kicker="行动队列"
-                title="先做这些"
-                description="按计划缺口、草稿归属、Timeline 补位和基础项排序。"
-                action={<span className="sunny-dashboard-count">{actionQueueItems.length} 项</span>}
+                title="接下来这些"
+                description="主行动已经放在上方，这里只保留第二优先级之后的动作。"
+                action={<span className="sunny-dashboard-count">{secondaryActionItems.length} 项</span>}
               />
 
               <div className="mt-4 grid gap-3">
-                {actionQueueItems.map((item, index) => (
-                  <FocusActionCard
-                    key={`${item.title}-${item.href}`}
-                    index={index}
-                    strong={index === 0}
-                    {...item}
-                  />
-                ))}
+                {secondaryActionItems.length > 0 ? (
+                  secondaryActionItems.map((item, index) => (
+                    <FocusActionCard
+                      compact
+                      key={`${item.title}-${item.href}`}
+                      index={index}
+                      {...item}
+                    />
+                  ))
+                ) : (
+                  <EmptyState>
+                    暂时没有第二优先级动作。先把上方那一件事推进就好。
+                  </EmptyState>
+                )}
               </div>
             </div>
 
-            <div className="sunny-dashboard-card">
+            <div className="sunny-dashboard-card sunny-dashboard-quick-card self-start">
               <SectionHeader
                 kicker="快速创建"
                 title="点进去就开始写"
@@ -496,6 +534,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 {quickCreateActions.map((item) => (
                   <QuickActionCard
+                    compact
                     key={item.href}
                     description={item.description}
                     href={item.href}
@@ -506,7 +545,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
               <div className="mt-4 flex flex-wrap gap-3">
                 {quickManageActions.map((item) => (
-                  <Link key={item.href} href={item.href} className="sunny-dashboard-link">
+                  <Link key={item.href} href={item.href} className="sunny-dashboard-utility-link">
                     {item.label}
                   </Link>
                 ))}
@@ -514,110 +553,169 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             </div>
           </section>
 
-          <section className="grid gap-5 xl:grid-cols-3">
-            {contentQueues.map((queue) => (
-              <ContentQueueCard key={queue.title} locale={locale} {...queue} />
-            ))}
-          </section>
+          <section className="sunny-dashboard-card sunny-plan-runway">
+            <SectionHeader
+              kicker="Plan Runway"
+              title="计划执行跑道"
+              description="把正在推进、等待启动和暂停中的计划放在同一条跑道上，方便判断下一步动作。"
+              action={
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link className="sunny-dashboard-link" href="/admin/collections/plans">
+                    打开全部计划
+                  </Link>
+                  <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/plans/create">
+                    新建计划
+                  </Link>
+                </div>
+              }
+            />
 
-          <section className="grid gap-5">
-            <div className="sunny-dashboard-card">
-              <SectionHeader
-                kicker="计划执行"
-                title="当前计划状态"
-                description="这些是行动队列背后的完整计划池，适合在处理完第一步后继续整理。"
-                action={
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Link className="sunny-dashboard-link" href="/admin/collections/plans">
-                      打开全部计划
-                    </Link>
-                    <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/plans/create">
-                      新建计划
-                    </Link>
-                  </div>
-                }
-              />
+            <div className="sunny-plan-runway-grid mt-5">
+              {planColumns.map((column) => {
+                const plans = snapshot.plans[column.key];
 
-              <div className="mt-4 grid gap-3">
-                {planColumns.map((column) => {
-                  const plans = snapshot.plans[column.key];
+                return (
+                  <div key={column.key} className="sunny-plan-runway-lane">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-base font-semibold text-foreground">{column.label}</h3>
+                      <StatusBadge tone={planStateToneMap[column.key]}>{plans.length}</StatusBadge>
+                    </div>
 
-                  return (
-                    <div key={column.key} className="sunny-dashboard-panel">
-                      <div className="flex items-center justify-between gap-3">
-                        <h3 className="text-base font-semibold text-foreground">{column.label}</h3>
-                        <StatusBadge tone={planStateToneMap[column.key]}>{plans.length}</StatusBadge>
-                      </div>
+                    <div className="sunny-plan-runway-list mt-3">
+                      {plans.length > 0 ? (
+                        plans.map((plan) => {
+                          const linkedContent = getLinkedContent(plan).slice(0, 2);
+                          const planHref = `/admin/collections/plans/${plan.id}`;
 
-                      <div className="sunny-dashboard-list mt-3">
-                        {plans.length > 0 ? (
-                          plans.map((plan) => {
-                            const linkedContent = getLinkedContent(plan).slice(0, 2);
-                            const hasMeta = Boolean(plan.description || plan.dueDate);
-
-                            return (
-                              <Link
-                                key={plan.id}
-                                href={`/admin/collections/plans/${plan.id}`}
-                                className="sunny-dashboard-row"
-                              >
-                                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                                  <h4 className="sunny-dashboard-title text-sm font-semibold text-foreground">{plan.title}</h4>
+                          return (
+                            <div key={plan.id} className="sunny-plan-runway-row">
+                              <div className="min-w-0">
+                                <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                                  <Link href={planHref} className="sunny-plan-runway-title">
+                                    {plan.title}
+                                  </Link>
                                   <div className="flex flex-wrap gap-1.5">
                                     <StatusBadge tone={planPriorityToneMap[plan.priority]}>{planPriorityLabelMap[plan.priority]}</StatusBadge>
                                     <StatusBadge tone={planStatusToneMap[plan.status]}>{planStatusLabelMap[plan.status]}</StatusBadge>
                                   </div>
                                 </div>
 
-                                {hasMeta ? (
-                                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-                                    {plan.description ? <span className="sunny-dashboard-clamp">{plan.description}</span> : null}
-                                    {plan.dueDate ? <span>截止 {formatDate(plan.dueDate, locale)}</span> : null}
-                                  </div>
-                                ) : null}
+                                <div className="mt-2 grid gap-1.5 text-xs leading-5 text-muted">
+                                  <p className="sunny-dashboard-clamp">{plan.description || "还没有补充描述。"}</p>
+                                  <p>{plan.dueDate ? `截止 ${formatDate(plan.dueDate, locale)}` : "未设截止日期"}</p>
+                                </div>
 
-                                {linkedContent.length > 0 ? (
-                                  <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {linkedContent.map((item) => (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {linkedContent.length > 0 ? (
+                                    linkedContent.map((item) => (
                                       <span
                                         key={`${plan.id}-${item.label}-${item.title}`}
                                         className="sunny-dashboard-count max-w-full truncate"
                                       >
                                         {item.label}: {item.title}
                                       </span>
-                                    ))}
-                                  </div>
-                                ) : null}
+                                    ))
+                                  ) : (
+                                    <span className="sunny-dashboard-count">尚未关联内容</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <Link href={planHref} className="sunny-runway-action">
+                                {column.actionLabel}
                               </Link>
-                            );
-                          })
-                        ) : (
-                          <EmptyState>{column.empty}</EmptyState>
-                        )}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <EmptyState>{column.empty}</EmptyState>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="sunny-dashboard-card sunny-dashboard-card-quiet sunny-content-operations">
+            <SectionHeader
+              kicker="Content Operations"
+              title="内容运营"
+              description="草稿、私有待发和公开内容用轻量行处理；这里更像编辑台，不再是一排同权重卡片。"
+              action={
+                <span className="sunny-dashboard-count">
+                  {contentQueues.reduce((total, queue) => total + queue.items.length, 0)} 条
+                </span>
+              }
+            />
+
+            <div className="sunny-content-operations-grid mt-5">
+              {contentQueues.map((queue) => (
+                <ContentQueueCard key={queue.title} locale={locale} {...queue} />
+              ))}
+            </div>
+          </section>
+
+          <section className="sunny-dashboard-card sunny-dashboard-card-quiet sunny-timeline-gap-panel sunny-narrative-gap-panel">
+            <SectionHeader
+              kicker="Narrative Gaps"
+              title="还没进入 Timeline 的变化"
+              description="这些内容已经发生变化，但还没有被写进时间线；补节点会让 SunnyPanel 的叙事记忆更完整。"
+              action={<span className="sunny-dashboard-count">{snapshot.execution.timelineCandidates.length} 条</span>}
+            />
+
+            <div className="sunny-dashboard-list sunny-narrative-gap-list mt-4">
+              {snapshot.execution.timelineCandidates.length > 0 ? (
+                snapshot.execution.timelineCandidates.slice(0, 5).map((item) => (
+                  <div key={`${item.kind}-${item.id}`} className="sunny-dashboard-row sunny-timeline-gap-row">
+                    <div className="sunny-timeline-gap-marker" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                        <h3 className="sunny-dashboard-title text-sm font-semibold text-foreground">{item.title}</h3>
+                        <StatusBadge tone={relationToneMap[item.kind] ?? "neutral"}>{relationLabelMap[item.kind]}</StatusBadge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted">更新：{formatDateTime(item.updatedAt, locale)}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link className="sunny-gap-action-secondary" href={item.href}>
+                          打开内容
+                        </Link>
+                        <Link className="sunny-gap-action-primary" href="/admin/collections/timeline-events/create">
+                          新建节点
+                        </Link>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                ))
+              ) : (
+                <EmptyState>
+                  最近的重要变化都已经整理进 Timeline。
+                </EmptyState>
+              )}
             </div>
+          </section>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <div className="sunny-dashboard-card">
-                <SectionHeader
-                  kicker="截止提醒"
-                  title="快到期和已逾期"
-                  action={
-                    <span className="sunny-dashboard-count">
-                      {overduePlans.length + dueSoonPlans.length} 项
-                    </span>
-                  }
-                />
+          <section className="sunny-dashboard-card sunny-dashboard-card-quiet sunny-maintenance-section">
+            <SectionHeader
+              kicker="Review & Maintenance"
+              title="复盘与维护"
+              description="这些模块保留在工作台下方，用来检查节奏、沉淀完成项和维护基础设置。"
+            />
 
-                <div className="sunny-dashboard-list mt-4 text-sm text-muted">
+            <div className="sunny-maintenance-grid mt-5">
+              <div className="sunny-maintenance-panel">
+                <div className="sunny-maintenance-head">
+                  <div>
+                    <p className="sunny-kicker text-[0.62rem] text-muted">截止提醒</p>
+                    <h3 className="mt-1 text-sm font-semibold text-foreground">快到期和已逾期</h3>
+                  </div>
+                  <span className="sunny-dashboard-count">{overduePlans.length + dueSoonPlans.length} 项</span>
+                </div>
+
+                <div className="sunny-dashboard-list mt-3 text-sm text-muted">
                   {overduePlans.map(({ dayOffset, plan }) => (
-                    <div key={`overdue-${plan.id}`} className="sunny-dashboard-row">
+                    <div key={`overdue-${plan.id}`} className="sunny-dashboard-row sunny-maintenance-row">
                       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                        <h3 className="sunny-dashboard-title text-sm font-semibold text-foreground">{plan.title}</h3>
+                        <h4 className="sunny-dashboard-title text-sm font-semibold text-foreground">{plan.title}</h4>
                         <StatusBadge tone="danger">已逾期 {Math.abs(dayOffset)} 天</StatusBadge>
                       </div>
                       <p className="mt-1 text-xs">原定截止：{formatDate(plan.dueDate, locale)}。</p>
@@ -625,9 +723,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                   ))}
 
                   {dueSoonPlans.map(({ dayOffset, plan }) => (
-                    <div key={`soon-${plan.id}`} className="sunny-dashboard-row">
+                    <div key={`soon-${plan.id}`} className="sunny-dashboard-row sunny-maintenance-row">
                       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                        <h3 className="sunny-dashboard-title text-sm font-semibold text-foreground">{plan.title}</h3>
+                        <h4 className="sunny-dashboard-title text-sm font-semibold text-foreground">{plan.title}</h4>
                         <StatusBadge tone={planStateToneMap[plan.state]}>
                           {dayOffset === 0 ? "今天到期" : `${dayOffset} 天内到期`}
                         </StatusBadge>
@@ -644,114 +742,46 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 </div>
               </div>
 
-              <div className="sunny-dashboard-card">
-                <SectionHeader
-                  kicker="最近完成"
-                  title="最近完成"
-                  action={<span className="sunny-dashboard-count">{snapshot.plans.done.length} 项</span>}
-                />
+              <div className="sunny-maintenance-panel">
+                <div className="sunny-maintenance-head">
+                  <div>
+                    <p className="sunny-kicker text-[0.62rem] text-muted">最近完成</p>
+                    <h3 className="mt-1 text-sm font-semibold text-foreground">完成沉淀</h3>
+                  </div>
+                  <span className="sunny-dashboard-count">{snapshot.plans.done.length} 项</span>
+                </div>
 
-                <div className="sunny-dashboard-list mt-4">
+                <div className="sunny-dashboard-list mt-3">
                   {snapshot.plans.done.length > 0 ? (
                     snapshot.plans.done.slice(0, 4).map((plan) => (
-                      <div key={plan.id} className="sunny-dashboard-row">
+                      <Link key={plan.id} href={`/admin/collections/plans/${plan.id}`} className="sunny-dashboard-row sunny-maintenance-row">
                         <div className="flex min-w-0 items-center justify-between gap-2">
-                          <h3 className="sunny-dashboard-title text-sm font-semibold text-foreground">{plan.title}</h3>
+                          <h4 className="sunny-dashboard-title text-sm font-semibold text-foreground">{plan.title}</h4>
                           <StatusBadge tone={planPriorityToneMap[plan.priority]}>{planPriorityLabelMap[plan.priority]}</StatusBadge>
                         </div>
                         <p className="mt-1 text-xs text-muted">更新于 {formatDateTime(plan.updatedAt, locale)}</p>
-                      </div>
+                      </Link>
                     ))
                   ) : (
                     <EmptyState>完成态计划会沉淀在这里，方便之后回看。</EmptyState>
                   )}
                 </div>
               </div>
-            </div>
-          </section>
 
-          <section className="grid gap-5 xl:grid-cols-[1fr_1fr_0.8fr]">
-            <div className="sunny-dashboard-card">
-              <SectionHeader
-                kicker="最近编辑"
-                title="工作台最新内容"
-                action={<span className="sunny-dashboard-count">{snapshot.execution.recentEdited.length} 条</span>}
-              />
+              <div className="sunny-maintenance-panel">
+                <div className="sunny-maintenance-head">
+                  <div>
+                    <p className="sunny-kicker text-[0.62rem] text-muted">基础检查</p>
+                    <h3 className="mt-1 text-sm font-semibold text-foreground">还没完成的基础项</h3>
+                  </div>
+                  <span className="sunny-dashboard-count">{pendingOnboardingTasks.length} 项</span>
+                </div>
 
-              <div className="sunny-dashboard-list mt-4">
-                {snapshot.execution.recentEdited.length > 0 ? (
-                  snapshot.execution.recentEdited.map((item) => (
-                    <Link
-                      key={`${item.kind}-${item.id}`}
-                      href={item.href}
-                      className="sunny-dashboard-row"
-                    >
-                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                        <h3 className="sunny-dashboard-title text-sm font-semibold text-foreground">{item.title}</h3>
-                        <div className="flex flex-wrap gap-1.5">
-                          <StatusBadge tone={relationToneMap[item.kind] ?? "neutral"}>{relationLabelMap[item.kind]}</StatusBadge>
-                          <StatusBadge tone={planStatusToneMap[item.status]}>{planStatusLabelMap[item.status]}</StatusBadge>
-                        </div>
-                      </div>
-                      <p className="mt-1 text-xs text-muted">更新：{formatDateTime(item.updatedAt, locale)}</p>
-                    </Link>
-                  ))
-                ) : (
-                  <EmptyState>最近还没有新的内容改动。</EmptyState>
-                )}
-              </div>
-            </div>
-
-            <div className="sunny-dashboard-card">
-              <SectionHeader
-                kicker="叙事补位"
-                title="还没进入 Timeline 的变化"
-                action={<span className="sunny-dashboard-count">{snapshot.execution.timelineCandidates.length} 条</span>}
-              />
-
-              <div className="sunny-dashboard-list mt-4">
-                {snapshot.execution.timelineCandidates.length > 0 ? (
-                  snapshot.execution.timelineCandidates.slice(0, 5).map((item) => (
-                    <div key={`${item.kind}-${item.id}`} className="sunny-dashboard-row">
-                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                        <h3 className="sunny-dashboard-title text-sm font-semibold text-foreground">{item.title}</h3>
-                        <StatusBadge tone={relationToneMap[item.kind] ?? "neutral"}>{relationLabelMap[item.kind]}</StatusBadge>
-                      </div>
-                      <p className="mt-1 text-xs text-muted">更新：{formatDateTime(item.updatedAt, locale)}</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Link className="sunny-button-secondary px-3 py-1.5 text-xs" href={item.href}>
-                          打开内容
-                        </Link>
-                        <Link
-                          className="sunny-button-secondary px-3 py-1.5 text-xs"
-                          href="/admin/collections/timeline-events/create"
-                        >
-                          新建节点
-                        </Link>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <EmptyState>
-                    最近的重要变化都已经整理进 Timeline。
-                  </EmptyState>
-                )}
-              </div>
-            </div>
-
-            <div className="grid gap-5">
-              <div className="sunny-dashboard-card">
-                <SectionHeader
-                  kicker="基础检查"
-                  title="还没完成的基础项"
-                  action={<span className="sunny-dashboard-count">{pendingOnboardingTasks.length} 项</span>}
-                />
-
-                <div className="sunny-dashboard-list mt-4">
+                <div className="sunny-dashboard-list mt-3">
                   {pendingOnboardingTasks.length > 0 ? (
                     pendingOnboardingTasks.map((task) => (
-                      <Link key={task.title} href={task.href} className="sunny-dashboard-row">
-                        <h3 className="sunny-dashboard-title text-sm font-semibold text-foreground">{task.title}</h3>
+                      <Link key={task.title} href={task.href} className="sunny-dashboard-row sunny-maintenance-row">
+                        <h4 className="sunny-dashboard-title text-sm font-semibold text-foreground">{task.title}</h4>
                         <p className="sunny-dashboard-clamp mt-1 text-xs leading-5 text-muted">{task.description}</p>
                       </Link>
                     ))
@@ -763,9 +793,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 </div>
               </div>
 
-              <div className="sunny-dashboard-card">
-                <p className="sunny-kicker text-xs text-muted">账号</p>
-                <p className="mt-3 break-all text-base font-semibold text-foreground">{snapshot.user.email}</p>
+              <div className="sunny-maintenance-panel sunny-account-panel">
+                <p className="sunny-kicker text-[0.62rem] text-muted">账号</p>
+                <p className="mt-2 break-all text-sm font-semibold text-foreground">{snapshot.user.email}</p>
                 <p className="sunny-dashboard-clamp mt-2 text-xs leading-5 text-muted">
                   节奏、缺口和下一步集中在这里；编辑发布仍在 Admin。
                 </p>
@@ -774,9 +804,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </section>
         </div>
 
-        <aside className="xl:sticky xl:top-5">
-          <AgentChatPanel initialThreadId={initialThreadId} quickPrompts={agentQuickPrompts} variant="sidebar" />
-        </aside>
+        {showFullAgentConsole ? null : (
+          <aside className="max-xl:order-first xl:sticky xl:top-5">
+            <AgentChatPanel
+              fullConsoleHref={fullAgentHref}
+              initialThreadId={initialThreadId}
+              quickPrompts={agentQuickPrompts}
+              variant="sidebar"
+            />
+          </aside>
+        )}
       </div>
     </main>
   );
