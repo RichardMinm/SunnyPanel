@@ -28,7 +28,7 @@ export function PublicSiteHeader({ locale }: { locale: SiteLocale }) {
   );
 
   return (
-    <header className="sunny-panel relative z-40 overflow-visible rounded-[1.45rem] px-3 py-3 md:rounded-[1.7rem] md:px-6 md:py-3.5">
+    <header className="sunny-public-header relative z-40 overflow-visible rounded-[1.2rem] px-3 py-3 md:px-5 md:py-3.5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
           <Link href="/" scroll={false} className="group inline-flex min-w-0 items-center gap-3">

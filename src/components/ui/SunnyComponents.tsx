@@ -65,12 +65,12 @@ export function SectionHeader({
 export type StatusBadgeTone = "accent" | "danger" | "info" | "neutral" | "success" | "warning";
 
 const statusBadgeToneClassMap: Record<StatusBadgeTone, string> = {
-  accent: "bg-[var(--accent-soft)] text-accent-strong",
-  danger: "bg-rose-100 text-rose-700",
-  info: "bg-sky-100 text-sky-700",
-  neutral: "bg-stone-200 text-stone-700",
-  success: "bg-emerald-100 text-emerald-700",
-  warning: "bg-amber-100 text-amber-800",
+  accent: "sunny-status-badge-accent",
+  danger: "sunny-status-badge-danger",
+  info: "sunny-status-badge-info",
+  neutral: "sunny-status-badge-neutral",
+  success: "sunny-status-badge-success",
+  warning: "sunny-status-badge-warning",
 };
 
 export function StatusBadge({
@@ -88,6 +88,7 @@ export function StatusBadge({
     <span
       className={cx(
         size === "md" ? "sunny-badge" : "sunny-dashboard-badge",
+        "border",
         statusBadgeToneClassMap[tone],
         className,
       )}
@@ -122,17 +123,19 @@ export function EmptyState({
 
 export function QuickActionCard({
   badge,
+  compact = false,
   description,
   href,
   title,
 }: {
   badge?: ReactNode;
+  compact?: boolean;
   description: string;
   href: string;
   title: string;
 }) {
   return (
-    <Link href={href} className="sunny-quick-create-card">
+    <Link href={href} className={cx("sunny-quick-create-card", compact && "sunny-quick-create-card-compact")}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <span className="sunny-kicker text-[0.62rem] text-muted">{description}</span>
@@ -194,17 +197,19 @@ export function TimelineMiniCard({
   );
 }
 
-export function StatCard({
+export function DashboardMetricCard({
   description,
   label,
+  tone = "neutral",
   value,
 }: {
   description: string;
   label: string;
+  tone?: StatusBadgeTone;
   value: number | string;
 }) {
   return (
-    <div className="sunny-dashboard-stat">
+    <div className={cx("sunny-dashboard-stat", tone !== "neutral" && `sunny-dashboard-stat-${tone}`)}>
       <div className="min-w-0">
         <p className="text-xs font-semibold text-muted">{label}</p>
         <p className="sunny-dashboard-clamp mt-1 text-xs leading-5 text-muted">{description}</p>
@@ -212,4 +217,8 @@ export function StatCard({
       <p className="text-2xl font-semibold leading-none text-foreground">{value}</p>
     </div>
   );
+}
+
+export function StatCard(props: Parameters<typeof DashboardMetricCard>[0]) {
+  return <DashboardMetricCard {...props} />;
 }

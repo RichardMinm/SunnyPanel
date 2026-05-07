@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
@@ -139,12 +140,18 @@ const parseStreamBlock = (block: string) => {
 };
 
 type AgentChatPanelProps = {
+  fullConsoleHref?: string;
   initialThreadId?: number;
   quickPrompts?: AgentQuickPrompt[];
   variant?: "full" | "sidebar";
 };
 
-export function AgentChatPanel({ initialThreadId, quickPrompts = [], variant = "full" }: AgentChatPanelProps) {
+export function AgentChatPanel({
+  fullConsoleHref = "/dashboard?agent=full",
+  initialThreadId,
+  quickPrompts = [],
+  variant = "full",
+}: AgentChatPanelProps) {
   const isSidebar = variant === "sidebar";
   const shouldReduceMotion = useReducedMotion();
   const [messages, setMessages] = useState<AgentChatMessage[]>(initialMessages);
@@ -172,6 +179,9 @@ export function AgentChatPanel({ initialThreadId, quickPrompts = [], variant = "
   const isAssistantPlaceholderActive =
     lastMessage?.role === "assistant" && lastMessage.content.length === 0 && isSubmitting;
   const isThinking = isSubmitting && streamingState !== "responding";
+  const visibleMessages = isSidebar ? messages.slice(-2) : messages;
+  const visibleMessageOffset = messages.length - visibleMessages.length;
+  const effectiveFullConsoleHref = threadId ? `/dashboard?agent=full&threadId=${threadId}` : fullConsoleHref;
   const statusLabel = useMemo(() => {
     if (!isSubmitting) {
       return statusText;
@@ -614,7 +624,7 @@ export function AgentChatPanel({ initialThreadId, quickPrompts = [], variant = "
   };
 
   return (
-    <section className={`sunny-card sunny-agent-console p-0 ${isSidebar ? "sunny-agent-sidebar" : "rounded-[1.4rem]"}`}>
+    <section className={`sunny-card sunny-agent-console p-0 ${isSidebar ? "sunny-agent-sidebar sunny-agent-sidebar-compact" : "rounded-[1.4rem]"}`}>
       <div className="sunny-agent-console-header">
         <div className="min-w-0">
           <p className="sunny-kicker text-xs text-muted">Assistant</p>
@@ -629,6 +639,7 @@ export function AgentChatPanel({ initialThreadId, quickPrompts = [], variant = "
         </div>
 
         <div className="sunny-agent-console-status">
+          {isSidebar ? <span className={`sunny-agent-presence-dot ${isThinking ? "sunny-agent-presence-dot-live" : ""}`} aria-hidden="true" /> : null}
           <span className="sunny-agent-status rounded-full px-3 py-1 text-xs">{statusLabel}</span>
           {pendingAction ? (
             <span className="sunny-agent-status sunny-agent-status-warn rounded-full px-3 py-1 text-xs">
@@ -640,20 +651,41 @@ export function AgentChatPanel({ initialThreadId, quickPrompts = [], variant = "
       </div>
 
       {quickPrompts.length > 0 ? (
-        <div className="sunny-agent-command-bar">
-          {quickPrompts.map((item) => (
-            <button
-              key={item.prompt}
-              type="button"
-              onClick={() => {
-                void sendMessage(item.prompt);
-              }}
-              className="sunny-agent-quick text-left text-sm text-foreground transition"
-            >
-              {isSidebar ? item.label : item.prompt}
-            </button>
-          ))}
-        </div>
+        isSidebar ? (
+          <div className="sunny-agent-recommendations">
+            <p className="sunny-kicker text-[0.62rem] text-muted">Recommended</p>
+            <div className="mt-2 grid gap-1.5">
+              {quickPrompts.slice(0, 4).map((item) => (
+                <button
+                  key={item.prompt}
+                  type="button"
+                  onClick={() => {
+                    void sendMessage(item.prompt);
+                  }}
+                  className="sunny-agent-recommendation-row text-left transition"
+                >
+                  <span>{item.label}</span>
+                  <small>{item.prompt}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="sunny-agent-command-bar">
+            {quickPrompts.map((item) => (
+              <button
+                key={item.prompt}
+                type="button"
+                onClick={() => {
+                  void sendMessage(item.prompt);
+                }}
+                className="sunny-agent-quick text-left text-sm text-foreground transition"
+              >
+                {item.prompt}
+              </button>
+            ))}
+          </div>
+        )
       ) : null}
 
       <div className="sunny-agent-thread-bar">
@@ -671,18 +703,37 @@ export function AgentChatPanel({ initialThreadId, quickPrompts = [], variant = "
         >
           新会话
         </button>
-        {threads.slice(0, isSidebar ? 2 : 4).map((thread) => (
-          <button
-            key={thread.id}
-            type="button"
-            onClick={() => {
-              void loadThread(thread.id);
-            }}
-            className={`sunny-agent-thread-button ${thread.id === threadId ? "sunny-agent-thread-button-active" : ""}`}
-          >
-            #{thread.id} {thread.title}
-          </button>
-        ))}
+        {isSidebar ? (
+          <>
+            <Link href={effectiveFullConsoleHref} className="sunny-agent-thread-button sunny-agent-full-link">
+              完整控制台
+            </Link>
+            {threadId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  void loadThread(threadId);
+                }}
+                className="sunny-agent-thread-button sunny-agent-thread-button-active"
+              >
+                Thread #{threadId}
+              </button>
+            ) : null}
+          </>
+        ) : (
+          threads.slice(0, 4).map((thread) => (
+            <button
+              key={thread.id}
+              type="button"
+              onClick={() => {
+                void loadThread(thread.id);
+              }}
+              className={`sunny-agent-thread-button ${thread.id === threadId ? "sunny-agent-thread-button-active" : ""}`}
+            >
+              #{thread.id} {thread.title}
+            </button>
+          ))
+        )}
       </div>
 
       {!isSidebar ? (
@@ -724,16 +775,17 @@ export function AgentChatPanel({ initialThreadId, quickPrompts = [], variant = "
 
         <div ref={transcriptRef} className="sunny-agent-transcript">
           <AnimatePresence initial={false}>
-            {messages.map((message, index) => {
+            {visibleMessages.map((message, index) => {
+              const messageIndex = visibleMessageOffset + index;
               const isAssistant = message.role === "assistant";
               const isStreamingPlaceholder =
-                isAssistant && index === messages.length - 1 && isSubmitting && message.content.length === 0;
+                isAssistant && messageIndex === messages.length - 1 && isSubmitting && message.content.length === 0;
               const isCurrentStreamingMessage =
-                isAssistant && index === messages.length - 1 && isSubmitting && message.content.length > 0;
-              const shouldInsertProcess = shouldShowTrace && isAssistant && index === messages.length - 1;
+                isAssistant && messageIndex === messages.length - 1 && isSubmitting && message.content.length > 0;
+              const shouldInsertProcess = shouldShowTrace && isAssistant && messageIndex === messages.length - 1;
 
               return (
-                <div key={`${message.role}-${index}`}>
+                <div key={`${message.role}-${messageIndex}`}>
                   {shouldInsertProcess ? renderTraceProcess() : null}
                   {isStreamingPlaceholder ? null : (
                     <motion.div

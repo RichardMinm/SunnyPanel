@@ -3,15 +3,34 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/ui/SunnyComponents";
 import type { SiteLocale } from "@/lib/site-copy";
 
+export type HomeHeroSignal = {
+  date?: string;
+  description: string;
+  href: string;
+  label: string;
+  title: string;
+};
+
+export type HomeHeroFocus = {
+  focus: HomeHeroSignal;
+  lastUpdated?: string;
+  recentAction: HomeHeroSignal;
+};
+
 const homeHeroCopy = {
   en: {
     about: "About",
     aboutHref: "/about",
     body:
-      "A personal operating system for writing, planning, remembering, and reviewing. The public site shows the living surface; the private workspace keeps the work moving.",
+      "This is the public surface of a long-running personal system: what I am writing, what I am trying to remember, and where the next quiet step is pointing.",
+    focusKicker: "Current Focus",
+    focusLabel: "Focus",
+    memoryLabel: "Memory Status",
     primary: "See Now",
+    recentLabel: "Recent Action",
     secondary: "Read Writing",
     signal: "Public Personal System",
+    statusText: "A small trail is being kept.",
     title: "SunnyPanel",
     visualLabel: "SunnyPanel system map",
     lanes: [
@@ -33,10 +52,15 @@ const homeHeroCopy = {
     about: "About",
     aboutHref: "/about",
     body:
-      "一个用于写作、计划、记忆和复盘的个人操作系统。公开站点承载可阅读的表层，私有工作台负责把每天的行动继续往前推。",
+      "这里是一个长期个人系统的公开表层：我正在写什么、想记住什么，以及下一步安静地指向哪里。",
+    focusKicker: "Current Focus",
+    focusLabel: "当前焦点",
+    memoryLabel: "记忆状态",
     primary: "查看 Now",
+    recentLabel: "最近动作",
     secondary: "阅读写作",
     signal: "Public Personal System",
+    statusText: "仍在留下一条可以回看的线索。",
     title: "SunnyPanel",
     visualLabel: "SunnyPanel 系统结构",
     lanes: [
@@ -56,7 +80,13 @@ const homeHeroCopy = {
   },
 } as const;
 
-export function HomeHero({ locale }: { locale: SiteLocale }) {
+export function HomeHero({
+  currentFocus,
+  locale,
+}: {
+  currentFocus: HomeHeroFocus;
+  locale: SiteLocale;
+}) {
   const copy = homeHeroCopy[locale];
 
   return (
@@ -75,6 +105,48 @@ export function HomeHero({ locale }: { locale: SiteLocale }) {
         <p className="mt-5 max-w-3xl text-base leading-8 text-muted md:text-lg md:leading-9">
           {copy.body}
         </p>
+
+        <div className="sunny-home-current-state">
+          <div className="sunny-home-current-head">
+            <div>
+              <p className="sunny-kicker text-[0.68rem] text-muted">{copy.focusKicker}</p>
+              <p className="mt-1 text-xs leading-5 text-muted">{copy.statusText}</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+              <StatusBadge tone="accent">{copy.memoryLabel}</StatusBadge>
+              {currentFocus.lastUpdated ? <span className="text-xs text-muted">{currentFocus.lastUpdated}</span> : null}
+            </div>
+          </div>
+
+          <div className="sunny-home-current-grid">
+            <Link href={currentFocus.focus.href} className="sunny-home-current-item sunny-home-current-item-primary">
+              <span className="sunny-home-current-label">{copy.focusLabel}</span>
+              <h2 className="sunny-dashboard-title mt-2 text-base font-semibold text-foreground">
+                {currentFocus.focus.title}
+              </h2>
+              <p className="sunny-dashboard-clamp mt-1 text-sm leading-6 text-muted">
+                {currentFocus.focus.description}
+              </p>
+              <span className="mt-3 inline-flex">
+                <StatusBadge tone="info">{currentFocus.focus.label}</StatusBadge>
+              </span>
+            </Link>
+
+            <Link href={currentFocus.recentAction.href} className="sunny-home-current-item">
+              <span className="sunny-home-current-label">{copy.recentLabel}</span>
+              <h3 className="sunny-dashboard-title mt-2 text-sm font-semibold text-foreground">
+                {currentFocus.recentAction.title}
+              </h3>
+              <p className="sunny-dashboard-clamp mt-1 text-xs leading-5 text-muted">
+                {currentFocus.recentAction.description}
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <StatusBadge tone="neutral">{currentFocus.recentAction.label}</StatusBadge>
+                {currentFocus.recentAction.date ? <span className="text-xs text-muted">{currentFocus.recentAction.date}</span> : null}
+              </div>
+            </Link>
+          </div>
+        </div>
 
         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
           <Link href="/now" className="sunny-button-primary">
