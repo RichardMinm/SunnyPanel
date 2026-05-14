@@ -1,10 +1,54 @@
 import { buildAgentSystemPrompt, type AgentPromptContext } from "./prompts";
-import { extractJSONObject, parseAgentIntentResult, type AgentChatMessage, type AgentIntent } from "./schemas";
+import {
+  extractJSONObject,
+  parseAgentIntentResult,
+  type AgentChatMessage,
+  type AgentEngine,
+  type AgentIntent,
+} from "./schemas";
 import { createTokenUsageSnapshot, estimateTokenCount, mergeProviderTokenUsage } from "./token-usage";
 import { getPayloadClient } from "@/lib/payload/client";
 
 const defaultModelBaseUrl = "https://open.bigmodel.cn/api/paas/v4";
 const defaultModelName = "glm-5.1";
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const fetchWithRetry = async (
+  url: string,
+  options: RequestInit,
+  { maxRetries = 2, timeoutMs = 15_000 }: { maxRetries?: number; timeoutMs?: number } = {},
+): Promise<Response> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+
+      clearTimeout(timer);
+
+      if (response.status >= 500 && attempt < maxRetries) {
+        lastError = new Error(`Server error ${response.status}`);
+        await sleep(Math.min(1000 * 2 ** attempt, 4000));
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      clearTimeout(timer);
+      lastError = error;
+
+      if (attempt < maxRetries) {
+        await sleep(Math.min(1000 * 2 ** attempt, 4000));
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+};
 
 type AgentSettingsDocument = {
   apiKey?: null | string;
@@ -49,7 +93,31 @@ const getAgentModelConfig = async () => {
       process.env.OPENAI_MODEL?.trim() ||
       process.env.ZAI_MODEL?.trim() ||
       defaultModel,
+    provider: provider ?? null,
   };
+};
+
+/** 与 AgentSettings.provider 对齐，用于 resolveAgentIntent 的 engine 标记。 */
+export const getAgentIntentModelEngine = async (): Promise<AgentEngine> => {
+  const cfg = await getAgentModelConfig();
+
+  if (!cfg) {
+    return "heuristic";
+  }
+
+  if (cfg.provider === "openai") {
+    return "openai";
+  }
+
+  if (cfg.provider === "openai-compatible") {
+    return "openai-compatible";
+  }
+
+  if (cfg.provider === "zai") {
+    return "zai";
+  }
+
+  return "glm";
 };
 
 type OpenAICompatibleResponse = {
@@ -104,7 +172,7 @@ export const generateIntentWithAgentModel = async ({
     contextTokens: estimateTokenCount(messages.slice(0, -1)),
     inputTokens: estimateTokenCount(message),
   });
-  const response = await fetch(`${resolvedConfig.baseUrl}/chat/completions`, {
+  const response = await fetchWithRetry(`${resolvedConfig.baseUrl}/chat/completions`, {
     body: JSON.stringify({
       messages,
       model: resolvedConfig.model,

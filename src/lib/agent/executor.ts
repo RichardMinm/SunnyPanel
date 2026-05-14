@@ -1,11 +1,17 @@
 import { evaluatePlanFromIntent } from "./evaluation";
 import { queryProgressFromIntent } from "./progress";
 import { type AgentIntent, type AgentTraceStep } from "./schemas";
+import { executeAgentTool } from "./tool-registry";
+import { executeWeeklyReviewFromIntent } from "./workflows/weekly-review-server";
 import {
   addCompletionNoteFromIntent,
   appendPlanItemFromIntent,
+  composePlanFromIntent,
+  composeScheduleItemFromIntent,
+  composeTimelineEventFromIntent,
   completePlanItemFromIntent,
   createPlanFromIntent,
+  saveMemoryFromIntent,
 } from "./tools";
 
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
@@ -26,13 +32,29 @@ export const executeAgentIntent = async (intent: AgentIntent, onTrace?: AgentExe
         pendingAction: null,
       };
     case "create_plan":
-      return createPlanFromIntent(intent.args, onTrace);
     case "append_plan_item":
-      return appendPlanItemFromIntent(intent.args, onTrace);
     case "complete_plan_item":
-      return completePlanItemFromIntent(intent.args, onTrace);
+    case "compose_plan":
+    case "compose_schedule_item":
+    case "compose_timeline_event":
     case "add_completion_note":
-      return addCompletionNoteFromIntent(intent.args, onTrace);
+    case "save_memory":
+    case "weekly_review":
+      return executeAgentTool(
+        intent,
+        {
+          addCompletionNote: addCompletionNoteFromIntent,
+          appendPlanItem: appendPlanItemFromIntent,
+          composePlan: composePlanFromIntent,
+          composeScheduleItem: composeScheduleItemFromIntent,
+          composeTimelineEvent: composeTimelineEventFromIntent,
+          completePlanItem: completePlanItemFromIntent,
+          createPlan: createPlanFromIntent,
+          saveMemory: saveMemoryFromIntent,
+          weeklyReview: executeWeeklyReviewFromIntent,
+        },
+        onTrace,
+      );
     case "query_progress":
       onTrace?.({
         detail: intent.args.checklistTitle ? `目标清单：${intent.args.checklistTitle}` : "范围：整体进度",

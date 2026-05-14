@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { resolveAgentIntent } from "../../src/lib/agent/intent";
+import {
+  isCancellationReply,
+  isConfirmationReply,
+  resolveAgentIntent,
+} from "../../src/lib/agent/intent";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
 import {
   buildProposedActionMessage,
   createIntentFromProposedAction,
   createProposedAgentAction,
+  dryRunAgentIntent,
   getAgentIntentRiskLevel,
 } from "../../src/lib/agent/safety";
-import type { AgentIntent } from "../../src/lib/agent/schemas";
+import type { AgentIntent, PendingAction } from "../../src/lib/agent/schemas";
+import type { AgentToolDryRunContext } from "../../src/lib/agent/tool-registry";
 
 const context: AgentPromptContext = {
   checklists: [],
@@ -18,7 +24,64 @@ const context: AgentPromptContext = {
   plans: [],
 };
 
-test("low-risk intents do not require confirmation proposals", () => {
+const fakeChecklist = {
+  createdAt: "2026-05-06T00:00:00.000Z",
+  groups: [
+    {
+      items: [
+        {
+          completedAt: null,
+          completionNote: null,
+          id: "item-1",
+          isCompleted: false,
+          title: "反函数习题",
+        },
+      ],
+      title: "映射与函数",
+    },
+  ],
+  id: 101,
+  slug: "higher-math",
+  status: "draft",
+  title: "高等数学",
+  updatedAt: "2026-05-06T00:00:00.000Z",
+  visibility: "private",
+};
+
+const dryRunContext: AgentToolDryRunContext = {
+  createActionId: () => "test-action-id",
+  detectScheduleConflicts: async () => [],
+  findTimelineEvent: async () => null,
+  now: "2026-05-06T00:00:00.000+08:00",
+  planCandidates: [
+    {
+      id: 201,
+      priority: "high",
+      state: "active",
+      title: "整体计划",
+    },
+  ],
+  resolveChecklistGroupForAppend: async () => ({
+    question: null,
+    resolved: {
+      checklist: fakeChecklist as never,
+      group: fakeChecklist.groups[0] as never,
+      groupIndex: 0,
+    },
+  }),
+  resolveChecklistItem: async () => ({
+    question: null,
+    resolved: {
+      checklist: fakeChecklist as never,
+      group: fakeChecklist.groups[0] as never,
+      groupIndex: 0,
+      item: fakeChecklist.groups[0].items[0] as never,
+      itemIndex: 0,
+    },
+  }),
+};
+
+test("low-risk intents do not require confirmation proposals", async () => {
   const lowRiskIntents: AgentIntent[] = [
     {
       args: {
@@ -51,11 +114,14 @@ test("low-risk intents do not require confirmation proposals", () => {
 
   for (const intent of lowRiskIntents) {
     assert.equal(getAgentIntentRiskLevel(intent.intent), "low");
-    assert.equal(createProposedAgentAction(intent), null);
+    assert.equal(await createProposedAgentAction(intent), null);
+    assert.deepEqual(await dryRunAgentIntent(intent), {
+      type: "bypass",
+    });
   }
 });
 
-test("medium-risk write intents are converted into confirmation proposals", () => {
+test("medium-risk write intents are converted into confirmation proposals", async () => {
   const createPlanIntent: AgentIntent = {
     args: {
       title: "整理计算机组成原理复习路径",
@@ -71,20 +137,262 @@ test("medium-risk write intents are converted into confirmation proposals", () =
     },
     intent: "append_plan_item",
   };
+  const saveMemoryIntent: AgentIntent = {
+    args: {
+      confidence: 0.8,
+      content: "用户偏好回答先给结论，再给必要细节。",
+      title: "回答风格偏好",
+      type: "preference",
+    },
+    intent: "save_memory",
+  };
 
-  const createProposal = createProposedAgentAction(createPlanIntent);
-  const appendProposal = createProposedAgentAction(appendItemIntent);
+  const createProposal = await createProposedAgentAction(createPlanIntent, dryRunContext);
+  const appendProposal = await createProposedAgentAction(appendItemIntent, dryRunContext);
+  const memoryProposal = await createProposedAgentAction(saveMemoryIntent, dryRunContext);
 
   assert.ok(createProposal);
   assert.ok(appendProposal);
+  assert.ok(memoryProposal);
   assert.equal(createProposal.riskLevel, "medium");
   assert.equal(appendProposal.riskLevel, "medium");
+  assert.equal(memoryProposal.riskLevel, "medium");
+  assert.equal(createProposal.requiresConfirmation, true);
+  assert.equal(appendProposal.requiresConfirmation, true);
+  assert.equal(memoryProposal.requiresConfirmation, true);
   assert.equal(createProposal.changes[0]?.collection, "plans");
   assert.equal(appendProposal.changes[0]?.collection, "checklists");
+  assert.equal(memoryProposal.changes[0]?.collection, "agent-memories");
+  assert.equal(appendProposal.changes[0]?.documentId, 101);
+  assert.equal(appendProposal.changes[0]?.visibility, "private");
+  assert.match(buildProposedActionMessage(memoryProposal), /我可以把这个偏好记住/);
   assert.match(buildProposedActionMessage(createProposal), /风险等级：中风险/);
 });
 
-test("high-risk completion intents include timeline impact and can be restored after confirmation", () => {
+test("compose_plan creates rich proposed action", async () => {
+  const proposal = await createProposedAgentAction(
+    {
+      args: {
+        sourceText: "两个月内完成计算机组成原理一轮复习，并形成错题复盘节奏",
+      },
+      intent: "compose_plan",
+    },
+    dryRunContext,
+  );
+
+  assert.ok(proposal);
+  assert.equal(proposal.intent, "compose_plan");
+  assert.equal(proposal.changes[0]?.collection, "plans");
+  assert.equal(proposal.requiresConfirmation, true);
+  assert.match(proposal.changes[0]?.afterPreview ?? "", /关键步骤/);
+
+  const restoredIntent = createIntentFromProposedAction(proposal);
+
+  assert.equal(restoredIntent?.intent, "compose_plan");
+  assert.ok(restoredIntent?.intent === "compose_plan" && restoredIntent.args.proposal?.agentBrief);
+});
+
+test("vague compose_plan asks clarification", async () => {
+  const result = await dryRunAgentIntent(
+    {
+      args: {
+        sourceText: "帮我制定计划",
+      },
+      intent: "compose_plan",
+    },
+    dryRunContext,
+  );
+
+  assert.equal(result.type, "clarify");
+
+  if (result.type === "clarify") {
+    assert.match(result.assistantMessage, /目标/);
+  }
+});
+
+test("compose_schedule_item creates proposal and warns on conflicts", async () => {
+  const result = await dryRunAgentIntent(
+    {
+      args: {
+        sourceText: "把这个计划放到明天上午，安排 90 分钟",
+      },
+      intent: "compose_schedule_item",
+    },
+    {
+      ...dryRunContext,
+      detectScheduleConflicts: async () => [
+        {
+          endTime: "10:00",
+          id: 301,
+          startTime: "09:30",
+          title: "已有复习块",
+        },
+      ],
+    },
+  );
+
+  assert.equal(result.type, "proposed_action");
+
+  if (result.type === "proposed_action") {
+    assert.equal(result.action.intent, "compose_schedule_item");
+    assert.equal(result.action.riskLevel, "high");
+    assert.equal(result.action.changes[0]?.collection, "schedule-items");
+    assert.match(result.action.changes[0]?.preview ?? "", /冲突/);
+  }
+});
+
+test("compose_schedule_item without date asks clarification", async () => {
+  const result = await dryRunAgentIntent(
+    {
+      args: {
+        sourceText: "安排复盘反函数习题",
+      },
+      intent: "compose_schedule_item",
+    },
+    dryRunContext,
+  );
+
+  assert.equal(result.type, "clarify");
+
+  if (result.type === "clarify") {
+    assert.match(result.assistantMessage, /哪一天/);
+  }
+});
+
+test("weekly review preview bypasses confirmation but saved review requires confirmation", async () => {
+  const previewResult = await dryRunAgentIntent({
+    args: {
+      createSuggestions: true,
+      persistReview: false,
+    },
+    intent: "weekly_review",
+  });
+  const savedProposal = await createProposedAgentAction(
+    {
+      args: {
+        createSuggestions: true,
+        persistReview: true,
+      },
+      intent: "weekly_review",
+    },
+    dryRunContext,
+  );
+
+  assert.deepEqual(previewResult, {
+    type: "bypass",
+  });
+  assert.ok(savedProposal);
+  assert.equal(savedProposal.riskLevel, "medium");
+  assert.equal(savedProposal.requiresConfirmation, true);
+  assert.equal(savedProposal.changes[0]?.collection, "plan-reviews");
+  assert.match(buildProposedActionMessage(savedProposal), /生成并保存本周 PlanReview/);
+
+  const restoredIntent = createIntentFromProposedAction(savedProposal);
+
+  assert.equal(restoredIntent?.intent, "weekly_review");
+  assert.deepEqual(restoredIntent?.args, {
+    createSuggestions: true,
+    now: null,
+    persistReview: true,
+  });
+});
+
+test("cancellation clears pending confirmation", async () => {
+  const proposal = await createProposedAgentAction(
+    {
+      args: {
+        title: "整理计算机组成原理复习路径",
+      },
+      intent: "create_plan",
+    },
+    dryRunContext,
+  );
+
+  assert.ok(proposal);
+
+  const pendingAction: PendingAction = {
+    action: proposal,
+    type: "await_confirmation",
+  };
+  const nextPendingAction = isCancellationReply("取消") ? null : pendingAction;
+
+  assert.equal(nextPendingAction, null);
+});
+
+test("unrelated reply keeps awaiting confirmation", async () => {
+  const proposal = await createProposedAgentAction(
+    {
+      args: {
+        checklistTitle: "高等数学",
+        description: null,
+        groupTitle: "映射与函数",
+        itemTitle: "反函数习题复盘",
+      },
+      intent: "append_plan_item",
+    },
+    dryRunContext,
+  );
+
+  assert.ok(proposal);
+
+  const pendingAction: PendingAction = {
+    action: proposal,
+    type: "await_confirmation",
+  };
+  const reply = "我想再想一下";
+  const nextPendingAction = isConfirmationReply(reply) || isCancellationReply(reply) ? null : pendingAction;
+
+  assert.equal(nextPendingAction, pendingAction);
+});
+
+test("public timeline composer writes require confirmation", async () => {
+  const proposal = await createProposedAgentAction(
+    {
+      args: {
+        createEvent: true,
+        sourceId: 7,
+        sourceText: "Agent Inbox 让建议从临时 prompt 变成可追踪队列。",
+        sourceTitle: "发布 Agent Inbox",
+        sourceType: "update",
+        visibility: "public",
+      },
+      intent: "compose_timeline_event",
+    },
+    dryRunContext,
+  );
+
+  assert.ok(proposal);
+  assert.equal(proposal.riskLevel, "high");
+  assert.equal(proposal.requiresConfirmation, true);
+  assert.equal(proposal.changes[0]?.collection, "timeline-events");
+  assert.match(proposal.changes[0]?.preview ?? "", /Visibility：public/);
+  assert.match(proposal.changes[0]?.preview ?? "", /Featured：yes/);
+
+  const restoredIntent = createIntentFromProposedAction(proposal);
+
+  assert.equal(restoredIntent?.intent, "compose_timeline_event");
+});
+
+test("ambiguous timeline composer source asks for clarification", async () => {
+  const result = await dryRunAgentIntent(
+    {
+      args: {
+        createEvent: true,
+        sourceType: "update",
+      },
+      intent: "compose_timeline_event",
+    },
+    dryRunContext,
+  );
+
+  assert.equal(result.type, "clarify");
+
+  if (result.type === "clarify") {
+    assert.match(result.assistantMessage, /来源/);
+  }
+});
+
+test("high-risk completion intents include timeline impact and can be restored after confirmation", async () => {
   const completionIntent: AgentIntent = {
     args: {
       checklistTitle: "高等数学",
@@ -95,16 +403,49 @@ test("high-risk completion intents include timeline impact and can be restored a
     },
     intent: "complete_plan_item",
   };
-  const proposal = createProposedAgentAction(completionIntent);
+  const proposal = await createProposedAgentAction(completionIntent, dryRunContext);
 
   assert.ok(proposal);
   assert.equal(proposal.riskLevel, "high");
-  assert.equal(proposal.changes.some((change) => change.collection === "timeline-events"), true);
+  assert.equal(proposal.requiresConfirmation, true);
+  assert.equal(proposal.changes.some((change) => change.collection === "timeline-events" && change.timelineAffected), true);
 
   const restoredIntent = createIntentFromProposedAction(proposal);
 
   assert.equal(restoredIntent?.intent, "complete_plan_item");
-  assert.deepEqual(restoredIntent?.args, completionIntent.args);
+  assert.deepEqual(restoredIntent?.args, {
+    ...completionIntent.args,
+    groupTitle: "映射与函数",
+    itemTitle: "反函数习题",
+  });
+});
+
+test("dry-run returns clarification when checklist target is ambiguous", async () => {
+  const result = await dryRunAgentIntent(
+    {
+      args: {
+        checklistTitle: "高等数学",
+        completedAt: null,
+        completionNote: null,
+        groupTitle: null,
+        itemTitle: "反函数习题",
+      },
+      intent: "complete_plan_item",
+    },
+    {
+      resolveChecklistItem: async () => ({
+        question: "我在「高等数学」里找到了多个接近「反函数习题」的条目。你想操作哪一个？",
+        resolved: null,
+      }),
+    },
+  );
+
+  assert.equal(result.type, "clarify");
+
+  if (result.type === "clarify") {
+    assert.equal(result.pendingAction?.type, "await_clarification");
+    assert.match(result.assistantMessage, /多个接近/);
+  }
 });
 
 test("destructive requests are clarified and never converted into proposed actions", async () => {
@@ -117,5 +458,5 @@ test("destructive requests are clarified and never converted into proposed actio
   });
 
   assert.equal(result.intent.intent, "clarify");
-  assert.equal(createProposedAgentAction(result.intent), null);
+  assert.equal(await createProposedAgentAction(result.intent), null);
 });

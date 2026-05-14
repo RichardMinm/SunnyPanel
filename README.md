@@ -20,6 +20,7 @@ SunnyPanel 是一个单用户个人面板系统，基于 `Next.js`、`Payload CM
 - 私有计划模型：`Plan`、`PlanReview`
 - 公开站点首页、文章、短札、动态、清单、时间线和页面路由
 - 私有 Dashboard，用于查看下一步行动、计划状态、草稿队列和时间线缺口
+- AI Agent Phase 1：工具注册、dry-run 预览、确认执行、AgentRun 审计快照和回滚准备
 - Timeline 年度归档、精选里程碑、首页 Timeline Highlight 和轻量侧边时间线
 - SunnyPanel 轻量 UI 组件层：卡片、区块标题、状态徽标、空状态、快捷操作和时间线卡片
 - 全站命令面板：导航、进入后台、新建文章、短札、动态、时间线节点、计划和上传媒体
@@ -108,11 +109,23 @@ docker compose up --build
 
 ```bash
 npm run dev
+npm run test:agent
+npm run test:e2e   # 需已安装浏览器：npx playwright install；默认请求 http://127.0.0.1:3000。未设 `PLAYWRIGHT_SKIP_WEBSERVER` 时会尝试 `npm run dev` 作为 webServer（`reuseExistingServer` 在非 CI 下为 true，便于本地已手动起服务时复用）
 npm run lint
 npm run typecheck
 npm run generate:types
 npm run generate:importmap
 ```
+
+## Agent 架构
+
+Phase24 的 Agent Phase 1 分析、增量计划、核心文件和手动测试说明见 [docs/agent-phase1-architecture.md](docs/agent-phase1-architecture.md)。
+
+### 回滚 API（有限自动回滚）
+
+对已登录用户，`POST /api/agent/rollback`，请求体为 JSON，且需包含 `rollbackPayload`（与 AgentRun 中保存的结构一致）。执行删除后会**追加一条** `agent-runs` 审计（`trigger: manual`），记录所用 `rollbackPayload` 与目标文档。成功时返回 `{ ok: true, result: { collection, documentId, strategy, auditWarning? } }`。若删除已成功但写入 `agent-runs` 审计失败，会在 `result.auditWarning` 中给出提示（不静默丢失删除结果）。
+
+当前可自动执行的范围：`delete_created_document` 且目标为 `plans` 或 `schedule-items`；`delete_created_timeline_event` 且目标为 `timeline-events`。缺少 `documentId` 或其它策略会返回 400 及说明。Dashboard 全屏 Agent 工作台在「产物」页可在写入成功后使用「执行撤销」走同一接口。
 
 ## 环境变量
 

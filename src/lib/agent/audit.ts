@@ -4,15 +4,20 @@ import { getPayloadClient } from "@/lib/payload/client";
 
 import { validateAgentRunData } from "./write-schemas";
 
-const workflowByIntent: Record<AgentIntent["intent"], "planning" | "readiness-audit" | "sync"> = {
+const workflowByIntent: Record<AgentIntent["intent"], "planning" | "readiness-audit" | "sync" | "weekly-review"> = {
   add_completion_note: "sync",
   answer_question: "readiness-audit",
   append_plan_item: "planning",
   clarify: "readiness-audit",
   complete_plan_item: "sync",
+  compose_plan: "planning",
+  compose_schedule_item: "planning",
+  compose_timeline_event: "sync",
   create_plan: "planning",
   evaluate_plan: "readiness-audit",
   query_progress: "readiness-audit",
+  save_memory: "sync",
+  weekly_review: "weekly-review",
 };
 
 export const recordAgentFailure = async ({
@@ -52,6 +57,70 @@ export const recordAgentFailure = async ({
   });
 };
 
+export const recordAgentRollbackExecuted = async ({
+  result,
+  rollbackPayload,
+}: {
+  result: {
+    collection: string;
+    documentId: number;
+    strategy: string;
+  };
+  rollbackPayload: unknown;
+}) => {
+  const payload = await getPayloadClient();
+  const recordedAt = new Date().toISOString();
+  const workflow =
+    result.collection === "timeline-events"
+      ? "sync"
+      : result.collection === "plans" || result.collection === "schedule-items"
+        ? "planning"
+        : "readiness-audit";
+
+  const data = validateAgentRunData({
+    affectedDocuments: [
+      {
+        collection: result.collection,
+        documentId: result.documentId,
+        operation: "delete",
+        visibility: "unknown",
+      },
+    ],
+    afterSnapshot: null,
+    beforeSnapshot: {
+      note: "rollback_delete_executed",
+      rollbackPayload,
+      target: result,
+    },
+    completedAt: recordedAt,
+    goal: `用户触发回滚：${result.strategy} · ${result.collection} #${result.documentId}`,
+    rollbackAvailable: false,
+    rollbackPayload,
+    startedAt: recordedAt,
+    status: "succeeded",
+    steps: [
+      {
+        level: "warn",
+        message: `ROLLBACK_EXECUTED strategy=${result.strategy} collection=${result.collection} id=${result.documentId}`,
+        recordedAt,
+      },
+    ],
+    summary: `已按 rollbackPayload 删除文档：${result.collection} #${result.documentId}`,
+    title: `Agent rollback executed · ${result.strategy}`,
+    trigger: "manual",
+    workflow,
+  });
+
+  await payload.create({
+    collection: "agent-runs",
+    context: {
+      skipAgentRunPlanSync: true,
+    },
+    data,
+    overrideAccess: true,
+  });
+};
+
 export const recordAgentConfirmationDecision = async ({
   action,
   decision,
@@ -65,8 +134,13 @@ export const recordAgentConfirmationDecision = async ({
   const recordedAt = new Date().toISOString();
   const confirmed = decision === "confirmed";
   const data = validateAgentRunData({
+    affectedDocuments: action.affectedDocuments,
+    afterSnapshot: action.afterSnapshot,
+    beforeSnapshot: action.beforeSnapshot,
     completedAt: recordedAt,
     goal: `${confirmed ? "确认执行" : "取消执行"}：${action.summary}`,
+    rollbackAvailable: action.rollbackAvailable ?? false,
+    rollbackPayload: action.rollbackPayload,
     startedAt: recordedAt,
     status: confirmed ? "succeeded" : "canceled",
     steps: [

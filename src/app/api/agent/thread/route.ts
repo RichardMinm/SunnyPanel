@@ -53,6 +53,13 @@ export async function GET(request: Request) {
       },
     },
   });
+  const recentRuns = await payload.find({
+    collection: "agent-runs",
+    depth: 0,
+    limit: 6,
+    overrideAccess: true,
+    sort: "-startedAt",
+  });
   const selectedThread =
     requestedThreadId !== null
       ? threads.docs.find((thread) => thread.id === requestedThreadId) ??
@@ -82,6 +89,14 @@ export async function GET(request: Request) {
       lastInteractionAt: thread.lastInteractionAt,
       pendingAction: parsePendingAction(thread.pendingAction),
       title: thread.title,
+    })),
+    recentRuns: recentRuns.docs.map((run) => ({
+      id: run.id,
+      startedAt: run.startedAt,
+      status: run.status,
+      summary: run.summary,
+      title: run.title,
+      workflow: run.workflow,
     })),
   });
 }
