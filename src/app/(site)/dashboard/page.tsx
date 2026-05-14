@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { revalidatePath } from "next/cache";
 
 import type { Plan } from "@/payload-types";
 
@@ -13,8 +14,18 @@ import {
   type StatusBadgeTone,
 } from "@/components/ui/SunnyComponents";
 import { buildAgentQuickPrompts } from "@/lib/agent/quick-prompts";
+import {
+  getPendingAgentSuggestions,
+  syncAgentSuggestionsFromWorkspaceSnapshot,
+} from "@/lib/agent/suggestions";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { getWorkspaceSnapshot, type WorkspaceSnapshot } from "@/lib/payload/workspace";
+import {
+  formatScheduleTimeRange,
+  updateScheduleItemStatus,
+  type ScheduleItemRecord,
+  type ScheduleItemStatus,
+} from "@/lib/schedule/items";
 import { getSiteLocale } from "@/lib/site-locale";
 
 export const dynamic = "force-dynamic";
@@ -157,6 +168,26 @@ const planStateToneMap: Record<Plan["state"], StatusBadgeTone> = {
   paused: "accent",
 };
 
+const scheduleStatusLabelMap: Record<ScheduleItemStatus, string> = {
+  canceled: "已取消",
+  done: "已完成",
+  planned: "计划中",
+  skipped: "已跳过",
+};
+
+const scheduleStatusToneMap: Record<ScheduleItemStatus, StatusBadgeTone> = {
+  canceled: "neutral",
+  done: "success",
+  planned: "info",
+  skipped: "warning",
+};
+
+const schedulePriorityToneMap: Record<ScheduleItemRecord["priority"], StatusBadgeTone> = {
+  high: "danger",
+  low: "neutral",
+  medium: "info",
+};
+
 type LinkedContentItem = NonNullable<Plan["linkedContent"]>[number];
 type FocusMetricKey = "drafts" | "planOutputs" | "timeline";
 type FocusItem = {
@@ -239,6 +270,36 @@ const getDueDayOffset = (value?: null | string) => {
   return Math.round((startOfDueDate.getTime() - startOfToday.getTime()) / dayInMs);
 };
 
+async function updateScheduleStatusAction(formData: FormData) {
+  "use server";
+
+  const id = Number(formData.get("id"));
+  const status = formData.get("status");
+
+  if (!Number.isFinite(id) || (status !== "done" && status !== "skipped")) {
+    return;
+  }
+
+  await updateScheduleItemStatus(id, status);
+  revalidatePath("/dashboard");
+}
+
+const getScheduleRelationLabel = (item: ScheduleItemRecord) => {
+  if (item.relatedPlan) {
+    const title = typeof item.relatedPlan === "number" ? `计划 #${item.relatedPlan}` : item.relatedPlan.title;
+
+    return title ? `计划：${title}` : "关联计划";
+  }
+
+  if (item.relatedChecklist) {
+    const title = typeof item.relatedChecklist === "number" ? `清单 #${item.relatedChecklist}` : item.relatedChecklist.title;
+
+    return title ? `清单：${title}` : "关联清单";
+  }
+
+  return item.sourceType === "agent" ? "Agent 安排" : "手动日程";
+};
+
 function ContentQueueCard({
   actionHref,
   actionLabel,
@@ -290,12 +351,86 @@ function ContentQueueCard({
   );
 }
 
+function ScheduleDayPanel({
+  empty,
+  items,
+  kicker,
+  title,
+}: {
+  empty: string;
+  items: ScheduleItemRecord[];
+  kicker: string;
+  title: string;
+}) {
+  return (
+    <div className="sunny-schedule-day-panel">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="sunny-kicker text-[0.68rem] text-muted">{kicker}</p>
+          <h3 className="mt-1 text-base font-semibold text-foreground">{title}</h3>
+        </div>
+        <span className="sunny-dashboard-count">{items.length} 项</span>
+      </div>
+
+      <div className="sunny-schedule-list mt-4">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <div key={item.id} className="sunny-schedule-row">
+              <div className="sunny-schedule-time">
+                <strong>{formatScheduleTimeRange(item)}</strong>
+                <span>{item.isAllDay ? "All day" : item.startTime && item.endTime ? "Time block" : "Flexible"}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                  <h4 className="sunny-dashboard-title text-sm font-semibold text-foreground">{item.title}</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    <StatusBadge tone={scheduleStatusToneMap[item.status]}>{scheduleStatusLabelMap[item.status]}</StatusBadge>
+                    <StatusBadge tone={schedulePriorityToneMap[item.priority]}>{planPriorityLabelMap[item.priority]}</StatusBadge>
+                  </div>
+                </div>
+                <p className="sunny-dashboard-clamp mt-1 text-xs leading-5 text-muted">
+                  {item.description || getScheduleRelationLabel(item)}
+                </p>
+                <p className="mt-1 text-xs text-muted">{getScheduleRelationLabel(item)}</p>
+                {item.conflictNote ? <p className="sunny-schedule-conflict mt-2 text-xs">{item.conflictNote}</p> : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <form action={updateScheduleStatusAction}>
+                    <input type="hidden" name="id" value={item.id} />
+                    <input type="hidden" name="status" value="done" />
+                    <button type="submit" className="sunny-gap-action-primary">
+                      完成
+                    </button>
+                  </form>
+                  <form action={updateScheduleStatusAction}>
+                    <input type="hidden" name="id" value={item.id} />
+                    <input type="hidden" name="status" value="skipped" />
+                    <button type="submit" className="sunny-gap-action-secondary">
+                      跳过
+                    </button>
+                  </form>
+                  <Link href={`/admin/collections/schedule-items/${item.id}`} className="sunny-gap-action-secondary">
+                    改期
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyState>{empty}</EmptyState>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const { agent, threadId } = await searchParams;
   const initialThreadId = parseThreadId(threadId);
   const showFullAgentConsole = agent === "full";
   const locale = await getSiteLocale();
   const snapshot = await getWorkspaceSnapshot();
+  await syncAgentSuggestionsFromWorkspaceSnapshot(snapshot);
+  const agentSuggestions = await getPendingAgentSuggestions(3);
   const agentQuickPrompts = buildAgentQuickPrompts(snapshot);
   const displayName = snapshot.user.displayName || snapshot.user.email;
   const nextUndoneOnboardingTask = snapshot.onboarding.tasks.find((task) => !task.done);
@@ -488,9 +623,41 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         />
       </section>
 
+      <section className="sunny-dashboard-card sunny-dashboard-card-quiet sunny-schedule-section">
+        <SectionHeader
+          kicker="Daily Schedule"
+          title="今天与明天"
+          description="Agent 创建的日程会先落在这里，方便把计划变成当天可执行的时间块。"
+          action={
+            <Link className="sunny-dashboard-link" href="/admin/collections/schedule-items">
+              打开日程
+            </Link>
+          }
+        />
+        <div className="sunny-schedule-grid mt-5">
+          <ScheduleDayPanel
+            empty="今天还没有日程。可以让 Agent 说“帮我安排今天”。"
+            items={snapshot.schedule.today}
+            kicker="Today Schedule"
+            title="今日日程"
+          />
+          <ScheduleDayPanel
+            empty="明天还没有安排。可以说“把这个计划放到明天上午”。"
+            items={snapshot.schedule.tomorrow}
+            kicker="Tomorrow Preview"
+            title="明日预览"
+          />
+        </div>
+      </section>
+
       {showFullAgentConsole ? (
         <section>
-          <AgentChatPanel initialThreadId={initialThreadId} quickPrompts={agentQuickPrompts} variant="full" />
+          <AgentChatPanel
+            initialThreadId={initialThreadId}
+            quickPrompts={agentQuickPrompts}
+            suggestions={agentSuggestions}
+            variant="full"
+          />
         </section>
       ) : null}
 
@@ -810,6 +977,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               fullConsoleHref={fullAgentHref}
               initialThreadId={initialThreadId}
               quickPrompts={agentQuickPrompts}
+              suggestions={agentSuggestions}
               variant="sidebar"
             />
           </aside>

@@ -7,13 +7,29 @@ import type {
   AgentTraceStep,
   AppendPlanItemArgs,
   CompletePlanItemArgs,
+  ComposePlanArgs,
+  ComposeScheduleItemArgs,
+  ComposeTimelineEventArgs,
   CreatePlanArgs,
   PendingAction,
+  SaveMemoryArgs,
 } from "./schemas";
+import { createScheduleItem } from "@/lib/schedule/items";
+import { upsertMemory, validateAgentMemoryData as validateAgentMemoryPayload } from "./memory";
+import {
+  composePlanProposal,
+  formatPlanProposalDescription,
+} from "./workflows/plan-composer";
+import { composeScheduleProposal } from "./workflows/schedule-composer";
+import {
+  composeTimelineEventProposal,
+  formatTimelineProposal,
+} from "./workflows/timeline-composer";
 import {
   validateAgentRunData,
   validateChecklistGroupsData,
   validatePlanCreateData,
+  validateScheduleItemData,
   validateTimelineEventData,
 } from "./write-schemas";
 
@@ -67,16 +83,30 @@ const buildTimelineDescription = (item: ChecklistItem) =>
     .join("\n\n");
 
 const createAgentRun = async ({
+  affectedDocuments,
+  afterSnapshot,
+  beforeSnapshot,
+  goal,
+  nextAction,
   relatedContent,
   relatedPlan,
+  rollbackAvailable,
+  rollbackPayload,
   status,
   steps,
   summary,
   title,
   workflow,
 }: {
+  affectedDocuments?: unknown;
+  afterSnapshot?: unknown;
+  beforeSnapshot?: unknown;
+  goal?: null | string;
+  nextAction?: null | string;
   relatedContent?: NonNullable<AgentRun["relatedContent"]>;
   relatedPlan?: number;
+  rollbackAvailable?: boolean;
+  rollbackPayload?: unknown;
   status: NonNullable<AgentRun["status"]>;
   steps: Array<{
     level: "error" | "info" | "warn";
@@ -89,10 +119,16 @@ const createAgentRun = async ({
   const payload = await getPayloadClient();
   const startedAt = new Date().toISOString();
   const data = validateAgentRunData({
+    affectedDocuments,
+    afterSnapshot,
+    beforeSnapshot,
     completedAt: startedAt,
-    goal: summary,
+    goal: goal ?? summary,
+    nextAction,
     relatedContent,
     relatedPlan,
+    rollbackAvailable,
+    rollbackPayload,
     startedAt,
     status,
     steps: steps.map((step) => ({
@@ -121,7 +157,53 @@ const createClarifyResult = (assistantMessage: string): AgentToolResult => ({
   pendingAction: null,
 });
 
-const findChecklist = async (checklistTitle: string) => {
+const getTimelineComposerRelatedContent = (
+  args: ComposeTimelineEventArgs,
+  timelineEventId: number,
+): NonNullable<AgentRun["relatedContent"]> => {
+  const relatedContent: NonNullable<AgentRun["relatedContent"]> = [
+    {
+      relationTo: "timeline-events",
+      value: timelineEventId,
+    },
+  ];
+
+  if (!args.sourceId) {
+    return relatedContent;
+  }
+
+  if (args.sourceType === "post") {
+    relatedContent.push({
+      relationTo: "posts",
+      value: args.sourceId,
+    });
+  }
+
+  if (args.sourceType === "note") {
+    relatedContent.push({
+      relationTo: "notes",
+      value: args.sourceId,
+    });
+  }
+
+  if (args.sourceType === "update") {
+    relatedContent.push({
+      relationTo: "updates",
+      value: args.sourceId,
+    });
+  }
+
+  if (args.sourceType === "checklist_item") {
+    relatedContent.push({
+      relationTo: "checklists",
+      value: args.sourceId,
+    });
+  }
+
+  return relatedContent;
+};
+
+export const findChecklist = async (checklistTitle: string) => {
   const payload = await getPayloadClient();
   const checklists = await payload.find({
     collection: "checklists",
@@ -161,7 +243,7 @@ const findChecklist = async (checklistTitle: string) => {
   };
 };
 
-const resolveChecklistItem = async ({
+export const resolveChecklistItem = async ({
   checklistTitle,
   groupTitle,
   itemTitle,
@@ -229,7 +311,7 @@ const resolveChecklistItem = async ({
   };
 };
 
-const resolveChecklistGroupForAppend = async ({
+export const resolveChecklistGroupForAppend = async ({
   checklistTitle,
   groupTitle,
 }: {
@@ -312,7 +394,7 @@ const resolveChecklistGroupForAppend = async ({
   };
 };
 
-const cloneChecklistGroups = (groups: Checklist["groups"]) =>
+export const cloneChecklistGroups = (groups: Checklist["groups"]) =>
   (groups ?? []).map((group) => ({
     ...group,
     items: (group.items ?? []).map((item) => ({
@@ -320,16 +402,14 @@ const cloneChecklistGroups = (groups: Checklist["groups"]) =>
     })),
   }));
 
-const upsertChecklistTimelineEvent = async ({
+export const findChecklistTimelineEvent = async ({
   checklist,
-  group,
   item,
 }: {
-  checklist: Checklist;
-  group: ChecklistGroup;
-  item: ChecklistItem;
+  checklist: Pick<Checklist, "id">;
+  item: Pick<ChecklistItem, "id">;
 }) => {
-  if (!item.id || !item.isCompleted) {
+  if (!item.id) {
     return null;
   }
 
@@ -355,6 +435,28 @@ const upsertChecklistTimelineEvent = async ({
       ],
     },
   });
+
+  return (existingEvent.docs[0] as TimelineEvent | undefined) ?? null;
+};
+
+const upsertChecklistTimelineEvent = async ({
+  checklist,
+  group,
+  item,
+}: {
+  checklist: Checklist;
+  group: ChecklistGroup;
+  item: ChecklistItem;
+}) => {
+  if (!item.id || !item.isCompleted) {
+    return null;
+  }
+
+  const payload = await getPayloadClient();
+  const existingEvent = await findChecklistTimelineEvent({
+    checklist,
+    item,
+  });
   const data = validateTimelineEventData({
     description: buildTimelineDescription(item),
     eventDate: item.completedAt || new Date().toISOString(),
@@ -368,11 +470,11 @@ const upsertChecklistTimelineEvent = async ({
     visibility: checklist.visibility,
   });
 
-  if (existingEvent.docs[0]) {
+  if (existingEvent) {
     return (await payload.update({
       collection: "timeline-events",
       data,
-      id: existingEvent.docs[0].id,
+      id: existingEvent.id,
       overrideAccess: true,
     })) as TimelineEvent;
   }
@@ -422,7 +524,31 @@ export const createPlanFromIntent = async (
   });
 
   await createAgentRun({
+    affectedDocuments: [
+      {
+        collection: "plans",
+        documentId: createdPlan.id,
+        operation: "create",
+        visibility: createdPlan.visibility,
+      },
+    ],
+    afterSnapshot: {
+      id: createdPlan.id,
+      priority: createdPlan.priority,
+      state: createdPlan.state,
+      title: createdPlan.title,
+      visibility: createdPlan.visibility,
+    },
+    beforeSnapshot: null,
     relatedPlan: createdPlan.id,
+    rollbackAvailable: true,
+    rollbackPayload: {
+      strategy: "delete_created_document",
+      target: {
+        collection: "plans",
+        documentId: createdPlan.id,
+      },
+    },
     status: "succeeded",
     steps: [
       {
@@ -444,6 +570,315 @@ export const createPlanFromIntent = async (
 
   return {
     assistantMessage: `已帮你创建计划「${createdPlan.title}」。目前它会以私有草稿的形式进入待办队列，默认状态是“待开始”。`,
+    pendingAction: null,
+  };
+};
+
+export const composeTimelineEventFromIntent = async (
+  args: ComposeTimelineEventArgs,
+  onTrace?: AgentExecutionTraceReporter,
+): Promise<AgentToolResult> => {
+  onTrace?.({
+    detail: args.sourceTitle ?? args.sourceText ?? args.itemTitle ?? "等待来源信息",
+    id: "tool-compose-timeline-prepare",
+    kind: "analysis",
+    status: "running",
+    title: "正在组织 Timeline 节点提案",
+  });
+  const proposal = composeTimelineEventProposal(args);
+
+  if (!proposal) {
+    return createClarifyResult("我还没定位到要写入 Timeline 的来源。请告诉我来源类型和标题，或直接给一段要整理成时间线节点的文字。");
+  }
+
+  const proposalMessage = formatTimelineProposal(proposal);
+
+  if (args.createEvent === false) {
+    onTrace?.({
+      detail: "这轮只生成提案，不写入 TimelineEvent。",
+      id: "tool-compose-timeline-preview",
+      kind: "complete",
+      status: "done",
+      title: "Timeline 提案已生成",
+    });
+
+    return {
+      assistantMessage: proposalMessage,
+      pendingAction: null,
+    };
+  }
+
+  const payload = await getPayloadClient();
+  const data = validateTimelineEventData({
+    description: proposal.description,
+    eventDate: proposal.eventDate,
+    isFeatured: proposal.isFeatured,
+    ...proposal.relatedFields,
+    sortOrder: 0,
+    status: proposal.status,
+    title: proposal.title,
+    type: proposal.type,
+    visibility: proposal.visibility,
+  });
+  onTrace?.({
+    detail: `visibility=${proposal.visibility}，featured=${proposal.isFeatured ? "yes" : "no"}`,
+    id: "tool-compose-timeline-write",
+    kind: "write",
+    status: "running",
+    title: "正在创建 TimelineEvent",
+  });
+  const timelineEvent = (await payload.create({
+    collection: "timeline-events",
+    data,
+    overrideAccess: true,
+  })) as TimelineEvent;
+  onTrace?.({
+    detail: `TimelineEvent #${timelineEvent.id}`,
+    id: "tool-compose-timeline-written",
+    kind: "write",
+    status: "done",
+    title: "TimelineEvent 已创建",
+  });
+
+  await createAgentRun({
+    affectedDocuments: [
+      {
+        collection: "timeline-events",
+        documentId: timelineEvent.id,
+        operation: "create",
+        visibility: timelineEvent.visibility,
+      },
+    ],
+    afterSnapshot: {
+      id: timelineEvent.id,
+      proposal,
+    },
+    beforeSnapshot: null,
+    relatedContent: getTimelineComposerRelatedContent(args, timelineEvent.id),
+    relatedPlan: args.sourceType === "plan" && args.sourceId ? args.sourceId : undefined,
+    rollbackAvailable: true,
+    rollbackPayload: {
+      strategy: "delete_created_timeline_event",
+      target: {
+        collection: "timeline-events",
+        documentId: timelineEvent.id,
+      },
+    },
+    status: "succeeded",
+    steps: [
+      {
+        level: "info",
+        message: `已创建 TimelineEvent #${timelineEvent.id}：${timelineEvent.title}`,
+      },
+      {
+        level: proposal.visibility === "public" ? "warn" : "info",
+        message: proposal.reason,
+      },
+    ],
+    summary: `Agent 已把 ${proposal.relatedContentLabel} 组织成 Timeline 节点「${timelineEvent.title}」。`,
+    title: `Agent composed timeline event · ${timelineEvent.title}`,
+    workflow: "sync",
+  });
+  onTrace?.({
+    detail: "本次 Timeline Composer 写入已记录到 AgentRun。",
+    id: "tool-compose-timeline-audit",
+    kind: "complete",
+    status: "done",
+    title: "已记录审计日志",
+  });
+
+  return {
+    assistantMessage: `已创建 TimelineEvent #${timelineEvent.id}：${timelineEvent.title}\n${proposal.reason}`,
+    pendingAction: null,
+  };
+};
+
+export const composePlanFromIntent = async (
+  args: ComposePlanArgs,
+  onTrace?: AgentExecutionTraceReporter,
+): Promise<AgentToolResult> => {
+  const proposal = composePlanProposal(args);
+  const description = formatPlanProposalDescription(proposal);
+
+  onTrace?.({
+    detail: proposal.goal,
+    id: "tool-compose-plan-prepare",
+    kind: "action",
+    status: "running",
+    title: `准备创建完整计划「${proposal.title}」`,
+  });
+  const payload = await getPayloadClient();
+  const data = validatePlanCreateData({
+    agentBrief: proposal.agentBrief,
+    agentState: "ready",
+    description,
+    dueDate: proposal.suggestedDueDate ?? null,
+    executionMode: "hybrid",
+    priority: proposal.suggestedPriority,
+    state: "backlog",
+    status: "draft",
+    title: proposal.title,
+    visibility: "private",
+  });
+  const createdPlan = await payload.create({
+    collection: "plans",
+    data,
+    overrideAccess: true,
+  });
+
+  onTrace?.({
+    detail: `已写入 ${proposal.keySteps.length} 个关键步骤、${proposal.nextActions.length} 个下一步动作和 Agent Brief。`,
+    id: "tool-compose-plan-created",
+    kind: "write",
+    status: "done",
+    title: `已创建完整计划 #${createdPlan.id}`,
+  });
+
+  await createAgentRun({
+    affectedDocuments: [
+      {
+        collection: "plans",
+        documentId: createdPlan.id,
+        operation: "create",
+        visibility: createdPlan.visibility,
+      },
+    ],
+    afterSnapshot: {
+      id: createdPlan.id,
+      proposal,
+      title: createdPlan.title,
+      visibility: createdPlan.visibility,
+    },
+    beforeSnapshot: null,
+    goal: proposal.goal,
+    nextAction: proposal.nextActions[0] ?? null,
+    relatedPlan: createdPlan.id,
+    rollbackAvailable: true,
+    rollbackPayload: {
+      strategy: "delete_created_document",
+      target: {
+        collection: "plans",
+        documentId: createdPlan.id,
+      },
+    },
+    status: "succeeded",
+    steps: proposal.keySteps.map((step) => ({
+      level: "info",
+      message: step,
+    })),
+    summary: `Agent 已创建完整计划「${createdPlan.title}」。`,
+    title: `Agent composed plan · ${createdPlan.title}`,
+    workflow: "planning",
+  });
+
+  onTrace?.({
+    detail: "完整计划创建动作已经写入 AgentRun 审计记录。",
+    id: "tool-compose-plan-audit",
+    kind: "write",
+    status: "done",
+    title: "已记录审计日志",
+  });
+
+  return {
+    assistantMessage: `已创建完整计划「${createdPlan.title}」。我已经把目标、关键步骤、验收标准、风险和 Agent Brief 写进计划详情。`,
+    pendingAction: null,
+  };
+};
+
+export const composeScheduleItemFromIntent = async (
+  args: ComposeScheduleItemArgs,
+  onTrace?: AgentExecutionTraceReporter,
+): Promise<AgentToolResult> => {
+  const proposal = composeScheduleProposal(args);
+  const timeRange = proposal.isAllDay
+    ? "全天"
+    : [proposal.startTime, proposal.endTime].filter(Boolean).join("-") || "未定时间";
+
+  onTrace?.({
+    detail: `${proposal.date} ${timeRange}`,
+    id: "tool-compose-schedule-prepare",
+    kind: "action",
+    status: "running",
+    title: `准备创建日程「${proposal.title}」`,
+  });
+  const data = validateScheduleItemData({
+    agentBrief: proposal.reason,
+    conflictNote:
+      proposal.conflicts.length > 0
+        ? `创建时检测到冲突：${proposal.conflicts.map((item) => item.title).join("；")}`
+        : null,
+    createdBy: "agent",
+    date: proposal.date,
+    description: proposal.description ?? proposal.reason,
+    endTime: proposal.endTime ?? null,
+    isAllDay: proposal.isAllDay,
+    priority: proposal.priority,
+    relatedChecklist: proposal.relatedChecklistId ?? null,
+    relatedChecklistItemKey: proposal.relatedChecklistItemKey ?? null,
+    relatedPlan: proposal.relatedPlanId ?? null,
+    sourceType: proposal.relatedPlanId ? "plan" : proposal.relatedChecklistId ? "checklist" : "agent",
+    startTime: proposal.startTime ?? null,
+    status: "planned",
+    title: proposal.title,
+  });
+  const createdScheduleItem = await createScheduleItem(data);
+
+  onTrace?.({
+    detail: proposal.conflicts.length > 0 ? "已带冲突备注写入，后续仍可改期。" : "没有检测到冲突。",
+    id: "tool-compose-schedule-created",
+    kind: "write",
+    status: "done",
+    title: `已创建日程 #${createdScheduleItem.id}`,
+  });
+
+  await createAgentRun({
+    affectedDocuments: [
+      {
+        collection: "schedule-items",
+        documentId: createdScheduleItem.id,
+        operation: "create",
+        visibility: "private",
+      },
+    ],
+    afterSnapshot: {
+      id: createdScheduleItem.id,
+      proposal,
+      title: createdScheduleItem.title,
+    },
+    beforeSnapshot: null,
+    goal: proposal.reason,
+    nextAction: `${proposal.date} ${timeRange} 执行「${proposal.title}」`,
+    relatedPlan: proposal.relatedPlanId ?? undefined,
+    rollbackAvailable: true,
+    rollbackPayload: {
+      strategy: "delete_created_document",
+      target: {
+        collection: "schedule-items",
+        documentId: createdScheduleItem.id,
+      },
+    },
+    status: "succeeded",
+    steps: [
+      {
+        level: "info",
+        message: `创建日程：${proposal.date} ${timeRange} ${proposal.title}`,
+      },
+    ],
+    summary: `Agent 已创建日程「${proposal.title}」。`,
+    title: `Agent scheduled item · ${proposal.title}`,
+    workflow: "planning",
+  });
+
+  onTrace?.({
+    detail: "日程创建动作已经写入 AgentRun 审计记录。",
+    id: "tool-compose-schedule-audit",
+    kind: "write",
+    status: "done",
+    title: "已记录审计日志",
+  });
+
+  return {
+    assistantMessage: `已创建日程「${createdScheduleItem.title}」：${proposal.date} ${timeRange}。`,
     pendingAction: null,
   };
 };
@@ -539,12 +974,39 @@ export const appendPlanItemFromIntent = async (
   });
 
   await createAgentRun({
+    affectedDocuments: [
+      {
+        collection: "checklists",
+        documentId: updatedChecklist.id,
+        operation: "update",
+        visibility: updatedChecklist.visibility,
+      },
+    ],
+    afterSnapshot: {
+      checklistId: updatedChecklist.id,
+      groupTitle: updatedGroup.title,
+      itemTitle: args.itemTitle,
+      operation: "append_plan_item",
+    },
+    beforeSnapshot: {
+      checklistId: checklist.id,
+      groupItemCount: group.items?.length ?? 0,
+      groupTitle: group.title,
+    },
     relatedContent: [
       {
         relationTo: "checklists",
         value: updatedChecklist.id,
       },
     ],
+    rollbackAvailable: true,
+    rollbackPayload: {
+      strategy: "restore_checklist_groups",
+      target: {
+        collection: "checklists",
+        documentId: updatedChecklist.id,
+      },
+    },
     status: "succeeded",
     steps: [
       {
@@ -684,6 +1146,39 @@ export const completePlanItemFromIntent = async (
   });
 
   await createAgentRun({
+    affectedDocuments: [
+      {
+        collection: "checklists",
+        documentId: updatedChecklist.id,
+        operation: "update",
+        visibility: updatedChecklist.visibility,
+      },
+      ...(timelineEvent
+        ? [
+            {
+              collection: "timeline-events",
+              documentId: timelineEvent.id,
+              operation: "update",
+              visibility: timelineEvent.visibility,
+            },
+          ]
+        : []),
+    ],
+    afterSnapshot: {
+      checklistId: updatedChecklist.id,
+      completedAt: updatedItem.completedAt ?? null,
+      completionNote: updatedItem.completionNote ?? null,
+      isCompleted: updatedItem.isCompleted,
+      itemId: updatedItem.id ?? null,
+      timelineEventId: timelineEvent?.id ?? null,
+    },
+    beforeSnapshot: {
+      checklistId: checklist.id,
+      completedAt: item.completedAt ?? null,
+      completionNote: item.completionNote ?? null,
+      isCompleted: Boolean(item.isCompleted),
+      itemId: item.id ?? null,
+    },
     relatedContent: [
       {
         relationTo: "checklists",
@@ -698,6 +1193,15 @@ export const completePlanItemFromIntent = async (
           ]
         : []),
     ],
+    rollbackAvailable: true,
+    rollbackPayload: {
+      strategy: "restore_checklist_item_and_timeline",
+      target: {
+        checklistId: updatedChecklist.id,
+        itemId: updatedItem.id ?? null,
+        timelineEventId: timelineEvent?.id ?? null,
+      },
+    },
     status: "succeeded",
     steps: [
       {
@@ -824,6 +1328,35 @@ export const addCompletionNoteFromIntent = async (
   });
 
   await createAgentRun({
+    affectedDocuments: [
+      {
+        collection: "checklists",
+        documentId: updatedChecklist.id,
+        operation: "update",
+        visibility: updatedChecklist.visibility,
+      },
+      ...(timelineEvent
+        ? [
+            {
+              collection: "timeline-events",
+              documentId: timelineEvent.id,
+              operation: "update",
+              visibility: timelineEvent.visibility,
+            },
+          ]
+        : []),
+    ],
+    afterSnapshot: {
+      checklistId: updatedChecklist.id,
+      completionNote: updatedItem.completionNote ?? null,
+      itemId: updatedItem.id ?? null,
+      timelineEventId: timelineEvent?.id ?? null,
+    },
+    beforeSnapshot: {
+      checklistId: checklist.id,
+      completionNote: item.completionNote ?? null,
+      itemId: item.id ?? null,
+    },
     relatedContent: [
       {
         relationTo: "checklists",
@@ -838,6 +1371,15 @@ export const addCompletionNoteFromIntent = async (
           ]
         : []),
     ],
+    rollbackAvailable: true,
+    rollbackPayload: {
+      strategy: "restore_completion_note_and_timeline",
+      target: {
+        checklistId: updatedChecklist.id,
+        itemId: updatedItem.id ?? null,
+        timelineEventId: timelineEvent?.id ?? null,
+      },
+    },
     status: "succeeded",
     steps: [
       {
@@ -859,6 +1401,95 @@ export const addCompletionNoteFromIntent = async (
 
   return {
     assistantMessage: `已把备注补到 ${buildChecklistItemLabel(updatedChecklist.title, updatedGroup.title, updatedItem.title)} 上，并同步更新了 Timeline 说明。`,
+    pendingAction: null,
+  };
+};
+
+export const saveMemoryFromIntent = async (
+  args: SaveMemoryArgs,
+  onTrace?: AgentExecutionTraceReporter,
+): Promise<AgentToolResult> => {
+  onTrace?.({
+    detail: args.content,
+    id: "tool-save-memory-prepare",
+    kind: "action",
+    status: "running",
+    title: "正在准备保存长期记忆",
+  });
+  const data = validateAgentMemoryPayload({
+    ...args,
+    lastUsedAt: new Date().toISOString(),
+    status: "active",
+  });
+  const memory = await upsertMemory({
+    confidence: data.confidence,
+    content: data.content!,
+    lastUsedAt: data.lastUsedAt ?? null,
+    title: data.title,
+    type: data.type,
+  });
+
+  onTrace?.({
+    detail: `AgentMemory #${memory.id} · ${memory.type}`,
+    id: "tool-save-memory-written",
+    kind: "write",
+    status: "done",
+    title: "长期记忆已写入",
+  });
+
+  await createAgentRun({
+    affectedDocuments: [
+      {
+        collection: "agent-memories",
+        documentId: memory.id,
+        operation: "create",
+        visibility: memory.visibility,
+      },
+    ],
+    afterSnapshot: {
+      confidence: memory.confidence,
+      content: memory.content,
+      id: memory.id,
+      status: memory.status,
+      title: memory.title,
+      type: memory.type,
+    },
+    beforeSnapshot: null,
+    relatedContent: [
+      {
+        relationTo: "agent-memories",
+        value: memory.id,
+      },
+    ],
+    rollbackAvailable: true,
+    rollbackPayload: {
+      strategy: "archive_created_memory",
+      target: {
+        collection: "agent-memories",
+        documentId: memory.id,
+      },
+    },
+    status: "succeeded",
+    steps: [
+      {
+        level: "info",
+        message: `已保存长期记忆：${memory.title}`,
+      },
+    ],
+    summary: `Agent 已保存长期记忆「${memory.title}」。`,
+    title: `Agent saved memory · ${memory.title}`,
+    workflow: "sync",
+  });
+  onTrace?.({
+    detail: "本次长期记忆写入已经进入 AgentRun 审计记录。",
+    id: "tool-save-memory-audit",
+    kind: "complete",
+    status: "done",
+    title: "已记录审计日志",
+  });
+
+  return {
+    assistantMessage: `已记住：${memory.content}`,
     pendingAction: null,
   };
 };

@@ -75,9 +75,12 @@ export interface Config {
     checklists: Checklist;
     'timeline-events': TimelineEvent;
     plans: Plan;
+    'schedule-items': ScheduleItem;
     'plan-reviews': PlanReview;
     'agent-threads': AgentThread;
     'agent-runs': AgentRun;
+    'agent-memories': AgentMemory;
+    'agent-suggestions': AgentSuggestion;
     pages: Page;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -94,9 +97,12 @@ export interface Config {
     checklists: ChecklistsSelect<false> | ChecklistsSelect<true>;
     'timeline-events': TimelineEventsSelect<false> | TimelineEventsSelect<true>;
     plans: PlansSelect<false> | PlansSelect<true>;
+    'schedule-items': ScheduleItemsSelect<false> | ScheduleItemsSelect<true>;
     'plan-reviews': PlanReviewsSelect<false> | PlanReviewsSelect<true>;
     'agent-threads': AgentThreadsSelect<false> | AgentThreadsSelect<true>;
     'agent-runs': AgentRunsSelect<false> | AgentRunsSelect<true>;
+    'agent-memories': AgentMemoriesSelect<false> | AgentMemoriesSelect<true>;
+    'agent-suggestions': AgentSuggestionsSelect<false> | AgentSuggestionsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -488,7 +494,14 @@ export interface Page {
 export interface AgentRun {
   id: number;
   title: string;
-  workflow: 'readiness-audit' | 'planning' | 'content-draft' | 'publishing-review' | 'sync' | 'automation';
+  workflow:
+    | 'readiness-audit'
+    | 'planning'
+    | 'content-draft'
+    | 'publishing-review'
+    | 'sync'
+    | 'weekly-review'
+    | 'automation';
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
   trigger: 'manual' | 'scheduled' | 'webhook' | 'agent';
   /**
@@ -534,6 +547,10 @@ export interface AgentRun {
             value: number | PlanReview;
           }
         | {
+            relationTo: 'agent-memories';
+            value: number | AgentMemory;
+          }
+        | {
             relationTo: 'pages';
             value: number | Page;
           }
@@ -555,6 +572,69 @@ export interface AgentRun {
         message: string;
         id?: string | null;
       }[]
+    | null;
+  /**
+   * dry-run / execute 阶段解析出的真实影响范围。
+   */
+  affectedDocuments?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  beforeSnapshot?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  afterSnapshot?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * 暂不自动执行，仅保存后续实现 rollback 所需的结构化数据。
+   */
+  rollbackPayload?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  rollbackAvailable?: boolean | null;
+  model?: string | null;
+  provider?: string | null;
+  tokenUsage?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  trace?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
     | null;
   updatedAt: string;
   createdAt: string;
@@ -595,6 +675,27 @@ export interface PlanReview {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-memories".
+ */
+export interface AgentMemory {
+  id: number;
+  title: string;
+  type: 'preference' | 'project_context' | 'writing_style' | 'workflow_rule' | 'fact';
+  content: string;
+  confidence: number;
+  sourceThread?: (number | null) | AgentThread;
+  sourceRun?: (number | null) | AgentRun;
+  lastUsedAt?: string | null;
+  status: 'active' | 'archived';
+  /**
+   * AgentMemory 只用于单用户私有工作台，暂不允许公开。
+   */
+  visibility: 'private';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "agent-threads".
  */
 export interface AgentThread {
@@ -630,15 +731,102 @@ export interface AgentThread {
         | 'create_plan'
         | 'append_plan_item'
         | 'complete_plan_item'
+        | 'compose_plan'
+        | 'compose_schedule_item'
+        | 'compose_timeline_event'
         | 'add_completion_note'
+        | 'save_memory'
         | 'query_progress'
         | 'evaluate_plan'
+        | 'weekly_review'
         | 'clarify'
       )
     | null;
   lastEngine?: ('glm' | 'heuristic' | 'workflow') | null;
   lastConfidence?: number | null;
   lastInteractionAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "schedule-items".
+ */
+export interface ScheduleItem {
+  id: number;
+  title: string;
+  description?: string | null;
+  date: string;
+  /**
+   * 使用 HH:mm，例如 09:30。全天事项可留空。
+   */
+  startTime?: string | null;
+  /**
+   * 使用 HH:mm，例如 10:30。全天事项可留空。
+   */
+  endTime?: string | null;
+  isAllDay?: boolean | null;
+  status: 'planned' | 'done' | 'skipped' | 'canceled';
+  priority: 'low' | 'medium' | 'high';
+  sourceType: 'plan' | 'checklist' | 'manual' | 'agent';
+  relatedPlan?: (number | null) | Plan;
+  relatedChecklist?: (number | null) | Checklist;
+  relatedChecklistItemKey?: string | null;
+  agentBrief?: string | null;
+  createdBy: 'manual' | 'agent';
+  conflictNote?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-suggestions".
+ */
+export interface AgentSuggestion {
+  id: number;
+  title: string;
+  reason: string;
+  suggestedPrompt: string;
+  /**
+   * 由 Agent 生成，用于避免同一条建议反复出现。
+   */
+  uniqueKey: string;
+  source: 'dashboard' | 'plan' | 'content' | 'timeline' | 'agent-run' | 'review';
+  riskLevel: 'low' | 'medium' | 'high';
+  status: 'pending' | 'accepted' | 'dismissed' | 'done';
+  relatedPlan?: (number | null) | Plan;
+  relatedContent?:
+    | (
+        | {
+            relationTo: 'posts';
+            value: number | Post;
+          }
+        | {
+            relationTo: 'notes';
+            value: number | Note;
+          }
+        | {
+            relationTo: 'updates';
+            value: number | Update;
+          }
+        | {
+            relationTo: 'checklists';
+            value: number | Checklist;
+          }
+        | {
+            relationTo: 'timeline-events';
+            value: number | TimelineEvent;
+          }
+        | {
+            relationTo: 'pages';
+            value: number | Page;
+          }
+      )[]
+    | null;
+  createdBy: 'agent' | 'manual';
+  dismissedAt?: string | null;
+  acceptedAt?: string | null;
+  completedAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -699,6 +887,10 @@ export interface PayloadLockedDocument {
         value: number | Plan;
       } | null)
     | ({
+        relationTo: 'schedule-items';
+        value: number | ScheduleItem;
+      } | null)
+    | ({
         relationTo: 'plan-reviews';
         value: number | PlanReview;
       } | null)
@@ -709,6 +901,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'agent-runs';
         value: number | AgentRun;
+      } | null)
+    | ({
+        relationTo: 'agent-memories';
+        value: number | AgentMemory;
+      } | null)
+    | ({
+        relationTo: 'agent-suggestions';
+        value: number | AgentSuggestion;
       } | null)
     | ({
         relationTo: 'pages';
@@ -942,6 +1142,29 @@ export interface PlansSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "schedule-items_select".
+ */
+export interface ScheduleItemsSelect<T extends boolean = true> {
+  title?: T;
+  description?: T;
+  date?: T;
+  startTime?: T;
+  endTime?: T;
+  isAllDay?: T;
+  status?: T;
+  priority?: T;
+  sourceType?: T;
+  relatedPlan?: T;
+  relatedChecklist?: T;
+  relatedChecklistItemKey?: T;
+  agentBrief?: T;
+  createdBy?: T;
+  conflictNote?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "plan-reviews_select".
  */
 export interface PlanReviewsSelect<T extends boolean = true> {
@@ -1011,6 +1234,53 @@ export interface AgentRunsSelect<T extends boolean = true> {
         message?: T;
         id?: T;
       };
+  affectedDocuments?: T;
+  beforeSnapshot?: T;
+  afterSnapshot?: T;
+  rollbackPayload?: T;
+  rollbackAvailable?: T;
+  model?: T;
+  provider?: T;
+  tokenUsage?: T;
+  trace?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-memories_select".
+ */
+export interface AgentMemoriesSelect<T extends boolean = true> {
+  title?: T;
+  type?: T;
+  content?: T;
+  confidence?: T;
+  sourceThread?: T;
+  sourceRun?: T;
+  lastUsedAt?: T;
+  status?: T;
+  visibility?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-suggestions_select".
+ */
+export interface AgentSuggestionsSelect<T extends boolean = true> {
+  title?: T;
+  reason?: T;
+  suggestedPrompt?: T;
+  uniqueKey?: T;
+  source?: T;
+  riskLevel?: T;
+  status?: T;
+  relatedPlan?: T;
+  relatedContent?: T;
+  createdBy?: T;
+  dismissedAt?: T;
+  acceptedAt?: T;
+  completedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

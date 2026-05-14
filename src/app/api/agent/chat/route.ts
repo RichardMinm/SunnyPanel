@@ -2,16 +2,19 @@ import { NextResponse } from "next/server";
 
 import { recordAgentConfirmationDecision, recordAgentFailure } from "@/lib/agent/audit";
 import { generateIntentWithAgentModel } from "@/lib/agent/client";
+import { buildAgentContext, DEFAULT_AGENT_CONTEXT_BUDGET } from "@/lib/agent/context-builder";
 import { executeAgentIntent } from "@/lib/agent/executor";
 import { resolveAgentIntent, isCancellationReply, isConfirmationReply, shouldSkipPendingAction } from "@/lib/agent/intent";
 import { logAgentEvent } from "@/lib/agent/logger";
+import { getRelevantMemories } from "@/lib/agent/memory";
 import {
   buildProposedActionMessage,
   createIntentFromProposedAction,
-  createProposedAgentAction,
+  dryRunAgentIntent,
 } from "@/lib/agent/safety";
 import { getPayloadClient } from "@/lib/payload/client";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
+import { detectScheduleConflicts } from "@/lib/schedule/items";
 import { type AgentChatResponse, type AgentEngine, type AgentIntent, type AgentTraceStep, type PendingAction, parsePendingAction, sanitizeChatMessages } from "@/lib/agent/schemas";
 import {
   createTokenUsageSnapshot,
@@ -25,6 +28,12 @@ import {
   getThreadPendingAction,
   removeCurrentMessageFromHistory,
 } from "@/lib/agent/thread";
+import {
+  findChecklistTimelineEvent,
+  resolveChecklistGroupForAppend,
+  resolveChecklistItem,
+} from "@/lib/agent/tools";
+import { getAgentWorkspaceContextSource } from "@/lib/payload/workspace";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -77,6 +86,21 @@ const buildIntentTraceSummary = (intent: AgentIntent): { detail?: string; title:
         detail: `${intent.args.checklistTitle}${intent.args.groupTitle ? ` / ${intent.args.groupTitle}` : ""}`,
         title: `识别为完成条目：${intent.args.itemTitle}`,
       };
+    case "compose_plan":
+      return {
+        detail: intent.args.goal ?? intent.args.sourceText ?? intent.args.title ?? "将生成完整计划提案。",
+        title: "识别为 Plan Composer",
+      };
+    case "compose_schedule_item":
+      return {
+        detail: intent.args.sourceText ?? intent.args.title ?? "将生成日程提案。",
+        title: "识别为 Schedule Composer",
+      };
+    case "compose_timeline_event":
+      return {
+        detail: intent.args.sourceTitle ?? intent.args.sourceText ?? intent.args.itemTitle ?? "需要定位 Timeline 来源",
+        title: "识别为 Timeline Composer",
+      };
     case "add_completion_note":
       return {
         detail: `${intent.args.checklistTitle}${intent.args.groupTitle ? ` / ${intent.args.groupTitle}` : ""}`,
@@ -91,6 +115,16 @@ const buildIntentTraceSummary = (intent: AgentIntent): { detail?: string; title:
       return {
         detail: intent.args.planTitle ? `目标计划：${intent.args.planTitle}` : "范围：全部计划",
         title: "识别为计划评估",
+      };
+    case "save_memory":
+      return {
+        detail: intent.args.content,
+        title: `识别为保存长期记忆：${intent.args.title ?? intent.args.type ?? "memory"}`,
+      };
+    case "weekly_review":
+      return {
+        detail: intent.args.persistReview === false ? "仅预览本周回顾，不写入 PlanReview。" : "将生成本周回顾并在确认后保存为 PlanReview。",
+        title: "识别为本周回顾",
       };
     case "clarify":
     default:
@@ -408,53 +442,37 @@ export async function POST(request: Request) {
 
     let tokenUsage = baseTokenUsage;
     emitUsage(tokenUsage);
-    emitStatus("正在读取计划和清单上下文...");
+    emitStatus("正在构建 Agent 工作台上下文...");
     pushTrace({
-      detail: "准备读取最近的计划、清单和待处理动作，为这轮对话建立上下文。",
+      detail: "准备按消息意图读取计划、清单、内容、时间线、AgentRun 和 PlanReview。",
       id: "context-bootstrap",
       kind: "context",
       status: "running",
       title: "正在建立上下文",
     });
-    const [plans, checklists] = await Promise.all([
-      payload.find({
-        collection: "plans",
-        depth: 0,
-        limit: 12,
-        overrideAccess: true,
-        sort: "-updatedAt",
+    const [contextSource, memories] = await Promise.all([
+      getAgentWorkspaceContextSource({
+        budget: DEFAULT_AGENT_CONTEXT_BUDGET,
+        payload,
       }),
-      payload.find({
-        collection: "checklists",
-        depth: 0,
-        limit: 12,
-        overrideAccess: true,
-        sort: "-updatedAt",
-      }),
+      getRelevantMemories(message, 6),
     ]);
-    const context = {
-      checklists: checklists.docs.map((checklist) => ({
-        groups: (checklist.groups ?? []).slice(0, 4).map((group) => ({
-          items: (group.items ?? []).slice(0, 6).map((item) => item.title),
-          title: group.title,
-        })),
-        title: checklist.title,
-      })),
-      now: new Date().toISOString(),
+    const context = buildAgentContext({
+      budget: DEFAULT_AGENT_CONTEXT_BUDGET,
+      message,
       pendingAction,
-      plans: plans.docs.map((plan) => ({
-        priority: plan.priority,
-        state: plan.state,
-        title: plan.title,
-      })),
-    };
+      source: {
+        ...contextSource,
+        memories,
+      },
+    });
     tokenUsage = createTokenUsageSnapshot({
       contextTokens: baseTokenUsage.contextTokens + estimateTokenCount(context),
       inputTokens: baseTokenUsage.inputTokens,
     });
     emitUsage(tokenUsage);
     pushTrace({
-      detail: `已读取 ${plans.docs.length} 条计划、${checklists.docs.length} 份清单。`,
+      detail: `mode=${context.mode ?? "general"}，纳入 ${context.memories?.length ?? 0} 条长期记忆、${context.plans.length} 条计划、${context.checklists.length} 份清单、${context.contentItems?.length ?? 0} 条内容、${context.timelineEvents?.length ?? 0} 个时间线节点、${context.agentRuns?.length ?? 0} 条 AgentRun、${context.planReviews?.length ?? 0} 条 PlanReview。`,
       id: "context-bootstrap",
       kind: "context",
       status: "done",
@@ -636,7 +654,64 @@ export async function POST(request: Request) {
 
     try {
       const isDirectAnswer = resolution.intent.intent === "answer_question";
-      const proposedAction = confirmedActionId ? null : createProposedAgentAction(resolution.intent);
+      const dryRunResult = confirmedActionId
+        ? {
+            type: "bypass" as const,
+          }
+        : await dryRunAgentIntent(resolution.intent, {
+            detectScheduleConflicts: (args) =>
+              detectScheduleConflicts(args.date, args.startTime, args.endTime, args.excludeId, payload),
+            findTimelineEvent: findChecklistTimelineEvent,
+            now: context.now,
+            planCandidates: context.plans,
+            resolveChecklistGroupForAppend,
+            resolveChecklistItem,
+          });
+
+      if (dryRunResult.type === "clarify") {
+        emitStatus("需要补充目标信息...");
+        const assistantMessage = dryRunResult.assistantMessage;
+        const outputTokens = estimateTokenCount(assistantMessage);
+        tokenUsage = {
+          ...tokenUsage,
+          outputTokens,
+          totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+        };
+        pushTrace({
+          detail: assistantMessage,
+          id: "action-dry-run",
+          kind: "analysis",
+          status: "done",
+          title: "Dry-run 未能唯一定位目标",
+        });
+        const updatedThread = await persistAgentTurn({
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: "clarify",
+          nextPendingAction: dryRunResult.pendingAction,
+        });
+
+        logAgentEvent("info", "chat.dry_run_clarify", {
+          intent: resolution.intent.intent,
+          pendingAction: dryRunResult.pendingAction?.type ?? null,
+          threadId: updatedThread.id,
+          userId: user.id,
+        });
+
+        return {
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: "clarify",
+          pendingAction: dryRunResult.pendingAction,
+          trace,
+          threadId: updatedThread.id,
+          tokenUsage,
+        };
+      }
+
+      const proposedAction = dryRunResult.type === "proposed_action" ? dryRunResult.action : null;
 
       if (proposedAction) {
         emitStatus("正在等待你确认动作...");
@@ -653,10 +728,10 @@ export async function POST(request: Request) {
         };
         pushTrace({
           detail: `${proposedAction.summary} · risk=${proposedAction.riskLevel}`,
-          id: "action-execute",
+          id: "action-dry-run",
           kind: "action",
           status: "done",
-          title: "已生成待确认动作",
+          title: "Dry-run 已生成待确认动作",
         });
         const updatedThread = await persistAgentTurn({
           assistantMessage,

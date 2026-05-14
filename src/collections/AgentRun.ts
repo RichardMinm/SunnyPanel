@@ -97,6 +97,10 @@ export const AgentRun: CollectionConfig = {
           value: "sync",
         },
         {
+          label: "周回顾",
+          value: "weekly-review",
+        },
+        {
           label: "自动执行",
           value: "automation",
         },
@@ -205,7 +209,7 @@ export const AgentRun: CollectionConfig = {
         position: "sidebar",
       },
       hasMany: true,
-      relationTo: ["posts", "notes", "updates", "checklists", "timeline-events", "plan-reviews", "pages"],
+      relationTo: ["posts", "notes", "updates", "checklists", "timeline-events", "plan-reviews", "agent-memories", "pages"],
     },
     {
       name: "startedAt",
@@ -279,6 +283,64 @@ export const AgentRun: CollectionConfig = {
           required: true,
         },
       ],
+    },
+    {
+      name: "affectedDocuments",
+      type: "json",
+      label: "影响文档",
+      admin: {
+        description: "dry-run / execute 阶段解析出的真实影响范围。",
+      },
+    },
+    {
+      name: "beforeSnapshot",
+      type: "json",
+      label: "执行前快照",
+    },
+    {
+      name: "afterSnapshot",
+      type: "json",
+      label: "执行后快照",
+    },
+    {
+      name: "rollbackPayload",
+      type: "json",
+      label: "回滚载荷",
+      admin: {
+        description: "暂不自动执行，仅保存后续实现 rollback 所需的结构化数据。",
+      },
+    },
+    {
+      name: "rollbackAvailable",
+      type: "checkbox",
+      label: "可回滚",
+      defaultValue: false,
+    },
+    {
+      name: "model",
+      type: "text",
+      label: "模型",
+      admin: {
+        position: "sidebar",
+      },
+    },
+    {
+      name: "provider",
+      type: "text",
+      label: "提供方",
+      admin: {
+        position: "sidebar",
+      },
+    },
+    {
+      name: "tokenUsage",
+      type: "json",
+      label: "Token 用量",
+    },
+    {
+      name: "trace",
+      type: "json",
+      label: "Trace",
     },
   ],
   hooks: {

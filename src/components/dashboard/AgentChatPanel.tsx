@@ -1,10 +1,19 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import Link from "next/link";
+import { useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  AgentDock,
+  AgentWorkbench,
+  type AgentInspectorTab,
+  type AgentRunSummary,
+  type AgentThreadSummary,
+  type AgentWorkbenchMode,
+  type AgentWorkbenchTab,
+} from "@/components/dashboard/AgentWorkbench";
 import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
+import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import type {
   AgentChatMessage,
   AgentChatResponse,
@@ -25,75 +34,13 @@ const initialMessages: AgentChatMessage[] = [
   },
 ];
 
-const traceKindLabelMap: Record<AgentTraceStep["kind"], string> = {
-  action: "执行",
-  analysis: "判断",
-  complete: "完成",
-  context: "上下文",
-  error: "失败",
-  write: "写入",
-};
-
-const getTraceSummary = (steps: AgentTraceStep[]) => {
-  const runningStep = [...steps].reverse().find((step) => step.status === "running");
-  const errorStep = [...steps].reverse().find((step) => step.status === "error");
-  const doneCount = steps.filter((step) => step.status === "done").length;
-
-  if (errorStep) {
-    return errorStep.title;
-  }
-
-  if (runningStep) {
-    return runningStep.title;
-  }
-
-  if (steps.length > 0) {
-    return `${doneCount}/${steps.length} 步完成`;
-  }
-
-  return "等待指令";
-};
-
 const thinkingStatusKeywords = ["解析", "执行", "评估", "处理中", "整理", "生成", "恢复"];
-
-type AgentThreadSummary = {
-  id: number;
-  lastInteractionAt?: null | string;
-  pendingAction: null | PendingAction;
-  title: string;
-};
 
 const engineLabelMap: Record<AgentChatResponse["engine"], string> = {
   glm: "GLM 解析",
   heuristic: "规则解析",
   workflow: "流程接力",
 };
-
-const riskLevelLabelMap = {
-  high: "高风险",
-  low: "低风险",
-  medium: "中风险",
-} as const;
-
-const operationLabelMap = {
-  create: "创建",
-  delete: "删除",
-  update: "更新",
-} as const;
-
-const getPendingActionLabel = (pendingAction: PendingAction) => {
-  if (pendingAction.type === "await_completion_note") {
-    return `等待补备注：${pendingAction.itemTitle}`;
-  }
-
-  if (pendingAction.type === "await_confirmation") {
-    return `等待确认：${riskLevelLabelMap[pendingAction.action.riskLevel]}`;
-  }
-
-  return `等待澄清：${pendingAction.missingFields.join(" / ") || pendingAction.intent}`;
-};
-
-const formatTokenCount = (value?: number) => new Intl.NumberFormat("zh-CN").format(Math.max(0, Math.round(value ?? 0)));
 
 const getTokenUsageFromData = (data: unknown): AgentTokenUsage | null => {
   if (!data || typeof data !== "object" || !("tokenUsage" in data)) {
@@ -107,14 +54,6 @@ const getTokenUsageFromData = (data: unknown): AgentTokenUsage | null => {
   }
 
   return tokenUsage as AgentTokenUsage;
-};
-
-const getUsagePercent = (value: number, total: number) => {
-  if (total <= 0 || value <= 0) {
-    return 0;
-  }
-
-  return Math.max(4, Math.round((value / total) * 100));
 };
 
 const parseStreamBlock = (block: string) => {
@@ -143,6 +82,7 @@ type AgentChatPanelProps = {
   fullConsoleHref?: string;
   initialThreadId?: number;
   quickPrompts?: AgentQuickPrompt[];
+  suggestions?: AgentInboxSuggestion[];
   variant?: "full" | "sidebar";
 };
 
@@ -150,6 +90,7 @@ export function AgentChatPanel({
   fullConsoleHref = "/dashboard?agent=full",
   initialThreadId,
   quickPrompts = [],
+  suggestions = [],
   variant = "full",
 }: AgentChatPanelProps) {
   const isSidebar = variant === "sidebar";
@@ -160,10 +101,15 @@ export function AgentChatPanel({
   const [input, setInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [threads, setThreads] = useState<AgentThreadSummary[]>([]);
+  const [recentRuns, setRecentRuns] = useState<AgentRunSummary[]>([]);
+  const [inboxSuggestions, setInboxSuggestions] = useState<AgentInboxSuggestion[]>(suggestions);
   const [statusText, setStatusText] = useState("已就绪");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [streamingState, setStreamingState] = useState<"idle" | "responding" | "thinking">("idle");
   const [traceSteps, setTraceSteps] = useState<AgentTraceStep[]>([]);
+  const [workbenchMode, setWorkbenchMode] = useState<AgentWorkbenchMode>("timeline");
+  const [activeWorkbenchTab, setActiveWorkbenchTab] = useState<AgentWorkbenchTab>("timeline");
+  const [activeInspectorTab, setActiveInspectorTab] = useState<AgentInspectorTab>("context");
   const [tokenUsage, setTokenUsage] = useState<AgentTokenUsage>(() =>
     createTokenUsageSnapshot({
       contextTokens: estimateMessagesTokenCount(initialMessages),
@@ -171,16 +117,7 @@ export function AgentChatPanel({
   );
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const inputTokenEstimate = estimateTokenCount(input);
-  const usageTotal = Math.max(tokenUsage.totalTokens, 1);
-  const traceSummary = getTraceSummary(traceSteps);
-  const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
-  const suggestedPlaceholder = quickPrompts[0]?.prompt ?? "整理今天最应该推进的一个动作";
-  const lastMessage = messages[messages.length - 1];
-  const isAssistantPlaceholderActive =
-    lastMessage?.role === "assistant" && lastMessage.content.length === 0 && isSubmitting;
   const isThinking = isSubmitting && streamingState !== "responding";
-  const visibleMessages = isSidebar ? messages.slice(-2) : messages;
-  const visibleMessageOffset = messages.length - visibleMessages.length;
   const effectiveFullConsoleHref = threadId ? `/dashboard?agent=full&threadId=${threadId}` : fullConsoleHref;
   const statusLabel = useMemo(() => {
     if (!isSubmitting) {
@@ -194,7 +131,7 @@ export function AgentChatPanel({
     return streamingState === "responding" ? "Agent 正在组织回复..." : "Agent 正在理解上下文...";
   }, [isSubmitting, statusText, streamingState]);
 
-  const loadThread = useCallback(async (nextThreadId?: number) => {
+  const loadThread = useCallback(async (nextThreadId?: number, options?: { preserveInspector?: boolean }) => {
     const response = await fetch(nextThreadId ? `/api/agent/thread?threadId=${nextThreadId}` : "/api/agent/thread", {
       method: "GET",
     });
@@ -210,10 +147,12 @@ export function AgentChatPanel({
         pendingAction: null | PendingAction;
         title: string;
       } | null;
+      recentRuns?: AgentRunSummary[];
       threads?: AgentThreadSummary[];
     };
 
     setThreads(data.threads ?? []);
+    setRecentRuns(data.recentRuns ?? []);
 
     if (data.selectedThread) {
       setThreadId(data.selectedThread.id);
@@ -225,6 +164,9 @@ export function AgentChatPanel({
         }),
       );
       setTraceSteps([]);
+      if (!options?.preserveInspector) {
+        setActiveInspectorTab(data.selectedThread.pendingAction?.type === "await_confirmation" ? "changes" : "context");
+      }
       setStatusText(isSidebar ? `已恢复 #${data.selectedThread.id}` : `已恢复 Thread #${data.selectedThread.id}`);
     }
   }, [isSidebar]);
@@ -451,6 +393,8 @@ export function AgentChatPanel({
     setStatusText("正在让 Agent 解析并执行...");
     setStreamingState("thinking");
     setTraceSteps([]);
+    setActiveWorkbenchTab("timeline");
+    setActiveInspectorTab("context");
     setTokenUsage(
       createTokenUsageSnapshot({
         contextTokens: estimateMessagesTokenCount(messages),
@@ -498,12 +442,19 @@ export function AgentChatPanel({
       setPendingAction(responseData.pendingAction ?? null);
       setTraceSteps(responseData.trace ?? []);
       setThreadId(typeof responseData.threadId === "number" ? responseData.threadId : threadId);
+      if (responseData.pendingAction?.type === "await_confirmation") {
+        setActiveInspectorTab("changes");
+      } else if (assistantMessage) {
+        setActiveInspectorTab("artifacts");
+      }
       if (responseData.tokenUsage) {
         setTokenUsage(responseData.tokenUsage);
       }
       setStatusText(responseData.engine ? `最近一次：${engineLabelMap[responseData.engine]}` : "已完成");
       setStreamingState("idle");
-      void loadThread(typeof responseData.threadId === "number" ? responseData.threadId : undefined);
+      void loadThread(typeof responseData.threadId === "number" ? responseData.threadId : undefined, {
+        preserveInspector: true,
+      });
     } catch (error) {
       const messageText = error instanceof Error ? error.message : "Agent 请求失败。";
 
@@ -525,334 +476,138 @@ export function AgentChatPanel({
     }
   };
 
-  const shouldShowTrace = traceSteps.length > 0 || isAssistantPlaceholderActive;
-  const renderTraceProcess = () => (
-    <motion.div
-      key="agent-process"
-      initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
-      animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-      exit={shouldReduceMotion ? undefined : { opacity: 0, y: -6 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-      className="sunny-agent-line sunny-agent-line-process"
-    >
-      <div className="sunny-agent-line-label">Process</div>
-      <div className="sunny-agent-line-body">
-        <div className="sunny-agent-process-head">
-          <span className={`sunny-agent-presence-dot ${isThinking ? "sunny-agent-presence-dot-live" : ""}`} aria-hidden="true" />
-          <span>{traceSummary}</span>
-        </div>
-        <div className="sunny-agent-process-list">
-          {traceSteps.length > 0 ? (
-            traceSteps.map((step) => (
-              <div key={step.id} className={`sunny-agent-process-step sunny-agent-process-step-${step.status}`}>
-                <span className={`sunny-agent-trace-dot sunny-agent-trace-dot-${step.status}`} aria-hidden="true" />
-                <span className={`sunny-agent-trace-pill sunny-agent-trace-pill-${step.kind}`}>
-                  {traceKindLabelMap[step.kind]}
-                </span>
-                <span className="sunny-agent-process-title">{step.title}</span>
-                {step.detail ? <span className="sunny-agent-process-detail">{step.detail}</span> : null}
-              </div>
-            ))
-          ) : (
-            <div className="sunny-agent-process-step sunny-agent-process-step-running">
-              <span className="sunny-agent-trace-dot sunny-agent-trace-dot-running" aria-hidden="true" />
-              <span className="sunny-agent-trace-pill sunny-agent-trace-pill-analysis">准备</span>
-              <span className="sunny-agent-process-title">正在建立请求</span>
-              <span className="sunny-agent-process-detail">等待服务端返回第一步执行状态。</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </motion.div>
-  );
-  const renderConfirmationCard = () => {
-    if (!confirmationAction) {
-      return null;
-    }
+  const updateSuggestionStatus = async (id: number, action: "accept" | "dismiss" | "done") => {
+    setInboxSuggestions((current) => current.filter((suggestion) => suggestion.id !== id));
 
-    return (
-      <motion.div
-        initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-        animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-        transition={{ duration: 0.18, ease: "easeOut" }}
-        className={`sunny-agent-confirmation-card sunny-agent-confirmation-card-${confirmationAction.riskLevel}`}
-      >
-        <div className="sunny-agent-confirmation-head">
-          <div>
-            <p className="sunny-kicker text-[0.68rem] text-muted">Pending Action</p>
-            <h3 className="mt-1 text-sm font-semibold text-foreground">{confirmationAction.summary}</h3>
-          </div>
-          <span className="sunny-agent-confirmation-risk">
-            {riskLevelLabelMap[confirmationAction.riskLevel]}
-          </span>
-        </div>
-        <div className="sunny-agent-confirmation-changes">
-          {confirmationAction.changes.map((change, index) => (
-            <div key={`${change.collection}-${change.operation}-${index}`} className="sunny-agent-confirmation-change">
-              <div className="sunny-agent-confirmation-meta">
-                <span>{operationLabelMap[change.operation]}</span>
-                <strong>{change.documentId ? `${change.collection} #${change.documentId}` : change.collection}</strong>
-              </div>
-              <p>{change.preview}</p>
-            </div>
-          ))}
-        </div>
-        <div className="sunny-agent-confirmation-actions">
-          <button
-            type="button"
-            disabled={isSubmitting}
-            onClick={() => {
-              void sendMessage("确认");
-            }}
-            className="sunny-agent-confirmation-confirm disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            确认执行
-          </button>
-          <button
-            type="button"
-            disabled={isSubmitting}
-            onClick={() => {
-              void sendMessage("取消");
-            }}
-            className="sunny-agent-confirmation-cancel disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            取消
-          </button>
-        </div>
-      </motion.div>
+    await fetch("/api/agent/suggestions", {
+      body: JSON.stringify({
+        action,
+        id,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "PATCH",
+    });
+  };
+
+  const runSuggestion = async (suggestion: AgentInboxSuggestion) => {
+    await updateSuggestionStatus(suggestion.id, "accept");
+    await sendMessage(suggestion.suggestedPrompt);
+  };
+
+  const resetThread = () => {
+    setThreadId(null);
+    setPendingAction(null);
+    setMessages(initialMessages);
+    setStatusText("已开启新任务");
+    setStreamingState("idle");
+    setTraceSteps([]);
+    setActiveWorkbenchTab("timeline");
+    setInput("");
+    setErrorMessage(null);
+    setActiveInspectorTab("context");
+    setTokenUsage(
+      createTokenUsageSnapshot({
+        contextTokens: estimateMessagesTokenCount(initialMessages),
+      }),
     );
   };
 
+  const submitInput = () => {
+    void sendMessage(input);
+  };
+
+  const runPrompt = (prompt: string) => {
+    void sendMessage(prompt);
+  };
+
+  const confirmApproval = () => {
+    void sendMessage("确认");
+  };
+
+  const cancelApproval = () => {
+    void sendMessage("取消");
+  };
+
+  const editApproval = (kind: "plan" | "schedule" | "generic") => {
+    const prompt =
+      kind === "schedule"
+        ? "我想调整这个日程提案："
+        : kind === "plan"
+          ? "我想调整这个计划提案："
+          : "我想调整这个待确认动作：";
+
+    setInput(prompt);
+    setStatusText("可以先取消当前提案，再描述你要调整的地方");
+  };
+
+  const loadExistingThread = (nextThreadId: number) => {
+    void loadThread(nextThreadId);
+  };
+
+  const runInboxSuggestion = (suggestion: AgentInboxSuggestion) => {
+    void runSuggestion(suggestion);
+  };
+
+  if (isSidebar) {
+    return (
+      <AgentDock
+        errorMessage={errorMessage}
+        fullConsoleHref={effectiveFullConsoleHref}
+        inboxSuggestions={inboxSuggestions}
+        input={input}
+        isSubmitting={isSubmitting}
+        isThinking={isThinking}
+        messages={messages}
+        onCancelApproval={cancelApproval}
+        onEditApproval={editApproval}
+        onConfirmApproval={confirmApproval}
+        onInputChange={setInput}
+        onRunPrompt={runPrompt}
+        onRunSuggestion={runInboxSuggestion}
+        onSubmit={submitInput}
+        pendingAction={pendingAction}
+        quickPrompts={quickPrompts}
+        statusLabel={statusLabel}
+        threadId={threadId}
+      />
+    );
+  }
+
   return (
-    <section className={`sunny-card sunny-agent-console p-0 ${isSidebar ? "sunny-agent-sidebar sunny-agent-sidebar-compact" : "rounded-[1.4rem]"}`}>
-      <div className="sunny-agent-console-header">
-        <div className="min-w-0">
-          <p className="sunny-kicker text-xs text-muted">Assistant</p>
-          <h2 className={`${isSidebar ? "mt-1 text-xl" : "mt-2 text-2xl"} font-semibold text-foreground`}>
-            {isSidebar ? "助手" : "用一句话驱动工作流"}
-          </h2>
-          {!isSidebar ? (
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-              直接描述目标、进度或问题，我会把过程和结果沉淀到工作台里。
-            </p>
-          ) : null}
-        </div>
-
-        <div className="sunny-agent-console-status">
-          {isSidebar ? <span className={`sunny-agent-presence-dot ${isThinking ? "sunny-agent-presence-dot-live" : ""}`} aria-hidden="true" /> : null}
-          <span className="sunny-agent-status rounded-full px-3 py-1 text-xs">{statusLabel}</span>
-          {pendingAction ? (
-            <span className="sunny-agent-status sunny-agent-status-warn rounded-full px-3 py-1 text-xs">
-              {getPendingActionLabel(pendingAction)}
-            </span>
-          ) : null}
-          {threadId ? <span className="sunny-agent-status rounded-full px-3 py-1 text-xs">Thread #{threadId}</span> : null}
-        </div>
-      </div>
-
-      {quickPrompts.length > 0 ? (
-        isSidebar ? (
-          <div className="sunny-agent-recommendations">
-            <p className="sunny-kicker text-[0.62rem] text-muted">Recommended</p>
-            <div className="mt-2 grid gap-1.5">
-              {quickPrompts.slice(0, 4).map((item) => (
-                <button
-                  key={item.prompt}
-                  type="button"
-                  onClick={() => {
-                    void sendMessage(item.prompt);
-                  }}
-                  className="sunny-agent-recommendation-row text-left transition"
-                >
-                  <span>{item.label}</span>
-                  <small>{item.prompt}</small>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="sunny-agent-command-bar">
-            {quickPrompts.map((item) => (
-              <button
-                key={item.prompt}
-                type="button"
-                onClick={() => {
-                  void sendMessage(item.prompt);
-                }}
-                className="sunny-agent-quick text-left text-sm text-foreground transition"
-              >
-                {item.prompt}
-              </button>
-            ))}
-          </div>
-        )
-      ) : null}
-
-      <div className="sunny-agent-thread-bar">
-        <button
-          type="button"
-          onClick={() => {
-            setThreadId(null);
-            setPendingAction(null);
-            setMessages(initialMessages);
-            setStatusText("已开启新会话");
-            setStreamingState("idle");
-            setTraceSteps([]);
-          }}
-          className="sunny-agent-thread-button"
-        >
-          新会话
-        </button>
-        {isSidebar ? (
-          <>
-            <Link href={effectiveFullConsoleHref} className="sunny-agent-thread-button sunny-agent-full-link">
-              完整控制台
-            </Link>
-            {threadId ? (
-              <button
-                type="button"
-                onClick={() => {
-                  void loadThread(threadId);
-                }}
-                className="sunny-agent-thread-button sunny-agent-thread-button-active"
-              >
-                Thread #{threadId}
-              </button>
-            ) : null}
-          </>
-        ) : (
-          threads.slice(0, 4).map((thread) => (
-            <button
-              key={thread.id}
-              type="button"
-              onClick={() => {
-                void loadThread(thread.id);
-              }}
-              className={`sunny-agent-thread-button ${thread.id === threadId ? "sunny-agent-thread-button-active" : ""}`}
-            >
-              #{thread.id} {thread.title}
-            </button>
-          ))
-        )}
-      </div>
-
-      {!isSidebar ? (
-        <div className="sunny-agent-meter-rail">
-          <div className="sunny-agent-meter-item">
-            <span>输入</span>
-            <strong>{formatTokenCount(inputTokenEstimate)}</strong>
-          </div>
-          <div className="sunny-agent-meter-item">
-            <span>上下文</span>
-            <strong>{formatTokenCount(tokenUsage.contextTokens)}</strong>
-          </div>
-          <div className="sunny-agent-meter-item">
-            <span>输出</span>
-            <strong>{formatTokenCount(tokenUsage.outputTokens)}</strong>
-          </div>
-          <div className="sunny-agent-meter-item">
-            <span>{tokenUsage.source === "provider" ? "API 回传" : "本地估算"}</span>
-            <strong>{formatTokenCount(tokenUsage.totalTokens)}</strong>
-          </div>
-          <div className="sunny-agent-meter-track" aria-hidden="true">
-            <span className="bg-sky-400" style={{ width: `${getUsagePercent(tokenUsage.contextTokens, usageTotal)}%` }} />
-            <span className="bg-orange-400" style={{ width: `${getUsagePercent(tokenUsage.inputTokens, usageTotal)}%` }} />
-            <span className="bg-emerald-400" style={{ width: `${getUsagePercent(tokenUsage.outputTokens, usageTotal)}%` }} />
-          </div>
-        </div>
-      ) : null}
-
-      <div className="sunny-agent-conversation">
-        {!isSidebar ? (
-          <div className="sunny-agent-conversation-head">
-            <div>
-              <p className="sunny-kicker text-[0.68rem] text-muted">Conversation</p>
-              <h3 className="mt-1 text-lg font-semibold text-foreground">Agent 对话流</h3>
-            </div>
-            <span className="text-xs text-muted">{isSubmitting ? "Streaming" : "Ready"}</span>
-          </div>
-        ) : null}
-
-        <div ref={transcriptRef} className="sunny-agent-transcript">
-          <AnimatePresence initial={false}>
-            {visibleMessages.map((message, index) => {
-              const messageIndex = visibleMessageOffset + index;
-              const isAssistant = message.role === "assistant";
-              const isStreamingPlaceholder =
-                isAssistant && messageIndex === messages.length - 1 && isSubmitting && message.content.length === 0;
-              const isCurrentStreamingMessage =
-                isAssistant && messageIndex === messages.length - 1 && isSubmitting && message.content.length > 0;
-              const shouldInsertProcess = shouldShowTrace && isAssistant && messageIndex === messages.length - 1;
-
-              return (
-                <div key={`${message.role}-${messageIndex}`}>
-                  {shouldInsertProcess ? renderTraceProcess() : null}
-                  {isStreamingPlaceholder ? null : (
-                    <motion.div
-                      initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
-                      animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
-                      exit={shouldReduceMotion ? undefined : { opacity: 0, y: -6 }}
-                      transition={{ duration: 0.2, ease: "easeOut" }}
-                      className={`sunny-agent-line ${isAssistant ? "sunny-agent-line-assistant" : "sunny-agent-line-user"}`}
-                    >
-                      <div className="sunny-agent-line-label">{isAssistant ? "Agent" : "You"}</div>
-                      <div className="sunny-agent-line-body">
-                        {message.content}
-                        {isCurrentStreamingMessage ? <span className="sunny-agent-stream-cursor" aria-hidden="true" /> : null}
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-              );
-            })}
-            {shouldShowTrace && lastMessage?.role !== "assistant" ? renderTraceProcess() : null}
-          </AnimatePresence>
-        </div>
-
-        {renderConfirmationCard()}
-
-        <div className="sunny-agent-conversation-foot">
-          <span className={`sunny-agent-presence-dot ${isThinking ? "sunny-agent-presence-dot-live" : ""}`} aria-hidden="true" />
-          <span>{statusLabel}</span>
-        </div>
-
-        <form
-          className="sunny-agent-input-row"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void sendMessage(input);
-          }}
-        >
-          <textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            rows={2}
-            placeholder={
-              confirmationAction
-                ? "回复“确认”执行，或“取消”放弃。"
-                : pendingAction
-                  ? "直接补一句完成备注，或者说“不用了”。"
-                  : isSidebar
-                    ? "想做什么？"
-                    : `例如：${suggestedPlaceholder}`
-            }
-            className="sunny-agent-input min-h-20 flex-1 rounded-[0.8rem] px-4 py-3 text-sm outline-none transition"
-          />
-          <button
-            type="submit"
-            disabled={isSubmitting || input.trim().length === 0}
-            className="sunny-button-primary self-end disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isSubmitting ? "处理中" : "发送"}
-          </button>
-        </form>
-
-        {errorMessage ? (
-          <div className="mt-3 rounded-[0.8rem] border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-7 text-rose-700">
-            {errorMessage}
-          </div>
-        ) : null}
-      </div>
-    </section>
+    <AgentWorkbench
+      activeInspectorTab={activeInspectorTab}
+      activeTab={activeWorkbenchTab}
+      errorMessage={errorMessage}
+      inboxSuggestions={inboxSuggestions}
+      input={input}
+      inputTokenEstimate={inputTokenEstimate}
+      isSubmitting={isSubmitting}
+      isThinking={isThinking}
+      messages={messages}
+      mode={workbenchMode}
+      onActiveInspectorTabChange={setActiveInspectorTab}
+      onActiveTabChange={setActiveWorkbenchTab}
+      onCancelApproval={cancelApproval}
+      onEditApproval={editApproval}
+      onConfirmApproval={confirmApproval}
+      onInputChange={setInput}
+      onLoadThread={loadExistingThread}
+      onModeChange={setWorkbenchMode}
+      onNewThread={resetThread}
+      onRunPrompt={runPrompt}
+      onRunSuggestion={runInboxSuggestion}
+      onSubmit={submitInput}
+      pendingAction={pendingAction}
+      quickPrompts={quickPrompts}
+      recentRuns={recentRuns}
+      statusLabel={statusLabel}
+      threadId={threadId}
+      threads={threads}
+      tokenUsage={tokenUsage}
+      traceSteps={traceSteps}
+      transcriptRef={transcriptRef}
+    />
   );
 }

@@ -4,15 +4,20 @@ import { getPayloadClient } from "@/lib/payload/client";
 
 import { validateAgentRunData } from "./write-schemas";
 
-const workflowByIntent: Record<AgentIntent["intent"], "planning" | "readiness-audit" | "sync"> = {
+const workflowByIntent: Record<AgentIntent["intent"], "planning" | "readiness-audit" | "sync" | "weekly-review"> = {
   add_completion_note: "sync",
   answer_question: "readiness-audit",
   append_plan_item: "planning",
   clarify: "readiness-audit",
   complete_plan_item: "sync",
+  compose_plan: "planning",
+  compose_schedule_item: "planning",
+  compose_timeline_event: "sync",
   create_plan: "planning",
   evaluate_plan: "readiness-audit",
   query_progress: "readiness-audit",
+  save_memory: "sync",
+  weekly_review: "weekly-review",
 };
 
 export const recordAgentFailure = async ({
@@ -65,8 +70,13 @@ export const recordAgentConfirmationDecision = async ({
   const recordedAt = new Date().toISOString();
   const confirmed = decision === "confirmed";
   const data = validateAgentRunData({
+    affectedDocuments: action.affectedDocuments,
+    afterSnapshot: action.afterSnapshot,
+    beforeSnapshot: action.beforeSnapshot,
     completedAt: recordedAt,
     goal: `${confirmed ? "确认执行" : "取消执行"}：${action.summary}`,
+    rollbackAvailable: action.rollbackAvailable ?? false,
+    rollbackPayload: action.rollbackPayload,
     startedAt: recordedAt,
     status: confirmed ? "succeeded" : "canceled",
     steps: [

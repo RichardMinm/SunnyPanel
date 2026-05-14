@@ -20,6 +20,7 @@ SunnyPanel 是一个单用户个人面板系统，基于 `Next.js`、`Payload CM
 - 私有计划模型：`Plan`、`PlanReview`
 - 公开站点首页、文章、短札、动态、清单、时间线和页面路由
 - 私有 Dashboard，用于查看下一步行动、计划状态、草稿队列和时间线缺口
+- AI Agent Phase 1：工具注册、dry-run 预览、确认执行、AgentRun 审计快照和回滚准备
 - Timeline 年度归档、精选里程碑、首页 Timeline Highlight 和轻量侧边时间线
 - SunnyPanel 轻量 UI 组件层：卡片、区块标题、状态徽标、空状态、快捷操作和时间线卡片
 - 全站命令面板：导航、进入后台、新建文章、短札、动态、时间线节点、计划和上传媒体
@@ -108,11 +109,16 @@ docker compose up --build
 
 ```bash
 npm run dev
+npm run test:agent
 npm run lint
 npm run typecheck
 npm run generate:types
 npm run generate:importmap
 ```
+
+## Agent 架构
+
+Phase24 的 Agent Phase 1 分析、增量计划、核心文件和手动测试说明见 [docs/agent-phase1-architecture.md](docs/agent-phase1-architecture.md)。
 
 ## 环境变量
 

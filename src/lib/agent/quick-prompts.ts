@@ -11,6 +11,10 @@ const maxQuickPrompts = 5;
 
 const fallbackQuickPrompts: AgentQuickPrompt[] = [
   {
+    label: "安排今天",
+    prompt: "帮我安排今天",
+  },
+  {
     label: "今日动作",
     prompt: "整理今天最应该推进的一个动作",
   },
@@ -33,6 +37,15 @@ const fallbackQuickPrompts: AgentQuickPrompt[] = [
 ];
 
 const quote = (value: string) => `「${value}」`;
+
+const timelineComposerSourceType = (kind: WorkspaceSnapshot["execution"]["timelineCandidates"][number]["kind"]) => {
+  const sourceTypeMap: Partial<Record<typeof kind, "free_text" | "post" | "update">> = {
+    posts: "post",
+    updates: "update",
+  };
+
+  return sourceTypeMap[kind] ?? "free_text";
+};
 
 const isOverduePlan = (plan: Plan, now: Date) => {
   if (plan.state === "done" || !plan.dueDate) {
@@ -92,7 +105,7 @@ export const buildAgentQuickPrompts = (snapshot: WorkspaceSnapshot): AgentQuickP
   if (timelineCandidate) {
     pushUniquePrompt(prompts, {
       label: "补时间线",
-      prompt: `帮我给${quote(timelineCandidate.title)}补一个 Timeline 节点`,
+      prompt: `用 compose_timeline_event 为${quote(timelineCandidate.title)}生成 Timeline 节点，来源类型 ${timelineComposerSourceType(timelineCandidate.kind)}，来源 ID ${timelineCandidate.id}`,
     });
   }
 
@@ -125,6 +138,10 @@ export const buildAgentQuickPrompts = (snapshot: WorkspaceSnapshot): AgentQuickP
   }
 
   if (snapshot.plans.active.length > 0 || snapshot.plans.backlog.length > 0) {
+    pushUniquePrompt(prompts, {
+      label: "安排今天",
+      prompt: "帮我安排今天",
+    });
     pushUniquePrompt(prompts, {
       label: "今日动作",
       prompt: "整理今天最应该推进的一个动作",

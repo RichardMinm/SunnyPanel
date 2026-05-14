@@ -1,0 +1,641 @@
+import type { AgentPromptContext } from "./prompts";
+import type { AgentIntent, PendingAction } from "./schemas";
+
+export type AgentContextMode = "planning" | "content" | "timeline" | "review" | "progress" | "general";
+
+export type AgentContextBudget = {
+  maxAgentRuns: number;
+  maxContentItems: number;
+  maxPlanReviews: number;
+  maxPlans: number;
+  maxTimelineEvents: number;
+};
+
+export type AgentContextRelation =
+  | {
+      relationTo: "checklists" | "notes" | "pages" | "posts" | "timeline-events" | "updates";
+      value: number | { id?: number; title?: string };
+    };
+
+export type AgentContextPlan = {
+  agentBrief?: null | string;
+  agentState?: null | string;
+  description?: null | string;
+  dueDate?: null | string;
+  executionMode?: null | string;
+  id?: number;
+  lastAgentRun?: null | number | { status?: null | string; title?: null | string };
+  linkedContent?: AgentContextRelation[] | null;
+  priority: string;
+  state: string;
+  status?: null | string;
+  title: string;
+  updatedAt?: null | string;
+  visibility?: null | string;
+};
+
+export type AgentContextChecklistItem = {
+  completedAt?: null | string;
+  completionNote?: null | string;
+  description?: null | string;
+  isCompleted?: boolean | null;
+  title: string;
+};
+
+export type AgentContextChecklist = {
+  groups?:
+    | {
+        items?: AgentContextChecklistItem[] | null;
+        title: string;
+      }[]
+    | null;
+  id?: number;
+  status?: null | string;
+  summary?: null | string;
+  title: string;
+  updatedAt?: null | string;
+  visibility?: null | string;
+};
+
+export type AgentContextContentItem = {
+  id: number;
+  kind: "notes" | "pages" | "posts" | "updates";
+  linkedPlanTitles?: string[];
+  status: string;
+  summary?: null | string;
+  title: string;
+  updatedAt: string;
+  visibility: string;
+};
+
+export type AgentContextTimelineEvent = {
+  description?: null | string;
+  eventDate: string;
+  id: number;
+  isFeatured?: boolean | null;
+  relatedChecklist?: null | number | { id?: number; title?: string };
+  relatedPost?: null | number | { id?: number; title?: string };
+  relatedTaskKey?: null | string;
+  relatedUpdate?: null | number | { id?: number; title?: string };
+  status: string;
+  title: string;
+  type: string;
+  updatedAt?: null | string;
+  visibility: string;
+};
+
+export type AgentContextAgentRun = {
+  completedAt?: null | string;
+  goal?: null | string;
+  id: number;
+  relatedPlan?: null | number | { id?: number; title?: string };
+  startedAt?: null | string;
+  status: string;
+  summary?: null | string;
+  title: string;
+  workflow: string;
+};
+
+export type AgentContextPlanReview = {
+  health: string;
+  id: number;
+  plan?: null | number | { id?: number; title?: string };
+  recommendations?: { content: string }[] | null;
+  reviewedAt: string;
+  scope: string;
+  source: string;
+  summary: string;
+  title: string;
+};
+
+export type AgentContextMemory = {
+  confidence: number;
+  content: string;
+  id: number;
+  lastUsedAt?: null | string;
+  status: "active" | "archived";
+  title: string;
+  type: "fact" | "preference" | "project_context" | "workflow_rule" | "writing_style";
+  updatedAt?: null | string;
+  visibility: "private";
+};
+
+export type AgentContextSource = {
+  agentRuns?: AgentContextAgentRun[];
+  checklists?: AgentContextChecklist[];
+  contentItems?: AgentContextContentItem[];
+  memories?: AgentContextMemory[];
+  now?: string;
+  planReviews?: AgentContextPlanReview[];
+  plans?: AgentContextPlan[];
+  timelineCandidates?: AgentContextContentItem[];
+  timelineEvents?: AgentContextTimelineEvent[];
+};
+
+export const DEFAULT_AGENT_CONTEXT_BUDGET: AgentContextBudget = {
+  maxAgentRuns: 6,
+  maxContentItems: 12,
+  maxPlanReviews: 6,
+  maxPlans: 12,
+  maxTimelineEvents: 8,
+};
+
+const planningKeywords = ["计划", "规划", "plan", "backlog", "active", "paused", "执行", "安排", "任务", "推进"];
+const contentKeywords = ["内容", "文章", "帖子", "post", "note", "笔记", "札记", "更新", "update", "页面", "草稿", "发布", "public", "private"];
+const timelineKeywords = ["时间线", "timeline", "节点", "里程碑", "milestone", "精选", "featured"];
+const reviewKeywords = ["评估", "复盘", "回顾", "review", "审计", "agent run", "运行", "风险", "缺口", "gap"];
+const progressKeywords = ["进度", "完成", "done", "清单", "checklist", "百分比"];
+
+const priorityWeight: Record<string, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
+
+const stateWeightByMode: Record<AgentContextMode, Record<string, number>> = {
+  content: {
+    active: 0,
+    backlog: 1,
+    paused: 2,
+    done: 3,
+  },
+  general: {
+    active: 0,
+    backlog: 1,
+    paused: 2,
+    done: 3,
+  },
+  planning: {
+    active: 0,
+    backlog: 1,
+    paused: 2,
+    done: 3,
+  },
+  progress: {
+    active: 0,
+    paused: 1,
+    backlog: 2,
+    done: 3,
+  },
+  review: {
+    active: 0,
+    paused: 1,
+    backlog: 2,
+    done: 3,
+  },
+  timeline: {
+    active: 0,
+    backlog: 1,
+    paused: 2,
+    done: 3,
+  },
+};
+
+const includesAny = (value: string, keywords: string[]) =>
+  keywords.some((keyword) => value.includes(keyword));
+
+const timestampOf = (value: null | string | undefined) => {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = Date.parse(value);
+
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const relationId = (value: null | number | { id?: number } | undefined) =>
+  typeof value === "number" ? value : typeof value?.id === "number" ? value.id : null;
+
+const linkedContentCount = (plan: AgentContextPlan) => plan.linkedContent?.length ?? 0;
+
+const relationTitle = (value: null | number | { title?: string } | undefined) =>
+  typeof value === "object" && value && typeof value.title === "string" ? value.title : null;
+
+const checklistCompletion = (checklist: AgentContextChecklist) => {
+  const items = (checklist.groups ?? []).flatMap((group) => group.items ?? []);
+  const completed = items.filter((item) => item.isCompleted === true).length;
+
+  return {
+    completed,
+    total: items.length,
+  };
+};
+
+const sortPlansForMode = (mode: AgentContextMode) => (left: AgentContextPlan, right: AgentContextPlan) => {
+  const stateWeights = stateWeightByMode[mode];
+  const stateDelta = (stateWeights[left.state] ?? 9) - (stateWeights[right.state] ?? 9);
+
+  if (stateDelta !== 0) {
+    return stateDelta;
+  }
+
+  const priorityDelta = (priorityWeight[left.priority] ?? 9) - (priorityWeight[right.priority] ?? 9);
+
+  if (priorityDelta !== 0) {
+    return priorityDelta;
+  }
+
+  return timestampOf(right.updatedAt) - timestampOf(left.updatedAt);
+};
+
+const sortContentItems = (left: AgentContextContentItem, right: AgentContextContentItem) =>
+  timestampOf(right.updatedAt) - timestampOf(left.updatedAt);
+
+const sortTimelineEvents = (left: AgentContextTimelineEvent, right: AgentContextTimelineEvent) => {
+  const featuredDelta = Number(right.isFeatured === true) - Number(left.isFeatured === true);
+
+  if (featuredDelta !== 0) {
+    return featuredDelta;
+  }
+
+  return timestampOf(right.eventDate) - timestampOf(left.eventDate);
+};
+
+const sortAgentRuns = (left: AgentContextAgentRun, right: AgentContextAgentRun) =>
+  timestampOf(right.startedAt) - timestampOf(left.startedAt);
+
+const sortPlanReviews = (left: AgentContextPlanReview, right: AgentContextPlanReview) =>
+  timestampOf(right.reviewedAt) - timestampOf(left.reviewedAt);
+
+const sortMemories = (left: AgentContextMemory, right: AgentContextMemory) =>
+  right.confidence - left.confidence || timestampOf(right.lastUsedAt ?? right.updatedAt) - timestampOf(left.lastUsedAt ?? left.updatedAt);
+
+const shouldKeepPlanForMode = (plan: AgentContextPlan, mode: AgentContextMode) => {
+  if (mode === "planning") {
+    return plan.state === "active" || plan.state === "backlog" || plan.state === "paused";
+  }
+
+  if (mode === "content") {
+    return linkedContentCount(plan) > 0 || plan.state === "active" || plan.state === "backlog";
+  }
+
+  if (mode === "timeline") {
+    return plan.state !== "done" || linkedContentCount(plan) > 0;
+  }
+
+  return true;
+};
+
+const selectPlans = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget) =>
+  [...(source.plans ?? [])]
+    .filter((plan) => shouldKeepPlanForMode(plan, mode))
+    .sort(sortPlansForMode(mode))
+    .slice(0, budget.maxPlans);
+
+const selectChecklists = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget) => {
+  const limit = Math.max(4, Math.min(12, budget.maxContentItems));
+  const checklists = [...(source.checklists ?? [])].sort(
+    (left, right) => timestampOf(right.updatedAt) - timestampOf(left.updatedAt),
+  );
+
+  if (mode === "progress" || mode === "review") {
+    return checklists
+      .sort((left, right) => {
+        const leftCompletion = checklistCompletion(left);
+        const rightCompletion = checklistCompletion(right);
+
+        return rightCompletion.total - leftCompletion.total || timestampOf(right.updatedAt) - timestampOf(left.updatedAt);
+      })
+      .slice(0, limit);
+  }
+
+  return checklists.slice(0, limit);
+};
+
+const selectContentItems = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget) => {
+  const contentItems = [...(source.contentItems ?? [])];
+
+  if (mode === "content") {
+    return contentItems
+      .sort((left, right) => {
+        const leftRank = left.status === "draft" ? 0 : left.visibility === "private" ? 1 : 2;
+        const rightRank = right.status === "draft" ? 0 : right.visibility === "private" ? 1 : 2;
+
+        return leftRank - rightRank || sortContentItems(left, right);
+      })
+      .slice(0, budget.maxContentItems);
+  }
+
+  if (mode === "timeline") {
+    return deriveTimelineCandidates(source).slice(0, budget.maxContentItems);
+  }
+
+  if (mode === "review") {
+    return contentItems
+      .filter((item) => item.status === "draft" || item.visibility === "private")
+      .sort(sortContentItems)
+      .slice(0, Math.ceil(budget.maxContentItems / 2));
+  }
+
+  return contentItems.sort(sortContentItems).slice(0, Math.ceil(budget.maxContentItems / 2));
+};
+
+const selectTimelineEvents = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget) => {
+  if (mode !== "timeline" && mode !== "review" && mode !== "progress" && mode !== "general") {
+    return [];
+  }
+
+  return [...(source.timelineEvents ?? [])].sort(sortTimelineEvents).slice(0, budget.maxTimelineEvents);
+};
+
+const selectAgentRuns = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget) => {
+  if (mode !== "review") {
+    return [];
+  }
+
+  return [...(source.agentRuns ?? [])].sort(sortAgentRuns).slice(0, budget.maxAgentRuns);
+};
+
+const selectPlanReviews = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget) => {
+  if (mode !== "review" && mode !== "planning") {
+    return [];
+  }
+
+  return [...(source.planReviews ?? [])].sort(sortPlanReviews).slice(0, budget.maxPlanReviews);
+};
+
+const selectMemories = (source: AgentContextSource, budget: AgentContextBudget) =>
+  [...(source.memories ?? [])]
+    .filter((memory) => memory.status === "active" && memory.visibility === "private")
+    .sort(sortMemories)
+    .slice(0, Math.min(8, Math.max(4, budget.maxContentItems)));
+
+const deriveTimelineCandidates = (source: AgentContextSource) => {
+  if (source.timelineCandidates) {
+    return [...source.timelineCandidates].sort(sortContentItems);
+  }
+
+  const linkedTimelineContent = new Set(
+    (source.timelineEvents ?? []).flatMap((event) => {
+      const keys: string[] = [];
+      const relatedPostId = relationId(event.relatedPost);
+      const relatedUpdateId = relationId(event.relatedUpdate);
+
+      if (relatedPostId) {
+        keys.push(`posts:${relatedPostId}`);
+      }
+
+      if (relatedUpdateId) {
+        keys.push(`updates:${relatedUpdateId}`);
+      }
+
+      return keys;
+    }),
+  );
+
+  return (source.contentItems ?? [])
+    .filter((item) => (item.kind === "posts" || item.kind === "updates") && !linkedTimelineContent.has(`${item.kind}:${item.id}`))
+    .sort(sortContentItems);
+};
+
+const buildNarrativeGaps = ({
+  contentItems,
+  mode,
+  plans,
+  timelineCandidates,
+}: {
+  contentItems: AgentContextContentItem[];
+  mode: AgentContextMode;
+  plans: AgentContextPlan[];
+  timelineCandidates: AgentContextContentItem[];
+}) => {
+  const gaps: string[] = [];
+
+  for (const plan of plans) {
+    if (plan.state !== "done" && linkedContentCount(plan) === 0) {
+      gaps.push(`计划「${plan.title}」还没有 linkedContent 输出。`);
+    }
+  }
+
+  if (mode === "content" || mode === "review") {
+    for (const item of contentItems) {
+      if (item.status === "draft") {
+        gaps.push(`内容「${item.title}」仍是 draft，可能需要整理为可发布版本。`);
+      }
+    }
+  }
+
+  if (mode === "timeline" || mode === "general") {
+    for (const item of timelineCandidates) {
+      gaps.push(`内容「${item.title}」还没有对应时间线节点。`);
+    }
+  }
+
+  return [...new Set(gaps)].slice(0, 6);
+};
+
+const toPromptPlan = (plan: AgentContextPlan): AgentPromptContext["plans"][number] => ({
+  agentBrief: plan.agentBrief ?? null,
+  agentState: plan.agentState ?? null,
+  dueDate: plan.dueDate ?? null,
+  executionMode: plan.executionMode ?? null,
+  id: plan.id ?? null,
+  lastAgentRunStatus:
+    typeof plan.lastAgentRun === "object" && plan.lastAgentRun
+      ? plan.lastAgentRun.status ?? null
+      : null,
+  linkedContentCount: linkedContentCount(plan),
+  priority: plan.priority,
+  state: plan.state,
+  title: plan.title,
+  visibility: plan.visibility ?? null,
+});
+
+const toPromptChecklist = (checklist: AgentContextChecklist): AgentPromptContext["checklists"][number] => {
+  const completion = checklistCompletion(checklist);
+
+  return {
+    completedItems: completion.completed,
+    groups: (checklist.groups ?? []).slice(0, 4).map((group) => ({
+      items: (group.items ?? []).slice(0, 6).map((item) => item.title),
+      title: group.title,
+    })),
+    id: checklist.id ?? null,
+    status: checklist.status ?? null,
+    title: checklist.title,
+    totalItems: completion.total,
+    visibility: checklist.visibility ?? null,
+  };
+};
+
+const toPromptContentItem = (item: AgentContextContentItem): NonNullable<AgentPromptContext["contentItems"]>[number] => ({
+  id: item.id,
+  kind: item.kind,
+  status: item.status,
+  summary: item.summary ?? null,
+  title: item.title,
+  updatedAt: item.updatedAt,
+  visibility: item.visibility,
+});
+
+const toPromptTimelineEvent = (
+  event: AgentContextTimelineEvent,
+): NonNullable<AgentPromptContext["timelineEvents"]>[number] => ({
+  eventDate: event.eventDate,
+  id: event.id,
+  isFeatured: event.isFeatured === true,
+  relatedContent:
+    relationTitle(event.relatedPost) ??
+    relationTitle(event.relatedUpdate) ??
+    relationTitle(event.relatedChecklist) ??
+    null,
+  status: event.status,
+  title: event.title,
+  type: event.type,
+  visibility: event.visibility,
+});
+
+const toPromptAgentRun = (run: AgentContextAgentRun): NonNullable<AgentPromptContext["agentRuns"]>[number] => ({
+  completedAt: run.completedAt ?? null,
+  id: run.id,
+  relatedPlanTitle: relationTitle(run.relatedPlan),
+  startedAt: run.startedAt ?? null,
+  status: run.status,
+  summary: run.summary ?? run.goal ?? null,
+  title: run.title,
+  workflow: run.workflow,
+});
+
+const toPromptPlanReview = (
+  review: AgentContextPlanReview,
+): NonNullable<AgentPromptContext["planReviews"]>[number] => ({
+  health: review.health,
+  id: review.id,
+  planTitle: relationTitle(review.plan),
+  recommendations: (review.recommendations ?? []).slice(0, 3).map((item) => item.content),
+  reviewedAt: review.reviewedAt,
+  scope: review.scope,
+  source: review.source,
+  summary: review.summary,
+  title: review.title,
+});
+
+const toPromptMemory = (memory: AgentContextMemory): NonNullable<AgentPromptContext["memories"]>[number] => ({
+  confidence: memory.confidence,
+  content: memory.content,
+  id: memory.id,
+  lastUsedAt: memory.lastUsedAt ?? null,
+  title: memory.title,
+  type: memory.type,
+});
+
+export const resolveAgentContextMode = ({
+  intent,
+  message,
+}: {
+  intent?: AgentIntent | null;
+  message?: string;
+}): AgentContextMode => {
+  switch (intent?.intent) {
+    case "create_plan":
+    case "compose_plan":
+    case "compose_schedule_item":
+    case "append_plan_item":
+      return "planning";
+    case "complete_plan_item":
+    case "query_progress":
+      return "progress";
+    case "add_completion_note":
+    case "compose_timeline_event":
+      return "timeline";
+    case "evaluate_plan":
+    case "weekly_review":
+      return "review";
+    default:
+      break;
+  }
+
+  const normalized = (message ?? "").toLowerCase();
+
+  if (includesAny(normalized, reviewKeywords)) {
+    return "review";
+  }
+
+  if (includesAny(normalized, timelineKeywords)) {
+    return "timeline";
+  }
+
+  if (includesAny(normalized, contentKeywords)) {
+    return "content";
+  }
+
+  if (includesAny(normalized, progressKeywords)) {
+    return "progress";
+  }
+
+  if (includesAny(normalized, planningKeywords)) {
+    return "planning";
+  }
+
+  return "general";
+};
+
+export const buildAgentContext = ({
+  budget = DEFAULT_AGENT_CONTEXT_BUDGET,
+  message,
+  pendingAction,
+  resolvedIntent,
+  source,
+}: {
+  budget?: AgentContextBudget;
+  message: string;
+  pendingAction: null | PendingAction;
+  resolvedIntent?: AgentIntent | null;
+  source: AgentContextSource;
+}): AgentPromptContext => {
+  const mode = resolveAgentContextMode({
+    intent: resolvedIntent,
+    message,
+  });
+  const plans = selectPlans(source, mode, budget);
+  const checklists = selectChecklists(source, mode, budget);
+  const contentItems = selectContentItems(source, mode, budget);
+  const timelineEvents = selectTimelineEvents(source, mode, budget);
+  const timelineCandidates = deriveTimelineCandidates(source).slice(0, budget.maxContentItems);
+  const agentRuns = selectAgentRuns(source, mode, budget);
+  const planReviews = selectPlanReviews(source, mode, budget);
+  const memories = selectMemories(source, budget);
+
+  return {
+    agentRuns: agentRuns.map(toPromptAgentRun),
+    checklists: checklists.map(toPromptChecklist),
+    contentItems: contentItems.map(toPromptContentItem),
+    contextStats: {
+      budget,
+      included: {
+        agentRuns: agentRuns.length,
+        checklists: checklists.length,
+        contentItems: contentItems.length,
+        memories: memories.length,
+        planReviews: planReviews.length,
+        plans: plans.length,
+        timelineCandidates: timelineCandidates.length,
+        timelineEvents: timelineEvents.length,
+      },
+      totalAvailable: {
+        agentRuns: source.agentRuns?.length ?? 0,
+        checklists: source.checklists?.length ?? 0,
+        contentItems: source.contentItems?.length ?? 0,
+        memories: source.memories?.length ?? 0,
+        planReviews: source.planReviews?.length ?? 0,
+        plans: source.plans?.length ?? 0,
+        timelineEvents: source.timelineEvents?.length ?? 0,
+      },
+    },
+    mode,
+    memories: memories.map(toPromptMemory),
+    narrativeGaps: buildNarrativeGaps({
+      contentItems,
+      mode,
+      plans,
+      timelineCandidates,
+    }),
+    now: source.now ?? new Date().toISOString(),
+    pendingAction,
+    planReviews: planReviews.map(toPromptPlanReview),
+    plans: plans.map(toPromptPlan),
+    timelineCandidates: timelineCandidates.map(toPromptContentItem),
+    timelineEvents: timelineEvents.map(toPromptTimelineEvent),
+  };
+};

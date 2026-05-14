@@ -121,8 +121,24 @@ export const AgentThread: CollectionConfig = {
           value: "complete_plan_item",
         },
         {
+          label: "生成完整计划",
+          value: "compose_plan",
+        },
+        {
+          label: "生成日程",
+          value: "compose_schedule_item",
+        },
+        {
+          label: "生成时间线节点",
+          value: "compose_timeline_event",
+        },
+        {
           label: "补完成备注",
           value: "add_completion_note",
+        },
+        {
+          label: "保存长期记忆",
+          value: "save_memory",
         },
         {
           label: "查询进度",
@@ -131,6 +147,10 @@ export const AgentThread: CollectionConfig = {
         {
           label: "评估计划",
           value: "evaluate_plan",
+        },
+        {
+          label: "本周回顾",
+          value: "weekly_review",
         },
         {
           label: "追问澄清",
