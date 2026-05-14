@@ -1,36 +1,12 @@
 import { NextResponse } from "next/server";
 
+import {
+  parseEvaluatePlanArgs,
+  parseEvaluatePlanArgsFromSearchParams,
+  shouldPersistEvaluateReviewFromBody,
+} from "@/lib/agent/api/parse-evaluate-progress-args";
 import { evaluatePlan } from "@/lib/agent/evaluation";
-import type { EvaluatePlanArgs } from "@/lib/agent/schemas";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const parseNumber = (value: unknown) => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number(value);
-
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  return null;
-};
-
-const parseEvaluationArgs = (value: unknown): EvaluatePlanArgs => {
-  if (!isRecord(value)) {
-    return {};
-  }
-
-  return {
-    planId: parseNumber(value.planId),
-    planTitle: typeof value.planTitle === "string" ? value.planTitle.trim() || null : null,
-  };
-};
 
 const requireAgentAuth = async () => {
   const authResult = await getPayloadAuthResult();
@@ -55,12 +31,7 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const result = await evaluatePlan(
-    parseEvaluationArgs({
-      planId: url.searchParams.get("planId"),
-      planTitle: url.searchParams.get("planTitle"),
-    }),
-  );
+  const result = await evaluatePlan(parseEvaluatePlanArgsFromSearchParams(url.searchParams));
 
   return NextResponse.json(result);
 }
@@ -73,8 +44,8 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  const result = await evaluatePlan(parseEvaluationArgs(body), {
-    persistReview: !isRecord(body) || body.persistReview !== false,
+  const result = await evaluatePlan(parseEvaluatePlanArgs(body), {
+    persistReview: shouldPersistEvaluateReviewFromBody(body),
   });
 
   return NextResponse.json(result);

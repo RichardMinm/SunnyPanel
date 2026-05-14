@@ -339,7 +339,7 @@ export type AgentIntent =
       reply?: string;
     };
 
-export type AgentEngine = "glm" | "heuristic" | "workflow";
+export type AgentEngine = "glm" | "heuristic" | "model" | "openai" | "openai-compatible" | "workflow" | "zai";
 
 export type AgentTokenUsage = {
   contextTokens: number;
@@ -357,10 +357,14 @@ export type AgentChatResponse = {
   confidence?: number;
   engine: AgentEngine;
   intent: AgentIntent["intent"];
+  /** 本轮写入成功后，若存在可自动执行的 rollback 描述则附带（用于 Artifacts 一键撤销）。 */
+  lastRollbackPayload?: unknown;
   pendingAction: null | PendingAction;
   trace?: AgentTraceStep[];
   threadId?: number;
   tokenUsage?: AgentTokenUsage;
+  /** 服务端回传的工作台模式，供日志和 UI 可观测。 */
+  workbenchMode?: string;
 };
 
 export type AgentTraceStep = {

@@ -51,7 +51,7 @@ const agentIntentValues = [
 ] as const;
 const agentMemoryTypeValues = ["fact", "preference", "project_context", "workflow_rule", "writing_style"] as const;
 const agentMemoryStatusValues = ["active", "archived"] as const;
-const agentEngineValues = ["glm", "heuristic", "workflow"] as const;
+const agentEngineValues = ["glm", "heuristic", "openai", "workflow", "zai"] as const;
 const relatedContentRelationValues = [
   "checklists",
   "notes",

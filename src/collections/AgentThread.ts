@@ -171,6 +171,14 @@ export const AgentThread: CollectionConfig = {
           value: "glm",
         },
         {
+          label: "OpenAI",
+          value: "openai",
+        },
+        {
+          label: "Z.ai",
+          value: "zai",
+        },
+        {
           label: "规则",
           value: "heuristic",
         },

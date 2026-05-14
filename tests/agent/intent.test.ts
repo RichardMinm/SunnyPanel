@@ -8,6 +8,7 @@ import {
   resolveAgentIntent,
   shouldSkipPendingAction,
 } from "../../src/lib/agent/intent";
+import { collectHeuristicCandidates, parseHeuristicIntent } from "../../src/lib/agent/intent/heuristics";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
 import type { AgentIntent, PendingAction } from "../../src/lib/agent/schemas";
 
@@ -201,6 +202,40 @@ test("uses the injected model resolver without calling external APIs", async () 
   });
 
   assert.equal(calls, 1);
-  assert.equal(result.engine, "glm");
+  assert.equal(result.engine, "model");
   assert.equal(result.intent.intent, "answer_question");
+});
+
+test("collectHeuristicCandidates returns multiple candidates sorted by confidence", () => {
+  const candidates = collectHeuristicCandidates("帮我制定计划：两个月内完成计算机组成原理一轮复习");
+
+  assert.ok(candidates.length >= 1, "should match at least one candidate");
+  assert.equal(candidates[0].intent.intent, "compose_plan");
+  assert.equal(candidates[0].source, "compose_plan");
+
+  for (let i = 1; i < candidates.length; i++) {
+    assert.ok(
+      (candidates[i - 1].intent.confidence ?? 0) >= (candidates[i].intent.confidence ?? 0),
+      "candidates should be sorted by confidence descending",
+    );
+  }
+});
+
+test("parseHeuristicIntent selects the highest confidence candidate", () => {
+  const intent = parseHeuristicIntent("帮我制定计划：两个月内完成计算机组成原理一轮复习");
+
+  assert.equal(intent.intent, "compose_plan");
+  assert.ok((intent.confidence ?? 0) >= 0.3);
+});
+
+test("parseHeuristicIntent falls back to clarify when no parser matches", () => {
+  const intent = parseHeuristicIntent("你好啊");
+
+  assert.equal(intent.intent, "clarify");
+});
+
+test("collectHeuristicCandidates returns empty array for unrecognized input", () => {
+  const candidates = collectHeuristicCandidates("随便聊聊天气");
+
+  assert.equal(candidates.length, 0);
 });

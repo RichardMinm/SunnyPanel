@@ -114,6 +114,8 @@ type ResolvedChecklistGroup = NonNullable<Awaited<ReturnType<ResolveChecklistGro
 export type AgentToolResult = {
   assistantMessage: string;
   pendingAction: null | PendingAction;
+  /** 写入成功后可供 `/api/agent/rollback` 使用的结构化回滚描述（若有）。 */
+  rollbackPayload?: unknown;
 };
 
 export type AgentToolDryRunContext = {

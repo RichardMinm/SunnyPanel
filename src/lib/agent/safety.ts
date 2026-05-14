@@ -39,7 +39,7 @@ const isWritableIntent = (intent: AgentIntent): intent is Extract<AgentIntent, {
   writeIntentValues.has(intent.intent);
 
 export const getAgentIntentRiskLevel = (intent: AgentIntent["intent"]): ProposedAgentAction["riskLevel"] =>
-  getAgentToolDefinition(intent)?.riskLevel ?? "low";
+  getAgentToolDefinition(intent)?.riskLevel ?? (writeIntentValues.has(intent) ? "medium" : "low");
 
 export const dryRunAgentIntent = async (
   intent: AgentIntent,

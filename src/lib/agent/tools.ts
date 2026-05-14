@@ -39,6 +39,7 @@ type ChecklistItem = NonNullable<ChecklistGroup["items"]>[number];
 export type AgentToolResult = {
   assistantMessage: string;
   pendingAction: null | PendingAction;
+  rollbackPayload?: unknown;
 };
 
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
@@ -571,6 +572,13 @@ export const createPlanFromIntent = async (
   return {
     assistantMessage: `已帮你创建计划「${createdPlan.title}」。目前它会以私有草稿的形式进入待办队列，默认状态是“待开始”。`,
     pendingAction: null,
+    rollbackPayload: {
+      strategy: "delete_created_document",
+      target: {
+        collection: "plans",
+        documentId: createdPlan.id,
+      },
+    },
   };
 };
 
@@ -690,6 +698,13 @@ export const composeTimelineEventFromIntent = async (
   return {
     assistantMessage: `已创建 TimelineEvent #${timelineEvent.id}：${timelineEvent.title}\n${proposal.reason}`,
     pendingAction: null,
+    rollbackPayload: {
+      strategy: "delete_created_timeline_event",
+      target: {
+        collection: "timeline-events",
+        documentId: timelineEvent.id,
+      },
+    },
   };
 };
 
@@ -782,6 +797,13 @@ export const composePlanFromIntent = async (
   return {
     assistantMessage: `已创建完整计划「${createdPlan.title}」。我已经把目标、关键步骤、验收标准、风险和 Agent Brief 写进计划详情。`,
     pendingAction: null,
+    rollbackPayload: {
+      strategy: "delete_created_document",
+      target: {
+        collection: "plans",
+        documentId: createdPlan.id,
+      },
+    },
   };
 };
 
@@ -880,6 +902,13 @@ export const composeScheduleItemFromIntent = async (
   return {
     assistantMessage: `已创建日程「${createdScheduleItem.title}」：${proposal.date} ${timeRange}。`,
     pendingAction: null,
+    rollbackPayload: {
+      strategy: "delete_created_document",
+      target: {
+        collection: "schedule-items",
+        documentId: createdScheduleItem.id,
+      },
+    },
   };
 };
 

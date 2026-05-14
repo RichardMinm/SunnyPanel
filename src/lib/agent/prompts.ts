@@ -1,5 +1,6 @@
 import type { PendingAction } from "./schemas";
 import type { AgentContextBudget, AgentContextMode } from "./context-builder";
+import type { AgentWorkbenchMode } from "./workbench-mode";
 
 export type AgentPromptContext = {
   agentRuns?: Array<{
@@ -56,6 +57,7 @@ export type AgentPromptContext = {
     };
   };
   mode?: AgentContextMode;
+  workbenchMode?: AgentWorkbenchMode | null;
   memories?: Array<{
     confidence: number;
     content: string;
@@ -294,6 +296,22 @@ const formatPendingAction = (pendingAction: AgentPromptContext["pendingAction"])
   return `当前有一个待补充备注的上下文：${target}。如果用户接着说感受、备注、难点、总结，优先判断为 add_completion_note。`;
 };
 
+const workbenchModeIntentHints: Record<string, string> = {
+  ask: `\n工作台模式：用户当前在「ask（提问）」视图下。优先以 answer_question 回答知识问题；只有当用户明确要求写入时才进入事务意图。\n`,
+  execute: `\n工作台模式：用户当前在「execute（执行）」视图下。优先匹配写入类意图（create_plan / append_plan_item / complete_plan_item / compose_schedule_item / compose_timeline_event）；若无法匹配，也允许 answer_question。\n`,
+  plan: `\n工作台模式：用户当前在「plan（规划）」视图下。优先匹配 create_plan / compose_plan / append_plan_item / evaluate_plan 等规划意图；排版和上下文多纳入计划维度。\n`,
+  review: `\n工作台模式：用户当前在「review（复盘）」视图下。优先匹配 evaluate_plan / weekly_review / query_progress；上下文会提供更多 AgentRun 和 PlanReview。\n`,
+  timeline: `\n工作台模式：用户当前在「timeline（时间线）」视图下。优先匹配 compose_timeline_event / add_completion_note；关注时间线完整性与叙事一致性。\n`,
+};
+
+const formatWorkbenchModeHint = (workbenchMode?: AgentWorkbenchMode | null) => {
+  if (!workbenchMode) {
+    return "";
+  }
+
+  return workbenchModeIntentHints[workbenchMode] ?? "";
+};
+
 export const buildAgentSystemPrompt = (context: AgentPromptContext) => `你是 SunnyPanel 的 AI Agent，既能直接回答用户的问题，也能在用户明确要求时管理计划和清单。
 
 当前时间：${context.now}
@@ -384,4 +402,5 @@ ${formatNarrativeGaps(context.narrativeGaps ?? [])}
 
 待处理上下文：
 ${formatPendingAction(context.pendingAction)}
+${formatWorkbenchModeHint(context.workbenchMode)}
 `;

@@ -47,7 +47,7 @@ const extractMemoryContentFromThread = (thread: AgentThreadDocument) => {
   return normalizeWhitespace(content.replace(/^(请|帮我)?(记住|记一下|以后记得)[:：，,\s]*/, ""));
 };
 
-export const getRelevantMemories = async (query: string, limit = 6) => {
+export const getRelevantMemories = async (query: string, limit = 6, intentHint?: string) => {
   const payload = await getPayloadClient();
   const memories = await payload.find({
     collection: "agent-memories",
@@ -75,7 +75,7 @@ export const getRelevantMemories = async (query: string, limit = 6) => {
   const selected = (memories.docs as AgentMemoryDocument[])
     .map((memory) => ({
       memory,
-      score: scoreAgentMemoryRelevance(memory, query),
+      score: scoreAgentMemoryRelevance(memory, query, intentHint),
     }))
     .filter((item) => !query.trim() || item.score > 0)
     .sort(

@@ -11,7 +11,8 @@ import {
   type AgentThreadSummary,
   type AgentWorkbenchMode,
   type AgentWorkbenchTab,
-} from "@/components/dashboard/AgentWorkbench";
+  type ContextPreferences,
+} from "@/components/dashboard/agent";
 import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
 import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import type {
@@ -34,12 +35,20 @@ const initialMessages: AgentChatMessage[] = [
   },
 ];
 
-const thinkingStatusKeywords = ["解析", "执行", "评估", "处理中", "整理", "生成", "恢复"];
+const thinkingStatusKeywords = [
+  "解析", "执行", "评估", "处理中", "整理", "生成", "恢复",
+  "加载", "分析", "识别", "预检", "确认", "取消", "写入", "组织",
+  "Dry-run", "意图",
+];
 
 const engineLabelMap: Record<AgentChatResponse["engine"], string> = {
   glm: "GLM 解析",
   heuristic: "规则解析",
+  model: "模型解析",
+  openai: "OpenAI 解析",
+  "openai-compatible": "兼容模型解析",
   workflow: "流程接力",
+  zai: "Z.ai 解析",
 };
 
 const getTokenUsageFromData = (data: unknown): AgentTokenUsage | null => {
@@ -78,7 +87,7 @@ const parseStreamBlock = (block: string) => {
   }
 };
 
-type AgentChatPanelProps = {
+export type AgentChatPanelProps = {
   fullConsoleHref?: string;
   initialThreadId?: number;
   quickPrompts?: AgentQuickPrompt[];
@@ -115,6 +124,10 @@ export function AgentChatPanel({
       contextTokens: estimateMessagesTokenCount(initialMessages),
     }),
   );
+  const [lastRollbackPayload, setLastRollbackPayload] = useState<unknown | null>(null);
+  const [artifactsRollbackBusy, setArtifactsRollbackBusy] = useState(false);
+  const [artifactsRollbackError, setArtifactsRollbackError] = useState<string | null>(null);
+  const [contextPreferences, setContextPreferences] = useState<ContextPreferences>({ excluded: [], pinned: [] });
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const inputTokenEstimate = estimateTokenCount(input);
   const isThinking = isSubmitting && streamingState !== "responding";
@@ -164,6 +177,8 @@ export function AgentChatPanel({
         }),
       );
       setTraceSteps([]);
+      setLastRollbackPayload(null);
+      setArtifactsRollbackError(null);
       if (!options?.preserveInspector) {
         setActiveInspectorTab(data.selectedThread.pendingAction?.type === "await_confirmation" ? "changes" : "context");
       }
@@ -377,18 +392,39 @@ export function AgentChatPanel({
     return doneData;
   };
 
-  const sendMessage = async (message: string) => {
+  const abortRef = useRef<AbortController | null>(null);
+
+  const stopGeneration = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }, []);
+
+  const sendMessage = async (
+    message: string,
+    options?: {
+      confirmation?: {
+        actionId: string;
+        type: "cancel" | "confirm";
+      };
+    },
+  ) => {
     const nextMessage = message.trim();
 
     if (!nextMessage || isSubmitting) {
       return;
     }
 
+    abortRef.current?.abort();
+    const controller = new AbortController();
+
+    abortRef.current = controller;
+
     const nextHistory = [...messages, { content: nextMessage, role: "user" as const }];
 
     setIsSubmitting(true);
     setInput("");
     setErrorMessage(null);
+    setArtifactsRollbackError(null);
     setMessages(nextHistory);
     setStatusText("正在让 Agent 解析并执行...");
     setStreamingState("thinking");
@@ -403,18 +439,23 @@ export function AgentChatPanel({
     );
 
     try {
+      const hasPreferences = contextPreferences.pinned.length > 0 || contextPreferences.excluded.length > 0;
       const response = await fetch("/api/agent/chat", {
         body: JSON.stringify({
+          confirmation: options?.confirmation,
+          ...(hasPreferences ? { contextPreferences } : {}),
           message: nextMessage,
           messages: nextHistory,
           pendingAction,
           stream: true,
           threadId,
+          workbenchMode,
         }),
         headers: {
           "Content-Type": "application/json",
         },
         method: "POST",
+        signal: controller.signal,
       });
       const isStreamingResponse = response.headers.get("Content-Type")?.includes("text/event-stream");
       const data = isStreamingResponse
@@ -440,6 +481,11 @@ export function AgentChatPanel({
       }
 
       setPendingAction(responseData.pendingAction ?? null);
+      setLastRollbackPayload(
+        "lastRollbackPayload" in responseData && responseData.lastRollbackPayload !== undefined
+          ? responseData.lastRollbackPayload
+          : null,
+      );
       setTraceSteps(responseData.trace ?? []);
       setThreadId(typeof responseData.threadId === "number" ? responseData.threadId : threadId);
       if (responseData.pendingAction?.type === "await_confirmation") {
@@ -456,6 +502,12 @@ export function AgentChatPanel({
         preserveInspector: true,
       });
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setStatusText("已停止生成");
+        setStreamingState("idle");
+        return;
+      }
+
       const messageText = error instanceof Error ? error.message : "Agent 请求失败。";
 
       setErrorMessage(messageText);
@@ -472,23 +524,63 @@ export function AgentChatPanel({
         },
       ]);
     } finally {
+      abortRef.current = null;
       setIsSubmitting(false);
     }
   };
 
+  useEffect(() => {
+    if (pendingAction?.type !== "await_confirmation") {
+      return;
+    }
+
+    const action = pendingAction.action;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      void sendMessage("取消", {
+        confirmation: {
+          actionId: action.id,
+          type: "cancel",
+        },
+      });
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在待确认状态变化时重绑；sendMessage 每帧更新会导致无意义抖动
+  }, [pendingAction]);
+
   const updateSuggestionStatus = async (id: number, action: "accept" | "dismiss" | "done") => {
+    const previous = inboxSuggestions;
+
     setInboxSuggestions((current) => current.filter((suggestion) => suggestion.id !== id));
 
-    await fetch("/api/agent/suggestions", {
-      body: JSON.stringify({
-        action,
-        id,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "PATCH",
-    });
+    try {
+      const response = await fetch("/api/agent/suggestions", {
+        body: JSON.stringify({
+          action,
+          id,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "PATCH",
+      });
+
+      if (!response.ok) {
+        throw new Error(`PATCH failed: ${response.status}`);
+      }
+    } catch {
+      setInboxSuggestions(previous);
+      setErrorMessage("操作建议更新失败，已恢复。");
+    }
   };
 
   const runSuggestion = async (suggestion: AgentInboxSuggestion) => {
@@ -503,6 +595,8 @@ export function AgentChatPanel({
     setStatusText("已开启新任务");
     setStreamingState("idle");
     setTraceSteps([]);
+    setLastRollbackPayload(null);
+    setArtifactsRollbackError(null);
     setActiveWorkbenchTab("timeline");
     setInput("");
     setErrorMessage(null);
@@ -523,10 +617,36 @@ export function AgentChatPanel({
   };
 
   const confirmApproval = () => {
+    const action = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
+
+    if (action) {
+      void sendMessage("确认", {
+        confirmation: {
+          actionId: action.id,
+          type: "confirm",
+        },
+      });
+
+      return;
+    }
+
     void sendMessage("确认");
   };
 
   const cancelApproval = () => {
+    const action = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
+
+    if (action) {
+      void sendMessage("取消", {
+        confirmation: {
+          actionId: action.id,
+          type: "cancel",
+        },
+      });
+
+      return;
+    }
+
     void sendMessage("取消");
   };
 
@@ -541,6 +661,63 @@ export function AgentChatPanel({
     setInput(prompt);
     setStatusText("可以先取消当前提案，再描述你要调整的地方");
   };
+
+  const toggleContextPin = useCallback((key: string) => {
+    setContextPreferences((prev) => {
+      const isPinned = prev.pinned.includes(key);
+
+      return {
+        excluded: isPinned ? prev.excluded : prev.excluded.filter((k) => k !== key),
+        pinned: isPinned ? prev.pinned.filter((k) => k !== key) : [...prev.pinned, key],
+      };
+    });
+  }, []);
+
+  const toggleContextExclude = useCallback((key: string) => {
+    setContextPreferences((prev) => {
+      const isExcluded = prev.excluded.includes(key);
+
+      return {
+        excluded: isExcluded ? prev.excluded.filter((k) => k !== key) : [...prev.excluded, key],
+        pinned: isExcluded ? prev.pinned : prev.pinned.filter((k) => k !== key),
+      };
+    });
+  }, []);
+
+  const runArtifactsRollback = useCallback(async () => {
+    if (!lastRollbackPayload) {
+      return;
+    }
+
+    setArtifactsRollbackBusy(true);
+    setArtifactsRollbackError(null);
+
+    try {
+      const res = await fetch("/api/agent/rollback", {
+        body: JSON.stringify({ rollbackPayload: lastRollbackPayload }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const data = (await res.json()) as { message?: string; result?: { auditWarning?: string } };
+
+      if (!res.ok) {
+        throw new Error(typeof data.message === "string" ? data.message : "回滚失败");
+      }
+
+      if (typeof data.result?.auditWarning === "string" && data.result.auditWarning.length > 0) {
+        setStatusText(`已撤销；审计提示：${data.result.auditWarning}`);
+      }
+
+      setLastRollbackPayload(null);
+      await loadThread(threadId ?? undefined, { preserveInspector: true });
+    } catch (error) {
+      setArtifactsRollbackError(error instanceof Error ? error.message : "回滚失败");
+    } finally {
+      setArtifactsRollbackBusy(false);
+    }
+  }, [lastRollbackPayload, loadThread, threadId]);
 
   const loadExistingThread = (nextThreadId: number) => {
     void loadThread(nextThreadId);
@@ -579,16 +756,21 @@ export function AgentChatPanel({
     <AgentWorkbench
       activeInspectorTab={activeInspectorTab}
       activeTab={activeWorkbenchTab}
+      artifactsRollbackBusy={artifactsRollbackBusy}
+      artifactsRollbackError={artifactsRollbackError}
+      contextPreferences={contextPreferences}
       errorMessage={errorMessage}
       inboxSuggestions={inboxSuggestions}
       input={input}
       inputTokenEstimate={inputTokenEstimate}
       isSubmitting={isSubmitting}
       isThinking={isThinking}
+      lastRollbackPayload={lastRollbackPayload}
       messages={messages}
       mode={workbenchMode}
       onActiveInspectorTabChange={setActiveInspectorTab}
       onActiveTabChange={setActiveWorkbenchTab}
+      onArtifactsRollback={runArtifactsRollback}
       onCancelApproval={cancelApproval}
       onEditApproval={editApproval}
       onConfirmApproval={confirmApproval}
@@ -598,7 +780,10 @@ export function AgentChatPanel({
       onNewThread={resetThread}
       onRunPrompt={runPrompt}
       onRunSuggestion={runInboxSuggestion}
+      onStop={stopGeneration}
       onSubmit={submitInput}
+      onToggleContextExclude={toggleContextExclude}
+      onToggleContextPin={toggleContextPin}
       pendingAction={pendingAction}
       quickPrompts={quickPrompts}
       recentRuns={recentRuns}

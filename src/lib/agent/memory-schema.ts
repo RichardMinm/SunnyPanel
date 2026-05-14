@@ -194,8 +194,44 @@ export const validateAgentMemoryData = (value: unknown): AgentMemoryWriteData =>
   };
 };
 
-export const scoreAgentMemoryRelevance = (memory: Pick<AgentMemoryDraft, "content" | "title" | "type">, query: string) =>
-  scoreTextMatch(`${memory.title} ${memory.type} ${memory.content}`, query);
+const chineseStopwords = new Set([
+  "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一",
+  "个", "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有",
+  "看", "好", "自己", "这", "他", "她", "它", "们", "那", "能", "下", "过",
+  "吗", "吧", "呢", "啊", "把", "被", "让", "给", "从", "向", "对", "还",
+  "可以", "已经", "什么", "这个", "那个", "什么", "怎么", "哪个", "哪些",
+]);
+
+const removeStopwords = (text: string): string =>
+  text.split(/\s+/).filter((word) => !chineseStopwords.has(word)).join(" ");
+
+const intentTypeRelevanceMap: Partial<Record<string, AgentMemoryType[]>> = {
+  compose_plan: ["workflow_rule", "project_context"],
+  compose_schedule_item: ["workflow_rule", "preference"],
+  create_plan: ["workflow_rule", "project_context"],
+  evaluate_plan: ["project_context", "fact"],
+  save_memory: ["preference", "workflow_rule"],
+  weekly_review: ["project_context", "workflow_rule"],
+};
+
+export const scoreAgentMemoryRelevance = (
+  memory: Pick<AgentMemoryDraft, "content" | "title" | "type">,
+  query: string,
+  intentHint?: string,
+) => {
+  const cleanedQuery = removeStopwords(query);
+  let score = scoreTextMatch(`${memory.title} ${memory.type} ${memory.content}`, cleanedQuery || query);
+
+  if (intentHint) {
+    const relevantTypes = intentTypeRelevanceMap[intentHint];
+
+    if (relevantTypes?.includes(memory.type)) {
+      score += 8;
+    }
+  }
+
+  return score;
+};
 
 export const inferAgentMemoryType = (content: string): AgentMemoryType => {
   if (/(风格|语气|口吻|写作|文案)/.test(content)) {

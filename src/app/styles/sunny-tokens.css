@@ -1,0 +1,101 @@
+/**
+ * 设计令牌：浅色 / 深色主题 CSS 变量（含 Agent 工作台专用变量）。
+ * 须在 @theme inline 之前由入口样式表导入。
+ */
+
+:root {
+  --site-scale: 0.92;
+  --background: #f3efe7;
+  --foreground: #18222c;
+  --surface: rgba(255, 252, 248, 0.88);
+  --surface-strong: rgba(255, 250, 244, 0.96);
+  --surface-tint: rgba(248, 241, 232, 0.82);
+  --border: rgba(24, 34, 44, 0.12);
+  --accent: #d36b2d;
+  --accent-strong: #8f3510;
+  --accent-soft: rgba(211, 107, 45, 0.14);
+  --accent-cool: rgba(65, 127, 117, 0.12);
+  --muted: #6c726b;
+  --tone-accent-bg: rgba(211, 107, 45, 0.14);
+  --tone-accent-border: rgba(211, 107, 45, 0.24);
+  --tone-accent-text: #8f3510;
+  --tone-success-bg: rgba(62, 142, 92, 0.12);
+  --tone-success-border: rgba(62, 142, 92, 0.22);
+  --tone-success-text: #2f7d4d;
+  --tone-warning-bg: rgba(213, 139, 32, 0.14);
+  --tone-warning-border: rgba(213, 139, 32, 0.28);
+  --tone-warning-text: #8a520f;
+  --tone-danger-bg: rgba(202, 72, 72, 0.12);
+  --tone-danger-border: rgba(202, 72, 72, 0.24);
+  --tone-danger-text: #a33b3b;
+  --tone-info-bg: rgba(58, 126, 160, 0.12);
+  --tone-info-border: rgba(58, 126, 160, 0.22);
+  --tone-info-text: #2f6f8d;
+  --tone-neutral-bg: rgba(132, 124, 112, 0.14);
+  --tone-neutral-border: rgba(132, 124, 112, 0.2);
+  --tone-neutral-text: #635f57;
+  --sunny-font-sans: "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  --sunny-font-mono: "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  --sunny-font-display: var(--sunny-font-sans);
+  /* Agent workbench: spacing / radii / column widths (used by .sunny-agent-*) */
+  --agent-gap-xs: 0.35rem;
+  --agent-gap-sm: 0.45rem;
+  --agent-gap-md: 0.65rem;
+  --agent-gap-lg: 0.75rem;
+  --agent-radius-shell: 1rem;
+  --agent-radius-panel: 0.75rem;
+  --agent-radius-control: 0.48rem;
+  --agent-rail-width: 15rem;
+  --agent-inspector-width: 18.75rem;
+  --agent-min-height: 42rem;
+  /* 断点：宽屏三栏（侧栏 / 主栏 / Inspector）；1180↓ Inspector 折行；820↓ 单栏堆叠 */
+  --agent-shadow-shell: 0 20px 48px rgba(24, 34, 44, 0.07);
+  --agent-surface-elevated: rgba(255, 252, 247, 0.78);
+  --agent-risk-high-bg: var(--tone-danger-bg);
+  --agent-risk-high-border: var(--tone-danger-border);
+  --agent-risk-medium-bg: var(--tone-warning-bg);
+  --agent-risk-medium-border: var(--tone-warning-border);
+  --agent-risk-low-bg: var(--tone-success-bg);
+  --agent-risk-low-border: var(--tone-success-border);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #11161b;
+  --foreground: #fff6ea;
+  --surface: rgba(27, 33, 40, 0.9);
+  --surface-strong: rgba(22, 27, 33, 0.97);
+  --surface-tint: rgba(25, 31, 38, 0.94);
+  --border: rgba(255, 244, 227, 0.16);
+  --accent: #ee9b61;
+  --accent-strong: #ffd0a7;
+  --accent-soft: rgba(224, 138, 77, 0.18);
+  --accent-cool: rgba(102, 171, 156, 0.18);
+  --muted: #d4cdc1;
+  --tone-accent-bg: rgba(238, 155, 97, 0.18);
+  --tone-accent-border: rgba(238, 155, 97, 0.32);
+  --tone-accent-text: #ffd0a7;
+  --tone-success-bg: rgba(111, 194, 138, 0.16);
+  --tone-success-border: rgba(111, 194, 138, 0.28);
+  --tone-success-text: #a8e4b6;
+  --tone-warning-bg: rgba(232, 166, 67, 0.18);
+  --tone-warning-border: rgba(232, 166, 67, 0.32);
+  --tone-warning-text: #ffd189;
+  --tone-danger-bg: rgba(231, 102, 102, 0.18);
+  --tone-danger-border: rgba(231, 102, 102, 0.32);
+  --tone-danger-text: #ffb5b5;
+  --tone-info-bg: rgba(110, 174, 207, 0.16);
+  --tone-info-border: rgba(110, 174, 207, 0.28);
+  --tone-info-text: #a9ddf5;
+  --tone-neutral-bg: rgba(255, 244, 227, 0.1);
+  --tone-neutral-border: rgba(255, 244, 227, 0.16);
+  --tone-neutral-text: #e7dccd;
+  --agent-risk-high-bg: var(--tone-danger-bg);
+  --agent-risk-high-border: var(--tone-danger-border);
+  --agent-risk-medium-bg: var(--tone-warning-bg);
+  --agent-risk-medium-border: var(--tone-warning-border);
+  --agent-risk-low-bg: var(--tone-success-bg);
+  --agent-risk-low-border: var(--tone-success-border);
+  --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.35);
+  --agent-surface-elevated: rgba(28, 34, 41, 0.92);
+}

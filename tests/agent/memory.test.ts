@@ -52,3 +52,46 @@ test("scores relevant memory higher than unrelated memory", () => {
 
   assert.equal(relevant > unrelated, true);
 });
+
+test("intent hint boosts memory type relevance", () => {
+  const withoutHint = scoreAgentMemoryRelevance(
+    {
+      content: "创建计划时优先考虑截止日期",
+      title: "计划规则",
+      type: "workflow_rule",
+    },
+    "创建一个新计划",
+  );
+  const withHint = scoreAgentMemoryRelevance(
+    {
+      content: "创建计划时优先考虑截止日期",
+      title: "计划规则",
+      type: "workflow_rule",
+    },
+    "创建一个新计划",
+    "create_plan",
+  );
+
+  assert.ok(withHint > withoutHint, "intent hint should boost score for matching memory type");
+});
+
+test("stopwords filtering prevents noise tokens from inflating scores", () => {
+  const scoreWithStopwords = scoreAgentMemoryRelevance(
+    {
+      content: "关于技术栈的说明",
+      title: "技术选型",
+      type: "fact",
+    },
+    "我的计划是什么",
+  );
+  const scoreWithContent = scoreAgentMemoryRelevance(
+    {
+      content: "关于技术栈的说明",
+      title: "技术选型",
+      type: "fact",
+    },
+    "技术栈选择",
+  );
+
+  assert.ok(scoreWithContent > scoreWithStopwords, "content match should score higher than stopword-heavy query");
+});

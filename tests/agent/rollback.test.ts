@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createProposedAgentAction } from "../../src/lib/agent/safety";
+import { isRollbackPayloadExecutable, parseRollbackPayload } from "../../src/lib/agent/rollback-parse";
 import type { AgentToolDryRunContext } from "../../src/lib/agent/tool-registry";
 
 const fakeChecklist = {
@@ -97,4 +98,112 @@ test("rollback payload generated for update", async () => {
       documentId: 101,
     },
   });
+});
+
+test("parseRollbackPayload reads delete_created_document", () => {
+  const parsed = parseRollbackPayload({
+    reason: "test",
+    strategy: "delete_created_document",
+    target: {
+      collection: "plans",
+      documentId: 42,
+    },
+  });
+
+  assert.ok(parsed);
+  assert.equal(parsed.reason, "test");
+  assert.equal(parsed.strategy, "delete_created_document");
+  assert.equal(parsed.target?.collection, "plans");
+  assert.equal(parsed.target?.documentId, 42);
+});
+
+test("isRollbackPayloadExecutable matches supported delete flows", () => {
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "delete_created_document",
+      target: { collection: "plans", documentId: 1 },
+    }),
+    true,
+  );
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "delete_created_document",
+      target: { collection: "schedule-items", documentId: 2 },
+    }),
+    true,
+  );
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "delete_created_timeline_event",
+      target: { collection: "timeline-events", documentId: 3 },
+    }),
+    true,
+  );
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "delete_created_document",
+      target: { collection: "plans", documentId: null },
+    }),
+    false,
+  );
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "restore_checklist_groups",
+      target: { collection: "checklists", documentId: 101 },
+    }),
+    false,
+    "restore_checklist_groups without beforeSnapshot is not executable",
+  );
+});
+
+test("archive_created_memory is executable with documentId", () => {
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "archive_created_memory",
+      target: { collection: "agent-memories", documentId: 5 },
+    }),
+    true,
+  );
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "archive_created_memory",
+      target: { collection: "agent-memories", documentId: null },
+    }),
+    false,
+  );
+});
+
+test("restore_checklist_groups is executable with beforeSnapshot", () => {
+  assert.equal(
+    isRollbackPayloadExecutable({
+      beforeSnapshot: { groups: [] },
+      strategy: "restore_checklist_groups",
+      target: { collection: "checklists", documentId: 101 },
+    }),
+    true,
+  );
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "restore_checklist_groups",
+      target: { collection: "checklists", documentId: 101 },
+    }),
+    false,
+    "without beforeSnapshot",
+  );
+});
+
+test("parseRollbackPayload reads beforeSnapshot and extended target fields", () => {
+  const parsed = parseRollbackPayload({
+    beforeSnapshot: { groups: [{ title: "test" }] },
+    strategy: "restore_checklist_groups",
+    target: {
+      collection: "checklists",
+      documentId: 101,
+    },
+  });
+
+  assert.ok(parsed);
+  assert.equal(parsed.strategy, "restore_checklist_groups");
+  assert.ok(parsed.beforeSnapshot);
+  assert.deepEqual((parsed.beforeSnapshot as Record<string, unknown>).groups, [{ title: "test" }]);
 });

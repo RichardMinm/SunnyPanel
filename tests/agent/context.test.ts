@@ -271,3 +271,56 @@ test("resolved intent can override message keyword mode", () => {
     "progress",
   );
 });
+
+test("message relevance sorts plans by keyword match", () => {
+  const multiPlanSource: AgentContextSource = {
+    ...source,
+    plans: [
+      { id: 1, priority: "medium", state: "active", title: "英语学习计划", updatedAt: "2026-05-01T00:00:00.000Z" },
+      { id: 2, priority: "medium", state: "active", title: "高等数学复习路径", updatedAt: "2026-05-02T00:00:00.000Z" },
+      { id: 3, priority: "medium", state: "active", title: "计算机组成原理", updatedAt: "2026-05-03T00:00:00.000Z" },
+    ],
+  };
+  const context = buildAgentContext({
+    budget: { ...budget, maxPlans: 3 },
+    message: "高等数学这边还有什么要推进的",
+    pendingAction: null,
+    source: multiPlanSource,
+  });
+
+  assert.equal(context.plans[0]?.title, "高等数学复习路径");
+});
+
+test("intent budget boost increases limits for compose_plan", () => {
+  const context = buildAgentContext({
+    budget,
+    message: "制定一个计划",
+    pendingAction: null,
+    resolvedIntent: { args: { sourceText: "测试" }, confidence: 0.72, intent: "compose_plan" },
+    source,
+  });
+
+  assert.ok(
+    (context.contextStats?.budget?.maxPlans ?? 0) >= budget.maxPlans + 2,
+    "compose_plan should boost maxPlans",
+  );
+});
+
+test("intent budget boost increases limits for weekly_review", () => {
+  const context = buildAgentContext({
+    budget,
+    message: "生成本周回顾",
+    pendingAction: null,
+    resolvedIntent: { args: { createSuggestions: true, persistReview: true }, confidence: 0.72, intent: "weekly_review" },
+    source,
+  });
+
+  assert.ok(
+    (context.contextStats?.budget?.maxAgentRuns ?? 0) >= budget.maxAgentRuns + 3,
+    "weekly_review should boost maxAgentRuns",
+  );
+  assert.ok(
+    (context.contextStats?.budget?.maxPlanReviews ?? 0) >= budget.maxPlanReviews + 3,
+    "weekly_review should boost maxPlanReviews",
+  );
+});

@@ -742,7 +742,7 @@ export interface AgentThread {
         | 'clarify'
       )
     | null;
-  lastEngine?: ('glm' | 'heuristic' | 'workflow') | null;
+  lastEngine?: ('glm' | 'openai' | 'zai' | 'heuristic' | 'workflow') | null;
   lastConfidence?: number | null;
   lastInteractionAt?: string | null;
   updatedAt: string;

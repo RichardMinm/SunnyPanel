@@ -1,5 +1,6 @@
 import type { AgentPromptContext } from "./prompts";
 import type { AgentIntent, PendingAction } from "./schemas";
+import type { AgentWorkbenchMode } from "./workbench-mode";
 
 export type AgentContextMode = "planning" | "content" | "timeline" | "review" | "progress" | "general";
 
@@ -194,6 +195,50 @@ const stateWeightByMode: Record<AgentContextMode, Record<string, number>> = {
 const includesAny = (value: string, keywords: string[]) =>
   keywords.some((keyword) => value.includes(keyword));
 
+const normalizeForRelevance = (value: string) =>
+  value.toLowerCase().replace(/[\s\-_/·，。！？、:：；;（）()]/g, "");
+
+const scoreTextRelevance = (candidate: string, query: string): number => {
+  if (!candidate || !query) {
+    return 0;
+  }
+
+  const normalizedCandidate = normalizeForRelevance(candidate);
+  const normalizedQuery = normalizeForRelevance(query);
+
+  if (!normalizedCandidate || !normalizedQuery) {
+    return 0;
+  }
+
+  if (normalizedCandidate === normalizedQuery) {
+    return 100;
+  }
+
+  if (normalizedCandidate.includes(normalizedQuery) || normalizedQuery.includes(normalizedCandidate)) {
+    return 70;
+  }
+
+  const queryTokens = query
+    .toLowerCase()
+    .split(/[\s,，.。;；:：!?！？/\\_-]+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2);
+
+  let score = queryTokens.reduce(
+    (s, token) => s + (candidate.toLowerCase().includes(token) ? 12 : 0),
+    0,
+  );
+
+  const bigramScore = Array.from(
+    { length: Math.max(0, normalizedQuery.length - 1) },
+    (_, i) => normalizedQuery.slice(i, i + 2),
+  ).reduce((s, bigram) => s + (normalizedCandidate.includes(bigram) ? 3 : 0), 0);
+
+  score += bigramScore;
+
+  return score;
+};
+
 const timestampOf = (value: null | string | undefined) => {
   if (!value) {
     return 0;
@@ -277,17 +322,38 @@ const shouldKeepPlanForMode = (plan: AgentContextPlan, mode: AgentContextMode) =
   return true;
 };
 
-const selectPlans = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget) =>
-  [...(source.plans ?? [])]
-    .filter((plan) => shouldKeepPlanForMode(plan, mode))
-    .sort(sortPlansForMode(mode))
-    .slice(0, budget.maxPlans);
+const selectPlans = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget, message?: string) => {
+  const filtered = [...(source.plans ?? [])].filter((plan) => shouldKeepPlanForMode(plan, mode));
 
-const selectChecklists = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget) => {
+  if (message) {
+    const scored = filtered.map((plan) => ({
+      plan,
+      relevance: scoreTextRelevance(`${plan.title} ${plan.description ?? ""}`, message),
+    }));
+    scored.sort((a, b) => b.relevance - a.relevance || sortPlansForMode(mode)(a.plan, b.plan));
+
+    return scored.map((item) => item.plan).slice(0, budget.maxPlans);
+  }
+
+  return filtered.sort(sortPlansForMode(mode)).slice(0, budget.maxPlans);
+};
+
+const selectChecklists = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget, message?: string) => {
   const limit = Math.max(4, Math.min(12, budget.maxContentItems));
-  const checklists = [...(source.checklists ?? [])].sort(
-    (left, right) => timestampOf(right.updatedAt) - timestampOf(left.updatedAt),
-  );
+  const checklists = [...(source.checklists ?? [])];
+
+  if (message) {
+    const scored = checklists.map((checklist) => ({
+      checklist,
+      relevance: scoreTextRelevance(
+        `${checklist.title} ${checklist.summary ?? ""} ${(checklist.groups ?? []).map((g) => g.title).join(" ")}`,
+        message,
+      ),
+    }));
+    scored.sort((a, b) => b.relevance - a.relevance || timestampOf(b.checklist.updatedAt) - timestampOf(a.checklist.updatedAt));
+
+    return scored.map((item) => item.checklist).slice(0, limit);
+  }
 
   if (mode === "progress" || mode === "review") {
     return checklists
@@ -300,11 +366,23 @@ const selectChecklists = (source: AgentContextSource, mode: AgentContextMode, bu
       .slice(0, limit);
   }
 
-  return checklists.slice(0, limit);
+  return checklists
+    .sort((left, right) => timestampOf(right.updatedAt) - timestampOf(left.updatedAt))
+    .slice(0, limit);
 };
 
-const selectContentItems = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget) => {
+const selectContentItems = (source: AgentContextSource, mode: AgentContextMode, budget: AgentContextBudget, message?: string) => {
   const contentItems = [...(source.contentItems ?? [])];
+
+  if (message) {
+    const scored = contentItems.map((item) => ({
+      item,
+      relevance: scoreTextRelevance(`${item.title} ${item.summary ?? ""}`, message),
+    }));
+    scored.sort((a, b) => b.relevance - a.relevance || sortContentItems(a.item, b.item));
+
+    return scored.map((s) => s.item).slice(0, budget.maxContentItems);
+  }
 
   if (mode === "content") {
     return contentItems
@@ -571,38 +649,155 @@ export const resolveAgentContextMode = ({
   return "general";
 };
 
+const applyWorkbenchModeBudget = (
+  budget: AgentContextBudget,
+  workbenchMode: AgentWorkbenchMode | null,
+): AgentContextBudget => {
+  switch (workbenchMode) {
+    case "timeline":
+      return {
+        ...budget,
+        maxTimelineEvents: Math.min(48, budget.maxTimelineEvents + 8),
+      };
+    case "plan":
+    case "execute":
+      return {
+        ...budget,
+        maxPlanReviews: Math.min(12, budget.maxPlanReviews + 3),
+        maxPlans: Math.min(24, budget.maxPlans + 4),
+      };
+    case "review":
+      return {
+        ...budget,
+        maxAgentRuns: Math.min(12, budget.maxAgentRuns + 4),
+        maxPlanReviews: Math.min(12, budget.maxPlanReviews + 4),
+      };
+    default:
+      return budget;
+  }
+};
+
+const applyIntentBudgetBoost = (
+  budget: AgentContextBudget,
+  intent: AgentIntent["intent"] | null | undefined,
+): AgentContextBudget => {
+  switch (intent) {
+    case "create_plan":
+    case "compose_plan":
+      return { ...budget, maxPlans: Math.min(24, budget.maxPlans + 2) };
+    case "compose_timeline_event":
+      return { ...budget, maxTimelineEvents: Math.min(48, budget.maxTimelineEvents + 4) };
+    case "weekly_review":
+      return {
+        ...budget,
+        maxAgentRuns: Math.min(12, budget.maxAgentRuns + 3),
+        maxPlanReviews: Math.min(12, budget.maxPlanReviews + 3),
+      };
+    case "evaluate_plan":
+      return { ...budget, maxPlanReviews: Math.min(12, budget.maxPlanReviews + 2) };
+    case "query_progress":
+      return { ...budget, maxContentItems: Math.min(20, budget.maxContentItems + 4) };
+    default:
+      return budget;
+  }
+};
+
+export type ContextPreferencesInput = {
+  excluded: string[];
+  pinned: string[];
+};
+
 export const buildAgentContext = ({
   budget = DEFAULT_AGENT_CONTEXT_BUDGET,
+  contextPreferences,
   message,
   pendingAction,
   resolvedIntent,
   source,
+  workbenchMode,
 }: {
   budget?: AgentContextBudget;
+  contextPreferences?: ContextPreferencesInput;
   message: string;
   pendingAction: null | PendingAction;
   resolvedIntent?: AgentIntent | null;
   source: AgentContextSource;
+  workbenchMode?: AgentWorkbenchMode | null;
 }): AgentPromptContext => {
-  const mode = resolveAgentContextMode({
+  const inferredMode = resolveAgentContextMode({
     intent: resolvedIntent,
     message,
   });
-  const plans = selectPlans(source, mode, budget);
-  const checklists = selectChecklists(source, mode, budget);
-  const contentItems = selectContentItems(source, mode, budget);
-  const timelineEvents = selectTimelineEvents(source, mode, budget);
-  const timelineCandidates = deriveTimelineCandidates(source).slice(0, budget.maxContentItems);
-  const agentRuns = selectAgentRuns(source, mode, budget);
-  const planReviews = selectPlanReviews(source, mode, budget);
-  const memories = selectMemories(source, budget);
+  const mode =
+    workbenchMode === "plan" || workbenchMode === "execute"
+      ? "planning"
+      : workbenchMode === "review"
+        ? "review"
+        : workbenchMode === "timeline"
+          ? "timeline"
+          : workbenchMode === "ask"
+            ? "general"
+            : inferredMode;
+
+  const modeBudget = applyWorkbenchModeBudget(budget, workbenchMode ?? null);
+  const effectiveBudget = applyIntentBudgetBoost(modeBudget, resolvedIntent?.intent);
+
+  const rawPlans = selectPlans(source, mode, effectiveBudget, message);
+  const rawChecklists = selectChecklists(source, mode, effectiveBudget, message);
+  const rawMemories = selectMemories(source, effectiveBudget);
+
+  const applyPreferences = <T extends { id?: null | number; title?: string }>(
+    items: T[],
+    keyPrefix: string,
+  ): T[] => {
+    if (!contextPreferences) {
+      return items;
+    }
+
+    const filtered = items.filter((_, i) => !contextPreferences.excluded.includes(`${keyPrefix}:${i}`));
+    const pinnedKeys = new Set(contextPreferences.pinned.filter((k) => k.startsWith(`${keyPrefix}:`)));
+
+    if (pinnedKeys.size === 0) {
+      return filtered;
+    }
+
+    const pinned: T[] = [];
+    const rest: T[] = [];
+
+    for (const [i, item] of items.entries()) {
+      if (pinnedKeys.has(`${keyPrefix}:${i}`)) {
+        pinned.push(item);
+      } else if (!contextPreferences.excluded.includes(`${keyPrefix}:${i}`)) {
+        rest.push(item);
+      }
+    }
+
+    return [...pinned, ...rest];
+  };
+
+  const applyMemoryPreferences = <T extends { title: string }>(items: T[]): T[] => {
+    if (!contextPreferences) {
+      return items;
+    }
+
+    return items.filter((item) => !contextPreferences.excluded.includes(`memory:${item.title}`));
+  };
+
+  const plans = applyPreferences(rawPlans, "plan");
+  const checklists = applyPreferences(rawChecklists, "checklist");
+  const memories = applyMemoryPreferences(rawMemories);
+  const contentItems = selectContentItems(source, mode, effectiveBudget, message);
+  const timelineEvents = selectTimelineEvents(source, mode, effectiveBudget);
+  const timelineCandidates = deriveTimelineCandidates(source).slice(0, effectiveBudget.maxContentItems);
+  const agentRuns = selectAgentRuns(source, mode, effectiveBudget);
+  const planReviews = selectPlanReviews(source, mode, effectiveBudget);
 
   return {
     agentRuns: agentRuns.map(toPromptAgentRun),
     checklists: checklists.map(toPromptChecklist),
     contentItems: contentItems.map(toPromptContentItem),
     contextStats: {
-      budget,
+      budget: effectiveBudget,
       included: {
         agentRuns: agentRuns.length,
         checklists: checklists.length,
@@ -637,5 +832,6 @@ export const buildAgentContext = ({
     plans: plans.map(toPromptPlan),
     timelineCandidates: timelineCandidates.map(toPromptContentItem),
     timelineEvents: timelineEvents.map(toPromptTimelineEvent),
+    workbenchMode: workbenchMode ?? undefined,
   };
 };
