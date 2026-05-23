@@ -8,6 +8,12 @@ export const isNegativeReply = (message: string) => {
   return negativeReplyKeywords.some((keyword) => normalized.includes(keyword));
 };
 
+export const isExactConfirmationReply = (message: string) => {
+  const normalized = cleanupText(message).replace(/\s+/g, "");
+
+  return confirmationReplyKeywords.includes(normalized);
+};
+
 export const isConfirmationReply = (message: string) => {
   const normalized = cleanupText(message).replace(/\s+/g, "");
 
@@ -22,6 +28,9 @@ export const isConfirmationReply = (message: string) => {
   return confirmationReplyKeywords.some((keyword) => normalized.includes(keyword));
 };
 
+/** 批量确认场景：仅接受精确确认词，避免「好的，再加一条」误触整批执行。 */
+export const isBatchConfirmationReply = (message: string) => isExactConfirmationReply(message);
+
 export const isCancellationReply = (message: string) => {
   const normalized = cleanupText(message).replace(/\s+/g, "");
 
@@ -31,5 +40,10 @@ export const isCancellationReply = (message: string) => {
 export const shouldSkipPendingAction = (
   pendingAction: null | PendingAction,
   message: string,
-): pendingAction is Exclude<PendingAction, { type: "await_confirmation" }> =>
-  Boolean(pendingAction && pendingAction.type !== "await_confirmation" && isNegativeReply(message));
+): pendingAction is Exclude<PendingAction, { type: "await_confirmation" | "await_batch_confirmation" }> =>
+  Boolean(
+    pendingAction &&
+      pendingAction.type !== "await_confirmation" &&
+      pendingAction.type !== "await_batch_confirmation" &&
+      isNegativeReply(message),
+  );

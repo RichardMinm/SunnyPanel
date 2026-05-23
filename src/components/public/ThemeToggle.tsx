@@ -2,42 +2,39 @@
 
 import { useTheme } from "next-themes";
 
-import type { SiteLocale } from "@/lib/site-copy";
-import { getSiteCopy } from "@/lib/site-copy";
+import { SegmentedSwitch } from "@/components/shared/SegmentedSwitch";
+import type { SunnyChromeVariant } from "@/components/shared/segmented-switch-classes";
+import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
 
 type ThemeValue = "dark" | "light" | "system";
 
 const themeOrder: ThemeValue[] = ["light", "dark", "system"];
 
-export function ThemeToggle({ locale }: { locale: SiteLocale }) {
-  const { resolvedTheme, setTheme, theme } = useTheme();
+type ThemeToggleProps = {
+  locale: SiteLocale;
+  variant?: SunnyChromeVariant;
+};
+
+export function ThemeToggle({ locale, variant = "site" }: ThemeToggleProps) {
+  const { setTheme, theme } = useTheme();
   const copy = getSiteCopy(locale);
   const currentTheme = (theme ?? "system") as ThemeValue;
 
   return (
-    <div className="sunny-locale-switch" aria-label={copy.common.themeLabel} role="group">
-      {themeOrder.map((value) => {
-        const isActive =
-          currentTheme === value || (currentTheme === "system" && value === "system" && Boolean(resolvedTheme));
-
-        const label =
+    <SegmentedSwitch
+      ariaLabel={copy.common.themeLabel}
+      onChange={(value) => setTheme(value as ThemeValue)}
+      options={themeOrder.map((value) => ({
+        label:
           value === "light"
             ? copy.common.themeLight
             : value === "dark"
               ? copy.common.themeDark
-              : copy.common.themeSystem;
-
-        return (
-          <button
-            key={value}
-            className={`sunny-locale-option ${isActive ? "sunny-locale-option-active" : ""}`}
-            onClick={() => setTheme(value)}
-            type="button"
-          >
-            {label}
-          </button>
-        );
-      })}
-    </div>
+              : copy.common.themeSystem,
+        value,
+      }))}
+      value={currentTheme}
+      variant={variant}
+    />
   );
 }

@@ -137,7 +137,67 @@ export const markSuggestionDone = async (id: number) => {
 export const syncAgentSuggestionsFromWorkspaceSnapshot = async (snapshot: WorkspaceSnapshot) => {
   const generated = generateSuggestionsFromWorkspaceSnapshot(snapshot);
 
-  await Promise.all(generated.map((suggestion) => upsertSuggestion(suggestion.uniqueKey, suggestion)));
+  if (generated.length === 0) {
+    return;
+  }
+
+  const payload = await getPayloadClient();
+  const uniqueKeys = generated.map((suggestion) => suggestion.uniqueKey);
+  const existing = await payload.find({
+    collection: "agent-suggestions",
+    depth: 0,
+    limit: uniqueKeys.length,
+    overrideAccess: true,
+    pagination: false,
+    where: {
+      uniqueKey: {
+        in: uniqueKeys,
+      },
+    },
+  });
+  const existingByKey = new Map(
+    (existing.docs as AgentSuggestion[]).map((suggestion) => [suggestion.uniqueKey, suggestion]),
+  );
+
+  await Promise.all(
+    generated.map(async (suggestion) => {
+      const existingSuggestion = existingByKey.get(suggestion.uniqueKey);
+
+      if (
+        existingSuggestion?.status === "dismissed" &&
+        !shouldResurfaceDismissedSuggestion({ dismissedAt: existingSuggestion.dismissedAt })
+      ) {
+        return existingSuggestion;
+      }
+
+      if (existingSuggestion?.status === "done" || existingSuggestion?.status === "accepted") {
+        return existingSuggestion;
+      }
+
+      const data = {
+        ...toSuggestionData(suggestion),
+        acceptedAt: null,
+        completedAt: null,
+        dismissedAt: null,
+        status: "pending" as const,
+      };
+
+      if (existingSuggestion) {
+        return payload.update({
+          collection: "agent-suggestions",
+          data,
+          id: existingSuggestion.id,
+          overrideAccess: true,
+        });
+      }
+
+      return payload.create({
+        collection: "agent-suggestions",
+        data: data as never,
+        overrideAccess: true,
+      });
+    }),
+  );
 };
 
 export const getPendingAgentSuggestions = async (limit = 3): Promise<AgentInboxSuggestion[]> => {

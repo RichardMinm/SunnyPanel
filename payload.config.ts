@@ -2,7 +2,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { postgresAdapter } from "@payloadcms/db-postgres";
-import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { en } from "payload/i18n/en";
 import { zh } from "payload/i18n/zh";
 import sharp from "sharp";
@@ -33,6 +32,22 @@ const serverURL = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3000";
 
 export default buildConfig({
   admin: {
+    suppressHydrationWarning: true,
+    theme: "all",
+    components: {
+      providers: ["@/components/admin/SunnyAdminProviders#SunnyAdminProviders"],
+      Nav: "@/components/admin/SunnyAdminNav#SunnyAdminNav",
+      header: ["@/components/admin/SunnyAdminHeader#SunnyAdminHeader"],
+      graphics: {
+        Icon: "@/components/admin/SunnyAdminIcon#SunnyAdminIcon",
+        Logo: "@/components/admin/SunnyAdminLogo#SunnyAdminLogo",
+      },
+      views: {
+        dashboard: {
+          Component: "@/components/admin/SunnyAdminDashboard#SunnyAdminDashboard",
+        },
+      },
+    },
     livePreview: {
       breakpoints: [...livePreviewBreakpoints],
       collections: ["posts", "pages", "notes", "updates", "checklists", "timeline-events"],
@@ -64,8 +79,8 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || "",
     },
+    push: process.env.PAYLOAD_DB_PUSH === "false" ? false : undefined,
   }),
-  editor: lexicalEditor(),
   globals: [AgentSettings],
   graphQL: {
     disablePlaygroundInProduction: true,

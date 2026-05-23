@@ -6,7 +6,7 @@ import { createRunAgentChatPipeline } from "@/lib/agent/chat-pipeline/run-agent-
 import { parseStructuredConfirmation } from "@/lib/agent/chat-pipeline/confirmation-step";
 import { createAgentChatResponse, createAgentChatStream } from "@/lib/agent/chat-pipeline/stream-envelope";
 import { generateIntentWithAgentModel, getAgentIntentModelEngine } from "@/lib/agent/client";
-import { shouldSkipPendingAction } from "@/lib/agent/intent";
+import { isCancellationReply, shouldSkipPendingAction } from "@/lib/agent/intent-resolution";
 import { logAgentEvent } from "@/lib/agent/logger";
 import { parsePendingAction, sanitizeChatMessages } from "@/lib/agent/schemas";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
@@ -22,6 +22,7 @@ import {
   estimateMessagesTokenCount,
   estimateTokenCount,
 } from "@/lib/agent/token-usage";
+import { getUserPreferences } from "@/lib/agent/user-preferences";
 import { getPayloadClient } from "@/lib/payload/client";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -138,6 +139,46 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     inputTokens: estimateTokenCount(message),
   });
 
+  if (
+    pendingAction?.type === "await_batch_confirmation" &&
+    isCancellationReply(message)
+  ) {
+    const assistantMessage = `好的，已取消这 ${pendingAction.actions.length} 项批量待确认操作。你可以重新描述要做的变更。`;
+    const tokenUsage = {
+      ...baseTokenUsage,
+      outputTokens: estimateTokenCount(assistantMessage),
+      totalTokens:
+        baseTokenUsage.contextTokens + baseTokenUsage.inputTokens + estimateTokenCount(assistantMessage),
+    };
+
+    await appendAgentThreadTurn({
+      assistantMessage,
+      confidence: 1,
+      engine: "workflow",
+      intent: "clarify",
+      pendingAction: null,
+      thread,
+      userMessage: message,
+    });
+    logAgentEvent("info", "chat.batch_confirmation_cancelled", {
+      threadId: thread.id,
+      userId: user.id,
+    });
+
+    return createAgentChatResponse(
+      {
+        assistantMessage,
+        confidence: 1,
+        engine: "workflow",
+        intent: "clarify",
+        pendingAction: null,
+        threadId: thread.id,
+        tokenUsage,
+      },
+      shouldStream,
+    );
+  }
+
   if (shouldSkipPendingAction(pendingAction, message)) {
     const assistantMessage =
       pendingAction.type === "await_completion_note"
@@ -178,7 +219,27 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     );
   }
 
+  // Persist the user message to the thread before the pipeline runs.
+  // If the pipeline errors or times out, the message still survives in the DB
+  // instead of vanishing from the conversation.
+  const recordedAt = new Date().toISOString();
+  const persistedMessages = [
+    ...(thread.messages ?? []).map((m) => ({
+      content: m.content,
+      recordedAt: typeof m.recordedAt === "string" ? m.recordedAt : undefined,
+      role: m.role,
+    })),
+    { content: message, recordedAt, role: "user" as const },
+  ].slice(-40);
+  await payload.update({
+    collection: "agent-threads",
+    data: { messages: persistedMessages },
+    id: thread.id,
+    overrideAccess: true,
+  });
+
   const intentModelEngine = await getAgentIntentModelEngine();
+  const userPreferences = await getUserPreferences(user.id);
   const runPipeline = createRunAgentChatPipeline({
     baseTokenUsage,
     contextPreferences,
@@ -191,6 +252,7 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     structuredConfirmation,
     thread,
     user,
+    userPreferences,
     workbenchMode,
   });
 

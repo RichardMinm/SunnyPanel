@@ -9,9 +9,10 @@ type AgentThinkingPanelProps = {
   isThinking: boolean;
   statusLabel: string;
   steps: AgentTraceStep[];
+  thinkingContent?: string;
 };
 
-export function AgentThinkingPanel({ isThinking, statusLabel, steps }: AgentThinkingPanelProps) {
+export function AgentThinkingPanel({ isThinking, statusLabel, steps, thinkingContent }: AgentThinkingPanelProps) {
   const [expanded, setExpanded] = useState(true);
 
   if (!isThinking && steps.length === 0) {
@@ -52,6 +53,13 @@ export function AgentThinkingPanel({ isThinking, statusLabel, steps }: AgentThin
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
+            {thinkingContent ? (
+              <div className="sunny-agent-thinking-inline-content">
+                {thinkingContent.split('\n').filter(Boolean).map((line, i) => (
+                  <p key={i}>{line}</p>
+                ))}
+              </div>
+            ) : null}
             {steps.length > 0 ? (
               steps.map((step, i) => (
                 <motion.div

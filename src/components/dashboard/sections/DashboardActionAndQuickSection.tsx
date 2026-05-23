@@ -16,9 +16,9 @@ export function DashboardActionAndQuickSection({ model }: DashboardActionAndQuic
     <section className="grid gap-5 md:grid-cols-[minmax(0,1.05fr)_minmax(16rem,0.95fr)] md:items-start">
       <div className="sunny-dashboard-card sunny-dashboard-card-quiet sunny-dashboard-action-queue self-start">
         <SectionHeader
-          kicker="行动队列"
-          title="接下来这些"
-          description="主行动已经放在上方，这里只保留第二优先级之后的动作。"
+          kicker="行动"
+          title="接下来"
+          description="主行动在上方，这里列次要项。"
           action={<span className="sunny-dashboard-count">{secondaryActionItems.length} 项</span>}
         />
 
@@ -35,9 +35,9 @@ export function DashboardActionAndQuickSection({ model }: DashboardActionAndQuic
 
       <div className="sunny-dashboard-card sunny-dashboard-quick-card self-start">
         <SectionHeader
-          kicker="快速创建"
-          title="点进去就开始写"
-          description="常用入口压成紧凑动作，减少在 Admin 里找入口的时间。"
+          kicker="快捷"
+          title="新建"
+          description="常用入口。"
           action={<span className="sunny-dashboard-count">快速</span>}
         />
 

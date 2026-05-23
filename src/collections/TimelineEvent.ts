@@ -2,6 +2,7 @@ import type { CollectionConfig } from "payload";
 
 import { adminsOnly, adminsOrPublished, canAccessAdmin } from "../lib/payload/access.ts";
 import { statusField, visibilityField } from "../lib/payload/fields.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const TimelineEvent: CollectionConfig = {
   slug: "timeline-events",
@@ -13,6 +14,7 @@ export const TimelineEvent: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("content"),
     defaultColumns: ["title", "type", "eventDate", "isFeatured", "status", "visibility"],
     useAsTitle: "title",
   },

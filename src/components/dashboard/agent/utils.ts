@@ -31,6 +31,10 @@ export const getPendingActionLabel = (pendingAction: PendingAction) => {
     return `等待确认：${riskLevelLabelMap[pendingAction.action.riskLevel]}`;
   }
 
+  if (pendingAction.type === "await_batch_confirmation") {
+    return `等待批量确认：${pendingAction.actions.length} 项`;
+  }
+
   return `等待澄清：${pendingAction.missingFields.join(" / ") || pendingAction.intent}`;
 };
 
@@ -62,6 +66,30 @@ export const getLatestAssistantMessage = (messages: AgentChatMessage[]) =>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+export const getDecomposedFromAction = (action: ProposedAgentAction) => {
+  if (action.intent !== "compose_plan") {
+    return null;
+  }
+
+  const args = isRecord(action.args) ? action.args : null;
+  const decomposed = args?.decomposed;
+
+  if (!isRecord(decomposed) || !Array.isArray(decomposed.phases)) {
+    return null;
+  }
+
+  return decomposed as {
+    phases: Array<{
+      estimatedDays: number;
+      goal: string;
+      milestones: Array<{ tasks: string[]; title: string }>;
+      title: string;
+    }>;
+    totalEstimatedDays: number;
+    weeklyRhythm?: string;
+  };
+};
 
 export const getPlanProposalFromAction = (action: ProposedAgentAction): null | PlanProposal => {
   if (action.intent !== "compose_plan") {

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { isConfirmationReply, isCancellationReply, isNegativeReply } from "../../src/lib/agent/intent/heuristics/replies";
+import {
+  isBatchConfirmationReply,
+  isCancellationReply,
+  isConfirmationReply,
+  isNegativeReply,
+} from "../../src/lib/agent/intent/heuristics/replies";
 
 test("exact match confirmation phrases work", () => {
   assert.equal(isConfirmationReply("确认"), true);
@@ -43,6 +48,13 @@ test("isNegativeReply recognizes negative phrases", () => {
   assert.equal(isNegativeReply("先不用"), true);
   assert.equal(isNegativeReply("暂时不用"), true);
   assert.equal(isNegativeReply("不需要"), true);
+});
+
+test("batch confirmation only accepts exact phrases", () => {
+  assert.equal(isBatchConfirmationReply("确认"), true);
+  assert.equal(isBatchConfirmationReply("好的"), true);
+  assert.equal(isBatchConfirmationReply("好的，再加一条"), false);
+  assert.equal(isBatchConfirmationReply("好，执行吧"), false);
 });
 
 test("unrelated messages are not confirmation", () => {

@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 
 import { adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const PlanReview: CollectionConfig = {
   slug: "plan-reviews",
@@ -12,6 +13,7 @@ export const PlanReview: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("planning"),
     defaultColumns: ["title", "scope", "health", "plan", "reviewedAt", "updatedAt"],
     useAsTitle: "title",
   },

@@ -3,24 +3,31 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import type { SiteLocale } from "@/lib/site-copy";
+import { SegmentedSwitch } from "@/components/shared/SegmentedSwitch";
+import type { SunnyChromeVariant } from "@/components/shared/segmented-switch-classes";
+import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
 
 type LocaleToggleProps = {
   currentLocale: SiteLocale;
   label: string;
+  onLocaleChange?: (locale: SiteLocale) => void;
+  variant?: SunnyChromeVariant;
 };
 
 const locales: SiteLocale[] = ["zh", "en"];
-const localeLabels: Record<SiteLocale, string> = {
-  en: "EN",
-  zh: "中文",
-};
 
-export function LocaleToggle({ currentLocale, label }: LocaleToggleProps) {
+export function LocaleToggle({
+  currentLocale,
+  label,
+  onLocaleChange,
+  variant = "site",
+}: LocaleToggleProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const switchLocale = (locale: SiteLocale) => {
+  const switchLocale = (nextLocale: string) => {
+    const locale = nextLocale as SiteLocale;
+
     if (locale === currentLocale) {
       return;
     }
@@ -32,25 +39,26 @@ export function LocaleToggle({ currentLocale, label }: LocaleToggleProps) {
       },
       body: JSON.stringify({ locale }),
     }).then(() => {
+      onLocaleChange?.(locale);
       startTransition(() => {
         router.refresh();
       });
     });
   };
 
+  const copy = getSiteCopy(currentLocale);
+
   return (
-    <div className="sunny-locale-switch" aria-label={label} role="group">
-      {locales.map((locale) => (
-        <button
-          key={locale}
-          className={`sunny-locale-option ${locale === currentLocale ? "sunny-locale-option-active" : ""}`}
-          disabled={isPending}
-          onClick={() => switchLocale(locale)}
-          type="button"
-        >
-          {localeLabels[locale]}
-        </button>
-      ))}
-    </div>
+    <SegmentedSwitch
+      ariaLabel={label}
+      disabled={isPending}
+      onChange={switchLocale}
+      options={locales.map((locale) => ({
+        label: copy.common.localeOptions[locale],
+        value: locale,
+      }))}
+      value={currentLocale}
+      variant={variant}
+    />
   );
 }

@@ -4,6 +4,7 @@ import {
   composePlanKeywords,
   createPlanKeywords,
   scheduleComposerKeywords,
+  schedulePlanKeywords,
 } from "./keywords";
 import { cleanupPlanTitle, cleanupText, parseChecklistGroupMention } from "./shared-text";
 
@@ -42,19 +43,29 @@ export const parseCreatePlanIntent = (message: string): AgentIntent | null => {
 export const parseComposePlanIntent = (message: string): AgentIntent | null => {
   const keyword = composePlanKeywords.find((item) => message.includes(item));
 
-  if (!keyword) {
-    return null;
+  if (keyword) {
+    const remainder = cleanupText(message.slice(message.indexOf(keyword) + keyword.length));
+
+    return {
+      args: {
+        sourceText: remainder || message,
+      },
+      confidence: 0.72,
+      intent: "compose_plan",
+    };
   }
 
-  const remainder = cleanupText(message.slice(message.indexOf(keyword) + keyword.length));
+  if (message.length > 10 && /(计划|规划|安排|拆分|拆解)/.test(message) && !/(今天|明天|日程)/.test(message)) {
+    return {
+      args: {
+        sourceText: message,
+      },
+      confidence: 0.5,
+      intent: "compose_plan",
+    };
+  }
 
-  return {
-    args: {
-      sourceText: remainder || message,
-    },
-    confidence: 0.72,
-    intent: "compose_plan",
-  };
+  return null;
 };
 
 export const parseComposeScheduleItemIntent = (message: string): AgentIntent | null => {
@@ -116,5 +127,23 @@ export const parseAppendPlanItemIntent = (message: string): AgentIntent | null =
     },
     confidence: 0.55,
     intent: "append_plan_item",
+  };
+};
+
+export const parseSchedulePlanIntent = (message: string): AgentIntent | null => {
+  const keyword = schedulePlanKeywords.find((item) => message.includes(item));
+
+  if (!keyword) return null;
+
+  const planIdMatch = message.match(/(?:计划\s*ID|plan\s*id|plan#)\s*[:：#]?\s*(\d+)/i);
+  const planId = planIdMatch ? Number(planIdMatch[1]) : null;
+
+  return {
+    args: {
+      planId: planId ?? 0,
+      startDate: null,
+    },
+    confidence: planId ? 0.7 : 0.45,
+    intent: "schedule_plan",
   };
 };

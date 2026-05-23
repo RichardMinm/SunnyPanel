@@ -7,11 +7,11 @@ type SurfaceCardVariant = "default" | "interactive" | "strong" | "subtle";
 type SurfaceCardElement = "article" | "aside" | "div" | "section";
 
 const surfaceCardClassMap: Record<SurfaceCardVariant, string> = {
-  default: "sunny-card rounded-[1.35rem] p-5 md:rounded-[1.6rem] md:p-6",
+  default: "sunny-card rounded-xl p-5 md:rounded-xl md:p-6",
   interactive:
-    "block rounded-[1.15rem] border border-border bg-white/60 px-4 py-4 transition hover:-translate-y-1 hover:bg-white/72 md:px-5 md:py-5",
-  strong: "sunny-card sunny-card-strong rounded-[1.45rem] p-5 md:rounded-[1.8rem] md:p-7",
-  subtle: "rounded-[1.15rem] border border-border bg-white/45 px-4 py-4 md:px-5 md:py-5",
+    "block rounded-lg border border-border bg-white/60 px-4 py-4 transition hover:bg-white/72 md:px-5 md:py-5",
+  strong: "sunny-card sunny-card-strong rounded-xl p-5 md:rounded-xl md:p-7",
+  subtle: "rounded-lg border border-border bg-white/45 px-4 py-4 md:px-5 md:py-5",
 };
 
 export function SurfaceCard({
@@ -45,7 +45,7 @@ export function SectionHeader({
 }) {
   const titleClassName =
     size === "lg"
-      ? "sunny-display mt-2 text-[2rem] text-foreground md:text-3xl"
+      ? "sunny-display mt-2 text-foreground"
       : size === "sm"
         ? "mt-1 text-base font-semibold text-foreground"
         : "mt-1 text-xl font-semibold text-foreground";
@@ -53,7 +53,7 @@ export function SectionHeader({
   return (
     <div className={cx("flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between", className)}>
       <div className="min-w-0">
-        <p className="sunny-kicker text-[0.68rem] text-muted">{kicker}</p>
+        <p className="sunny-kicker text-muted">{kicker}</p>
         <h2 className={titleClassName}>{title}</h2>
         {description ? <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{description}</p> : null}
       </div>
@@ -138,7 +138,7 @@ export function QuickActionCard({
     <Link href={href} className={cx("sunny-quick-create-card", compact && "sunny-quick-create-card-compact")}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className="sunny-kicker text-[0.62rem] text-muted">{description}</span>
+          <span className="sunny-kicker-compact text-muted">{description}</span>
           <span className="mt-1 block text-sm font-semibold text-foreground">{title}</span>
         </div>
         {badge ? <div className="shrink-0">{badge}</div> : null}
@@ -198,23 +198,33 @@ export function TimelineMiniCard({
 }
 
 export function DashboardMetricCard({
+  compact,
   description,
   label,
   tone = "neutral",
   value,
 }: {
+  compact?: boolean;
   description: string;
   label: string;
   tone?: StatusBadgeTone;
   value: number | string;
 }) {
   return (
-    <div className={cx("sunny-dashboard-stat", tone !== "neutral" && `sunny-dashboard-stat-${tone}`)}>
+    <div
+      className={cx(
+        "sunny-dashboard-stat",
+        compact && "sunny-dashboard-stat--compact",
+        tone !== "neutral" && `sunny-dashboard-stat-${tone}`,
+      )}
+    >
       <div className="min-w-0">
         <p className="text-xs font-semibold text-muted">{label}</p>
-        <p className="sunny-dashboard-clamp mt-1 text-xs leading-5 text-muted">{description}</p>
+        {compact ? null : (
+          <p className="sunny-dashboard-clamp mt-1 text-xs leading-5 text-muted">{description}</p>
+        )}
       </div>
-      <p className="text-2xl font-semibold leading-none text-foreground">{value}</p>
+      <p className={cx("font-semibold leading-none text-foreground", compact ? "text-xl" : "text-2xl")}>{value}</p>
     </div>
   );
 }

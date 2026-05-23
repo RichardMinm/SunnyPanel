@@ -4,13 +4,13 @@ import { notFound } from "next/navigation";
 
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { RecordCoverImage } from "@/components/public/RecordCoverImage";
-import { RichTextContent } from "@/components/public/RichTextContent";
+import { ContentRenderer } from "@/components/public/ContentRenderer";
 import { formatDateTime } from "@/lib/formatters";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPageBySlug } from "@/lib/payload/public";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const managedPageMeta = {
   about: {
@@ -79,7 +79,7 @@ export default async function StaticPage({ params }: StaticPageProps) {
             </div>
 
             <section className="sunny-panel rounded-[1.6rem] px-5 py-5 md:px-6">
-              <p className="sunny-kicker text-[0.68rem] text-muted">{fallbackMeta.title}</p>
+              <p className="sunny-kicker text-muted">{fallbackMeta.title}</p>
               <h1 className="mt-2 text-3xl font-semibold text-foreground md:text-4xl">
                 {fallbackMeta.title}
               </h1>
@@ -110,7 +110,7 @@ export default async function StaticPage({ params }: StaticPageProps) {
         </div>
 
         <section className="sunny-panel rounded-[1.6rem] px-5 py-5 md:px-6">
-          <p className="sunny-kicker text-[0.68rem] text-muted">{copy.common.page}</p>
+          <p className="sunny-kicker text-muted">{copy.common.page}</p>
           <h1 className="mt-2 text-3xl font-semibold text-foreground md:text-4xl">
             {page.title}
           </h1>
@@ -123,7 +123,7 @@ export default async function StaticPage({ params }: StaticPageProps) {
             preferredSize="card"
             record={page as unknown as Record<string, unknown>}
           />
-          <RichTextContent data={page.content} />
+          <ContentRenderer content={page.content} />
         </article>
       </main>
     </PublicSiteFrame>

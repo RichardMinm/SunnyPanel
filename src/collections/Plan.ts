@@ -2,6 +2,7 @@ import type { CollectionConfig } from "payload";
 
 import { adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
 import { statusField, visibilityField } from "../lib/payload/fields.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const Plan: CollectionConfig = {
   slug: "plans",
@@ -13,6 +14,7 @@ export const Plan: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("planning"),
     defaultColumns: ["title", "state", "agentState", "priority", "status", "dueDate", "updatedAt"],
     useAsTitle: "title",
   },
@@ -57,6 +59,25 @@ export const Plan: CollectionConfig = {
           label: "以 Agent 为主",
           value: "agent",
         },
+      ],
+      required: true,
+    },
+    {
+      name: "domain",
+      type: "select",
+      label: "领域",
+      admin: {
+        description: "计划所属领域，影响 Agent 拆解策略。",
+        position: "sidebar",
+      },
+      defaultValue: "other",
+      options: [
+        { label: "学习", value: "study" },
+        { label: "工作", value: "work" },
+        { label: "旅行", value: "travel" },
+        { label: "健身", value: "fitness" },
+        { label: "创作", value: "creative" },
+        { label: "其他", value: "other" },
       ],
       required: true,
     },
@@ -186,6 +207,62 @@ export const Plan: CollectionConfig = {
       },
     },
     visibilityField("private"),
+    {
+      name: "phases",
+      type: "json",
+      label: "阶段拆解",
+      admin: {
+        description: "由 Agent 拆解的阶段、里程碑和任务。通常由 compose_plan 自动填充。",
+        position: "sidebar",
+      },
+    },
+    {
+      name: "weeklyRhythm",
+      type: "textarea",
+      label: "每周节奏",
+      admin: {
+        description: "例如：每天2小时，周末4小时。由 Agent 根据计划类型推荐。",
+      },
+    },
+    {
+      name: "totalEstimatedDays",
+      type: "number",
+      label: "预计总天数",
+      admin: { position: "sidebar" },
+    },
+    {
+      name: "progress",
+      type: "number",
+      label: "完成百分比",
+      admin: { position: "sidebar" },
+      min: 0,
+      max: 100,
+      defaultValue: 0,
+    },
+    {
+      name: "prerequisites",
+      type: "json",
+      label: "前置条件",
+      admin: { position: "sidebar" },
+    },
+    {
+      name: "agentContext",
+      type: "json",
+      label: "Agent 上下文",
+      admin: {
+        description: "编排依赖图、中间结果与最近一次 orchestration 元数据。",
+        position: "sidebar",
+      },
+    },
+    {
+      name: "subtasks",
+      type: "json",
+      label: "编排子任务",
+      admin: {
+        description: "编排器拆解的子任务状态（id、label、intent、agentRole、status）。",
+        position: "sidebar",
+      },
+    },
   ],
   labels: {
     plural: {

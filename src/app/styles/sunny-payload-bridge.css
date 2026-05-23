@@ -1,0 +1,113 @@
+/**
+ * Payload Admin 设计令牌桥接：Sunny tokens → Payload theme variables。
+ */
+
+@layer payload {
+  :root,
+  html[data-theme="light"],
+  html[data-theme="dark"] {
+    --font-body: var(--sunny-font-sans);
+    --font-serif: var(--sunny-font-sans);
+    --font-mono: var(--sunny-font-mono);
+    --base-px: 16;
+    --base-body-size: 13;
+    --gutter-h: 1rem;
+    --spacing-view-bottom: 1.25rem;
+    --nav-width: 15.5rem;
+    --app-header-height: 2.75rem;
+    --doc-controls-height: 2.75rem;
+  }
+
+  :root,
+  html[data-theme="light"] {
+    --color-base-0: rgb(255, 255, 255);
+    --color-base-50: rgb(248, 250, 252);
+    --color-base-100: rgb(241, 245, 249);
+    --color-base-150: rgb(232, 237, 244);
+    --color-base-200: rgb(220, 227, 236);
+    --color-base-250: rgb(206, 214, 224);
+    --color-base-300: rgb(186, 196, 208);
+    --color-base-350: rgb(165, 176, 190);
+    --color-base-400: rgb(144, 156, 172);
+    --color-base-450: rgb(125, 137, 154);
+    --color-base-500: rgb(106, 118, 134);
+    --color-base-550: rgb(90, 101, 116);
+    --color-base-600: rgb(75, 86, 100);
+    --color-base-650: rgb(63, 73, 86);
+    --color-base-700: rgb(52, 61, 73);
+    --color-base-750: rgb(43, 51, 62);
+    --color-base-800: rgb(35, 42, 52);
+    --color-base-850: rgb(29, 35, 44);
+    --color-base-900: rgb(24, 30, 38);
+    --color-base-950: rgb(19, 24, 31);
+    --color-base-1000: rgb(26, 35, 50);
+
+    --color-warning-400: rgb(180, 132, 38);
+    --color-warning-450: rgb(161, 118, 32);
+    --color-warning-500: rgb(142, 104, 28);
+
+    --theme-border-color: var(--border);
+    --theme-input-bg: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    --theme-bg: var(--background);
+    --theme-text: var(--foreground);
+    --theme-overlay: color-mix(in srgb, var(--foreground) 28%, transparent);
+
+    --style-radius-s: var(--radius-control);
+    --style-radius-m: var(--radius-chrome);
+    --style-radius-l: var(--radius-chrome);
+  }
+
+  html[data-theme="dark"] {
+    --color-base-0: color-mix(in srgb, var(--foreground) 96%, white);
+    --color-base-50: color-mix(in srgb, var(--foreground) 90%, white);
+    --color-base-100: color-mix(in srgb, var(--foreground) 82%, white);
+    --color-base-150: color-mix(in srgb, var(--foreground) 74%, white);
+    --color-base-200: color-mix(in srgb, var(--foreground) 66%, white);
+    --color-base-250: color-mix(in srgb, var(--muted) 88%, var(--foreground));
+    --color-base-300: color-mix(in srgb, var(--muted) 76%, var(--foreground));
+    --color-base-350: color-mix(in srgb, var(--muted) 68%, var(--foreground));
+    --color-base-400: color-mix(in srgb, var(--muted) 58%, var(--foreground));
+    --color-base-450: color-mix(in srgb, var(--muted) 48%, var(--background));
+    --color-base-500: color-mix(in srgb, var(--muted) 38%, var(--background));
+    --color-base-550: color-mix(in srgb, var(--muted) 30%, var(--background));
+    --color-base-600: color-mix(in srgb, var(--muted) 22%, var(--background));
+    --color-base-650: color-mix(in srgb, var(--border) 55%, var(--background));
+    --color-base-700: color-mix(in srgb, var(--border) 72%, var(--background));
+    --color-base-750: color-mix(in srgb, var(--surface) 82%, var(--background));
+    --color-base-800: color-mix(in srgb, var(--surface) 90%, var(--background));
+    --color-base-850: color-mix(in srgb, var(--surface-strong) 88%, var(--background));
+    --color-base-900: color-mix(in srgb, var(--background) 88%, black);
+    --color-base-950: color-mix(in srgb, var(--background) 94%, black);
+    --color-base-1000: color-mix(in srgb, var(--background) 98%, black);
+    --theme-border-color: var(--border);
+    --theme-input-bg: color-mix(in srgb, var(--surface) 82%, transparent);
+    --theme-bg: var(--background);
+    --theme-text: var(--foreground);
+    --theme-overlay: rgba(8, 8, 8, 0.55);
+  }
+
+  html {
+    background: var(--background);
+  }
+
+  html[data-theme="dark"] {
+    background: var(--background);
+  }
+
+  body,
+  #app {
+    background: transparent;
+  }
+
+  body {
+    color: var(--theme-text);
+    font-family: var(--sunny-font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .template-default {
+    --base-body-size: 14;
+    --app-header-height: 2.875rem;
+    --doc-controls-height: 2.875rem;
+  }
+}

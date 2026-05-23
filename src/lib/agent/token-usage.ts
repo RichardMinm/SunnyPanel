@@ -25,6 +25,43 @@ export const createTokenUsageSnapshot = ({
   totalTokens: contextTokens + inputTokens + outputTokens,
 });
 
+/**
+ * Split text into natural word/phrase tokens for progressive streaming.
+ * Chinese: split at punctuation or every 2-4 characters.
+ * Mixed/English: split at whitespace/punctuation boundaries.
+ */
+export const splitIntoWordTokens = (text: string): string[] => {
+  if (!text) return [];
+
+  // Split at sentence-level punctuation first, preserving the punctuation
+  const segments = text.split(/(?<=[。！？；\n.!,?;])/g).filter(Boolean);
+  const tokens: string[] = [];
+
+  for (const segment of segments) {
+    if (/[㐀-鿿]/.test(segment)) {
+      // Chinese-dominant segment: split into 2-4 char chunks at natural breaks
+      const parts = segment.split(/(?<=[，、：（）「」『』"'])/g).filter(Boolean);
+      for (const part of parts) {
+        if (part.length <= 4) {
+          tokens.push(part);
+        } else {
+          for (let i = 0; i < part.length; i += 3) {
+            tokens.push(part.slice(i, i + 3));
+          }
+        }
+      }
+    } else {
+      // English/number segment: split at word boundaries
+      const words = segment.split(/(?<=\s)/g).filter(Boolean);
+      for (const word of words) {
+        tokens.push(word);
+      }
+    }
+  }
+
+  return tokens.length > 0 ? tokens : [text];
+};
+
 export const mergeProviderTokenUsage = (
   usage: AgentTokenUsage,
   providerUsage?: {

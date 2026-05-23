@@ -1,17 +1,14 @@
-import { buildEditorState } from "@payloadcms/richtext-lexical";
 import type { Payload, Where } from "payload";
 
 import type { AgentRun, Plan, User } from "@/payload-types";
 
-const createRichTextContent = (headline: string, paragraphs: string[]) =>
-  buildEditorState({
-    text: [headline, ...paragraphs].join("\n\n"),
-  });
+const createMarkdownContent = (headline: string, paragraphs: string[]) =>
+  [`## ${headline}`, ...paragraphs].join("\n\n");
 
 const samplePublishedAt = "2026-04-23T08:30:00.000Z";
 
 const aboutPageSeed = {
-  content: createRichTextContent("SunnyPanel 是一个把公开表达和私有工作流放到一起的个人系统。", [
+  content: createMarkdownContent("SunnyPanel 是一个把公开表达和私有工作流放到一起的个人系统。", [
     "我希望它既能承接文章、动态、时间线，也能承接计划、清单和长期回顾，不再把写作和执行拆成两套完全割裂的工具。",
     "这一版先把最小闭环做扎实：可发布内容、可维护页面、可回看的时间线，以及一个真正能帮助自己推进事情的私有工作台。",
   ]),
@@ -20,7 +17,7 @@ const aboutPageSeed = {
 };
 
 const nowPageSeed = {
-  content: createRichTextContent("当前重点是把 SunnyPanel 收成一个可以长期使用的个人面板。", [
+  content: createMarkdownContent("当前重点是把 SunnyPanel 收成一个可以长期使用的个人面板。", [
     "这段时间主要在补公开层和私有层之间的连接，让首页、时间线、动态流和工作台可以互相支撑，而不是各自孤立。",
     "接下来会继续做两件事：先让内容种子和默认工作流更完整，再慢慢打磨视觉、移动端和长期维护体验。",
   ]),
@@ -29,7 +26,7 @@ const nowPageSeed = {
 };
 
 const starterPostSeed = {
-  content: createRichTextContent("SunnyPanel 正在从一个纯技术搭建，变成一个真正能长期使用的个人系统。", [
+  content: createMarkdownContent("SunnyPanel 正在从一个纯技术搭建，变成一个真正能长期使用的个人系统。", [
     "这次整理最重要的变化，不是多了几个页面，而是开始把内容生产、阶段记录和私有计划真正放到同一条链路里。",
     "首页不再只是一个空壳，时间线也不再只是孤立列表。文章、动态、清单和工作台开始互相连接，系统终于有了持续更新的基础。",
     "接下来会继续减少占位态和手工步骤，让第一次启动后就能拥有一套可浏览、可编辑、可继续扩展的默认工作区。",

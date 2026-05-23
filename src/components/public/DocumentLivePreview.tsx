@@ -6,7 +6,8 @@ import { useLivePreview } from "@payloadcms/live-preview-react";
 
 import { ChecklistPreviewCard } from "@/components/public/ChecklistPreviewCard";
 import { RecordCoverImage } from "@/components/public/RecordCoverImage";
-import { RichTextContent } from "@/components/public/RichTextContent";
+import { ContentRenderer } from "@/components/public/ContentRenderer";
+import { MarkdownContent } from "@/components/editor/MarkdownContent";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
 import type {
@@ -64,13 +65,13 @@ export function DocumentLivePreview({
 
   return (
     <main className="flex flex-1 flex-col gap-6 pb-4">
-      <section className="sunny-panel rounded-[1.65rem] px-5 py-5 md:px-6">
+      <section className="sunny-panel rounded-xl px-5 py-5 md:px-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="sunny-kicker text-[0.68rem] text-muted">
+            <p className="sunny-kicker text-muted">
               {locale === "en" ? "Live preview" : "实时预览"}
             </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground md:text-[2rem]">
+            <h1 className="text-page-title mt-2 text-foreground">
               {getPreviewTitle(document, collection, id)}
             </h1>
           </div>
@@ -148,7 +149,7 @@ const renderPreviewDocument = ({
 
       return (
         <article className="grid gap-6 xl:grid-cols-[0.88fr_1.52fr]">
-          <aside className="sunny-card rounded-[2.2rem] p-8">
+          <aside className="sunny-card rounded-xl p-8">
             <p className="sunny-kicker text-xs text-muted">{locale === "en" ? "Overview" : "概览"}</p>
             <h2 className="sunny-display mt-4 text-4xl leading-none text-foreground md:text-5xl">
               {post.title}
@@ -163,7 +164,7 @@ const renderPreviewDocument = ({
             </div>
           </aside>
 
-          <div className="sunny-card sunny-card-strong overflow-hidden rounded-[2.2rem]">
+          <div className="sunny-card sunny-card-strong overflow-hidden rounded-xl">
             <RecordCoverImage
               containerClassName="border-b border-border"
               imageClassName="h-[280px] w-full object-cover md:h-[380px]"
@@ -173,7 +174,7 @@ const renderPreviewDocument = ({
             />
 
             <div className="p-8 md:p-10">
-              <RichTextContent data={post.content} />
+              <ContentRenderer content={post.content} />
             </div>
           </div>
         </article>
@@ -184,15 +185,15 @@ const renderPreviewDocument = ({
       const page = document as Page;
 
       return (
-        <article className="sunny-card rounded-[1.9rem] p-6 md:p-8">
+        <article className="sunny-card rounded-xl p-6 md:p-8">
           <RecordCoverImage
-            containerClassName="mb-6 overflow-hidden rounded-[1.45rem] border border-border/80"
+            containerClassName="mb-6 overflow-hidden rounded-lg border border-border/80"
             imageClassName="h-64 w-full object-cover md:h-80"
             preferredSize="card"
             priority
             record={page as unknown as Record<string, unknown>}
           />
-          <RichTextContent data={page.content} />
+          <ContentRenderer content={page.content} />
         </article>
       );
     }
@@ -201,14 +202,16 @@ const renderPreviewDocument = ({
       const note = document as Note;
 
       return (
-        <article className="sunny-card rounded-[1.7rem] p-6 md:p-8">
+        <article className="sunny-card rounded-xl p-6 md:p-8">
           <div className="flex flex-wrap items-center gap-3">
             <span className="sunny-badge sunny-badge-accent">{note.category}</span>
             {note.mood ? <span className="sunny-badge sunny-badge-muted">{note.mood}</span> : null}
           </div>
-          <p className="mt-5 text-base leading-8 text-foreground md:text-lg">{note.content}</p>
+          <div className="mt-5">
+            <MarkdownContent markdown={note.content} />
+          </div>
           <RecordCoverImage
-            containerClassName="mt-6 overflow-hidden rounded-[1.35rem] border border-border/80"
+            containerClassName="mt-6 overflow-hidden rounded-lg border border-border/80"
             imageClassName="h-56 w-full object-cover"
             preferredSize="card"
             record={note as unknown as Record<string, unknown>}
@@ -221,19 +224,21 @@ const renderPreviewDocument = ({
       const update = document as Update;
 
       return (
-        <article className="sunny-card rounded-[1.7rem] p-6 md:p-8">
+        <article className="sunny-card rounded-xl p-6 md:p-8">
           <div className="flex flex-wrap items-center gap-3">
             <span className="sunny-badge sunny-badge-accent">{update.type}</span>
             <span className="text-sm text-muted">{formatDateTime(update.updatedAt, locale)}</span>
           </div>
-          <p className="mt-5 text-base leading-8 text-foreground md:text-lg">{update.content}</p>
+          <div className="mt-5">
+            <MarkdownContent markdown={update.content} />
+          </div>
           {update.link ? (
             <Link href={update.link} className="mt-4 inline-flex text-sm font-semibold text-accent-strong">
               {update.link}
             </Link>
           ) : null}
           <RecordCoverImage
-            containerClassName="mt-6 overflow-hidden rounded-[1.35rem] border border-border/80"
+            containerClassName="mt-6 overflow-hidden rounded-lg border border-border/80"
             imageClassName="h-56 w-full object-cover"
             preferredSize="card"
             record={update as unknown as Record<string, unknown>}
@@ -248,23 +253,23 @@ const renderPreviewDocument = ({
       return (
         <div className="space-y-6">
           <ChecklistPreviewCard checklist={checklist} locale={locale} />
-          <section className="sunny-card rounded-[1.8rem] p-6 md:p-8">
+          <section className="sunny-card rounded-xl p-6 md:p-8">
             <div className="space-y-4">
               {(checklist.groups ?? []).map((group, groupIndex) => (
                 <div
                   key={group.id ?? `${id}-${groupIndex}`}
-                  className="rounded-[1.25rem] border border-border bg-white/60 p-5"
+                  className="rounded-lg border border-border bg-white/60 p-5"
                 >
                   <h3 className="text-lg font-semibold text-foreground">{group.title}</h3>
                   <div className="mt-4 space-y-3">
                     {(group.items ?? []).map((item, itemIndex) => (
                       <div
                         key={item.id ?? `${group.id ?? "group"}-${itemIndex}`}
-                        className="rounded-[1rem] border border-border/80 bg-background/60 px-4 py-3"
+                        className="rounded-md border border-border/80 bg-background/60 px-4 py-3"
                       >
                         <div className="flex items-start gap-3">
                           <span
-                            className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[0.7rem] ${
+                            className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-icon-badge ${
                               item?.isCompleted
                                 ? "border-emerald-300 bg-emerald-100 text-emerald-700"
                                 : "border-border bg-white text-muted"
@@ -295,7 +300,7 @@ const renderPreviewDocument = ({
       const event = document as TimelineEvent;
 
       return (
-        <article className="sunny-card rounded-[1.9rem] p-6 md:p-8">
+        <article className="sunny-card rounded-xl p-6 md:p-8">
           <div className="flex flex-wrap items-center gap-3">
             <span className="sunny-badge sunny-badge-accent">{event.type}</span>
             <span className="text-sm text-muted">{formatDate(event.eventDate, locale)}</span>

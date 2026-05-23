@@ -9,12 +9,15 @@ export type ContextPreferences = {
 };
 
 export type AgentWorkbenchTab = "conversation" | "timeline";
-export type AgentInspectorTab = "artifacts" | "changes" | "context" | "debug";
+export type AgentInspectorTab = "artifacts" | "changes" | "context" | "dag" | "debug" | "memory";
+export type DashboardLayout = "balanced" | "focus" | "inspector";
 
 export type AgentThreadSummary = {
+  archived?: boolean;
   id: number;
   lastInteractionAt?: null | string;
   pendingAction: null | PendingAction;
+  tags?: string[];
   title: string;
 };
 

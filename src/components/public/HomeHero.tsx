@@ -109,7 +109,7 @@ export function HomeHero({
         <div className="sunny-home-current-state">
           <div className="sunny-home-current-head">
             <div>
-              <p className="sunny-kicker text-[0.68rem] text-muted">{copy.focusKicker}</p>
+              <p className="sunny-kicker text-muted">{copy.focusKicker}</p>
               <p className="mt-1 text-xs leading-5 text-muted">{copy.statusText}</p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">

@@ -289,6 +289,10 @@ const formatPendingAction = (pendingAction: AgentPromptContext["pendingAction"])
     return `当前有一个等待确认的动作：intent=${pendingAction.action.intent}，risk=${pendingAction.action.riskLevel}，summary=${pendingAction.action.summary}。如果用户明确确认或执行，才能继续；如果用户取消，放弃该动作。`;
   }
 
+  if (pendingAction.type === "await_batch_confirmation") {
+    return `当前有 ${pendingAction.actions.length} 个等待批量确认的动作。用户回复「确认」则全部执行；「取消」则全部放弃。`;
+  }
+
   const target = pendingAction.groupTitle
     ? `${pendingAction.checklistTitle} / ${pendingAction.groupTitle} / ${pendingAction.itemTitle}`
     : `${pendingAction.checklistTitle} / ${pendingAction.itemTitle}`;
@@ -318,7 +322,7 @@ export const buildAgentSystemPrompt = (context: AgentPromptContext) => `你是 S
 上下文模式：${context.mode ? contextModeLabelMap[context.mode] : "概览"}
 上下文预算：${formatContextStats(context)}
 
-你必须先判断用户是在问知识/学习/规划咨询，还是在要求你写入 SunnyPanel 的计划、清单、进度或评估数据。你只能输出 JSON，不要输出 Markdown，不要解释，不要包裹代码块。
+你必须先判断用户是在问知识/学习/规划咨询，还是在要求你写入 SunnyPanel 的计划、清单、进度或评估数据。若用户一句话包含多个动作（例如「制定计划并排进日程」），仍只输出**一个**最优先的 intent；复合编排由编排器处理。你只能输出 JSON，不要输出 Markdown，不要解释，不要包裹代码块。
 
 可用意图只有 13 个：
 1. answer_question

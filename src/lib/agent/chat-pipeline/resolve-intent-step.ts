@@ -1,13 +1,14 @@
-import { recordAgentConfirmationDecision } from "@/lib/agent/audit";
-import type { generateIntentWithAgentModel } from "@/lib/agent/client";
+import { recordAgentConfirmationDecision, recordBatchConfirmationDecision } from "@/lib/agent/audit";
+import { generateStreamingReply, type generateIntentWithAgentModel, type StreamTokenCallback } from "@/lib/agent/client";
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
 import {
   resolveAwaitConfirmationBranch,
+  restoreConfirmedBatchIntents,
   restoreConfirmedIntent,
   type ConfirmationSignals,
 } from "@/lib/agent/chat-pipeline/confirmation-step";
 import { buildIntentTraceSummary } from "@/lib/agent/chat-pipeline/intent-trace";
-import { resolveAgentIntent } from "@/lib/agent/intent";
+import { resolveAgentIntent } from "@/lib/agent/intent-resolution";
 import { logAgentEvent } from "@/lib/agent/logger";
 import type {
   AgentChatMessage,
@@ -17,7 +18,7 @@ import type {
   AgentTraceStep,
   PendingAction,
 } from "@/lib/agent/schemas";
-import { estimateTokenCount } from "@/lib/agent/token-usage";
+import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 
 export type IntentResolution = {
@@ -30,11 +31,13 @@ export type ResolveIntentStepParams = {
   confirmationSignals: ConfirmationSignals;
   context: BuildContextStepResult["context"];
   emitStatus: (status: string) => void;
+  emitToken: StreamTokenCallback;
   emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void;
   intentModelEngine: AgentEngine;
   message: string;
   modelResolver: typeof generateIntentWithAgentModel;
   pendingAction: null | PendingAction;
+  preResolvedIntent?: AgentIntent | null;
   persistAgentTurn: (args: {
     assistantMessage: string;
     confidence?: number;
@@ -51,7 +54,9 @@ export type ResolveIntentStepParams = {
 };
 
 export type ResolveIntentStepNext = {
+  batchExecuteIntents?: AgentIntent[];
   confirmedActionId: null | string;
+  nextPendingAfterExecute?: null | PendingAction;
   resolution: IntentResolution;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
 };
@@ -65,11 +70,13 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     confirmationSignals,
     context,
     emitStatus,
+    emitToken,
     emitUsage,
     intentModelEngine,
     message,
     modelResolver,
     pendingAction,
+    preResolvedIntent,
     persistAgentTurn,
     pushTrace,
     resolvedHistory,
@@ -80,6 +87,107 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
   } = params;
 
   let tokenUsage = tokenUsageIn;
+
+  if (pendingAction?.type === "await_batch_confirmation") {
+    if (confirmationSignals.cancel) {
+      await recordBatchConfirmationDecision({
+        actions: pendingAction.actions,
+        decision: "canceled",
+        message,
+        orchestrationId: pendingAction.orchestrationId,
+      });
+      const assistantMessage = `已取消批量确认（共 ${pendingAction.actions.length} 项），未写入任何数据。`;
+      const outputTokens = estimateTokenCount(assistantMessage);
+      tokenUsage = {
+        ...tokenUsage,
+        outputTokens,
+        totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+      };
+      const updatedThread = await persistAgentTurn({
+        assistantMessage,
+        confidence: 1,
+        engine: "workflow",
+        intent: pendingAction.actions[0]?.intent ?? "clarify",
+        nextPendingAction: null,
+      });
+
+      return {
+        outcome: "early_exit",
+        response: {
+          assistantMessage,
+          confidence: 1,
+          engine: "workflow",
+          intent: pendingAction.actions[0]?.intent ?? "clarify",
+          pendingAction: null,
+          trace,
+          threadId: updatedThread.id,
+          tokenUsage,
+        },
+      };
+    }
+
+    if (!confirmationSignals.confirm) {
+      const assistantMessage = `仍在等待批量确认（${pendingAction.actions.length} 项）。回复「确认」执行全部，或「取消」放弃。`;
+      const outputTokens = estimateTokenCount(assistantMessage);
+      tokenUsage = {
+        ...tokenUsage,
+        outputTokens,
+        totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+      };
+      const updatedThread = await persistAgentTurn({
+        assistantMessage,
+        confidence: 1,
+        engine: "workflow",
+        intent: "clarify",
+        nextPendingAction: pendingAction,
+      });
+
+      return {
+        outcome: "early_exit",
+        response: {
+          assistantMessage,
+          confidence: 1,
+          engine: "workflow",
+          intent: "clarify",
+          pendingAction,
+          trace,
+          threadId: updatedThread.id,
+          tokenUsage,
+        },
+      };
+    }
+
+    const batchIntents = restoreConfirmedBatchIntents(pendingAction);
+    const primary = batchIntents[0];
+
+    await recordBatchConfirmationDecision({
+      actions: pendingAction.actions,
+      decision: "confirmed",
+      message,
+      orchestrationId: pendingAction.orchestrationId,
+    });
+
+    pushTrace({
+      detail: `批量确认 ${batchIntents.length} 项操作`,
+      id: "confirmation-batch-received",
+      kind: "action",
+      status: "done",
+      title: "已收到批量确认",
+    });
+
+    return {
+      outcome: "continue",
+      data: {
+        batchExecuteIntents: batchIntents,
+        confirmedActionId: pendingAction.orchestrationId ?? "batch",
+        resolution: {
+          engine: "workflow",
+          intent: primary,
+        },
+        tokenUsage,
+      },
+    };
+  }
 
   if (pendingAction?.type === "await_confirmation") {
     const branch = resolveAwaitConfirmationBranch(pendingAction, confirmationSignals);
@@ -181,6 +289,14 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
 
     const confirmedIntent = restoreConfirmedIntent(pendingAction.action);
     const confirmedActionId = pendingAction.action.id;
+    const nextPendingAfterExecute =
+      pendingAction.deferredActions && pendingAction.deferredActions.length > 0
+        ? {
+            actions: pendingAction.deferredActions,
+            orchestrationId: pendingAction.orchestrationId,
+            type: "await_batch_confirmation" as const,
+          }
+        : null;
     emitStatus("正在执行已确认动作...");
     pushTrace({
       detail: `${pendingAction.action.summary} · risk=${pendingAction.action.riskLevel}`,
@@ -217,7 +333,67 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
       outcome: "continue",
       data: {
         confirmedActionId,
+        nextPendingAfterExecute,
         resolution,
+        tokenUsage,
+      },
+    };
+  }
+
+  if (preResolvedIntent) {
+    pushTrace({
+      detail: `编排器已解析为 ${preResolvedIntent.intent}`,
+      id: "analysis-intent",
+      kind: "analysis",
+      status: "done",
+      title: `编排意图：${preResolvedIntent.intent}`,
+    });
+
+    const isConversational = preResolvedIntent.intent === "answer_question" || preResolvedIntent.intent === "clarify";
+    if (isConversational) {
+      emitStatus("正在生成回复...");
+      const replyResult = await generateStreamingReply({
+        history: resolvedHistory,
+        message,
+        onToken: (token) => emitToken(token, 'response'),
+      });
+      if (replyResult) {
+        preResolvedIntent.reply = replyResult.text;
+        tokenUsage = {
+          ...tokenUsage,
+          outputTokens: replyResult.tokenUsage.outputTokens,
+          totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + replyResult.tokenUsage.outputTokens,
+          providerInputTokens: replyResult.tokenUsage.providerInputTokens,
+          providerOutputTokens: replyResult.tokenUsage.providerOutputTokens,
+          source: replyResult.tokenUsage.source,
+        };
+      } else {
+        // Fallback: stream pre-resolved text word by word when LLM is unavailable
+        const preResolvedText =
+          (preResolvedIntent.intent === "answer_question"
+            ? (preResolvedIntent.args as { answer?: string }).answer
+            : undefined)
+          ?? (preResolvedIntent.intent === "clarify"
+            ? (preResolvedIntent.args as { question?: string }).question
+            : undefined)
+          ?? ('reply' in preResolvedIntent ? (preResolvedIntent as { reply?: string }).reply : undefined);
+        if (typeof preResolvedText === "string" && preResolvedText.length > 0) {
+          for (const token of splitIntoWordTokens(preResolvedText)) {
+            emitToken(token, 'response');
+            await new Promise((r) => setTimeout(r, 6));
+          }
+        }
+      }
+    }
+
+    return {
+      outcome: "continue",
+      data: {
+        confirmedActionId: null,
+        resolution: {
+          engine: "workflow",
+          intent: preResolvedIntent,
+        },
         tokenUsage,
       },
     };
@@ -260,6 +436,44 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     threadId: thread.id,
     userId: user.id,
   });
+
+  // Stream conversational replies with true LLM token streaming
+  const conversationalIntent = resolution.intent.intent === "answer_question" || resolution.intent.intent === "clarify";
+  if (conversationalIntent) {
+    const intent = resolution.intent;
+    const preResolvedText =
+      (intent.intent === "answer_question" ? intent.args.answer : null)
+      ?? (intent.intent === "clarify" ? intent.args.question : null)
+      ?? ('reply' in intent ? (intent as { reply?: string }).reply : undefined);
+
+    emitStatus("正在生成回复...");
+    const replyResult = await generateStreamingReply({
+      history: resolvedHistory,
+      message,
+      onToken: (token) => emitToken(token, 'response'),
+    });
+
+    if (replyResult) {
+      resolution.intent.reply = replyResult.text;
+      tokenUsage = {
+        ...tokenUsage,
+        outputTokens: replyResult.tokenUsage.outputTokens,
+        totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + replyResult.tokenUsage.outputTokens,
+        providerInputTokens: replyResult.tokenUsage.providerInputTokens,
+        providerOutputTokens: replyResult.tokenUsage.providerOutputTokens,
+        source: replyResult.tokenUsage.source,
+      };
+    } else if (typeof preResolvedText === "string" && preResolvedText.length > 0) {
+      // Fallback: progressive word-by-word streaming of pre-resolved text
+      for (const token of splitIntoWordTokens(preResolvedText)) {
+        emitToken(token, 'response');
+        await new Promise((r) => setTimeout(r, 6));
+      }
+    }
+  } else {
+    // Emit intent analysis token so the user sees what was identified during the wait
+    emitToken(`• 识别意图：${intentSummary.title.replace(/^识别为/, "")}\n`, 'thinking');
+  }
 
   return {
     outcome: "continue",

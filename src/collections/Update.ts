@@ -2,6 +2,8 @@ import type { CollectionConfig } from "payload";
 
 import { adminsOnly, adminsOrPublished, canAccessAdmin } from "../lib/payload/access.ts";
 import { statusField, visibilityField } from "../lib/payload/fields.ts";
+import { markdownContentField } from "../lib/payload/markdown-fields.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const Update: CollectionConfig = {
   slug: "updates",
@@ -13,6 +15,7 @@ export const Update: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("content"),
     defaultColumns: ["type", "status", "visibility", "updatedAt"],
     useAsTitle: "type",
   },
@@ -43,15 +46,11 @@ export const Update: CollectionConfig = {
       ],
       required: true,
     },
-    {
-      name: "content",
-      type: "textarea",
+    markdownContentField({
+      description: "支持 Markdown 动态记录。",
       label: "内容",
-      admin: {
-        placeholder: "例如：今天把首页收得更轻了，Dashboard 也开始更像真正工作台。",
-      },
-      required: true,
-    },
+      toolbarMode: "minimal",
+    }),
     {
       name: "link",
       type: "text",

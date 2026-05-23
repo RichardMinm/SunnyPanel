@@ -11,12 +11,16 @@ const workflowByIntent: Record<AgentIntent["intent"], "planning" | "readiness-au
   clarify: "readiness-audit",
   complete_plan_item: "sync",
   compose_plan: "planning",
+  cancel_schedule_item: "planning",
   compose_schedule_item: "planning",
   compose_timeline_event: "sync",
   create_plan: "planning",
   evaluate_plan: "readiness-audit",
+  query_plan_progress: "readiness-audit",
   query_progress: "readiness-audit",
+  reschedule_item: "planning",
   save_memory: "sync",
+  schedule_plan: "planning",
   weekly_review: "weekly-review",
 };
 
@@ -116,6 +120,91 @@ export const recordAgentRollbackExecuted = async ({
     context: {
       skipAgentRunPlanSync: true,
     },
+    data,
+    overrideAccess: true,
+  });
+};
+
+export const recordBatchConfirmationDecision = async ({
+  actions,
+  decision,
+  message,
+  orchestrationId,
+}: {
+  actions: ProposedAgentAction[];
+  decision: "canceled" | "confirmed";
+  message: string;
+  orchestrationId?: string;
+}) => {
+  const payload = await getPayloadClient();
+  const recordedAt = new Date().toISOString();
+  const confirmed = decision === "confirmed";
+  const summaryList = actions.map((action, index) => `${index + 1}. ${action.summary}`).join("；");
+  const data = validateAgentRunData({
+    completedAt: recordedAt,
+    goal: `${confirmed ? "批量确认执行" : "批量取消"}：${actions.length} 项`,
+    orchestrationId,
+    startedAt: recordedAt,
+    status: confirmed ? "succeeded" : "canceled",
+    steps: [
+      {
+        level: confirmed ? "info" : "warn",
+        message: `${confirmed ? "用户批量确认" : "用户批量取消"} orchestrationId=${orchestrationId ?? "n/a"} reply=${message.slice(0, 80)} · ${summaryList.slice(0, 240)}`,
+        recordedAt,
+      },
+    ],
+    summary: `${confirmed ? "已批量确认" : "已批量取消"} ${actions.length} 项操作`,
+    title: `Agent batch confirmation ${decision}`,
+    trigger: "agent",
+    workflow: "automation",
+  });
+
+  await payload.create({
+    collection: "agent-runs",
+    context: {
+      skipAgentRunPlanSync: true,
+    },
+    data,
+    overrideAccess: true,
+  });
+};
+
+export const recordAutoApproval = async ({
+  action,
+  reason,
+  threadId,
+}: {
+  action: ProposedAgentAction;
+  reason: string;
+  threadId: number;
+}) => {
+  const payload = await getPayloadClient();
+  const recordedAt = new Date().toISOString();
+  const data = validateAgentRunData({
+    affectedDocuments: action.affectedDocuments,
+    afterSnapshot: action.afterSnapshot,
+    beforeSnapshot: action.beforeSnapshot,
+    completedAt: recordedAt,
+    goal: `自动批准：${action.summary}`,
+    rollbackAvailable: action.rollbackAvailable ?? false,
+    rollbackPayload: action.rollbackPayload,
+    startedAt: recordedAt,
+    status: "succeeded",
+    steps: [
+      {
+        level: "info",
+        message: `AUTO_APPROVED action=${action.id} intent=${action.intent} risk=${action.riskLevel} reason=${reason} threadId=${threadId}`,
+        recordedAt,
+      },
+    ],
+    summary: `自动批准并执行：${action.summary}`,
+    title: `Agent auto-approved · ${action.intent}`,
+    trigger: "agent",
+    workflow: workflowByIntent[action.intent],
+  });
+
+  await payload.create({
+    collection: "agent-runs",
     data,
     overrideAccess: true,
   });

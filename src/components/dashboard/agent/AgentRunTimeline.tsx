@@ -41,9 +41,10 @@ export type AgentRunTimelineProps = {
   latestAssistantMessage?: AgentChatMessage;
   statusLabel: string;
   steps: AgentTraceStep[];
+  thinkingContent: string;
 };
 
-export function AgentRunTimeline({ isThinking, latestAssistantMessage, statusLabel, steps }: AgentRunTimelineProps) {
+export function AgentRunTimeline({ isThinking, latestAssistantMessage, statusLabel, steps, thinkingContent }: AgentRunTimelineProps) {
   const emptyTitle = isThinking ? "正在建立请求" : "等待新任务";
   const emptyDescription = isThinking
     ? "服务端 trace 返回后，这里会展开上下文、工具调用和写入过程。"
@@ -63,7 +64,7 @@ export function AgentRunTimeline({ isThinking, latestAssistantMessage, statusLab
         </span>
       </div>
 
-      <AgentThinkingPanel isThinking={isThinking} statusLabel={statusLabel} steps={steps} />
+      <AgentThinkingPanel isThinking={isThinking} statusLabel={statusLabel} steps={steps} thinkingContent={thinkingContent} />
 
       {summaryContent ? (
         <div className="sunny-agent-run-summary">

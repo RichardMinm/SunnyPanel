@@ -511,25 +511,50 @@ export const runWeeklyReviewWorkflow = async (
     : await collectWeeklyReviewSnapshot(payload as WeeklyReviewPayload);
   const review = buildWeeklyReviewFromSnapshot(snapshot, now);
 
+  const { enhanceWeeklyReviewWithLLM } = await import("./weekly-review-llm");
+  const llmInsights = await enhanceWeeklyReviewWithLLM(review.metrics, review);
+
+  const mergedReview = llmInsights
+    ? {
+        ...review,
+        narrativeGaps: llmInsights.narrativeGaps.length > 0 ? llmInsights.narrativeGaps : review.narrativeGaps,
+        recommendations: llmInsights.recommendations.length > 0 ? llmInsights.recommendations : review.recommendations,
+        risks: llmInsights.risks.length > 0 ? llmInsights.risks : review.risks,
+      }
+    : review;
+
+  const assistantMessageBase = llmInsights
+    ? [
+        llmInsights.summaryTone,
+        `本周完成：${mergedReview.completed.join("；")}`,
+        `风险：${mergedReview.risks.join("；")}`,
+        `叙事缺口：${mergedReview.narrativeGaps.join("；")}`,
+        `下周建议：${mergedReview.recommendations.join("；")}`,
+      ].join("\n")
+    : formatWeeklyReviewMessage(mergedReview);
+
   if (args.persistReview === false) {
     return {
-      ...review,
-      assistantMessage: formatWeeklyReviewMessage(review),
+      ...mergedReview,
+      assistantMessage: assistantMessageBase,
     };
   }
 
   const reviewedAt = now.toISOString();
   const title = `Weekly Review · ${reviewedAt.slice(0, 10)}`;
   const summary = [
-    `本周完成：${review.completed.join("；")}`,
-    `风险：${review.risks.join("；")}`,
-    `叙事缺口：${review.narrativeGaps.join("；")}`,
-    `下周建议：${review.recommendations.join("；")}`,
-  ].join("\n");
+    llmInsights?.summaryTone,
+    `本周完成：${mergedReview.completed.join("；")}`,
+    `风险：${mergedReview.risks.join("；")}`,
+    `叙事缺口：${mergedReview.narrativeGaps.join("；")}`,
+    `下周建议：${mergedReview.recommendations.join("；")}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
   const rawPlanReviewData = {
-    health: review.health,
-    metrics: review.metrics,
-    recommendations: review.recommendations.map((content) => ({
+    health: mergedReview.health,
+    metrics: mergedReview.metrics,
+    recommendations: mergedReview.recommendations.map((content) => ({
       content,
     })),
     reviewedAt,
@@ -550,7 +575,7 @@ export const runWeeklyReviewWorkflow = async (
   const suggestionResults = args.createSuggestions === false
     ? []
     : await Promise.all(
-        review.suggestionDrafts.map((suggestion) => {
+        mergedReview.suggestionDrafts.map((suggestion) => {
           if (!upsertSuggestion) {
             throw new Error("Weekly review workflow requires upsertSuggestion when createSuggestions is enabled.");
           }
@@ -560,14 +585,15 @@ export const runWeeklyReviewWorkflow = async (
       );
   const rawAgentRunData = {
     afterSnapshot: {
-      metrics: review.metrics,
-      recommendationCount: review.recommendations.length,
+      llmEnhanced: Boolean(llmInsights),
+      metrics: mergedReview.metrics,
+      recommendationCount: mergedReview.recommendations.length,
       reviewId: planReview.id,
-      suggestionKeys: review.suggestionDrafts.map((suggestion) => suggestion.uniqueKey),
+      suggestionKeys: mergedReview.suggestionDrafts.map((suggestion) => suggestion.uniqueKey),
     },
     completedAt: reviewedAt,
     goal: "生成本周回顾，识别完成项、风险、叙事缺口和下周建议",
-    nextAction: review.recommendations[0] ?? null,
+    nextAction: mergedReview.recommendations[0] ?? null,
     relatedContent: [
       {
         relationTo: "plan-reviews",
@@ -584,7 +610,7 @@ export const runWeeklyReviewWorkflow = async (
       },
       {
         level: review.health === "risk" ? "warn" : "info",
-        message: `生成 Weekly Review：health=${review.health}，suggestions=${suggestionResults.length}`,
+        message: `生成 Weekly Review：health=${mergedReview.health}，suggestions=${suggestionResults.length}`,
         recordedAt: reviewedAt,
       },
     ],
@@ -601,13 +627,15 @@ export const runWeeklyReviewWorkflow = async (
   }));
   const agentRun = await createAgentRun(agentRunData);
   const persistedReview = {
-    ...review,
+    ...mergedReview,
     agentRunId: agentRun.id,
     reviewId: planReview.id,
   };
 
   return {
     ...persistedReview,
-    assistantMessage: formatWeeklyReviewMessage(persistedReview),
+    assistantMessage: assistantMessageBase.includes("本周完成")
+      ? `${assistantMessageBase}\n${persistedReview.reviewId ? `已保存为 PlanReview #${persistedReview.reviewId}` : ""}`
+      : formatWeeklyReviewMessage(persistedReview),
   };
 };

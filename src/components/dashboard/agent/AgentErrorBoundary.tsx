@@ -28,7 +28,7 @@ export class AgentErrorBoundary extends Component<Props, State> {
             <h3>{this.props.fallbackLabel ?? "Agent \u7ec4\u4ef6\u51fa\u9519\u4e86"}</h3>
             <p>{this.state.error.message}</p>
             <button type="button" onClick={this.handleRetry} className="sunny-agent-error-boundary-retry">
-              \u91cd\u8bd5
+              {"重试"}
             </button>
           </div>
         </div>

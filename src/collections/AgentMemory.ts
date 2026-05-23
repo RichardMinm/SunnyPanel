@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 
 import { adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const AgentMemory: CollectionConfig = {
   slug: "agent-memories",
@@ -12,6 +13,7 @@ export const AgentMemory: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("agent"),
     defaultColumns: ["title", "type", "confidence", "status", "lastUsedAt", "updatedAt"],
     useAsTitle: "title",
   },
@@ -60,6 +62,15 @@ export const AgentMemory: CollectionConfig = {
       type: "textarea",
       label: "记忆内容",
       required: true,
+    },
+    {
+      name: "embedding",
+      type: "json",
+      label: "向量嵌入",
+      admin: {
+        description: "语义检索用 embedding（number[]）。由 Agent 在保存记忆时自动写入。",
+        position: "sidebar",
+      },
     },
     {
       name: "confidence",

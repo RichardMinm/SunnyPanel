@@ -7,6 +7,8 @@ import {
   statusField,
   visibilityField,
 } from "../lib/payload/fields.ts";
+import { markdownContentField } from "../lib/payload/markdown-fields.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const Post: CollectionConfig = {
   slug: "posts",
@@ -18,6 +20,7 @@ export const Post: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("content"),
     defaultColumns: ["title", "status", "visibility", "publishedAt", "updatedAt"],
     useAsTitle: "title",
   },
@@ -43,15 +46,10 @@ export const Post: CollectionConfig = {
       },
       required: true,
     },
-    {
-      name: "content",
-      type: "richText",
+    markdownContentField({
+      description: "先把核心内容写下来，格式和细节可以之后再整理。",
       label: "正文",
-      admin: {
-        description: "先把核心内容写下来，格式和细节可以之后再整理。",
-      },
-      required: true,
-    },
+    }),
     {
       name: "tags",
       type: "text",

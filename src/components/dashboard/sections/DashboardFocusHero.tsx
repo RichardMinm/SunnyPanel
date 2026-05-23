@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import type { DashboardPageViewModel } from "@/components/dashboard/dashboard-view-model";
 import { FocusActionCard } from "@/components/dashboard/DashboardPrimitives";
+import { DashboardKeyMetricsStrip } from "@/components/dashboard/sections/DashboardKeyMetricsStrip";
 import { SectionHeader, StatusBadge } from "@/components/ui/SunnyComponents";
 
 type DashboardFocusHeroProps = {
@@ -13,21 +14,20 @@ export function DashboardFocusHero({ model }: DashboardFocusHeroProps) {
     continueWritingHref,
     continueWritingLabel,
     displayName,
-    fullAgentHref,
     primaryFocusItem,
   } = model;
 
   return (
     <section className="sunny-dashboard-card sunny-card-strong sunny-dashboard-hero">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.82fr)] xl:items-stretch">
-        <div className="flex min-w-0 flex-col justify-between gap-5">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.78fr)] xl:items-stretch">
+        <div className="flex min-w-0 flex-col justify-between gap-4">
           <div>
-            <p className="sunny-kicker text-xs text-muted">今日工作台</p>
-            <h1 className="sunny-display mt-2 text-3xl leading-tight text-foreground md:text-4xl">
+            <p className="sunny-kicker text-xs text-muted">工作台</p>
+            <h1 className="sunny-display mt-1.5 text-2xl leading-tight text-foreground md:text-3xl">
               你好，{displayName}
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-              今天先让一个关键动作往前走。计划、草稿和时间线缺口会排好优先级，细节留在下方慢慢查。
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">
+              先推进一件事；计划、草稿与日程在下方。
             </p>
           </div>
 
@@ -35,37 +35,38 @@ export function DashboardFocusHero({ model }: DashboardFocusHeroProps) {
             <Link className="sunny-button-primary" href={continueWritingHref}>
               {continueWritingLabel}
             </Link>
-            <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/updates/create">
-              记录动态
-            </Link>
-            <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/timeline-events/create">
-              补时间线
-            </Link>
-            <Link className="sunny-button-secondary px-4 py-2 text-sm" href={fullAgentHref}>
-              全屏问 Agent
-            </Link>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
             <Link className="sunny-dashboard-utility-link" href="/admin">
-              打开 Admin
+              Admin
             </Link>
             <Link className="sunny-dashboard-utility-link" href="/">
-              查看公开站点
+              公开站点
+            </Link>
+            <Link className="sunny-dashboard-utility-link" href="/admin/collections/updates/create">
+              记录动态
+            </Link>
+            <Link className="sunny-dashboard-utility-link" href="/admin/collections/timeline-events/create">
+              补时间线
             </Link>
           </div>
         </div>
 
         <div className="sunny-dashboard-hero-focus">
           <SectionHeader
-            kicker="今日焦点"
-            title="最值得先做的一件事"
+            kicker="焦点"
+            title="优先这一件"
             action={<StatusBadge tone={primaryFocusItem.tone}>{primaryFocusItem.actionLabel}</StatusBadge>}
           />
-          <div className="mt-4">
+          <div className="mt-3">
             <FocusActionCard strong {...primaryFocusItem} />
           </div>
         </div>
+      </div>
+
+      <div className="mt-4 border-t border-border/50 pt-4">
+        <DashboardKeyMetricsStrip as="div" compact model={model} />
       </div>
     </section>
   );

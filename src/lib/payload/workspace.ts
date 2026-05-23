@@ -30,6 +30,11 @@ const privateConstraint = {
   },
 };
 
+/** 工作台与 Agent 上下文共用的近期内容拉取上限 */
+export const WORKSPACE_CONTENT_LIMIT = 12;
+
+const WORKSPACE_TIMELINE_LIMIT = 100;
+
 const hasLinkedOutputs = (plan: Plan) => Array.isArray(plan.linkedContent) && plan.linkedContent.length > 0;
 
 const summarizeText = (value: string, fallback: string, maxLength = 56) => {
@@ -208,101 +213,48 @@ const createAgentContextContentItem = (
   }
 };
 
-export const getAgentWorkspaceContextSource = async ({
-  budget,
-  payload,
-}: {
-  budget: AgentContextBudget;
-  payload: Payload;
-}): Promise<AgentContextSource> => {
-  const planLimit = Math.max(24, budget.maxPlans * 3);
-  const contentLimit = Math.max(12, budget.maxContentItems);
-  const timelineLimit = Math.max(24, budget.maxTimelineEvents * 3);
+export type WorkspaceCoreData = {
+  agentRuns: { docs: AgentRun[]; totalDocs: number };
+  checklists: { docs: Checklist[] };
+  counts: {
+    draftNotes: { totalDocs: number };
+    draftPosts: { totalDocs: number };
+    draftTimelineEvents: { totalDocs: number };
+    draftUpdates: { totalDocs: number };
+    publicChecklists: { totalDocs: number };
+    publicNotes: { totalDocs: number };
+    publicPages: { totalDocs: number };
+    publicPosts: { totalDocs: number };
+    publicTimelineEvents: { totalDocs: number };
+    publicUpdates: { totalDocs: number };
+  };
+  notes: { docs: Note[] };
+  pages: { docs: Page[] };
+  planReviews: { docs: PlanReview[]; totalDocs: number };
+  plans: { docs: Plan[] };
+  posts: { docs: Post[] };
+  schedule: {
+    today: ScheduleItemRecord[];
+    tomorrow: ScheduleItemRecord[];
+  };
+  timelineEvents: { docs: TimelineEvent[] };
+  updates: { docs: Update[] };
+  user: User;
+};
 
-  const [
-    plans,
-    checklists,
-    posts,
-    notes,
-    updates,
-    pages,
-    timelineEvents,
-    agentRuns,
-    planReviews,
-  ] = await Promise.all([
-    payload.find({
-      collection: "plans",
-      depth: 1,
-      limit: planLimit,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "checklists",
-      depth: 0,
-      limit: contentLimit,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "posts",
-      depth: 0,
-      limit: contentLimit,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "notes",
-      depth: 0,
-      limit: contentLimit,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "updates",
-      depth: 0,
-      limit: contentLimit,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "pages",
-      depth: 0,
-      limit: contentLimit,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "timeline-events",
-      depth: 0,
-      limit: timelineLimit,
-      overrideAccess: true,
-      sort: "-eventDate",
-    }),
-    payload.find({
-      collection: "agent-runs",
-      depth: 1,
-      limit: budget.maxAgentRuns,
-      overrideAccess: true,
-      sort: "-startedAt",
-    }),
-    payload.find({
-      collection: "plan-reviews",
-      depth: 1,
-      limit: budget.maxPlanReviews,
-      overrideAccess: true,
-      sort: "-reviewedAt",
-    }),
-  ]);
-  const planDocs = plans.docs as Plan[];
+export const buildAgentContextSourceFromCore = (
+  core: WorkspaceCoreData,
+  budget: AgentContextBudget,
+): AgentContextSource => {
+  const planDocs = core.plans.docs;
   const contentItems = [
-    ...posts.docs.map((doc) => createAgentContextContentItem("posts", doc as Post, planDocs)),
-    ...notes.docs.map((doc) => createAgentContextContentItem("notes", doc as Note, planDocs)),
-    ...updates.docs.map((doc) => createAgentContextContentItem("updates", doc as Update, planDocs)),
-    ...pages.docs.map((doc) => createAgentContextContentItem("pages", doc as Page, planDocs)),
+    ...core.posts.docs.map((doc) => createAgentContextContentItem("posts", doc, planDocs)),
+    ...core.notes.docs.map((doc) => createAgentContextContentItem("notes", doc, planDocs)),
+    ...core.updates.docs.map((doc) => createAgentContextContentItem("updates", doc, planDocs)),
+    ...core.pages.docs.map((doc) => createAgentContextContentItem("pages", doc, planDocs)),
   ].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
   const linkedTimelineContentKeys = new Set(
-    (timelineEvents.docs as TimelineEvent[]).flatMap((event) => {
+    core.timelineEvents.docs.flatMap((event) => {
       const keys: string[] = [];
 
       if (event.relatedPost) {
@@ -318,17 +270,33 @@ export const getAgentWorkspaceContextSource = async ({
   );
 
   return {
-    agentRuns: agentRuns.docs as AgentRun[],
-    checklists: checklists.docs as Checklist[],
+    agentRuns: core.agentRuns.docs,
+    checklists: core.checklists.docs,
     contentItems,
     now: new Date().toISOString(),
-    planReviews: planReviews.docs as PlanReview[],
+    planReviews: core.planReviews.docs,
     plans: planDocs,
     timelineCandidates: contentItems
-      .filter((item) => (item.kind === "posts" || item.kind === "updates") && !linkedTimelineContentKeys.has(`${item.kind}:${item.id}`))
+      .filter(
+        (item) =>
+          (item.kind === "posts" || item.kind === "updates") &&
+          !linkedTimelineContentKeys.has(`${item.kind}:${item.id}`),
+      )
       .slice(0, budget.maxContentItems),
-    timelineEvents: timelineEvents.docs as TimelineEvent[],
+    timelineEvents: core.timelineEvents.docs.slice(0, Math.max(24, budget.maxTimelineEvents * 3)),
   };
+};
+
+export const getAgentWorkspaceContextSource = async ({
+  budget,
+}: {
+  budget: AgentContextBudget;
+  payload?: Payload;
+}): Promise<AgentContextSource> => {
+  const { getCachedWorkspaceCore } = await import("./workspace-cache");
+  const core = await getCachedWorkspaceCore();
+
+  return buildAgentContextSourceFromCore(core, budget);
 };
 
 export type WorkspaceSnapshot = {
@@ -402,161 +370,30 @@ export type WorkspaceSnapshot = {
   user: User;
 };
 
-export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
-  const payload = await getPayloadClient();
-
-  const authResult = await getPayloadAuthResult();
-
-  if (!authResult.user) {
-    const existingUsers = await payload.find({
-      collection: "users",
-      depth: 0,
-      limit: 1,
-      overrideAccess: true,
-      pagination: false,
-    });
-
-    if (existingUsers.totalDocs === 0) {
-      redirect(buildAdminRoute("/admin/create-first-user"));
-    }
-
-    redirect(buildAdminRoute("/admin/login"));
-  }
-
-  const hasWorkspaceSeed = await hasInitialWorkspaceSeed(payload);
-
-  if (!hasWorkspaceSeed) {
-    await ensureInitialWorkspace(payload, authResult.user as User);
-  }
-
-  const [plans, recentPosts, recentNotes, recentUpdates, recentTimelineEvents, recentPages, recentChecklists, recentAgentRuns, recentPlanReviews, timelineReferences, todaySchedule, tomorrowSchedule] = await Promise.all([
-    payload.find({
-      collection: "plans",
-      depth: 1,
-      limit: 100,
-      overrideAccess: true,
-      sort: "dueDate",
-      where: privateConstraint,
-    }),
-    payload.find({
-      collection: "posts",
-      depth: 0,
-      limit: 4,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "notes",
-      depth: 0,
-      limit: 5,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "updates",
-      depth: 0,
-      limit: 5,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "timeline-events",
-      depth: 0,
-      limit: 5,
-      overrideAccess: true,
-      sort: "-eventDate",
-    }),
-    payload.find({
-      collection: "pages",
-      depth: 0,
-      limit: 5,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "checklists",
-      depth: 0,
-      limit: 5,
-      overrideAccess: true,
-      sort: "-updatedAt",
-    }),
-    payload.find({
-      collection: "agent-runs",
-      depth: 1,
-      limit: 6,
-      overrideAccess: true,
-      sort: "-startedAt",
-    }),
-    payload.find({
-      collection: "plan-reviews",
-      depth: 1,
-      limit: 6,
-      overrideAccess: true,
-      sort: "-reviewedAt",
-    }),
-    payload.find({
-      collection: "timeline-events",
-      depth: 0,
-      limit: 100,
-      overrideAccess: true,
-      sort: "-eventDate",
-    }),
-    getTodaySchedule(payload),
-    getTomorrowSchedule(payload),
-  ]);
-
-  const [draftPosts, draftNotes, draftUpdates, draftTimelineEvents, publicPosts, publicNotes, publicUpdates, publicTimelineEvents, publicPages, publicChecklists] = await Promise.all([
-    payload.count({
-      collection: "posts",
-      overrideAccess: true,
-      where: draftConstraint,
-    }),
-    payload.count({
-      collection: "notes",
-      overrideAccess: true,
-      where: draftConstraint,
-    }),
-    payload.count({
-      collection: "updates",
-      overrideAccess: true,
-      where: draftConstraint,
-    }),
-    payload.count({
-      collection: "timeline-events",
-      overrideAccess: true,
-      where: draftConstraint,
-    }),
-    payload.count({
-      collection: "posts",
-      overrideAccess: true,
-      where: publicContentConstraint(),
-    }),
-    payload.count({
-      collection: "notes",
-      overrideAccess: true,
-      where: publicContentConstraint(),
-    }),
-    payload.count({
-      collection: "updates",
-      overrideAccess: true,
-      where: publicContentConstraint(),
-    }),
-    payload.count({
-      collection: "timeline-events",
-      overrideAccess: true,
-      where: publicContentConstraint(),
-    }),
-    payload.count({
-      collection: "pages",
-      overrideAccess: true,
-      where: publicContentConstraint(),
-    }),
-    payload.count({
-      collection: "checklists",
-      overrideAccess: true,
-      where: publicContentConstraint(),
-    }),
-  ]);
+export const assembleWorkspaceSnapshot = (core: WorkspaceCoreData): WorkspaceSnapshot => {
+  const { counts } = core;
+  const plans = { docs: core.plans.docs };
+  const recentPosts = { docs: core.posts.docs };
+  const recentNotes = { docs: core.notes.docs };
+  const recentUpdates = { docs: core.updates.docs };
+  const recentPages = { docs: core.pages.docs };
+  const recentChecklists = { docs: core.checklists.docs };
+  const recentAgentRuns = { docs: core.agentRuns.docs, totalDocs: core.agentRuns.totalDocs };
+  const recentPlanReviews = { docs: core.planReviews.docs, totalDocs: core.planReviews.totalDocs };
+  const timelineReferences = { docs: core.timelineEvents.docs };
+  const recentTimelineEvents = { docs: core.timelineEvents.docs.slice(0, WORKSPACE_CONTENT_LIMIT) };
+  const todaySchedule = core.schedule.today;
+  const tomorrowSchedule = core.schedule.tomorrow;
+  const draftPosts = counts.draftPosts;
+  const draftNotes = counts.draftNotes;
+  const draftUpdates = counts.draftUpdates;
+  const draftTimelineEvents = counts.draftTimelineEvents;
+  const publicPosts = counts.publicPosts;
+  const publicNotes = counts.publicNotes;
+  const publicUpdates = counts.publicUpdates;
+  const publicTimelineEvents = counts.publicTimelineEvents;
+  const publicPages = counts.publicPages;
+  const publicChecklists = counts.publicChecklists;
 
   const publicContentItems =
     publicPosts.totalDocs + publicNotes.totalDocs + publicUpdates.totalDocs + publicTimelineEvents.totalDocs;
@@ -674,7 +511,7 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
       agentReadyPlans: readyAgentPlans.length,
       publicContentItems,
       publicPages: publicPages.totalDocs,
-      timelineEvents: recentTimelineEvents.totalDocs,
+      timelineEvents: recentTimelineEvents.docs.length,
     }),
     plans: {
       active: activePlans,
@@ -691,6 +528,197 @@ export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
     recentPosts: recentPosts.docs,
     recentTimelineEvents: recentTimelineEvents.docs,
     recentUpdates: recentUpdates.docs,
+    user: core.user,
+  };
+};
+
+export const loadWorkspaceCore = async (): Promise<WorkspaceCoreData> => {
+  const payload = await getPayloadClient();
+
+  const authResult = await getPayloadAuthResult();
+
+  if (!authResult.user) {
+    const existingUsers = await payload.find({
+      collection: "users",
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+      pagination: false,
+    });
+
+    if (existingUsers.totalDocs === 0) {
+      redirect(buildAdminRoute("/admin/create-first-user"));
+    }
+
+    redirect(buildAdminRoute("/admin/login"));
+  }
+
+  const hasWorkspaceSeed = await hasInitialWorkspaceSeed(payload);
+
+  if (!hasWorkspaceSeed) {
+    await ensureInitialWorkspace(payload, authResult.user as User);
+  }
+
+  const contentLimit = WORKSPACE_CONTENT_LIMIT;
+
+  const [plans, posts, notes, updates, pages, checklists, agentRuns, planReviews, timelineEvents, todaySchedule, tomorrowSchedule, draftPosts, draftNotes, draftUpdates, draftTimelineEvents, publicPosts, publicNotes, publicUpdates, publicTimelineEvents, publicPages, publicChecklists] = await Promise.all([
+    payload.find({
+      collection: "plans",
+      depth: 1,
+      limit: 100,
+      overrideAccess: true,
+      sort: "dueDate",
+      where: privateConstraint,
+    }),
+    payload.find({
+      collection: "posts",
+      depth: 0,
+      limit: contentLimit,
+      overrideAccess: true,
+      sort: "-updatedAt",
+    }),
+    payload.find({
+      collection: "notes",
+      depth: 0,
+      limit: contentLimit,
+      overrideAccess: true,
+      sort: "-updatedAt",
+    }),
+    payload.find({
+      collection: "updates",
+      depth: 0,
+      limit: contentLimit,
+      overrideAccess: true,
+      sort: "-updatedAt",
+    }),
+    payload.find({
+      collection: "pages",
+      depth: 0,
+      limit: contentLimit,
+      overrideAccess: true,
+      sort: "-updatedAt",
+    }),
+    payload.find({
+      collection: "checklists",
+      depth: 0,
+      limit: contentLimit,
+      overrideAccess: true,
+      sort: "-updatedAt",
+    }),
+    payload.find({
+      collection: "agent-runs",
+      depth: 1,
+      limit: 6,
+      overrideAccess: true,
+      sort: "-startedAt",
+    }),
+    payload.find({
+      collection: "plan-reviews",
+      depth: 1,
+      limit: 6,
+      overrideAccess: true,
+      sort: "-reviewedAt",
+    }),
+    payload.find({
+      collection: "timeline-events",
+      depth: 0,
+      limit: WORKSPACE_TIMELINE_LIMIT,
+      overrideAccess: true,
+      sort: "-eventDate",
+    }),
+    getTodaySchedule(payload),
+    getTomorrowSchedule(payload),
+    payload.count({
+      collection: "posts",
+      overrideAccess: true,
+      where: draftConstraint,
+    }),
+    payload.count({
+      collection: "notes",
+      overrideAccess: true,
+      where: draftConstraint,
+    }),
+    payload.count({
+      collection: "updates",
+      overrideAccess: true,
+      where: draftConstraint,
+    }),
+    payload.count({
+      collection: "timeline-events",
+      overrideAccess: true,
+      where: draftConstraint,
+    }),
+    payload.count({
+      collection: "posts",
+      overrideAccess: true,
+      where: publicContentConstraint(),
+    }),
+    payload.count({
+      collection: "notes",
+      overrideAccess: true,
+      where: publicContentConstraint(),
+    }),
+    payload.count({
+      collection: "updates",
+      overrideAccess: true,
+      where: publicContentConstraint(),
+    }),
+    payload.count({
+      collection: "timeline-events",
+      overrideAccess: true,
+      where: publicContentConstraint(),
+    }),
+    payload.count({
+      collection: "pages",
+      overrideAccess: true,
+      where: publicContentConstraint(),
+    }),
+    payload.count({
+      collection: "checklists",
+      overrideAccess: true,
+      where: publicContentConstraint(),
+    }),
+  ]);
+
+  return {
+    agentRuns: {
+      docs: agentRuns.docs as AgentRun[],
+      totalDocs: agentRuns.totalDocs,
+    },
+    checklists: { docs: checklists.docs as Checklist[] },
+    counts: {
+      draftNotes,
+      draftPosts,
+      draftTimelineEvents,
+      draftUpdates,
+      publicChecklists,
+      publicNotes,
+      publicPages,
+      publicPosts,
+      publicTimelineEvents,
+      publicUpdates,
+    },
+    notes: { docs: notes.docs as Note[] },
+    pages: { docs: pages.docs as Page[] },
+    planReviews: {
+      docs: planReviews.docs as PlanReview[],
+      totalDocs: planReviews.totalDocs,
+    },
+    plans: { docs: plans.docs as Plan[] },
+    posts: { docs: posts.docs as Post[] },
+    schedule: {
+      today: todaySchedule,
+      tomorrow: tomorrowSchedule,
+    },
+    timelineEvents: { docs: timelineEvents.docs as TimelineEvent[] },
+    updates: { docs: updates.docs as Update[] },
     user: authResult.user as User,
   };
+};
+
+export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
+  const { getCachedWorkspaceCore } = await import("./workspace-cache");
+  const core = await getCachedWorkspaceCore();
+
+  return assembleWorkspaceSnapshot(core);
 };

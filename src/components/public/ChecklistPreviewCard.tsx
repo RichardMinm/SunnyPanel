@@ -22,7 +22,7 @@ export function ChecklistPreviewCard({ checklist, locale }: ChecklistPreviewCard
 
   return (
     <MotionReveal>
-      <article className="rounded-[1.15rem] border border-border bg-white/60 px-4 py-4 transition hover:-translate-y-1 hover:bg-white/72 md:rounded-[1.35rem] md:px-5 md:py-5">
+      <article className="rounded-lg border border-border bg-white/60 px-4 py-4 transition hover:bg-white/72 md:rounded-lg md:px-5 md:py-5">
         <div className="flex flex-wrap gap-2">
           <span className="sunny-badge sunny-badge-accent">{copy.checklists.badgeChecklist}</span>
           <span className="sunny-badge sunny-badge-muted">
@@ -50,7 +50,7 @@ export function ChecklistPreviewCard({ checklist, locale }: ChecklistPreviewCard
 
 function ChecklistPreviewGroup({ group }: { group: ChecklistGroup }) {
   return (
-    <div className="rounded-[1rem] border border-border/80 bg-background/55 px-4 py-4">
+    <div className="rounded-lg border border-border/80 bg-background/55 px-4 py-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-foreground md:text-base">{group.title}</p>
         <span className="text-xs text-muted">
@@ -62,10 +62,10 @@ function ChecklistPreviewGroup({ group }: { group: ChecklistGroup }) {
         {(group.items ?? []).slice(0, 3).map((item, itemIndex) => (
           <div
             key={item.id ?? `${group.id ?? "group"}-${itemIndex}`}
-            className="flex items-start gap-3 rounded-[0.85rem] bg-white/70 px-3 py-2.5"
+            className="flex items-start gap-3 rounded-md bg-white/70 px-3 py-2.5"
           >
             <span
-              className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[0.7rem] ${
+              className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-icon-badge ${
                 item?.isCompleted
                   ? "border-emerald-300 bg-emerald-100 text-emerald-700"
                   : "border-border bg-white text-muted"

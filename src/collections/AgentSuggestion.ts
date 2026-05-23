@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 
 import { adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const AgentSuggestion: CollectionConfig = {
   slug: "agent-suggestions",
@@ -12,6 +13,7 @@ export const AgentSuggestion: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("agent"),
     defaultColumns: ["title", "source", "riskLevel", "status", "updatedAt"],
     useAsTitle: "title",
   },

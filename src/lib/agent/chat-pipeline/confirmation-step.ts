@@ -1,9 +1,11 @@
-import { isCancellationReply, isConfirmationReply } from "../intent";
+import { restoreIntentsFromBatchConfirmation } from "../execution-graph";
+import { isBatchConfirmationReply, isCancellationReply, isConfirmationReply } from "../intent-resolution";
 import { createIntentFromProposedAction } from "../safety";
 import type { AgentIntent, PendingAction, ProposedAgentAction } from "../schemas";
 
 export type StructuredConfirmation = {
   actionId: string;
+  batch?: boolean;
   type: "cancel" | "confirm";
 };
 
@@ -26,6 +28,7 @@ export const parseStructuredConfirmation = (body: Record<string, unknown>): null
 
   return {
     actionId,
+    ...(raw.batch === true ? { batch: true as const } : {}),
     type,
   };
 };
@@ -35,12 +38,19 @@ export const confirmationMatchesPending = (
   confirmation: StructuredConfirmation,
 ) => pending.action.id === confirmation.actionId;
 
+export const confirmationMatchesBatchPending = (
+  pending: Extract<PendingAction, { type: "await_batch_confirmation" }>,
+  confirmation: StructuredConfirmation,
+) =>
+  confirmation.batch ||
+  confirmation.actionId === "batch" ||
+  confirmation.actionId === (pending.orchestrationId ?? "batch");
+
 export type ConfirmationSignals = {
   cancel: boolean;
   confirm: boolean;
 };
 
-/** 在已处于 `await_confirmation` 时，由信号推导下一步（纯函数，便于单测）。 */
 export type AwaitConfirmationBranch = "cancel" | "confirmed" | "still_waiting";
 
 export const resolveAwaitConfirmationBranch = (
@@ -67,6 +77,20 @@ export const resolveConfirmationSignals = ({
   message: string;
   pendingAction: null | PendingAction;
 }): ConfirmationSignals => {
+  if (pendingAction?.type === "await_batch_confirmation") {
+    if (confirmation && confirmationMatchesBatchPending(pendingAction, confirmation)) {
+      return {
+        cancel: confirmation.type === "cancel",
+        confirm: confirmation.type === "confirm",
+      };
+    }
+
+    return {
+      cancel: isCancellationReply(message),
+      confirm: isBatchConfirmationReply(message),
+    };
+  }
+
   if (pendingAction?.type !== "await_confirmation") {
     return {
       cancel: false,
@@ -98,3 +122,7 @@ export const restoreConfirmedIntent = (action: ProposedAgentAction): AgentIntent
 
   return confirmedIntent;
 };
+
+export const restoreConfirmedBatchIntents = (
+  pending: Extract<PendingAction, { type: "await_batch_confirmation" }>,
+): AgentIntent[] => restoreIntentsFromBatchConfirmation(pending);

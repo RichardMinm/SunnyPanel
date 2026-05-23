@@ -4,7 +4,7 @@ import Link from "next/link";
 import { MotionReveal } from "@/components/public/MotionReveal";
 import { formatDate } from "@/lib/formatters";
 import { getMediaAsset, getMediaDisplayUrl } from "@/lib/media";
-import { estimateReadingMinutes, extractLexicalPlainText } from "@/lib/richtext";
+import { getReadingMinutesFromContent } from "@/lib/markdown/reading-time";
 import type { SiteLocale } from "@/lib/site-copy";
 import type { Post } from "@/payload-types";
 
@@ -20,7 +20,7 @@ export function PostPreviewCard({
   variant = "stack",
 }: PostPreviewCardProps) {
   const coverImage = getMediaAsset(post.coverImage);
-  const readingTime = estimateReadingMinutes(extractLexicalPlainText(post.content));
+  const readingTime = getReadingMinutesFromContent(post.content);
   const isFeatured = variant === "featured";
   const isCompact = variant === "compact";
 
@@ -28,8 +28,8 @@ export function PostPreviewCard({
     <MotionReveal>
       <Link
         href={`/blog/${post.slug}`}
-        className={`sunny-card group block overflow-hidden transition hover:-translate-y-1 ${
-          isFeatured ? "sunny-card-strong rounded-[2.2rem]" : "rounded-[1.85rem]"
+        className={`sunny-card group block overflow-hidden transition ${
+          isFeatured ? "sunny-card-strong rounded-xl" : "rounded-xl"
         }`}
       >
         {coverImage ? (
@@ -49,7 +49,7 @@ export function PostPreviewCard({
 
         <div className={isFeatured ? "p-8" : "p-6"}>
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-            <span className="sunny-kicker text-[0.7rem] text-muted">
+            <span className="sunny-kicker text-muted">
               {formatDate(post.publishedAt, locale)}
             </span>
             <span className="sunny-badge sunny-badge-muted">
@@ -81,7 +81,7 @@ export function PostPreviewCard({
               {post.tags.slice(0, isFeatured ? 4 : 3).map((tag) => (
                 <span
                   key={`${post.id}-${tag}`}
-                  className="rounded-full bg-white/70 px-3 py-1 text-xs text-accent-strong"
+                  className="rounded-md bg-white/70 px-3 py-1 text-xs text-accent-strong"
                 >
                   {tag}
                 </span>

@@ -1,5 +1,7 @@
 import { cache } from "react";
 
-import { getWorkspaceSnapshot } from "@/lib/payload/workspace";
+import { assembleWorkspaceSnapshot, loadWorkspaceCore } from "@/lib/payload/workspace";
 
-export const getCachedWorkspaceSnapshot = cache(getWorkspaceSnapshot);
+export const getCachedWorkspaceCore = cache(loadWorkspaceCore);
+
+export const getCachedWorkspaceSnapshot = cache(async () => assembleWorkspaceSnapshot(await getCachedWorkspaceCore()));

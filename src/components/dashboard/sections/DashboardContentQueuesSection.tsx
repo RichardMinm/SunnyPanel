@@ -3,30 +3,45 @@ import { DashboardContentQueueCard } from "@/components/dashboard/DashboardConte
 import { SectionHeader } from "@/components/ui/SunnyComponents";
 
 type DashboardContentQueuesSectionProps = {
+  compact?: boolean;
+  embedded?: boolean;
   model: DashboardPageViewModel;
 };
 
-export function DashboardContentQueuesSection({ model }: DashboardContentQueuesSectionProps) {
+export function DashboardContentQueuesSection({ compact, embedded, model }: DashboardContentQueuesSectionProps) {
   const { contentQueues, locale } = model;
+  const queues = compact ? contentQueues.slice(0, 2) : contentQueues;
 
-  return (
-    <section className="sunny-dashboard-card sunny-dashboard-card-quiet sunny-content-operations">
-      <SectionHeader
-        kicker="内容工作台"
-        title="内容运营"
-        description="草稿、私有待发和公开内容用轻量行处理；这里更像编辑台，不再是一排同权重卡片。"
-        action={
-          <span className="sunny-dashboard-count">
-            {contentQueues.reduce((total, queue) => total + queue.items.length, 0)} 条
-          </span>
-        }
-      />
+  const content = (
+    <>
+      {!embedded ? (
+        <SectionHeader
+          kicker="内容"
+          title="最近编辑与草稿"
+          description={compact ? "两条队列即可扫一眼状态。" : "草稿、私有待发和公开内容用轻量行处理；这里更像编辑台，不再是一排同权重卡片。"}
+          action={
+            <span className="sunny-dashboard-count">
+              {queues.reduce((total, queue) => total + queue.items.length, 0)} 条
+            </span>
+          }
+        />
+      ) : null}
 
-      <div className="sunny-content-operations-grid mt-5">
-        {contentQueues.map((queue) => (
+      <div className={`sunny-content-operations-grid${embedded ? " mt-0" : " mt-5"}`}>
+        {queues.map((queue) => (
           <DashboardContentQueueCard key={queue.title} locale={locale} {...queue} />
         ))}
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <section className="sunny-dashboard-card sunny-dashboard-card-quiet sunny-content-operations">
+      {content}
     </section>
   );
 }

@@ -1,15 +1,19 @@
-import { executeAgentIntent } from "@/lib/agent/executor";
+import { executeAgentIntent, executeAgentIntentsParallel } from "@/lib/agent/executor";
 import type { IntentResolution } from "@/lib/agent/chat-pipeline/resolve-intent-step";
+import type { StreamTokenCallback } from "@/lib/agent/client";
 import { logAgentEvent } from "@/lib/agent/logger";
 import { isRollbackPayloadExecutable } from "@/lib/agent/rollback-parse";
 import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
-import { estimateTokenCount } from "@/lib/agent/token-usage";
+import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 
 export type ExecuteAndPersistStepParams = {
+  batchExecuteIntents?: AgentIntent[];
   confirmedActionId: null | string;
   emitStatus: (status: string) => void;
+  emitToken: StreamTokenCallback;
   isDirectAnswer: boolean;
+  nextPendingAfterExecute?: null | PendingAction;
   persistAgentTurn: (args: {
     assistantMessage: string;
     confidence?: number;
@@ -26,9 +30,12 @@ export type ExecuteAndPersistStepParams = {
 
 export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepParams): Promise<AgentChatResponse> => {
   const {
+    batchExecuteIntents,
     confirmedActionId,
     emitStatus,
+    emitToken,
     isDirectAnswer,
+    nextPendingAfterExecute,
     persistAgentTurn,
     pushTrace,
     resolution,
@@ -38,6 +45,63 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   } = params;
 
   let tokenUsage = tokenUsageIn;
+
+  if (batchExecuteIntents && batchExecuteIntents.length > 0) {
+    emitStatus(`正在批量执行 ${batchExecuteIntents.length} 项操作...`);
+    let lastPending: PendingAction | null = null;
+
+    pushTrace({
+      detail: `并行执行 ${batchExecuteIntents.length} 项无依赖写操作`,
+      id: "batch-execute-parallel",
+      kind: "action",
+      status: "running",
+      title: `批量并行执行 (${batchExecuteIntents.length})`,
+    });
+    const batchResult = await executeAgentIntentsParallel(batchExecuteIntents, pushTrace);
+    lastPending = batchResult.pendingAction;
+    const assistantMessage = batchResult.assistantMessage;
+    for (const token of splitIntoWordTokens(assistantMessage)) {
+      emitToken(token, 'response');
+      await new Promise((r) => setTimeout(r, 6));
+    }
+    pushTrace({
+      detail: assistantMessage.slice(0, 120),
+      id: "batch-execute-parallel",
+      kind: "complete",
+      status: "done",
+      title: `批量执行完成 (${batchExecuteIntents.length})`,
+    });
+    const outputTokens = estimateTokenCount(assistantMessage);
+    tokenUsage = {
+      ...tokenUsage,
+      outputTokens,
+      totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+    };
+    const updatedThread = await persistAgentTurn({
+      assistantMessage,
+      confidence: resolution.intent.confidence,
+      engine: resolution.engine,
+      intent: resolution.intent.intent,
+      nextPendingAction: lastPending,
+    });
+
+    logAgentEvent("info", "chat.batch_executed", {
+      count: batchExecuteIntents.length,
+      threadId: updatedThread.id,
+      userId: user.id,
+    });
+
+    return {
+      assistantMessage,
+      confidence: resolution.intent.confidence,
+      engine: resolution.engine,
+      intent: resolution.intent.intent,
+      pendingAction: lastPending,
+      trace,
+      threadId: updatedThread.id,
+      tokenUsage,
+    };
+  }
 
   emitStatus(isDirectAnswer ? "正在组织回复内容..." : "正在执行写入操作...");
   pushTrace({
@@ -53,11 +117,22 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   });
 
   const execution = await executeAgentIntent(resolution.intent, pushTrace);
+  const resolvedPending = execution.pendingAction ?? nextPendingAfterExecute ?? null;
+  const assistantMessage =
+    nextPendingAfterExecute && !execution.pendingAction
+      ? `${execution.assistantMessage}\n\n另有 ${nextPendingAfterExecute.type === "await_batch_confirmation" ? nextPendingAfterExecute.actions.length : 0} 项操作待批量确认，请回复「确认」执行。`
+      : execution.assistantMessage;
+  if (!isDirectAnswer && assistantMessage) {
+    for (const token of splitIntoWordTokens(assistantMessage)) {
+      emitToken(token, 'response');
+      await new Promise((r) => setTimeout(r, 6));
+    }
+  }
   const lastRollbackPayload =
     "rollbackPayload" in execution && execution.rollbackPayload && isRollbackPayloadExecutable(execution.rollbackPayload)
       ? execution.rollbackPayload
       : undefined;
-  const outputTokens = estimateTokenCount(execution.assistantMessage);
+  const outputTokens = estimateTokenCount(assistantMessage);
   tokenUsage = {
     ...tokenUsage,
     outputTokens,
@@ -76,28 +151,28 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   });
 
   const updatedThread = await persistAgentTurn({
-    assistantMessage: execution.assistantMessage,
+    assistantMessage,
     confidence: resolution.intent.confidence,
     engine: resolution.engine,
     intent: resolution.intent.intent,
-    nextPendingAction: execution.pendingAction,
+    nextPendingAction: resolvedPending,
   });
 
   logAgentEvent("info", "chat.intent_executed", {
     confirmedActionId,
     intent: resolution.intent.intent,
-    pendingAction: execution.pendingAction?.type ?? null,
+    pendingAction: resolvedPending?.type ?? null,
     threadId: updatedThread.id,
     userId: user.id,
   });
 
   return {
-    assistantMessage: execution.assistantMessage,
+    assistantMessage,
     confidence: resolution.intent.confidence,
     engine: resolution.engine,
     intent: resolution.intent.intent,
     lastRollbackPayload,
-    pendingAction: execution.pendingAction,
+    pendingAction: resolvedPending,
     trace,
     threadId: updatedThread.id,
     tokenUsage,

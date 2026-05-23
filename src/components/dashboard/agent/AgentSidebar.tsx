@@ -1,3 +1,5 @@
+import { useCallback, useState } from "react";
+
 import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
 import type { PendingAction } from "@/lib/agent/schemas";
 import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
@@ -11,10 +13,12 @@ type AgentSidebarProps = {
   disabled?: boolean;
   inboxSuggestions: AgentInboxSuggestion[];
   isThinking: boolean;
+  onArchiveThread?: (threadId: number, archived: boolean) => void;
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
   onRunPrompt: (prompt: string) => void;
   onRunSuggestion: (suggestion: AgentInboxSuggestion) => void;
+  onSearchThreads?: (query: string) => void;
   pendingAction: null | PendingAction;
   quickPrompts: AgentQuickPrompt[];
   recentRuns: AgentRunSummary[];
@@ -27,10 +31,12 @@ export function AgentSidebar({
   disabled,
   inboxSuggestions,
   isThinking,
+  onArchiveThread,
   onLoadThread,
   onNewThread,
   onRunPrompt,
   onRunSuggestion,
+  onSearchThreads,
   pendingAction,
   quickPrompts,
   recentRuns,
@@ -38,6 +44,18 @@ export function AgentSidebar({
   threadId,
   threads,
 }: AgentSidebarProps) {
+  const [threadSearch, setThreadSearch] = useState("");
+  const [showAllThreads, setShowAllThreads] = useState(false);
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setThreadSearch(value);
+      onSearchThreads?.(value);
+    },
+    [onSearchThreads],
+  );
+
+  const visibleThreads = showAllThreads ? threads : threads.slice(0, 8);
   const tasks = buildSuggestedTasks(inboxSuggestions, quickPrompts).slice(0, 5);
   const pendingTone = pendingAction?.type === "await_confirmation"
     ? pendingAction.action.riskLevel === "high"
@@ -51,14 +69,14 @@ export function AgentSidebar({
     <aside className="sunny-agent-left-rail">
       <div className="sunny-agent-rail-head">
         <button type="button" onClick={onNewThread} className="sunny-agent-new-task-button">
-          New Task
+          新任务
         </button>
       </div>
 
       <div className="sunny-agent-rail-section">
-        <p className="sunny-agent-rail-label">Active</p>
+        <p className="sunny-agent-rail-label">当前任务</p>
         <AgentTaskRow
-          detail={isThinking ? "running" : "ready"}
+          detail={isThinking ? "运行中" : "就绪"}
           label={statusLabel}
           meta={threadId ? `#${threadId}` : null}
           tone={isThinking ? "info" : "success"}
@@ -66,7 +84,7 @@ export function AgentSidebar({
       </div>
 
       <div className="sunny-agent-rail-section">
-        <p className="sunny-agent-rail-label">Approvals</p>
+        <p className="sunny-agent-rail-label">待确认</p>
         {pendingAction ? (
           <AgentTaskRow
             detail={getPendingActionLabel(pendingAction)}
@@ -75,12 +93,12 @@ export function AgentSidebar({
             tone={pendingTone}
           />
         ) : (
-          <AgentTaskRow detail="没有待确认动作" label="Clear" tone="muted" />
+          <AgentTaskRow detail="没有待确认动作" label="无待办" tone="muted" />
         )}
       </div>
 
       <div className="sunny-agent-rail-section">
-        <p className="sunny-agent-rail-label">Suggestions</p>
+        <p className="sunny-agent-rail-label">建议</p>
         {tasks.length > 0 ? (
           tasks.map((task) => (
             <AgentTaskRow
@@ -105,20 +123,60 @@ export function AgentSidebar({
         )}
       </div>
 
-      <details className="sunny-agent-rail-section sunny-agent-rail-details">
-        <summary>Threads</summary>
+      <details className="sunny-agent-rail-section sunny-agent-rail-details" open>
+        <summary>会话列表</summary>
+        <div className="sunny-agent-thread-search">
+          <input
+            type="text"
+            value={threadSearch}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="搜索会话..."
+            className="sunny-agent-thread-search-input"
+            aria-label="搜索 Agent 会话"
+          />
+        </div>
         <div className="sunny-agent-rail-detail-list">
-          {threads.slice(0, 5).map((thread) => (
-            <AgentTaskRow
-              key={thread.id}
-              detail={thread.pendingAction ? getPendingActionLabel(thread.pendingAction) : thread.title}
-              label={`Thread #${thread.id}`}
-              onClick={() => onLoadThread(thread.id)}
-              selected={thread.id === threadId}
-              tone={thread.pendingAction ? "warning" : "muted"}
-            />
+          {visibleThreads.map((thread) => (
+            <div key={thread.id} className="sunny-agent-thread-row-wrapper">
+              <AgentTaskRow
+                detail={thread.pendingAction ? getPendingActionLabel(thread.pendingAction) : thread.title}
+                label={`Thread #${thread.id}`}
+                meta={thread.archived ? "归档" : thread.tags?.length ? thread.tags[0] : undefined}
+                onClick={() => onLoadThread(thread.id)}
+                selected={thread.id === threadId}
+                tone={thread.archived ? "muted" : thread.pendingAction ? "warning" : "muted"}
+              />
+              {onArchiveThread ? (
+                <button
+                  type="button"
+                  className="sunny-agent-thread-archive-btn"
+                  title={thread.archived ? "取消归档" : "归档"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onArchiveThread(thread.id, !thread.archived);
+                  }}
+                >
+                  {thread.archived ? "恢复" : "归档"}
+                </button>
+              ) : null}
+            </div>
           ))}
-          {threads.length === 0 ? <AgentTaskRow detail="还没有历史会话" label="No threads" tone="muted" /> : null}
+          {!showAllThreads && threads.length > 8 ? (
+            <button
+              type="button"
+              className="sunny-agent-thread-show-more"
+              onClick={() => setShowAllThreads(true)}
+            >
+              显示全部 ({threads.length})
+            </button>
+          ) : null}
+          {threads.length === 0 ? (
+            <AgentTaskRow
+              detail={threadSearch ? "没有匹配的会话" : "还没有历史会话"}
+              label={threadSearch ? "未找到" : "No threads"}
+              tone="muted"
+            />
+          ) : null}
         </div>
       </details>
 

@@ -4,15 +4,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
-import { RichTextContent } from "@/components/public/RichTextContent";
+import { ContentRenderer } from "@/components/public/ContentRenderer";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { getMediaAsset, getMediaDisplayUrl } from "@/lib/media";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPostBySlug } from "@/lib/payload/public";
-import { estimateReadingMinutes, extractLexicalPlainText } from "@/lib/richtext";
+import { getReadingMinutesFromContent } from "@/lib/markdown/reading-time";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 type BlogPostPageProps = {
   params: Promise<{
@@ -57,7 +57,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   }
 
   const coverImage = getMediaAsset(post.coverImage);
-  const readingTime = estimateReadingMinutes(extractLexicalPlainText(post.content));
+  const readingTime = getReadingMinutesFromContent(post.content);
 
   return (
     <PublicSiteFrame locale={locale}>
@@ -72,10 +72,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </span>
         </div>
 
-        <article className="grid gap-6 xl:grid-cols-[0.88fr_1.52fr]">
-          <aside className="sunny-card rounded-[2.2rem] p-8">
+        <article className="grid min-w-0 gap-6 xl:grid-cols-[0.88fr_1.52fr]">
+          <aside className="sunny-card min-w-0 rounded-[2.2rem] p-8">
             <p className="sunny-kicker text-xs text-muted">{copy.blogPost.overview}</p>
-            <h1 className="sunny-display mt-4 text-4xl leading-none text-foreground md:text-5xl">
+            <h1 className="sunny-display mt-4 break-words text-4xl leading-tight text-foreground md:text-5xl">
               {post.title}
             </h1>
             <p className="mt-5 text-base leading-8 text-muted">{post.summary}</p>
@@ -132,7 +132,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 {copy.blogPost.articleLayer}
               </div>
 
-              <RichTextContent data={post.content} />
+              <ContentRenderer content={post.content} />
             </div>
           </div>
         </article>
