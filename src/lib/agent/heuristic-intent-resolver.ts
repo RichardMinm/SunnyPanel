@@ -5,6 +5,7 @@
 export {
   cleanupText,
   inferMemoryType,
+  isBatchConfirmationReply,
   isCancellationReply,
   isConfirmationReply,
   isMathTwoSyllabusQuestion,

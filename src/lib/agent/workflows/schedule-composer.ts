@@ -310,6 +310,33 @@ export const toScheduleConflicts = (
     title: item.title,
   }));
 
+export const composeScheduleProposalAsync = async (
+  args: ComposeScheduleItemArgs,
+  context: ScheduleComposerContext = {},
+): Promise<ScheduleProposal> => {
+  let enrichedArgs = args;
+
+  if (normalizeText(args.sourceText)) {
+    const { inferScheduleTimeWithLLM } = await import("./schedule-time-llm");
+    const llmParsed = await inferScheduleTimeWithLLM(
+      normalizeText(args.sourceText),
+      context.now ?? new Date().toISOString(),
+    );
+
+    if (llmParsed && llmParsed.confidence >= 0.45) {
+      enrichedArgs = {
+        ...args,
+        date: args.date ?? llmParsed.date ?? undefined,
+        endTime: args.endTime ?? llmParsed.endTime ?? undefined,
+        isAllDay: args.isAllDay ?? llmParsed.isAllDay,
+        startTime: args.startTime ?? llmParsed.startTime ?? undefined,
+      };
+    }
+  }
+
+  return composeScheduleProposal(enrichedArgs, context);
+};
+
 export const composeScheduleProposal = (
   args: ComposeScheduleItemArgs,
   context: ScheduleComposerContext = {},

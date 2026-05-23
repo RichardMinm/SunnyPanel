@@ -238,21 +238,7 @@ export interface Post {
   /**
    * 先把核心内容写下来，格式和细节可以之后再整理。
    */
-  content: {
-    root: {
-      type: string;
-      children: {
-        type: any;
-        version: number;
-        [k: string]: unknown;
-      }[];
-      direction: ('ltr' | 'rtl') | null;
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-      indent: number;
-      version: number;
-    };
-    [k: string]: unknown;
-  };
+  content: string;
   /**
    * 可选。先不填也没关系。
    */
@@ -273,6 +259,9 @@ export interface Post {
  */
 export interface Note {
   id: number;
+  /**
+   * 支持 Markdown 短札写作。
+   */
   content: string;
   mood?: string | null;
   category: string;
@@ -293,6 +282,9 @@ export interface Update {
    * 先选一个最接近的类型即可。
    */
   type: 'life' | 'work' | 'project';
+  /**
+   * 支持 Markdown 动态记录。
+   */
   content: string;
   /**
    * 可选。需要时再补。
@@ -397,6 +389,10 @@ export interface Plan {
    */
   executionMode: 'manual' | 'hybrid' | 'agent';
   /**
+   * 计划所属领域，影响 Agent 拆解策略。
+   */
+  domain: 'study' | 'work' | 'travel' | 'fitness' | 'creative' | 'other';
+  /**
    * 这项计划在 Agent 工作流里的当前阶段。
    */
   agentState: 'idle' | 'ready' | 'running' | 'blocked' | 'review';
@@ -445,6 +441,57 @@ export interface Plan {
   startDate?: string | null;
   dueDate?: string | null;
   visibility: 'public' | 'private';
+  /**
+   * 由 Agent 拆解的阶段、里程碑和任务。通常由 compose_plan 自动填充。
+   */
+  phases?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * 例如：每天2小时，周末4小时。由 Agent 根据计划类型推荐。
+   */
+  weeklyRhythm?: string | null;
+  totalEstimatedDays?: number | null;
+  progress?: number | null;
+  prerequisites?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * 编排依赖图、中间结果与最近一次 orchestration 元数据。
+   */
+  agentContext?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * 编排器拆解的子任务状态（id、label、intent、agentRole、status）。
+   */
+  subtasks?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -466,21 +513,7 @@ export interface Page {
   /**
    * 先把页面的核心内容写出来，版式可以之后再慢慢调整。
    */
-  content: {
-    root: {
-      type: string;
-      children: {
-        type: any;
-        version: number;
-        [k: string]: unknown;
-      }[];
-      direction: ('ltr' | 'rtl') | null;
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-      indent: number;
-      version: number;
-    };
-    [k: string]: unknown;
-  };
+  content: string;
   coverImage?: (number | null) | Media;
   status: 'draft' | 'published';
   visibility: 'public' | 'private';
@@ -616,6 +649,14 @@ export interface AgentRun {
     | boolean
     | null;
   rollbackAvailable?: boolean | null;
+  /**
+   * 同一复合意图拆解与批量确认共享的关联 ID。
+   */
+  orchestrationId?: string | null;
+  /**
+   * 执行该次写操作的专业 Agent 角色。
+   */
+  agentRole?: ('plan' | 'schedule' | 'review' | 'memory' | 'content' | 'query' | 'orchestrator') | null;
   model?: string | null;
   provider?: string | null;
   tokenUsage?:
@@ -682,6 +723,18 @@ export interface AgentMemory {
   title: string;
   type: 'preference' | 'project_context' | 'writing_style' | 'workflow_rule' | 'fact';
   content: string;
+  /**
+   * 语义检索用 embedding（number[]）。由 Agent 在保存记忆时自动写入。
+   */
+  embedding?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   confidence: number;
   sourceThread?: (number | null) | AgentThread;
   sourceRun?: (number | null) | AgentRun;
@@ -737,14 +790,31 @@ export interface AgentThread {
         | 'add_completion_note'
         | 'save_memory'
         | 'query_progress'
+        | 'query_plan_progress'
         | 'evaluate_plan'
+        | 'schedule_plan'
         | 'weekly_review'
+        | 'reschedule_item'
+        | 'cancel_schedule_item'
         | 'clarify'
       )
     | null;
   lastEngine?: ('glm' | 'openai' | 'zai' | 'heuristic' | 'workflow') | null;
   lastConfidence?: number | null;
   lastInteractionAt?: string | null;
+  /**
+   * JSON 字符串数组，用于分类检索。
+   */
+  tags?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  archived?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1127,6 +1197,7 @@ export interface PlansSelect<T extends boolean = true> {
   title?: T;
   description?: T;
   executionMode?: T;
+  domain?: T;
   agentState?: T;
   agentBrief?: T;
   linkedContent?: T;
@@ -1137,6 +1208,13 @@ export interface PlansSelect<T extends boolean = true> {
   startDate?: T;
   dueDate?: T;
   visibility?: T;
+  phases?: T;
+  weeklyRhythm?: T;
+  totalEstimatedDays?: T;
+  progress?: T;
+  prerequisites?: T;
+  agentContext?: T;
+  subtasks?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1206,6 +1284,8 @@ export interface AgentThreadsSelect<T extends boolean = true> {
   lastEngine?: T;
   lastConfidence?: T;
   lastInteractionAt?: T;
+  tags?: T;
+  archived?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1239,6 +1319,8 @@ export interface AgentRunsSelect<T extends boolean = true> {
   afterSnapshot?: T;
   rollbackPayload?: T;
   rollbackAvailable?: T;
+  orchestrationId?: T;
+  agentRole?: T;
   model?: T;
   provider?: T;
   tokenUsage?: T;
@@ -1254,6 +1336,7 @@ export interface AgentMemoriesSelect<T extends boolean = true> {
   title?: T;
   type?: T;
   content?: T;
+  embedding?: T;
   confidence?: T;
   sourceThread?: T;
   sourceRun?: T;

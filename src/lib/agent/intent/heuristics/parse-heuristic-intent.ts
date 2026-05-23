@@ -9,6 +9,7 @@ import {
   parseComposePlanIntent,
   parseComposeScheduleItemIntent,
   parseCreatePlanIntent,
+  parseSchedulePlanIntent,
 } from "./plan-schedule";
 import { parseEvaluatePlanIntent, parseProgressIntent } from "./progress-review";
 import { parseComposeTimelineEventIntent } from "./timeline";
@@ -53,6 +54,7 @@ const heuristicParsers: HeuristicParser[] = [
   { parse: parseKnowledgeAnswerIntent, source: "answer_question" },
   { parse: parseComposeTimelineEventIntent, source: "compose_timeline_event" },
   { parse: parseProgressIntent, source: "query_progress" },
+  { parse: parseSchedulePlanIntent, source: "schedule_plan" },
   { parse: parseWeeklyReviewIntent, source: "weekly_review" },
   { parse: parseEvaluatePlanIntent, source: "evaluate_plan" },
 ];

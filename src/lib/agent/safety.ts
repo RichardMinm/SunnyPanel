@@ -8,8 +8,10 @@ import {
   type AgentDryRunResult,
   type AgentIntent,
   type AgentWriteIntentName,
+  type PendingAction,
   type ProposedAgentAction,
 } from "./schemas";
+import type { UserPreferences } from "./user-preferences";
 
 const riskLabelMap: Record<ProposedAgentAction["riskLevel"], string> = {
   high: "高风险",
@@ -23,40 +25,49 @@ const operationLabelMap: Record<ProposedAgentAction["changes"][number]["operatio
   update: "更新",
 };
 
-const writeIntentValues = new Set<AgentIntent["intent"]>([
+const writeIntentValues = new Set<AgentWriteIntentName>([
   "add_completion_note",
   "append_plan_item",
+  "cancel_schedule_item",
   "complete_plan_item",
   "compose_plan",
   "compose_schedule_item",
   "compose_timeline_event",
   "create_plan",
+  "query_plan_progress",
+  "reschedule_item",
   "save_memory",
+  "schedule_plan",
   "weekly_review",
 ]);
 
 const isWritableIntent = (intent: AgentIntent): intent is Extract<AgentIntent, { intent: AgentWriteIntentName }> =>
-  writeIntentValues.has(intent.intent);
+  writeIntentValues.has(intent.intent as AgentWriteIntentName);
 
 export const getAgentIntentRiskLevel = (intent: AgentIntent["intent"]): ProposedAgentAction["riskLevel"] =>
-  getAgentToolDefinition(intent)?.riskLevel ?? (writeIntentValues.has(intent) ? "medium" : "low");
+  getAgentToolDefinition(intent)?.riskLevel ??
+  (writeIntentValues.has(intent as AgentWriteIntentName) ? "medium" : "low");
+
+export type AutoApprovalContext = {
+  isFirstActionInThread: boolean;
+  lastIntent?: string | null;
+  pendingActionHistory: PendingAction[];
+  threadId: number;
+  userPreferences?: UserPreferences | null;
+};
 
 export const dryRunAgentIntent = async (
   intent: AgentIntent,
   context: AgentToolDryRunContext = {},
 ): Promise<AgentDryRunResult> => {
   if (!isWritableIntent(intent)) {
-    return {
-      type: "bypass",
-    };
+    return { type: "bypass" };
   }
 
   const result = await dryRunAgentTool(intent, context);
 
   if (result.type === "proposed_action" && !result.action.requiresConfirmation) {
-    return {
-      type: "bypass",
-    };
+    return { type: "bypass" };
   }
 
   return result;

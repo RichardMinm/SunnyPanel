@@ -8,18 +8,22 @@ import {
   getPendingAgentSuggestions,
   syncAgentSuggestionsFromWorkspaceSnapshot,
 } from "@/lib/agent/suggestions";
+import { parseWeekParam, formatDateKey } from "@/components/dashboard/calendar-utils";
 import { getCachedWorkspaceSnapshot } from "@/lib/payload/workspace-cache";
+import { getCachedWeekSchedule } from "@/lib/schedule/schedule-cache";
 import { getSiteLocale } from "@/lib/site-locale";
+import type { WeekSchedule } from "@/lib/schedule/items";
 
 export type DashboardSearchParams = {
-  agent?: string;
   threadId?: string;
+  week?: string;
 };
 
 export type LoadedDashboardData = {
   agentQuickPrompts: AgentQuickPrompt[];
   agentSuggestions: AgentInboxSuggestion[];
   model: DashboardPageViewModel;
+  weekSchedule: WeekSchedule;
 };
 
 export const parseDashboardThreadId = (value?: string) => {
@@ -34,16 +38,27 @@ export const parseDashboardThreadId = (value?: string) => {
 
 export const loadDashboardData = async (searchParams: DashboardSearchParams): Promise<LoadedDashboardData> => {
   const initialThreadId = parseDashboardThreadId(searchParams.threadId);
-  const showFullAgentConsole = searchParams.agent === "full";
   const locale = await getSiteLocale();
-  const snapshot = await getCachedWorkspaceSnapshot();
-  await syncAgentSuggestionsFromWorkspaceSnapshot(snapshot);
-  const agentSuggestions = await getPendingAgentSuggestions(3);
+  const weekStart = parseWeekParam(searchParams.week ?? null);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const weekFrom = formatDateKey(weekStart);
+  const weekTo = formatDateKey(weekEnd);
+
+  const [snapshot, agentSuggestions] = await Promise.all([
+    getCachedWorkspaceSnapshot(),
+    getPendingAgentSuggestions(3),
+  ]);
+
+  const [, weekSchedule] = await Promise.all([
+    syncAgentSuggestionsFromWorkspaceSnapshot(snapshot),
+    getCachedWeekSchedule(weekFrom, weekTo),
+  ]);
+
   const agentQuickPrompts = buildAgentQuickPrompts(snapshot);
   const model = buildDashboardPageViewModel({
     initialThreadId,
     locale,
-    showFullAgentConsole,
     snapshot,
   });
 
@@ -51,5 +66,6 @@ export const loadDashboardData = async (searchParams: DashboardSearchParams): Pr
     agentQuickPrompts,
     agentSuggestions,
     model,
+    weekSchedule,
   };
 };

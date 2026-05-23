@@ -1,5 +1,4 @@
 export { AgentApprovalCard } from "./AgentApprovalCard";
-export { AgentApprovalBanner } from "./AgentApprovalBanner";
 export { AgentArtifactsPanel } from "./AgentArtifactsPanel";
 export { AgentChangesPanel } from "./AgentChangesPanel";
 export { AgentComposer } from "./AgentComposer";
@@ -13,7 +12,6 @@ export { AgentRunTimeline } from "./AgentRunTimeline";
 export { AgentSidebar } from "./AgentSidebar";
 export { AgentTaskRow } from "./AgentTaskRow";
 export { AgentTokenMeter } from "./AgentTokenMeter";
-export { AgentTraceTimeline } from "./AgentTraceTimeline";
 export { AgentWorkbench } from "./AgentWorkbench";
 export { AgentWorkbenchLayout } from "./AgentWorkbenchLayout";
 export { AgentWorkbenchShell } from "./AgentWorkbenchShell";

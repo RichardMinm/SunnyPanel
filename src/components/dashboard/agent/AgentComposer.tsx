@@ -8,9 +8,10 @@ import type { AgentWorkbenchMode } from "./types";
 type AgentModeSwitchProps = {
   mode: AgentWorkbenchMode;
   onModeChange: (mode: AgentWorkbenchMode) => void;
+  suggestedMode?: AgentWorkbenchMode | null;
 };
 
-function AgentModeSwitch({ mode, onModeChange }: AgentModeSwitchProps) {
+function AgentModeSwitch({ mode, onModeChange, suggestedMode }: AgentModeSwitchProps) {
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const currentIndex = modeItems.findIndex((item) => item.key === mode);
 
@@ -41,9 +42,15 @@ function AgentModeSwitch({ mode, onModeChange }: AgentModeSwitchProps) {
           aria-selected={item.key === mode}
           tabIndex={item.key === mode ? 0 : -1}
           onClick={() => onModeChange(item.key)}
-          className={item.key === mode ? "active" : ""}
+          className={[
+            item.key === mode ? "active" : "",
+            suggestedMode === item.key && item.key !== mode ? "suggested" : "",
+          ].filter(Boolean).join(" ")}
         >
           {item.label}
+          {suggestedMode === item.key && item.key !== mode ? (
+            <span className="sunny-agent-mode-hint" aria-label="建议模式">●</span>
+          ) : null}
         </button>
       ))}
     </div>
@@ -61,6 +68,7 @@ type AgentComposerProps = {
   pendingAction: null | PendingAction;
   placeholder: string;
   statusLabel: string;
+  suggestedMode?: AgentWorkbenchMode | null;
 };
 
 export function AgentComposer({
@@ -74,6 +82,7 @@ export function AgentComposer({
   pendingAction,
   placeholder,
   statusLabel,
+  suggestedMode,
 }: AgentComposerProps) {
   return (
     <form
@@ -84,7 +93,7 @@ export function AgentComposer({
       }}
     >
       <div className="sunny-agent-composer-top">
-        <AgentModeSwitch mode={mode} onModeChange={onModeChange} />
+        <AgentModeSwitch mode={mode} onModeChange={onModeChange} suggestedMode={suggestedMode} />
         <span>{statusLabel}</span>
       </div>
       <div className="sunny-agent-composer-row">

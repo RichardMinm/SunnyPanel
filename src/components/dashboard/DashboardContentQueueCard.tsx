@@ -24,7 +24,7 @@ export function DashboardContentQueueCard({
     <div className="sunny-content-operation-lane">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="sunny-kicker text-[0.68rem] text-muted">{kicker}</p>
+          <p className="sunny-kicker text-muted">{kicker}</p>
           <h3 className="mt-1 text-base font-semibold text-foreground">{title}</h3>
         </div>
         <span className="sunny-dashboard-count">{items.length}</span>

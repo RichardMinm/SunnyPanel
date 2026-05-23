@@ -2,19 +2,32 @@ import type { Payload } from "payload";
 
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
 import type { IntentResolution } from "@/lib/agent/chat-pipeline/resolve-intent-step";
+import { getAgentModelConfig, type StreamTokenCallback } from "@/lib/agent/client";
+import { recordAutoApproval } from "@/lib/agent/audit";
 import { logAgentEvent } from "@/lib/agent/logger";
+import { buildConfirmedIntentSet, getConsecutiveAutoCount, incrementAutoCount, shouldAutoApprove } from "@/lib/agent/permission-resolver";
 import { buildProposedActionMessage, dryRunAgentIntent } from "@/lib/agent/safety";
-import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
-import { estimateTokenCount } from "@/lib/agent/token-usage";
+import type { AutoApprovalContext } from "@/lib/agent/safety";
+import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, ComposePlanArgs, PendingAction } from "@/lib/agent/schemas";
+import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 import { detectScheduleConflicts } from "@/lib/schedule/items";
+import { decomposePlanForCompose } from "@/lib/agent/workflows/plan-decomposer";
+import type { DecomposedPlan } from "@/lib/agent/workflows/plan-decomposer";
+import { inferTopicWithLLM, normalizeComposePlanArgs, parsePlanSeedFromText } from "@/lib/agent/workflows/plan-seed";
 
-import { findChecklistTimelineEvent, resolveChecklistGroupForAppend, resolveChecklistItem } from "../tools";
+import {
+  findChecklistTimelineEvent,
+  resolveChecklistGroupForAppend,
+  resolveChecklistItem,
+} from "../checklist-resolvers";
 
 export type DryRunAndProposeStepParams = {
+  autoApproval?: AutoApprovalContext;
   confirmedActionId: null | string;
   context: BuildContextStepResult["context"];
   emitStatus: (status: string) => void;
+  emitToken: StreamTokenCallback;
   payload: Payload;
   persistAgentTurn: (args: {
     assistantMessage: string;
@@ -41,9 +54,11 @@ export type DryRunAndProposeStepResult =
 
 export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams): Promise<DryRunAndProposeStepResult> => {
   const {
+    autoApproval,
     confirmedActionId,
     context,
     emitStatus,
+    emitToken,
     payload,
     persistAgentTurn,
     pushTrace,
@@ -55,6 +70,58 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
 
   let tokenUsage = tokenUsageIn;
   const isDirectAnswer = resolution.intent.intent === "answer_question";
+
+  if (resolution.intent.intent === "compose_plan" && !confirmedActionId) {
+    const normalizedArgs = normalizeComposePlanArgs(
+      resolution.intent.args as Parameters<typeof normalizeComposePlanArgs>[0],
+    );
+
+    const parsedSeed = parsePlanSeedFromText(normalizedArgs.sourceText || normalizedArgs.goal || "");
+    if (!parsedSeed.topic && normalizedArgs.sourceText) {
+      const llmTopic = await inferTopicWithLLM(normalizedArgs.sourceText);
+      if (llmTopic) {
+        (normalizedArgs as Record<string, unknown>).topic = llmTopic;
+      }
+    }
+
+    emitStatus("正在分析你的目标并拆解阶段计划...");
+    pushTrace({
+      detail: "解析起止时间与学习节奏，并拆解为可执行阶段。",
+      id: "plan-decompose-llm",
+      kind: "analysis",
+      status: "running",
+      title: "正在拆解目标为阶段计划",
+    });
+
+    let llmDecomposed: DecomposedPlan | null = null;
+    const decomposed = await decomposePlanForCompose(normalizedArgs, context, getAgentModelConfig);
+
+    if (decomposed) {
+      llmDecomposed = decomposed;
+      pushTrace({
+        detail: `已拆解为 ${decomposed.phases.length} 个阶段，预计 ${decomposed.totalEstimatedDays} 天。${decomposed.phases.map((p) => p.title).join(" → ")}`,
+        id: "plan-decompose-llm",
+        kind: "analysis",
+        status: "done",
+        title: `已拆解：${decomposed.phases.map((p) => p.title).join(" → ")}`,
+      });
+      emitToken(`• 已拆解为 ${decomposed.phases.length} 个阶段：${decomposed.phases.map((p) => p.title).join(" → ")}\n`, 'thinking');
+    } else {
+      pushTrace({
+        detail: "未能从描述中拆出具体阶段，将在确认前请你补充主题、周期或章节范围。",
+        id: "plan-decompose-llm",
+        kind: "analysis",
+        status: "done",
+        title: "拆解信息不足，需补充后再生成计划",
+      });
+      emitToken("• 拆解信息不足，将在确认前请你补充细节\n", 'thinking');
+    }
+
+    resolution.intent.args = llmDecomposed
+      ? ({ ...normalizedArgs, decomposed: llmDecomposed } as ComposePlanArgs)
+      : normalizedArgs;
+  }
+
   const dryRunResult = confirmedActionId
     ? {
         type: "bypass" as const,
@@ -65,6 +132,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         findTimelineEvent: findChecklistTimelineEvent,
         now: context.now,
         planCandidates: context.plans,
+        promptContext: context,
         resolveChecklistGroupForAppend,
         resolveChecklistItem,
       });
@@ -72,6 +140,10 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   if (dryRunResult.type === "clarify") {
     emitStatus("Dry-run 发现信息不完整，需要补充...");
     const assistantMessage = dryRunResult.assistantMessage;
+    for (const token of splitIntoWordTokens(assistantMessage)) {
+      emitToken(token, 'response');
+      await new Promise((r) => setTimeout(r, 6));
+    }
     const outputTokens = estimateTokenCount(assistantMessage);
     tokenUsage = {
       ...tokenUsage,
@@ -117,9 +189,53 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
 
   const proposedAction = dryRunResult.type === "proposed_action" ? dryRunResult.action : null;
 
+  if (proposedAction && autoApproval) {
+    const prefs = autoApproval.userPreferences ?? null;
+    const previouslyConfirmed = buildConfirmedIntentSet(autoApproval.pendingActionHistory, autoApproval.lastIntent);
+    const decision = shouldAutoApprove(proposedAction, {
+      consecutiveAutoCount: getConsecutiveAutoCount(),
+      isFirstActionInThread: autoApproval.isFirstActionInThread,
+      previouslyConfirmedIntents: previouslyConfirmed,
+      userPreferences: prefs ?? {
+        autoApproveIntents: new Set(),
+        autoApproveLowRisk: false,
+        deniedIntents: new Set(),
+        maxConsecutiveAutoApprovals: 0,
+      },
+    });
+
+    if (decision.approved) {
+      incrementAutoCount(autoApproval.threadId);
+      void recordAutoApproval({
+        action: proposedAction,
+        reason: decision.reason,
+        threadId: autoApproval.threadId,
+      });
+      pushTrace({
+        detail: `自动批准「${proposedAction.summary}」：${decision.reason}`,
+        id: "action-dry-run",
+        kind: "action",
+        status: "done",
+        title: `自动批准：${proposedAction.summary}`,
+      });
+
+      return {
+        outcome: "execute",
+        data: {
+          isDirectAnswer: false,
+          tokenUsage,
+        },
+      };
+    }
+  }
+
   if (proposedAction) {
     emitStatus("正在执行 dry-run 预检，等待用户确认...");
     const assistantMessage = buildProposedActionMessage(proposedAction);
+    for (const token of splitIntoWordTokens(assistantMessage)) {
+      emitToken(token, 'response');
+      await new Promise((r) => setTimeout(r, 6));
+    }
     const nextPendingAction: PendingAction = {
       action: proposedAction,
       type: "await_confirmation",

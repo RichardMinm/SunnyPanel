@@ -47,6 +47,16 @@ export const buildIntentTraceSummary = (intent: AgentIntent): { detail?: string;
         detail: intent.args.checklistTitle ? `目标清单：${intent.args.checklistTitle}` : "范围：整体进度",
         title: "识别为进度查询",
       };
+    case "query_plan_progress":
+      return {
+        detail: intent.args.planId ? `计划ID：${intent.args.planId}` : intent.args.planTitle ?? "查询计划进度",
+        title: "识别为计划进度查询",
+      };
+    case "schedule_plan":
+      return {
+        detail: intent.args.planId ? `计划ID：${intent.args.planId}` : "将计划排入日程",
+        title: "识别为计划排期",
+      };
     case "evaluate_plan":
       return {
         detail: intent.args.planTitle ? `目标计划：${intent.args.planTitle}` : "范围：全部计划",
@@ -62,10 +72,20 @@ export const buildIntentTraceSummary = (intent: AgentIntent): { detail?: string;
         detail: intent.args.persistReview === false ? "仅预览本周回顾，不写入 PlanReview。" : "将生成本周回顾并在确认后保存为 PlanReview。",
         title: "识别为本周回顾",
       };
+    case "reschedule_item":
+      return {
+        detail: intent.args.reason ?? `改期日程 #${intent.args.itemId}`,
+        title: "识别为日程改期",
+      };
+    case "cancel_schedule_item":
+      return {
+        detail: intent.args.reason ?? `取消日程 #${intent.args.itemId}`,
+        title: "识别为取消日程",
+      };
     case "clarify":
     default:
       return {
-        detail: intent.args.question,
+        detail: "question" in intent.args ? intent.args.question : "需要进一步澄清输入",
         title: "需要进一步澄清输入",
       };
   }

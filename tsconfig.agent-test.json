@@ -6,19 +6,15 @@
     "isolatedModules": false,
     "module": "CommonJS",
     "moduleResolution": "Node",
-    "noEmit": false,
-    "outDir": ".agent-test-dist",
-    "rootDir": ".",
+    "noEmit": true,
     "target": "ES2022",
-    "tsBuildInfoFile": ".agent-test-dist/tsconfig.agent-test.tsbuildinfo"
+    "paths": {
+      "@/lib/payload/client": ["./tests/stubs/payload-client.ts"],
+      "@/lib/payload/workspace": ["./tests/stubs/workspace.ts"],
+      "@payload-config": ["./tests/stubs/payload-config.ts"],
+      "@/*": ["./src/*"]
+    }
   },
-  "include": [
-    "tests/agent/**/*.json",
-    "tests/agent/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    ".next",
-    ".agent-test-dist"
-  ]
+  "include": ["tests/agent/**/*.ts", "tests/stubs/**/*.ts"],
+  "exclude": ["node_modules", ".next", ".agent-test-dist"]
 }

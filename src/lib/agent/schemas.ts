@@ -83,12 +83,16 @@ export type ProposedAgentAction = {
 export type AgentWriteIntentName =
   | "add_completion_note"
   | "append_plan_item"
+  | "cancel_schedule_item"
   | "complete_plan_item"
   | "compose_plan"
   | "compose_schedule_item"
   | "compose_timeline_event"
   | "create_plan"
+  | "query_plan_progress"
+  | "reschedule_item"
   | "save_memory"
+  | "schedule_plan"
   | "weekly_review";
 
 export type AgentDryRunClarifyResult = {
@@ -118,28 +122,43 @@ export type PendingAction = {
   type: "await_completion_note";
 } | {
   action: ProposedAgentAction;
+  deferredActions?: ProposedAgentAction[];
+  orchestrationId?: string;
   type: "await_confirmation";
+} | {
+  actions: ProposedAgentAction[];
+  orchestrationId?: string;
+  type: "await_batch_confirmation";
 } | {
   args: Partial<
     | AddCompletionNoteArgs
     | AppendPlanItemArgs
+    | CancelScheduleItemArgs
     | CompletePlanItemArgs
     | ComposePlanArgs
     | ComposeScheduleItemArgs
     | CreatePlanArgs
+    | QueryPlanProgressArgs
+    | RescheduleItemArgs
     | SaveMemoryArgs
+    | SchedulePlanArgs
   >;
   intent: Extract<
     AgentIntent["intent"],
     | "add_completion_note"
     | "append_plan_item"
+    | "cancel_schedule_item"
     | "complete_plan_item"
     | "compose_plan"
     | "compose_schedule_item"
     | "create_plan"
+    | "query_plan_progress"
+    | "reschedule_item"
     | "save_memory"
+    | "schedule_plan"
   >;
   missingFields: string[];
+  originalMessage?: string;
   question: string;
   type: "await_clarification";
 };
@@ -211,6 +230,9 @@ export type WeeklyReviewArgs = {
 
 export type ComposePlanArgs = {
   agentBrief?: null | string;
+  /** LLM 拆解的阶段计划结果。随 PendingAction 持久化以在确认后继续使用。 */
+  decomposed?: null | import("./workflows/plan-decomposer").DecomposedPlan;
+  domain?: string;
   goal?: null | string;
   keySteps?: string[];
   motivation?: null | string;
@@ -241,6 +263,32 @@ export type ComposeScheduleItemArgs = {
   sourceType?: null | ScheduleSourceType;
   startTime?: null | string;
   title?: null | string;
+};
+
+export type SchedulePlanArgs = {
+  planId: number;
+  defaultDurationMinutes?: number;
+  defaultStartTime?: null | string;
+  startDate?: null | string;
+};
+
+export type RescheduleItemArgs = {
+  itemId: number;
+  newDate?: null | string;
+  newEndTime?: null | string;
+  newStartTime?: null | string;
+  newTitle?: null | string;
+  reason?: null | string;
+};
+
+export type CancelScheduleItemArgs = {
+  itemId: number;
+  reason?: null | string;
+};
+
+export type QueryPlanProgressArgs = {
+  planId?: null | number;
+  planTitle?: null | string;
 };
 
 export type ComposeTimelineEventArgs = {
@@ -327,9 +375,33 @@ export type AgentIntent =
       reply?: string;
     }
   | {
+      args: QueryPlanProgressArgs;
+      confidence?: number;
+      intent: "query_plan_progress";
+      reply?: string;
+    }
+  | {
       args: SaveMemoryArgs;
       confidence?: number;
       intent: "save_memory";
+      reply?: string;
+    }
+  | {
+      args: SchedulePlanArgs;
+      confidence?: number;
+      intent: "schedule_plan";
+      reply?: string;
+    }
+  | {
+      args: RescheduleItemArgs;
+      confidence?: number;
+      intent: "reschedule_item";
+      reply?: string;
+    }
+  | {
+      args: CancelScheduleItemArgs;
+      confidence?: number;
+      intent: "cancel_schedule_item";
       reply?: string;
     }
   | {
@@ -387,6 +459,7 @@ const agentIntentValues = [
   "add_completion_note",
   "answer_question",
   "append_plan_item",
+  "cancel_schedule_item",
   "clarify",
   "complete_plan_item",
   "compose_plan",
@@ -395,6 +468,7 @@ const agentIntentValues = [
   "create_plan",
   "evaluate_plan",
   "query_progress",
+  "reschedule_item",
   "save_memory",
   "weekly_review",
 ] as const;
@@ -527,9 +601,37 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
       return null;
     }
 
+    const deferredActions = Array.isArray(value.deferredActions)
+      ? value.deferredActions
+          .map((item) => parseProposedAgentAction(item))
+          .filter((item): item is ProposedAgentAction => item !== null)
+      : undefined;
+
     return {
       action,
+      deferredActions: deferredActions && deferredActions.length > 0 ? deferredActions : undefined,
+      orchestrationId: getOptionalString(value.orchestrationId) ?? undefined,
       type: "await_confirmation",
+    };
+  }
+
+  if (value.type === "await_batch_confirmation") {
+    if (!Array.isArray(value.actions)) {
+      return null;
+    }
+
+    const actions = value.actions
+      .map((item) => parseProposedAgentAction(item))
+      .filter((action): action is ProposedAgentAction => action !== null);
+
+    if (actions.length === 0) {
+      return null;
+    }
+
+    return {
+      actions,
+      orchestrationId: getOptionalString(value.orchestrationId) ?? undefined,
+      type: "await_batch_confirmation",
     };
   }
 
@@ -541,10 +643,12 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
   const intent =
     value.intent === "add_completion_note" ||
     value.intent === "append_plan_item" ||
+    value.intent === "cancel_schedule_item" ||
     value.intent === "complete_plan_item" ||
     value.intent === "compose_plan" ||
     value.intent === "compose_schedule_item" ||
     value.intent === "create_plan" ||
+    value.intent === "reschedule_item" ||
     value.intent === "save_memory"
       ? value.intent
       : null;
@@ -567,6 +671,7 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
     missingFields: Array.isArray(value.missingFields)
       ? value.missingFields.filter((item): item is string => typeof item === "string" && item.length > 0)
       : [],
+    originalMessage: getOptionalString(value.originalMessage) ?? undefined,
     question,
     type: "await_clarification",
   };
@@ -989,6 +1094,36 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         intent: "weekly_review",
         reply,
       };
+    case "reschedule_item": {
+      const rescheduleItemId = getOptionalNumber(value.args.itemId);
+      if (!rescheduleItemId) return null;
+      return {
+        args: {
+          itemId: rescheduleItemId,
+          newDate: getOptionalDateString(value.args.newDate) ?? null,
+          newEndTime: getOptionalString(value.args.newEndTime) ?? null,
+          newStartTime: getOptionalString(value.args.newStartTime) ?? null,
+          newTitle: getOptionalString(value.args.newTitle) ?? null,
+          reason: getOptionalString(value.args.reason) ?? null,
+        },
+        confidence,
+        intent: "reschedule_item",
+        reply,
+      };
+    }
+    case "cancel_schedule_item": {
+      const cancelItemId = getOptionalNumber(value.args.itemId);
+      if (!cancelItemId) return null;
+      return {
+        args: {
+          itemId: cancelItemId,
+          reason: getOptionalString(value.args.reason) ?? null,
+        },
+        confidence,
+        intent: "cancel_schedule_item",
+        reply,
+      };
+    }
     case "clarify": {
       const question = getRequiredString(value.args.question) ?? reply;
 

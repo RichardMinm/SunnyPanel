@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 
 import { adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 const timePattern = "^([01][0-9]|2[0-3]):[0-5][0-9]$";
 
@@ -14,6 +15,7 @@ export const ScheduleItem: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("planning"),
     defaultColumns: ["title", "date", "startTime", "endTime", "status", "priority", "sourceType"],
     useAsTitle: "title",
   },

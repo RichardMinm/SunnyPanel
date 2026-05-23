@@ -18,20 +18,11 @@ body {
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  background-image:
-    radial-gradient(circle at top left, rgba(239, 185, 126, 0.26), transparent 28%),
-    linear-gradient(180deg, #f8f4ed 0%, #f1ebe1 46%, #ede5d9 100%);
   font-family: var(--font-sans);
   font-feature-settings: "kern";
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-html[data-theme="dark"] body {
-  background-image:
-    radial-gradient(circle at top left, rgba(224, 138, 77, 0.14), transparent 24%),
-    linear-gradient(180deg, #10151a 0%, #0d1216 46%, #0a0f13 100%);
 }
 
 html[data-theme="dark"] .bg-white\/45 {
@@ -116,5 +107,5 @@ a {
 }
 
 ::selection {
-  background: rgba(211, 107, 45, 0.18);
+  background: var(--accent-soft);
 }

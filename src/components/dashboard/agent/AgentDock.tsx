@@ -5,6 +5,7 @@ import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import type { AgentChatMessage, PendingAction } from "@/lib/agent/schemas";
 
 import { AgentApprovalCard } from "./AgentApprovalCard";
+import { AgentMarkdownBubble } from "./AgentMarkdownBubble";
 import { AgentTaskRow } from "./AgentTaskRow";
 import { buildSuggestedTasks, getLatestAssistantMessage, getPendingActionLabel } from "./utils";
 
@@ -122,7 +123,7 @@ export function AgentDock({
       {latestAssistantMessage ? (
         <div className="sunny-agent-dock-v2-latest">
           <span>Latest</span>
-          <p>{latestAssistantMessage.content}</p>
+          <AgentMarkdownBubble content={latestAssistantMessage.content} />
         </div>
       ) : null}
 

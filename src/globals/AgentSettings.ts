@@ -1,6 +1,7 @@
 import type { GlobalConfig } from "payload";
 
 import { adminsOnly, canAccessAdmin } from "@/lib/payload/access";
+import { withAdminNavGroup } from "@/lib/payload/admin-groups";
 
 export const AgentSettings: GlobalConfig = {
   slug: "agent-settings",
@@ -9,10 +10,7 @@ export const AgentSettings: GlobalConfig = {
     update: adminsOnly,
   },
   admin: {
-    group: {
-      en: "System",
-      zh: "系统",
-    },
+    ...withAdminNavGroup("settings"),
     hidden: ({ user }) => !canAccessAdmin({ req: { user } as never }),
   },
   fields: [

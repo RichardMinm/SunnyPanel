@@ -14,31 +14,34 @@ import { EmptyState, SectionHeader, StatusBadge } from "@/components/ui/SunnyCom
 import { formatDate } from "@/lib/formatters";
 
 type DashboardPlanRunwaySectionProps = {
+  embedded?: boolean;
   model: DashboardPageViewModel;
 };
 
-export function DashboardPlanRunwaySection({ model }: DashboardPlanRunwaySectionProps) {
+export function DashboardPlanRunwaySection({ embedded, model }: DashboardPlanRunwaySectionProps) {
   const { locale, snapshot } = model;
 
-  return (
-    <section className="sunny-dashboard-card sunny-plan-runway">
-      <SectionHeader
-        kicker="计划跑道"
-        title="计划执行跑道"
-        description="把正在推进、等待启动和暂停中的计划放在同一条跑道上，方便判断下一步动作。"
-        action={
-          <div className="flex flex-wrap items-center gap-3">
-            <Link className="sunny-dashboard-link" href="/admin/collections/plans">
-              打开全部计划
-            </Link>
-            <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/plans/create">
-              新建计划
-            </Link>
-          </div>
-        }
-      />
+  const content = (
+    <>
+      {!embedded ? (
+        <SectionHeader
+          kicker="计划"
+          title="跑道"
+          description="进行中、待启动与暂停。"
+          action={
+            <div className="flex flex-wrap items-center gap-3">
+              <Link className="sunny-dashboard-link" href="/admin/collections/plans">
+                全部
+              </Link>
+              <Link className="sunny-button-secondary px-4 py-2 text-sm" href="/admin/collections/plans/create">
+                新建
+              </Link>
+            </div>
+          }
+        />
+      ) : null}
 
-      <div className="sunny-plan-runway-grid mt-5">
+      <div className={`sunny-plan-runway-grid${embedded ? " sunny-plan-runway-grid--stacked" : ""}${embedded ? " mt-0" : " mt-5"}`}>
         {planColumns.map((column) => {
           const plans = snapshot.plans[column.key];
 
@@ -67,6 +70,37 @@ export function DashboardPlanRunwaySection({ model }: DashboardPlanRunwaySection
                               <StatusBadge tone={planStatusToneMap[plan.status]}>{planStatusLabelMap[plan.status]}</StatusBadge>
                             </div>
                           </div>
+
+                          {(() => {
+                            const phases = plan.phases as
+                              | Array<{ title: string; estimatedDays: number; milestones?: Array<{ title: string }> }>
+                              | null
+                              | undefined;
+                            if (!phases || !Array.isArray(phases) || phases.length === 0) return null;
+                            const progress = typeof plan.progress === "number" ? plan.progress : 0;
+                            return (
+                              <div className="mt-2">
+                                <div className="flex items-center justify-between gap-2 text-xs text-muted">
+                                  <span>{phases.length} 个阶段{plan.totalEstimatedDays ? ` · ${plan.totalEstimatedDays} 天` : ""}</span>
+                                  <span>{progress}%</span>
+                                </div>
+                                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted/40">
+                                  <div
+                                    className="h-full rounded-full bg-accent transition-all"
+                                    style={{ width: `${Math.max(2, progress)}%` }}
+                                  />
+                                </div>
+                                <div className="mt-1 flex flex-wrap gap-1 text-xs text-muted">
+                                  {phases.slice(0, 4).map((phase, i) => (
+                                    <span key={i} className="sunny-dashboard-count">{phase.title}</span>
+                                  ))}
+                                  {phases.length > 4 ? (
+                                    <span className="sunny-dashboard-count">+{phases.length - 4}</span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           <div className="mt-2 grid gap-1.5 text-xs leading-5 text-muted">
                             <p className="sunny-dashboard-clamp">{plan.description || "还没有补充描述。"}</p>
@@ -103,6 +137,12 @@ export function DashboardPlanRunwaySection({ model }: DashboardPlanRunwaySection
           );
         })}
       </div>
-    </section>
+    </>
   );
+
+  if (embedded) {
+    return content;
+  }
+
+  return <section className="sunny-dashboard-card sunny-plan-runway">{content}</section>;
 }

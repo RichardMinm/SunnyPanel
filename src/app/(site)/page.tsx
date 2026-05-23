@@ -4,6 +4,7 @@ import { LatestWriting } from "@/components/public/LatestWriting";
 import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { TimelineHighlight } from "@/components/public/TimelineHighlight";
 import { formatShortDate } from "@/lib/formatters";
+import { stripMarkdownForExcerpt } from "@/lib/markdown/plain-text";
 import { getSiteLocale } from "@/lib/site-locale";
 import {
   getPublicChecklists,
@@ -13,7 +14,7 @@ import {
   getPublicUpdates,
 } from "@/lib/payload/public";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const excerpt = (value: null | string | undefined, fallback: string, maxLength = 120) => {
   const normalized = (value || fallback).replace(/\s+/g, " ").trim();
@@ -53,7 +54,10 @@ export default async function Home() {
     ...notes.docs.map((note) => ({
       signal: {
         date: formatShortDate(note.createdAt, locale),
-        description: excerpt(note.content, locale === "en" ? "A small note was added to the public memory stream." : "新的短札已经进入公开记忆流。"),
+        description: excerpt(
+          stripMarkdownForExcerpt(note.content),
+          locale === "en" ? "A small note was added to the public memory stream." : "新的短札已经进入公开记忆流。",
+        ),
         href: "/notes",
         label: locale === "en" ? "Note" : "短札",
         title: note.category || note.mood || (locale === "en" ? "Recent Note" : "最近短札"),
@@ -63,7 +67,10 @@ export default async function Home() {
     ...updates.docs.map((update) => ({
       signal: {
         date: formatShortDate(update.createdAt, locale),
-        description: excerpt(update.content, locale === "en" ? "A new public update was recorded." : "新的公开动态已经记录。"),
+        description: excerpt(
+          stripMarkdownForExcerpt(update.content),
+          locale === "en" ? "A new public update was recorded." : "新的公开动态已经记录。",
+        ),
         href: "/updates",
         label: update.type,
         title: locale === "en" ? "Latest Update" : "最近动态",

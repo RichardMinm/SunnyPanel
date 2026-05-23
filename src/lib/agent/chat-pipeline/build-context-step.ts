@@ -2,16 +2,18 @@ import type { Payload } from "payload";
 
 import { buildAgentContext, DEFAULT_AGENT_CONTEXT_BUDGET } from "@/lib/agent/context-builder";
 import type { ContextPreferences } from "@/lib/agent/chat-pipeline/handle-agent-chat-post";
-import { getRelevantMemories } from "@/lib/agent/memory";
+import { buildSharedContextSnapshot } from "@/lib/agent/shared-context";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
+import type { StreamTokenCallback } from "@/lib/agent/client";
 import type { AgentChatResponse, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
-import { createTokenUsageSnapshot, estimateTokenCount } from "@/lib/agent/token-usage";
+import { createTokenUsageSnapshot, estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import { getAgentWorkspaceContextSource } from "@/lib/payload/workspace";
 
 export type BuildContextStepParams = {
   baseTokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   contextPreferences?: ContextPreferences;
   emitStatus: (status: string) => void;
+  emitToken: StreamTokenCallback;
   emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void;
   message: string;
   payload: Payload;
@@ -23,6 +25,7 @@ export type BuildContextStepParams = {
 export type BuildContextStepResult = {
   context: ReturnType<typeof buildAgentContext>;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
+  workingMemory: import("@/lib/agent/shared-context").WorkingMemory;
 };
 
 /**
@@ -33,6 +36,7 @@ export const runBuildContextStep = async ({
   baseTokenUsage,
   contextPreferences,
   emitStatus,
+  emitToken,
   emitUsage,
   message,
   payload,
@@ -48,24 +52,28 @@ export const runBuildContextStep = async ({
     status: "running",
     title: "正在建立上下文",
   });
-  const [contextSource, memories] = await Promise.all([
-    getAgentWorkspaceContextSource({
-      budget: DEFAULT_AGENT_CONTEXT_BUDGET,
-      payload,
-    }),
-    getRelevantMemories(message, 6),
-  ]);
-  const context = buildAgentContext({
+  const contextSource = await getAgentWorkspaceContextSource({
+    budget: DEFAULT_AGENT_CONTEXT_BUDGET,
+    payload,
+  });
+  const baseContext = buildAgentContext({
     budget: DEFAULT_AGENT_CONTEXT_BUDGET,
     contextPreferences: contextPreferences ?? undefined,
     message,
     pendingAction,
     source: {
       ...contextSource,
-      memories,
+      memories: [],
     },
     workbenchMode: workbenchMode ?? undefined,
   });
+  const shared = await buildSharedContextSnapshot({
+    message,
+    pendingAction,
+    promptContext: baseContext,
+  });
+  const context = shared.promptContext;
+  const workingMemory = shared.workingMemory;
   const tokenUsage = createTokenUsageSnapshot({
     contextTokens: baseTokenUsage.contextTokens + estimateTokenCount(context),
     inputTokens: baseTokenUsage.inputTokens,
@@ -81,5 +89,18 @@ export const runBuildContextStep = async ({
     title: "上下文已就绪",
   });
 
-  return { context, tokenUsage };
+  const parts: string[] = [];
+  if (context.plans.length > 0) parts.push(`${context.plans.length} 个计划`);
+  if (context.checklists.length > 0) parts.push(`${context.checklists.length} 份清单`);
+  if ((context.memories?.length ?? 0) > 0) parts.push(`${context.memories!.length} 条记忆`);
+  if ((context.timelineEvents?.length ?? 0) > 0) parts.push(`${context.timelineEvents!.length} 个时间线`);
+
+  if (parts.length > 0) {
+    const summary = `• 已加载：${parts.join("、")}\n`;
+    for (const token of splitIntoWordTokens(summary)) {
+      emitToken(token, 'thinking');
+    }
+  }
+
+  return { context, tokenUsage, workingMemory };
 };

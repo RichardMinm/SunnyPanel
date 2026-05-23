@@ -16,6 +16,7 @@ const planStateValues = ["active", "backlog", "done", "paused"] as const;
 const planStatusValues = ["draft", "published"] as const;
 const planExecutionModeValues = ["agent", "hybrid", "manual"] as const;
 const planAgentStateValues = ["blocked", "idle", "ready", "review", "running"] as const;
+const planDomainValues = ["creative", "fitness", "other", "study", "travel", "work"] as const;
 const visibilityValues = ["private", "public"] as const;
 const timelineTypeValues = ["life", "milestone", "project"] as const;
 const agentRunStatusValues = ["canceled", "failed", "queued", "running", "succeeded"] as const;
@@ -28,6 +29,7 @@ const agentRunWorkflowValues = [
   "sync",
   "weekly-review",
 ] as const;
+const agentRunRoleValues = ["content", "memory", "orchestrator", "plan", "query", "review", "schedule"] as const;
 const planReviewScopeValues = ["overall", "plan"] as const;
 const planReviewHealthValues = ["attention", "healthy", "risk"] as const;
 const planReviewSourceValues = ["agent", "manual"] as const;
@@ -45,8 +47,10 @@ const agentIntentValues = [
   "compose_timeline_event",
   "create_plan",
   "evaluate_plan",
+  "query_plan_progress",
   "query_progress",
   "save_memory",
+  "schedule_plan",
   "weekly_review",
 ] as const;
 const agentMemoryTypeValues = ["fact", "preference", "project_context", "workflow_rule", "writing_style"] as const;
@@ -148,17 +152,29 @@ export const validatePlanCreateData = (value: unknown) => {
     throw new Error("Agent write validation failed: plan data must be an object.");
   }
 
+  const getJsonField = (v: unknown) => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === "object" || Array.isArray(v)) return v as Record<string, unknown> | unknown[];
+    return null;
+  };
+
   return {
     agentBrief: getOptionalString(value.agentBrief),
     agentState: getEnum(value.agentState, planAgentStateValues, "agentState"),
     description: getOptionalString(value.description),
+    domain: (getOptionalString(value.domain) as typeof planDomainValues[number] | undefined) ?? "other",
     dueDate: getOptionalDateString(value.dueDate),
     executionMode: getEnum(value.executionMode, planExecutionModeValues, "executionMode"),
+    phases: getJsonField(value.phases),
+    prerequisites: getJsonField(value.prerequisites),
     priority: getEnum(value.priority, planPriorityValues, "priority"),
+    progress: getOptionalNumber(value.progress),
     state: getEnum(value.state, planStateValues, "state"),
     status: getEnum(value.status, planStatusValues, "status"),
     title: getString(value.title, "title"),
+    totalEstimatedDays: getOptionalNumber(value.totalEstimatedDays),
     visibility: getEnum(value.visibility, visibilityValues, "visibility"),
+    weeklyRhythm: getOptionalString(value.weeklyRhythm),
   } satisfies Partial<Plan>;
 };
 
@@ -271,10 +287,12 @@ export const validateAgentRunData = (value: unknown) => {
   return {
     affectedDocuments: getOptionalJson(value.affectedDocuments),
     afterSnapshot: getOptionalJson(value.afterSnapshot),
+    agentRole: value.agentRole === undefined ? undefined : getEnum(value.agentRole, agentRunRoleValues, "agentRole"),
     beforeSnapshot: getOptionalJson(value.beforeSnapshot),
     completedAt: getOptionalDateString(value.completedAt),
     goal: getOptionalString(value.goal),
     model: getOptionalString(value.model),
+    orchestrationId: getOptionalString(value.orchestrationId) ?? undefined,
     nextAction: getOptionalString(value.nextAction),
     provider: getOptionalString(value.provider),
     relatedContent: validateRelatedContent(value.relatedContent),

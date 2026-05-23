@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import rawFixtureCases from "./fixtures/intents.json";
-import type { AgentModelIntentResolver } from "../../src/lib/agent/intent";
+import type { AgentModelIntentResolver } from "../../src/lib/agent/intent-resolution";
 import {
   isNegativeReply,
   resolveAgentIntent,
   shouldSkipPendingAction,
-} from "../../src/lib/agent/intent";
+} from "../../src/lib/agent/intent-resolution";
 import { collectHeuristicCandidates, parseHeuristicIntent } from "../../src/lib/agent/intent/heuristics";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
 import type { AgentIntent, PendingAction } from "../../src/lib/agent/schemas";

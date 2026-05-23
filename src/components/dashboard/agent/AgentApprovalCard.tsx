@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProposedAgentAction } from "@/lib/agent/schemas";
 
 import { operationLabelMap, riskLevelLabelMap, visibilityLabelMap } from "./constants";
-import { getPlanProposalFromAction, getScheduleProposalFromAction } from "./utils";
+import { getDecomposedFromAction, getPlanProposalFromAction, getScheduleProposalFromAction } from "./utils";
 
 export type AgentApprovalCardProps = {
   action: null | ProposedAgentAction;
@@ -82,7 +82,13 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
 
   const firstChange = action.changes[0];
   const planProposal = getPlanProposalFromAction(action);
+  const decomposedPlan = getDecomposedFromAction(action);
   const scheduleProposal = getScheduleProposalFromAction(action);
+  const motivationDuplicatesGoal =
+    planProposal?.motivation &&
+    planProposal.goal &&
+    (planProposal.motivation === planProposal.goal ||
+      planProposal.goal.includes(planProposal.motivation.slice(0, 24)));
   const confirmLabel = planProposal ? "确认创建计划" : scheduleProposal ? "确认写入日程" : "确认执行";
   const editLabel = scheduleProposal ? "改时间" : planProposal ? "改需求" : "调整请求";
 
@@ -115,7 +121,24 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
             <strong>{planProposal.title}</strong>
           </div>
           <p>{planProposal.goal}</p>
-          {planProposal.motivation ? <p>{planProposal.motivation}</p> : null}
+          {planProposal.motivation && !motivationDuplicatesGoal ? <p>{planProposal.motivation}</p> : null}
+          {decomposedPlan ? (
+            <div className="sunny-agent-proposal-columns">
+              <div>
+                <span>学习阶段（{decomposedPlan.phases.length}）</span>
+                <ul>
+                  {decomposedPlan.phases.map((phase) => (
+                    <li key={phase.title}>
+                      <strong>{phase.title}</strong>（{phase.estimatedDays} 天）
+                      {phase.milestones[0]?.tasks.length ? (
+                        <span> — {phase.milestones[0].tasks.slice(0, 3).join("、")}</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
           <div className="sunny-agent-proposal-grid">
             <div>
               <span>范围</span>
@@ -154,10 +177,17 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
               <p>{planProposal.risks.slice(0, 3).join("；")}</p>
             </div>
           ) : null}
-          <div className="sunny-agent-proposal-brief">
-            <span>Agent 协作说明</span>
-            <p>{planProposal.agentBrief}</p>
-          </div>
+          {!decomposedPlan && planProposal.agentBrief ? (
+            <div className="sunny-agent-proposal-brief">
+              <span>Agent 协作说明</span>
+              <p>{planProposal.agentBrief}</p>
+            </div>
+          ) : decomposedPlan?.weeklyRhythm ? (
+            <div className="sunny-agent-proposal-brief">
+              <span>学习节奏</span>
+              <p>{decomposedPlan.weeklyRhythm}</p>
+            </div>
+          ) : null}
         </div>
       ) : scheduleProposal ? (
         <div className="sunny-agent-proposal-card sunny-agent-schedule-proposal">

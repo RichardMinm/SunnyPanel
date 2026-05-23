@@ -1,0 +1,89 @@
+/**
+ * Markdown 正文排版（Admin / 站点 / Agent 共用）。
+ */
+
+.sunny-prose {
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-links: var(--accent-strong);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted);
+  --tw-prose-bullets: color-mix(in srgb, var(--accent) 70%, var(--foreground));
+  --tw-prose-hr: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: color-mix(in srgb, var(--accent) 40%, var(--foreground));
+  max-width: none;
+  color: var(--foreground);
+  line-height: 1.9;
+}
+
+.sunny-prose :where(h1, h2, h3, h4, h5, h6) {
+  color: var(--foreground);
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 1.6em;
+  margin-bottom: 0.55em;
+}
+
+.sunny-prose :where(h2, h3, h4) {
+  letter-spacing: -0.02em;
+}
+
+.sunny-prose :where(p, li, blockquote) {
+  line-height: 2;
+}
+
+.sunny-prose :where(a) {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.sunny-prose :where(ul, ol) {
+  padding-left: 1.35rem;
+  margin: 0.75em 0;
+}
+
+.sunny-prose :where(blockquote) {
+  border-left-width: 3px;
+  border-left-color: color-mix(in srgb, var(--accent) 45%, var(--foreground));
+  background: var(--agent-control-bg);
+  border-radius: 0 1.25rem 1.25rem 0;
+  padding: 1rem 1.25rem;
+  margin: 1em 0;
+}
+
+html[data-theme="dark"] .sunny-prose :where(blockquote) {
+  background: var(--agent-control-bg);
+}
+
+.sunny-prose :where(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 1.5rem;
+}
+
+.sunny-prose :where(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.sunny-prose :where(code) {
+  font-family: var(--sunny-font-mono);
+  font-size: 0.9em;
+}
+
+.sunny-prose :where(table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.sunny-prose :where(th, td) {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.65rem;
+}

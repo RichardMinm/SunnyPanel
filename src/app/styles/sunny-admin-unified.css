@@ -1,0 +1,246 @@
+/**
+ * Admin 统一排版：字体、字号、间距、列表/编辑页布局。
+ */
+
+@layer payload {
+  #app,
+  .template-default,
+  .template-default__wrap {
+    font-family: var(--sunny-font-sans);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    color: var(--foreground);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  .list-header__title,
+  .doc-header__title,
+  .step-nav__home,
+  .collection-list__header h1 {
+    font-family: var(--sunny-font-sans) !important;
+    font-weight: var(--font-weight-title) !important;
+    letter-spacing: -0.015em;
+    color: var(--foreground);
+  }
+
+  h1,
+  .list-header__title,
+  .collection-list__header h1 {
+    font-size: var(--text-xl) !important;
+    line-height: 1.35 !important;
+  }
+
+  h2,
+  .doc-header__title {
+    font-size: var(--text-lg) !important;
+    line-height: 1.35 !important;
+  }
+
+  h3 {
+    font-size: var(--text-md) !important;
+    line-height: 1.4 !important;
+  }
+
+  .template-default__wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--admin-shell-gap);
+    padding: var(--admin-content-padding);
+  }
+
+  .template-default__content {
+    min-width: 0;
+  }
+
+  /* ── 顶栏工具条：列表/编辑页与内容区合并为单一面板 ── */
+
+  body:has(.collection-list) .app-header,
+  body:has(.collection-edit) .app-header,
+  body:has(.render-fields) .app-header {
+    margin: 0;
+    min-height: var(--app-header-height);
+    border: 1px solid var(--theme-border-color);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    border-radius: var(--admin-panel-radius) var(--admin-panel-radius) 0 0;
+    background: color-mix(in srgb, var(--surface-strong) 90%, transparent);
+    box-shadow: none;
+    backdrop-filter: none;
+    padding: 0.45rem 1rem;
+  }
+
+  body:has(.collection-list) .app-header::after,
+  body:has(.collection-edit) .app-header::after,
+  body:has(.render-fields) .app-header::after {
+    display: none;
+  }
+
+  body:has(.collection-list) .collection-list,
+  body:has(.collection-edit) .doc-controls,
+  body:has(.render-fields) .render-fields {
+    margin-top: 0;
+    border: 1px solid var(--theme-border-color);
+    border-top: 0;
+    border-radius: 0 0 var(--admin-panel-radius) var(--admin-panel-radius);
+    background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    box-shadow: 0 10px 28px var(--card-shadow);
+    backdrop-filter: blur(14px);
+  }
+
+  body:has(.collection-list) .collection-list {
+    padding: 0.85rem 1rem 1rem;
+  }
+
+  body:has(.collection-edit) .doc-controls {
+    margin-bottom: 0;
+    border-radius: 0;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    padding: 0.75rem 1rem;
+  }
+
+  body:has(.render-fields) .render-fields {
+    padding: 0.85rem 1rem 1.25rem;
+  }
+
+  /* ── 列表页：标题 / 操作 / 搜索 ── */
+
+  .list-header {
+    gap: 0.65rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .list-header__title-and-actions {
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .list-header__actions,
+  .list-header__title-actions {
+    margin-bottom: 0;
+    gap: 0.45rem;
+  }
+
+  .list-header .btn,
+  .list-header .pill {
+    min-height: 2rem;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-ui);
+  }
+
+  .list-controls {
+    margin-bottom: 0.65rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: calc(var(--admin-panel-radius) - 0.15rem);
+    background: color-mix(in srgb, var(--surface) 72%, transparent);
+  }
+
+  .list-controls .search-filter__input,
+  .list-controls input,
+  .list-controls select {
+    min-height: 2.125rem;
+    font-size: var(--text-sm);
+  }
+
+  /* ── 表格 ── */
+
+  .table-wrap th {
+    color: var(--muted) !important;
+    font-size: var(--text-xs) !important;
+    font-weight: var(--font-weight-kicker) !important;
+    letter-spacing: 0.06em !important;
+    text-transform: uppercase;
+  }
+
+  .table-wrap td {
+    font-size: var(--text-sm);
+    color: var(--foreground);
+  }
+
+  .table-wrap tbody tr {
+    min-height: 2.5rem;
+  }
+
+  .pagination,
+  .collection-list__page-info {
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+
+  .pagination .btn,
+  .pagination button,
+  .collection-list__page-info select {
+    min-height: 2rem;
+    font-size: var(--text-sm);
+  }
+
+  /* ── 表单字段 ── */
+
+  .render-fields .field-label,
+  .collection-edit__auth .field-label,
+  label.field-label:not(.unstyled) {
+    font-size: var(--text-sm) !important;
+    font-weight: var(--font-weight-ui) !important;
+    color: var(--foreground) !important;
+  }
+
+  .field-type input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  .field-type textarea,
+  .field-type select,
+  .toolbar-input {
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .btn {
+    font-family: var(--sunny-font-sans);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-ui);
+  }
+
+  .pill {
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-ui);
+  }
+
+  /* ── 侧栏与内容区间距对齐 ── */
+
+  .sunny-admin-nav-shell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--admin-shell-gap);
+    font-size: var(--text-sm);
+  }
+
+  .template-default__nav {
+    padding-inline: 0;
+  }
+
+  .nav-group__label {
+    font-size: var(--text-xs) !important;
+    font-weight: var(--font-weight-kicker) !important;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted) !important;
+  }
+
+  .nav__link,
+  .nav__link-label {
+    font-size: var(--text-sm) !important;
+    font-weight: var(--font-weight-ui) !important;
+  }
+
+  .step-nav,
+  .step-nav__home,
+  .app-header__step-nav-wrapper {
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+}

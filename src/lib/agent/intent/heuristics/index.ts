@@ -1,6 +1,7 @@
 export { cleanupText } from "./shared-text";
 export { inferMemoryType } from "./memory";
 export {
+  isBatchConfirmationReply,
   isCancellationReply,
   isConfirmationReply,
   isNegativeReply,
@@ -24,6 +25,7 @@ export {
   noteKeywords,
   progressKeywords,
   scheduleComposerKeywords,
+  schedulePlanKeywords,
   timelineComposerKeywords,
   weeklyReviewKeywords,
 } from "./keywords";
@@ -36,6 +38,7 @@ export {
   parseComposePlanIntent,
   parseComposeScheduleItemIntent,
   parseCreatePlanIntent,
+  parseSchedulePlanIntent,
 } from "./plan-schedule";
 export { parseEvaluatePlanIntent, parseProgressIntent } from "./progress-review";
 export { parseComposeTimelineEventIntent } from "./timeline";
@@ -51,6 +54,7 @@ import {
   noteKeywords,
   progressKeywords,
   scheduleComposerKeywords,
+  schedulePlanKeywords,
   timelineComposerKeywords,
   weeklyReviewKeywords,
 } from "./keywords";
@@ -68,4 +72,5 @@ export const isNewCommand = (message: string) =>
   timelineComposerKeywords.some((keyword) => message.includes(keyword)) ||
   weeklyReviewKeywords.some((keyword) => message.includes(keyword)) ||
   evaluationKeywords.some((keyword) => message.includes(keyword)) ||
+  schedulePlanKeywords.some((keyword) => message.includes(keyword)) ||
   isMathTwoSyllabusQuestion(message);

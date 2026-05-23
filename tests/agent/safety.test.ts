@@ -5,7 +5,7 @@ import {
   isCancellationReply,
   isConfirmationReply,
   resolveAgentIntent,
-} from "../../src/lib/agent/intent";
+} from "../../src/lib/agent/intent-resolution";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
 import {
   buildProposedActionMessage,

@@ -1,25 +1,26 @@
 import type { ReactNode } from "react";
 
 import { AgentWorkbenchLayout } from "./AgentWorkbenchLayout";
+import type { DashboardLayout } from "./types";
 
 type AgentWorkbenchShellProps = {
   center: ReactNode;
   dataTestId?: string;
-  /** 窄屏时 Inspector 以抽屉挂载在布局外，此处传 null 以收缩栅格 */
   inspector: null | ReactNode;
   inspectorDrawer: boolean;
+  layout?: DashboardLayout;
   sidebar: ReactNode;
+  sidebarCollapsed?: boolean;
 };
 
-/**
- * 工作台外壳：三栏栅格 + 窄屏时 Inspector 抽屉（由 `inspectorDrawer` 控制是否把第三栏移出主栅格）。
- */
 export function AgentWorkbenchShell({
   center,
   dataTestId,
   inspector,
   inspectorDrawer,
+  layout,
   sidebar,
+  sidebarCollapsed = false,
 }: AgentWorkbenchShellProps) {
   return (
     <>
@@ -27,7 +28,9 @@ export function AgentWorkbenchShell({
         center={center}
         dataTestId={dataTestId}
         inspector={inspectorDrawer ? null : inspector}
+        layout={layout}
         sidebar={sidebar}
+        sidebarCollapsed={sidebarCollapsed}
       />
       {inspectorDrawer ? inspector : null}
     </>

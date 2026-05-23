@@ -14,7 +14,9 @@ const defaultModelName = "glm-5.1";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-const fetchWithRetry = async (
+export type StreamTokenCallback = (token: string, block?: 'thinking' | 'response') => void;
+
+export const fetchWithRetry = async (
   url: string,
   options: RequestInit,
   { maxRetries = 2, timeoutMs = 15_000 }: { maxRetries?: number; timeoutMs?: number } = {},
@@ -60,7 +62,7 @@ type AgentSettingsDocument = {
 
 const normalizeBaseUrl = (value: string) => value.replace(/\/+$/, "");
 
-const getAgentModelConfig = async () => {
+export const getAgentModelConfig = async () => {
   const payload = await getPayloadClient();
   const settings = (await payload.findGlobal({
     depth: 0,
@@ -123,7 +125,15 @@ export const getAgentIntentModelEngine = async (): Promise<AgentEngine> => {
 type OpenAICompatibleResponse = {
   choices?: Array<{
     message?: {
-      content?: string;
+      content?: null | string;
+      tool_calls?: Array<{
+        function?: {
+          arguments?: string;
+          name?: string;
+        };
+        id?: string;
+        type?: string;
+      }>;
     };
   }>;
   usage?: {
@@ -172,12 +182,22 @@ export const generateIntentWithAgentModel = async ({
     contextTokens: estimateTokenCount(messages.slice(0, -1)),
     inputTokens: estimateTokenCount(message),
   });
+  const { buildAgentFunctionTools, intentFromFunctionCall, isFunctionCallingEnabled } =
+    await import("./function-tools");
+  const useFunctionCalling = await isFunctionCallingEnabled();
+  const requestBody: Record<string, unknown> = {
+    messages,
+    model: resolvedConfig.model,
+    temperature: 0.1,
+  };
+
+  if (useFunctionCalling) {
+    requestBody.tools = buildAgentFunctionTools();
+    requestBody.tool_choice = "auto";
+  }
+
   const response = await fetchWithRetry(`${resolvedConfig.baseUrl}/chat/completions`, {
-    body: JSON.stringify({
-      messages,
-      model: resolvedConfig.model,
-      temperature: 0.1,
-    }),
+    body: JSON.stringify(requestBody),
     headers: {
       Authorization: `Bearer ${resolvedConfig.apiKey}`,
       "Content-Type": "application/json",
@@ -186,11 +206,34 @@ export const generateIntentWithAgentModel = async ({
   });
 
   if (!response.ok) {
-    throw new Error(`Agent model request failed with status ${response.status}`);
+    return null;
   }
 
   const data = (await response.json()) as OpenAICompatibleResponse;
-  const content = data.choices?.[0]?.message?.content;
+  const assistantMessage = data.choices?.[0]?.message;
+  const toolCall = assistantMessage?.tool_calls?.[0];
+
+  if (useFunctionCalling && toolCall?.function?.name) {
+    const intent = intentFromFunctionCall(toolCall.function.name, toolCall.function.arguments ?? "{}");
+
+    if (intent) {
+      const output = JSON.stringify(intent);
+
+      return {
+        intent,
+        tokenUsage: mergeProviderTokenUsage(
+          {
+            ...estimatedUsage,
+            outputTokens: estimateTokenCount(output),
+            totalTokens: estimatedUsage.contextTokens + estimatedUsage.inputTokens + estimateTokenCount(output),
+          },
+          data.usage,
+        ),
+      };
+    }
+  }
+
+  const content = assistantMessage?.content;
 
   if (typeof content !== "string" || content.trim().length === 0) {
     return null;
@@ -220,6 +263,154 @@ export const generateIntentWithAgentModel = async ({
         data.usage,
       ),
     };
+  } catch {
+    return null;
+  }
+};
+
+/** OpenAI-compatible streaming chat completion. Reads SSE chunks and calls `onToken` for each delta. */
+export const streamChatCompletion = async ({
+  apiKey,
+  baseUrl,
+  messages,
+  model,
+  onToken,
+  signal,
+  temperature = 0.6,
+}: {
+  apiKey: string;
+  baseUrl: string;
+  messages: Array<{ content: string; role: string }>;
+  model: string;
+  onToken: StreamTokenCallback;
+  signal?: AbortSignal;
+  temperature?: number;
+}): Promise<{ promptTokens: number; completionTokens: number } | null> => {
+  const response = await fetchWithRetry(`${baseUrl}/chat/completions`, {
+    body: JSON.stringify({ messages, model, stream: true, temperature }),
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+    signal,
+  });
+
+  if (!response.ok || !response.body) {
+    return null;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let usage: { promptTokens: number; completionTokens: number } | null = null;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (signal?.aborted) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data: ")) continue;
+
+        const dataText = trimmed.slice(6);
+        if (dataText === "[DONE]") continue;
+
+        try {
+          const chunk = JSON.parse(dataText) as {
+            choices?: Array<{ delta?: { content?: string }; finish_reason?: null | string }>;
+            usage?: { prompt_tokens: number; completion_tokens: number };
+          };
+          const delta = chunk.choices?.[0]?.delta?.content;
+          if (typeof delta === "string" && delta.length > 0) {
+            onToken(delta);
+          }
+          if (chunk.usage) {
+            usage = { promptTokens: chunk.usage.prompt_tokens, completionTokens: chunk.usage.completion_tokens };
+          }
+        } catch {
+          // skip unparseable lines
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  return usage;
+};
+
+const REPLY_SYSTEM_PROMPT =
+  "你是 SunnyPanel 的 AI Agent，一个个人长期工作台的智能助手。请用自然、友好的中文直接回答用户的问题。不要输出 JSON 格式，直接输出对话回复。回答要简洁、有帮助。";
+
+/** Generate a conversational reply with true LLM token streaming. Returns token usage + full text, or null if unavailable. */
+export const generateStreamingReply = async ({
+  history,
+  message,
+  onToken,
+  signal,
+}: {
+  history: AgentChatMessage[];
+  message: string;
+  onToken: StreamTokenCallback;
+  signal?: AbortSignal;
+}): Promise<{ tokenUsage: ReturnType<typeof createTokenUsageSnapshot>; text: string } | null> => {
+  const config = await getAgentModelConfig();
+  if (!config) return null;
+
+  const messages = [
+    { content: REPLY_SYSTEM_PROMPT, role: "system" as const },
+    ...history.slice(-8).map((item) => ({
+      content: item.content,
+      role: item.role,
+    })),
+    { content: message, role: "user" as const },
+  ];
+
+  const estimatedUsage = createTokenUsageSnapshot({
+    contextTokens: estimateTokenCount(messages.slice(0, -1).map((m) => m.content).join("\n")),
+    inputTokens: estimateTokenCount(message),
+  });
+
+  let streamedText = "";
+
+  try {
+    const providerUsage = await streamChatCompletion({
+      apiKey: config.apiKey,
+      baseUrl: config.baseUrl,
+      messages,
+      model: config.model,
+      onToken: (token) => {
+        streamedText += token;
+        onToken(token);
+      },
+      signal,
+      temperature: 0.6,
+    });
+
+    const tokenUsage = providerUsage
+      ? mergeProviderTokenUsage(
+          {
+            ...estimatedUsage,
+            outputTokens: providerUsage.completionTokens,
+            totalTokens:
+              estimatedUsage.contextTokens + estimatedUsage.inputTokens + providerUsage.completionTokens,
+          },
+          {
+            completion_tokens: providerUsage.completionTokens,
+            prompt_tokens: providerUsage.promptTokens,
+            total_tokens: providerUsage.promptTokens + providerUsage.completionTokens,
+          },
+        )
+      : estimatedUsage;
+
+    return { tokenUsage, text: streamedText || "" };
   } catch {
     return null;
   }

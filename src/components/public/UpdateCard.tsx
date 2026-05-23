@@ -1,5 +1,6 @@
 import type { Update } from "@/payload-types";
 
+import { MarkdownContent } from "@/components/editor/MarkdownContent";
 import { RecordCoverImage } from "@/components/public/RecordCoverImage";
 import { formatDate } from "@/lib/formatters";
 import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
@@ -18,8 +19,8 @@ export function UpdateCard({ locale, update, variant = "feed" }: UpdateCardProps
     <article
       className={
         isHomeCard
-          ? "rounded-[1.15rem] border border-border bg-white/60 px-4 py-4 md:rounded-[1.35rem] md:px-5 md:py-5"
-          : "relative rounded-[1.3rem] border border-border bg-white/60 p-4 sm:p-5 md:ml-12 md:rounded-[1.7rem] md:p-6"
+          ? "rounded-lg border border-border bg-white/60 px-4 py-4 md:rounded-lg md:px-5 md:py-5"
+          : "relative rounded-xl border border-border bg-white/60 p-4 sm:p-5 md:ml-12 md:rounded-xl md:p-6"
       }
     >
       {!isHomeCard ? (
@@ -32,21 +33,15 @@ export function UpdateCard({ locale, update, variant = "feed" }: UpdateCardProps
       </div>
 
       <RecordCoverImage
-        containerClassName="mt-4 overflow-hidden rounded-[1rem] border border-border/80"
+        containerClassName="mt-4 overflow-hidden rounded-lg border border-border/80"
         imageClassName={isHomeCard ? "h-44 w-full object-cover" : "h-52 w-full object-cover"}
         preferredSize={isHomeCard ? "thumbnail" : "card"}
         record={update as unknown as Record<string, unknown>}
       />
 
-      <p
-        className={
-          isHomeCard
-            ? "mt-4 text-sm leading-8 text-foreground"
-            : "mt-4 text-[0.97rem] leading-7 text-foreground md:text-[1.02rem] md:leading-8"
-        }
-      >
-        {update.content}
-      </p>
+      <div className={isHomeCard ? "mt-4" : "mt-4"}>
+        <MarkdownContent markdown={update.content} />
+      </div>
 
       {update.link ? (
         <a

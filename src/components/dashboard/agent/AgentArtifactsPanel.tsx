@@ -1,6 +1,9 @@
 import type { AgentChatMessage, ProposedAgentAction } from "@/lib/agent/schemas";
 import { isRollbackPayloadExecutable, parseRollbackPayload } from "@/lib/agent/rollback-parse";
 
+import { intentLabelMap } from "./constants";
+import { AgentMarkdownBubble } from "./AgentMarkdownBubble";
+
 type AgentArtifactsPanelProps = {
   action: null | ProposedAgentAction;
   artifactsRollbackBusy?: boolean;
@@ -43,7 +46,7 @@ export function AgentArtifactsPanel({
     <div className="sunny-agent-inspector-panel">
       {action ? (
         <div className="sunny-agent-artifact-row">
-          <span>{action.intent}</span>
+          <span>{intentLabelMap[action.intent] ?? action.intent}</span>
           <strong>{action.summary}</strong>
           <p>{action.changes[0]?.preview ?? "等待确认后执行。"}</p>
         </div>
@@ -51,7 +54,7 @@ export function AgentArtifactsPanel({
 
       {showPendingRollbackNote && parsedPending ? (
         <div className="sunny-agent-artifact-row sunny-agent-artifact-rollback-hint" role="status">
-          <span>rollback_preview</span>
+          <span>回滚预案</span>
           <strong>回滚预案（确认执行后可用）</strong>
           <p>
             {rollbackStrategyLabel[parsedPending.strategy] ?? parsedPending.strategy}
@@ -63,15 +66,15 @@ export function AgentArtifactsPanel({
 
       {latestAssistantMessage ? (
         <div className="sunny-agent-artifact-row">
-          <span>assistant_response</span>
+          <span>助手回复</span>
           <strong>最近结果</strong>
-          <p>{latestAssistantMessage.content}</p>
+          <AgentMarkdownBubble content={latestAssistantMessage.content} />
         </div>
       ) : null}
 
       {canUndoLast && parsedLast && onRollback ? (
         <div className="sunny-agent-artifact-row sunny-agent-artifact-rollback-action">
-          <span>rollback</span>
+          <span>撤销</span>
           <strong>撤销上一轮写入</strong>
           <p>
             {rollbackStrategyLabel[parsedLast.strategy] ?? parsedLast.strategy}

@@ -6,6 +6,7 @@ import type {
   AgentTraceStep,
   AgentWriteIntentName,
   AppendPlanItemArgs,
+  CancelScheduleItemArgs,
   CompletePlanItemArgs,
   ComposePlanArgs,
   ComposeScheduleItemArgs,
@@ -13,18 +14,26 @@ import type {
   CreatePlanArgs,
   PendingAction,
   ProposedAgentAction,
+  QueryPlanProgressArgs,
+  RescheduleItemArgs,
   ScheduleConflict,
+  SchedulePlanArgs,
   SaveMemoryArgs,
   WeeklyReviewArgs,
 } from "./schemas";
 import { parseAgentMemoryInput } from "./memory-schema";
 import {
   composePlanProposal,
+  composePlanProposalFromDecomposed,
   formatPlanProposalDescription,
   isPlanComposerInputAmbiguous,
 } from "./workflows/plan-composer";
+import { decomposePlanRuleBased, inferDomain, normalizeComposePlanArgs, parsePlanSeedFromText } from "./workflows/plan-seed";
+import { decomposePlanForCompose } from "./workflows/plan-decomposer";
+import { getAgentModelConfig } from "./client";
+import type { AgentPromptContext } from "./prompts";
 import {
-  composeScheduleProposal,
+  composeScheduleProposalAsync,
   isScheduleComposerDateAmbiguous,
   toScheduleConflicts,
   type ScheduleComposerContext,
@@ -33,6 +42,8 @@ import {
   composeTimelineEventProposal,
   formatTimelineProposal,
 } from "./workflows/timeline-composer";
+
+const normalizeText = (value: null | string | undefined) => value?.trim().replace(/\s+/g, " ") ?? "";
 
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
 type WritableAgentIntent = Extract<AgentIntent, { intent: AgentWriteIntentName }>;
@@ -124,6 +135,7 @@ export type AgentToolDryRunContext = {
   findTimelineEvent?: FindTimelineEvent;
   now?: string;
   planCandidates?: PlanCandidate[];
+  promptContext?: AgentPromptContext;
   resolveChecklistGroupForAppend?: ResolveChecklistGroupForAppend;
   resolveChecklistItem?: ResolveChecklistItem;
 };
@@ -153,13 +165,29 @@ export type AgentToolExecutionContext = {
     args: ComposeScheduleItemArgs,
     onTrace?: AgentExecutionTraceReporter,
   ) => Promise<AgentToolResult>;
+  cancelScheduleItem?: (
+    args: CancelScheduleItemArgs,
+    onTrace?: AgentExecutionTraceReporter,
+  ) => Promise<AgentToolResult>;
   createPlan?: (
     args: CreatePlanArgs,
     onTrace?: AgentExecutionTraceReporter,
   ) => Promise<AgentToolResult>;
   now?: string;
+  queryPlanProgress?: (
+    args: QueryPlanProgressArgs,
+    onTrace?: AgentExecutionTraceReporter,
+  ) => Promise<AgentToolResult>;
+  rescheduleItem?: (
+    args: RescheduleItemArgs,
+    onTrace?: AgentExecutionTraceReporter,
+  ) => Promise<AgentToolResult>;
   saveMemory?: (
     args: SaveMemoryArgs,
+    onTrace?: AgentExecutionTraceReporter,
+  ) => Promise<AgentToolResult>;
+  schedulePlan?: (
+    args: SchedulePlanArgs,
     onTrace?: AgentExecutionTraceReporter,
   ) => Promise<AgentToolResult>;
   weeklyReview?: (
@@ -191,12 +219,16 @@ export type AgentToolDefinition<TName extends AgentWriteIntentName, TArgs> = {
 type AgentToolRegistry = {
   add_completion_note: AgentToolDefinition<"add_completion_note", AddCompletionNoteArgs>;
   append_plan_item: AgentToolDefinition<"append_plan_item", AppendPlanItemArgs>;
+  cancel_schedule_item: AgentToolDefinition<"cancel_schedule_item", CancelScheduleItemArgs>;
   complete_plan_item: AgentToolDefinition<"complete_plan_item", CompletePlanItemArgs>;
   compose_plan: AgentToolDefinition<"compose_plan", ComposePlanArgs>;
   compose_schedule_item: AgentToolDefinition<"compose_schedule_item", ComposeScheduleItemArgs>;
   compose_timeline_event: AgentToolDefinition<"compose_timeline_event", ComposeTimelineEventArgs>;
   create_plan: AgentToolDefinition<"create_plan", CreatePlanArgs>;
+  query_plan_progress: AgentToolDefinition<"query_plan_progress", QueryPlanProgressArgs>;
+  reschedule_item: AgentToolDefinition<"reschedule_item", RescheduleItemArgs>;
   save_memory: AgentToolDefinition<"save_memory", SaveMemoryArgs>;
+  schedule_plan: AgentToolDefinition<"schedule_plan", SchedulePlanArgs>;
   weekly_review: AgentToolDefinition<"weekly_review", WeeklyReviewArgs>;
 };
 
@@ -210,19 +242,25 @@ const createClarifyResult = ({
   args,
   intent,
   missingFields,
+  originalMessage,
   question,
 }: {
   args: Partial<
     | AddCompletionNoteArgs
     | AppendPlanItemArgs
+    | CancelScheduleItemArgs
     | CompletePlanItemArgs
     | ComposePlanArgs
     | ComposeScheduleItemArgs
     | CreatePlanArgs
+    | QueryPlanProgressArgs
+    | RescheduleItemArgs
     | SaveMemoryArgs
+    | SchedulePlanArgs
   >;
   intent: ClarifiableAgentIntentName;
   missingFields: string[];
+  originalMessage?: string;
   question: string;
 }): AgentDryRunClarifyResult => ({
   assistantMessage: question,
@@ -230,6 +268,7 @@ const createClarifyResult = ({
     args,
     intent,
     missingFields,
+    originalMessage,
     question,
     type: "await_clarification",
   },
@@ -324,29 +363,148 @@ const createPlanDryRun = async (
   };
 };
 
+const buildPlanClarifyQuestion = (missing: {
+  hasTopic: boolean;
+  hasDate: boolean;
+  hasDuration: boolean;
+}): string => {
+  const missingParts: string[] = [];
+  if (!missing.hasTopic) missingParts.push("主题/目标");
+  if (!missing.hasDate) missingParts.push("开始日期");
+  if (!missing.hasDuration) missingParts.push("周期/时长");
+
+  if (missingParts.length === 0) {
+    return "这条计划的目标还太松了。你希望它最终产出什么？";
+  }
+
+  if (!missing.hasTopic && missing.hasDate && missing.hasDuration) {
+    return "这条计划具体围绕什么主题？比如学习某门课程、安排一次旅行、推进一个项目等。";
+  }
+
+  if (missing.hasTopic && !missing.hasDate && !missing.hasDuration) {
+    return "这个计划什么时候开始、持续多久？比如「明天开始，2周内完成」。";
+  }
+
+  if (!missing.hasTopic && !missing.hasDate && !missing.hasDuration) {
+    return "这条计划的目标还太松了。你希望它最终产出什么？大概需要多长时间？有没有一个开始日期？";
+  }
+
+  return `还需要补充：${missingParts.join("、")}。请简单说一下。`;
+};
+
 const composePlanDryRun = async (
   args: ComposePlanArgs,
   context: AgentToolDryRunContext,
 ): Promise<AgentToolDryRunResult> => {
-  if (isPlanComposerInputAmbiguous(args)) {
+  const normalized = normalizeComposePlanArgs(args);
+  const parsed = parsePlanSeedFromText(normalized.sourceText || normalized.goal || "");
+  const hasTopic = Boolean(parsed.topic);
+  const hasDate = Boolean(parsed.startDate);
+  const hasDuration = Boolean(parsed.durationDays);
+
+  if (isPlanComposerInputAmbiguous(normalized)) {
     return createClarifyResult({
-      args,
+      args: normalized,
       intent: "compose_plan",
       missingFields: ["goal"],
-      question: "这条计划的目标还太松了。你希望它最终产出什么？有没有截止时间、每天可用时间或验收标准？",
+      originalMessage: normalized.sourceText ?? undefined,
+      question: buildPlanClarifyQuestion({ hasTopic, hasDate, hasDuration }),
     });
   }
 
-  const proposal = composePlanProposal(args);
+  let decomposed = normalized.decomposed ?? decomposePlanRuleBased(normalized);
+
+  if (!decomposed && context.promptContext) {
+    decomposed = await decomposePlanForCompose(normalized, context.promptContext, getAgentModelConfig);
+  }
+
+  const domain = inferDomain(parsed.topic, normalized.sourceText ?? "");
+
+  if (!decomposed) {
+    const sourceLen = normalized.sourceText?.length ?? 0;
+
+    if (sourceLen > 20) {
+      const draftProposal = composePlanProposal({ ...normalized, domain });
+      const draftDescription = formatPlanProposalDescription(draftProposal);
+      const draftArgs: ComposePlanArgs = { ...normalized, domain, proposal: draftProposal };
+      const draftPlan = {
+        agentBrief: draftProposal.agentBrief,
+        agentState: "ready",
+        description: draftDescription,
+        domain,
+        dueDate: draftProposal.suggestedDueDate ?? null,
+        executionMode: "hybrid",
+        priority: draftProposal.suggestedPriority,
+        state: "backlog",
+        status: "draft",
+        title: draftProposal.title,
+        visibility: "private",
+      };
+
+      return {
+        action: {
+          ...actionBase({
+            args: draftArgs,
+            context,
+            intent: "compose_plan",
+            riskLevel: "medium",
+            summary: `创建计划「${draftProposal.title}」（草稿）`,
+          }),
+          affectedDocuments: [
+            { collection: "plans", operation: "create", visibility: "private" },
+          ],
+          afterSnapshot: { ...draftPlan, proposal: draftProposal },
+          beforeSnapshot: null,
+          changes: [
+            {
+              afterPreview: `目标：${draftProposal.goal}\n下一步：${draftProposal.nextActions.slice(0, 3).join("；")}`,
+              beforePreview: "当前不存在这条计划。",
+              collection: "plans",
+              operation: "create",
+              preview: `生成并创建草稿计划「${draftProposal.title}」，优先级 ${draftProposal.suggestedPriority}。我根据你提供的信息生成了一个初步计划，你可以确认后继续调整。`,
+              timelineAffected: false,
+              visibility: "private",
+            },
+          ],
+          rollbackAvailable: true,
+          rollbackPayload: {
+            reason: "草稿计划 — 执行后可撤销删除。",
+            strategy: "delete_created_document",
+            target: { collection: "plans", documentId: null },
+          },
+        },
+        type: "proposed_action",
+      };
+    }
+
+    const decomposeMissing = [!hasTopic && "主题", !hasDate && "开始时间", !hasDuration && "总时长"].filter(Boolean).join("、");
+    return createClarifyResult({
+      args: normalized,
+      intent: "compose_plan",
+      missingFields: ["goal", "sourceText"],
+      originalMessage: normalized.sourceText ?? undefined,
+      question: decomposeMissing
+        ? `我还无法拆解这个计划。请补充更具体的细节（如${decomposeMissing}）。`
+        : "我还无法从你的描述里拆出具体阶段。请补充更多细节。",
+    });
+  }
+
+  const proposal = composePlanProposalFromDecomposed(
+    { ...normalized, decomposed, domain },
+    decomposed,
+  );
   const description = formatPlanProposalDescription(proposal);
   const nextArgs: ComposePlanArgs = {
-    ...args,
+    ...normalized,
+    decomposed,
+    domain,
     proposal,
   };
   const nextPlan = {
     agentBrief: proposal.agentBrief,
     agentState: "ready",
     description,
+    domain,
     dueDate: proposal.suggestedDueDate ?? null,
     executionMode: "hybrid",
     priority: proposal.suggestedPriority,
@@ -363,7 +521,9 @@ const composePlanDryRun = async (
         context,
         intent: "compose_plan",
         riskLevel: "medium",
-        summary: `创建完整计划「${proposal.title}」`,
+        summary: decomposed
+          ? `创建完整计划「${proposal.title}」（${decomposed.phases.length} 个阶段）`
+          : `创建完整计划「${proposal.title}」`,
       }),
       affectedDocuments: [
         {
@@ -410,7 +570,9 @@ const composeScheduleItemDryRun = async (
   args: ComposeScheduleItemArgs,
   context: AgentToolDryRunContext,
 ): Promise<AgentToolDryRunResult> => {
-  if (isScheduleComposerDateAmbiguous(args, context.now)) {
+  let enrichedArgs = args;
+
+  if (isScheduleComposerDateAmbiguous(enrichedArgs, context.now)) {
     return createClarifyResult({
       args,
       intent: "compose_schedule_item",
@@ -419,7 +581,7 @@ const composeScheduleItemDryRun = async (
     });
   }
 
-  const firstProposal = composeScheduleProposal(args, {
+  const firstProposal = await composeScheduleProposalAsync(enrichedArgs, {
     now: context.now,
     planCandidates: context.planCandidates,
   });
@@ -431,9 +593,9 @@ const composeScheduleItemDryRun = async (
       })
     : [];
   const conflicts = toScheduleConflicts(conflictDocs);
-  const proposal = composeScheduleProposal(
+  const proposal = await composeScheduleProposalAsync(
     {
-      ...args,
+      ...enrichedArgs,
       proposal: {
         ...firstProposal,
         conflicts,
@@ -657,6 +819,245 @@ const weeklyReviewDryRun = async (
     type: "proposed_action",
   };
 };
+
+const queryPlanProgressDryRun = async (
+  args: QueryPlanProgressArgs,
+  context: AgentToolDryRunContext,
+): Promise<AgentToolDryRunResult> => {
+  const targetPlan = args.planId
+    ? context.planCandidates?.find((p) => p.id === args.planId)
+    : args.planTitle
+      ? context.planCandidates?.find((p) =>
+          p.title.toLowerCase().includes(args.planTitle?.toLowerCase() ?? ""),
+        )
+      : null;
+
+  return {
+    action: {
+      ...actionBase({
+        args,
+        context,
+        intent: "query_plan_progress",
+        riskLevel: "low",
+        summary: targetPlan
+          ? `查询计划「${targetPlan.title}」的进度和阶段完成情况`
+          : "查询计划的进度和阶段完成情况",
+      }),
+      affectedDocuments: [],
+      afterSnapshot: null,
+      beforeSnapshot: null,
+      changes: [
+        {
+          afterPreview: targetPlan
+            ? `将读取计划「${targetPlan.title}」的阶段数据、进度和关联日程。`
+            : "将根据标题或 ID 查找计划并读取进度。",
+          beforePreview: "当前仅知道查询意图。",
+          collection: "plans",
+          operation: "create",
+          preview: targetPlan
+            ? `查询计划「${targetPlan.title}」的阶段进度`
+            : "根据标题或 ID 查询计划进度",
+          timelineAffected: false,
+          visibility: "private",
+        },
+      ],
+      requiresConfirmation: false,
+      rollbackAvailable: false,
+    },
+    type: "proposed_action",
+  };
+};
+
+const schedulePlanDryRun = async (
+  args: SchedulePlanArgs,
+  context: AgentToolDryRunContext,
+): Promise<AgentToolDryRunResult> => {
+  const targetPlan = context.planCandidates?.find((p) => p.id === args.planId);
+  if (!targetPlan) {
+    return createClarifyResult({
+      args,
+      intent: "schedule_plan" as ClarifiableAgentIntentName,
+      missingFields: ["planId"],
+      question: `我找不到 ID 为 ${args.planId} 的计划。请确认计划 ID 是否正确。`,
+    });
+  }
+
+  return {
+    action: {
+      ...actionBase({
+        args,
+        context,
+        intent: "schedule_plan",
+        riskLevel: "medium",
+        summary: `将计划「${targetPlan.title}」的阶段任务排入日程`,
+      }),
+      affectedDocuments: [
+        {
+          collection: "schedule-items",
+          operation: "create",
+          visibility: "private",
+        },
+      ],
+      afterSnapshot: {
+        planId: targetPlan.id,
+        planTitle: targetPlan.title,
+        startDate: args.startDate ?? new Date().toISOString().split("T")[0],
+      },
+      beforeSnapshot: null,
+      changes: [
+        {
+          afterPreview: `将根据计划的阶段拆解生成每日日程条目。`,
+          beforePreview: "当前计划尚未排入日程。",
+          collection: "schedule-items",
+          operation: "create",
+          preview: `将计划「${targetPlan.title}」的任务排入日程`,
+          timelineAffected: false,
+          visibility: "private",
+        },
+      ],
+      rollbackAvailable: false,
+      rollbackPayload: {
+        reason: "需要在执行后才能拿到具体创建的日程条目 ID。",
+        strategy: "delete_created_document",
+        target: {
+          collection: "schedule-items",
+          documentId: null,
+        },
+      },
+    },
+    type: "proposed_action",
+  };
+};
+
+const rescheduleItemDryRun = async (
+  args: RescheduleItemArgs,
+  context: AgentToolDryRunContext,
+): Promise<AgentToolDryRunResult> => {
+  if (!args.newDate && !args.newStartTime && !args.newEndTime && !args.newTitle) {
+    return createClarifyResult({
+      args,
+      intent: "reschedule_item",
+      missingFields: ["newDate"],
+      question: "你想把这个日程改到哪一天？或者要改什么时间/标题？",
+    });
+  }
+
+  const hasTimeChange = args.newStartTime || args.newEndTime;
+  const hasDateChange = Boolean(args.newDate);
+  const riskLevel: ToolRiskLevel = hasDateChange ? "medium" : "low";
+
+  const changes: ProposedAgentAction["changes"] = [
+    {
+      collection: "schedule-items",
+      documentId: args.itemId,
+      operation: "update",
+      preview: [
+        args.newDate ? `改期至 ${args.newDate}` : null,
+        args.newStartTime ? `新开始时间 ${args.newStartTime}` : null,
+        args.newEndTime ? `新结束时间 ${args.newEndTime}` : null,
+        args.newTitle ? `新标题「${args.newTitle}」` : null,
+      ]
+        .filter(Boolean)
+        .join("，"),
+      timelineAffected: false,
+      visibility: "private",
+    },
+  ];
+
+  return {
+    action: {
+      ...actionBase({
+        args,
+        context,
+        intent: "reschedule_item",
+        riskLevel,
+        summary: args.newTitle ? `改期「${args.newTitle}」` : `调整日程 #${args.itemId}`,
+      }),
+      affectedDocuments: [
+        {
+          collection: "schedule-items",
+          documentId: args.itemId,
+          operation: "update",
+          visibility: "private",
+        },
+      ],
+      afterSnapshot: {
+        itemId: args.itemId,
+        newDate: args.newDate ?? null,
+        newEndTime: args.newEndTime ?? null,
+        newStartTime: args.newStartTime ?? null,
+        newTitle: args.newTitle ?? null,
+      },
+      beforeSnapshot: {
+        itemId: args.itemId,
+      },
+      changes,
+      rollbackAvailable: true,
+      rollbackPayload: {
+        strategy: "restore_schedule_item_snapshot",
+        target: {
+          collection: "schedule-items",
+          documentId: args.itemId,
+        },
+      },
+    },
+    type: "proposed_action",
+  };
+};
+
+const cancelScheduleItemDryRun = async (
+  args: CancelScheduleItemArgs,
+  context: AgentToolDryRunContext,
+): Promise<AgentToolDryRunResult> => ({
+  action: {
+    ...actionBase({
+      args,
+      context,
+      intent: "cancel_schedule_item",
+      riskLevel: "low",
+      summary: `取消日程 #${args.itemId}`,
+    }),
+    affectedDocuments: [
+      {
+        collection: "schedule-items",
+        documentId: args.itemId,
+        operation: "update",
+        visibility: "private",
+      },
+    ],
+    afterSnapshot: {
+      itemId: args.itemId,
+      status: "canceled",
+    },
+    beforeSnapshot: {
+      itemId: args.itemId,
+      status: "planned",
+    },
+    changes: [
+      {
+        afterPreview: "日程状态将变为「已取消」。",
+        beforePreview: "当前状态：planned",
+        collection: "schedule-items",
+        documentId: args.itemId,
+        operation: "update",
+        preview: args.reason
+          ? `取消日程 #${args.itemId}，原因：${args.reason}`
+          : `取消日程 #${args.itemId}`,
+        timelineAffected: false,
+        visibility: "private",
+      },
+    ],
+    rollbackAvailable: true,
+    rollbackPayload: {
+      strategy: "restore_schedule_item_status",
+      target: {
+        collection: "schedule-items",
+        documentId: args.itemId,
+      },
+    },
+  },
+  type: "proposed_action",
+});
 
 const composeTimelineEventDryRun = async (
   args: ComposeTimelineEventArgs,
@@ -1126,6 +1527,25 @@ export const agentToolRegistry = {
       status: "planned",
     },
   },
+  cancel_schedule_item: {
+    description: "Cancel an existing schedule item by setting its status to canceled.",
+    dryRun: cancelScheduleItemDryRun,
+    execute: (args, context, onTrace) => {
+      if (!context.cancelScheduleItem) {
+        throw new Error("Agent tool registry missing cancelScheduleItem executor.");
+      }
+
+      return context.cancelScheduleItem(args, onTrace);
+    },
+    intent: "cancel_schedule_item",
+    name: "cancel_schedule_item",
+    requiresConfirmation: true,
+    riskLevel: "low",
+    rollback: {
+      description: "Restore the schedule item status to planned.",
+      status: "planned",
+    },
+  },
   complete_plan_item: {
     description: "Mark a checklist item complete and synchronize the corresponding Timeline event.",
     dryRun: completePlanItemDryRun,
@@ -1221,6 +1641,40 @@ export const agentToolRegistry = {
       status: "planned",
     },
   },
+  query_plan_progress: {
+    description: "Query the progress of a specific plan including phase completion, schedule adherence, and next actions.",
+    dryRun: queryPlanProgressDryRun,
+    execute: (args, context, onTrace) => {
+      if (!context.queryPlanProgress) {
+        throw new Error("Agent tool registry missing queryPlanProgress executor.");
+      }
+
+      return context.queryPlanProgress(args, onTrace);
+    },
+    intent: "query_plan_progress",
+    name: "query_plan_progress",
+    requiresConfirmation: false,
+    riskLevel: "low",
+  },
+  reschedule_item: {
+    description: "Reschedule an existing schedule item to a different date, time, or update its title.",
+    dryRun: rescheduleItemDryRun,
+    execute: (args, context, onTrace) => {
+      if (!context.rescheduleItem) {
+        throw new Error("Agent tool registry missing rescheduleItem executor.");
+      }
+
+      return context.rescheduleItem(args, onTrace);
+    },
+    intent: "reschedule_item",
+    name: "reschedule_item",
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    rollback: {
+      description: "Restore the schedule item to its previous date/time/title.",
+      status: "planned",
+    },
+  },
   save_memory: {
     description: "Save a distilled long-term memory such as preference, writing style, project context, workflow rule, or fact.",
     dryRun: saveMemoryDryRun,
@@ -1237,6 +1691,25 @@ export const agentToolRegistry = {
     riskLevel: "medium",
     rollback: {
       description: "Archive the created or updated memory after execution records its document id.",
+      status: "planned",
+    },
+  },
+  schedule_plan: {
+    description: "Generate daily schedule items from a plan's phase decomposition, populating the calendar with concrete tasks.",
+    dryRun: schedulePlanDryRun,
+    execute: (args, context, onTrace) => {
+      if (!context.schedulePlan) {
+        throw new Error("Agent tool registry missing schedulePlan executor.");
+      }
+
+      return context.schedulePlan(args, onTrace);
+    },
+    intent: "schedule_plan",
+    name: "schedule_plan",
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    rollback: {
+      description: "Delete created ScheduleItems after execution records their document ids.",
       status: "planned",
     },
   },
@@ -1270,6 +1743,8 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
       return agentToolRegistry.add_completion_note.dryRun(intent.args, context);
     case "append_plan_item":
       return agentToolRegistry.append_plan_item.dryRun(intent.args, context);
+    case "cancel_schedule_item":
+      return agentToolRegistry.cancel_schedule_item.dryRun(intent.args, context);
     case "complete_plan_item":
       return agentToolRegistry.complete_plan_item.dryRun(intent.args, context);
     case "compose_plan":
@@ -1280,8 +1755,14 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
       return agentToolRegistry.compose_timeline_event.dryRun(intent.args, context);
     case "create_plan":
       return agentToolRegistry.create_plan.dryRun(intent.args, context);
+    case "query_plan_progress":
+      return agentToolRegistry.query_plan_progress.dryRun(intent.args, context);
+    case "reschedule_item":
+      return agentToolRegistry.reschedule_item.dryRun(intent.args, context);
     case "save_memory":
       return agentToolRegistry.save_memory.dryRun(intent.args, context);
+    case "schedule_plan":
+      return agentToolRegistry.schedule_plan.dryRun(intent.args, context);
     case "weekly_review":
       return agentToolRegistry.weekly_review.dryRun(intent.args, context);
   }
@@ -1297,6 +1778,8 @@ export const executeAgentTool = async (
       return agentToolRegistry.add_completion_note.execute(intent.args, context, onTrace);
     case "append_plan_item":
       return agentToolRegistry.append_plan_item.execute(intent.args, context, onTrace);
+    case "cancel_schedule_item":
+      return agentToolRegistry.cancel_schedule_item.execute(intent.args, context, onTrace);
     case "complete_plan_item":
       return agentToolRegistry.complete_plan_item.execute(intent.args, context, onTrace);
     case "compose_plan":
@@ -1307,8 +1790,14 @@ export const executeAgentTool = async (
       return agentToolRegistry.compose_timeline_event.execute(intent.args, context, onTrace);
     case "create_plan":
       return agentToolRegistry.create_plan.execute(intent.args, context, onTrace);
+    case "query_plan_progress":
+      return agentToolRegistry.query_plan_progress.execute(intent.args, context, onTrace);
+    case "reschedule_item":
+      return agentToolRegistry.reschedule_item.execute(intent.args, context, onTrace);
     case "save_memory":
       return agentToolRegistry.save_memory.execute(intent.args, context, onTrace);
+    case "schedule_plan":
+      return agentToolRegistry.schedule_plan.execute(intent.args, context, onTrace);
     case "weekly_review":
       return agentToolRegistry.weekly_review.execute(intent.args, context, onTrace);
   }

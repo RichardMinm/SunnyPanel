@@ -5,11 +5,14 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
+import type { TaskNode } from "@/lib/agent/orchestration/types";
 
 import { AgentArtifactsPanel } from "./AgentArtifactsPanel";
 import { AgentChangesPanel } from "./AgentChangesPanel";
 import { AgentContextPanel } from "./AgentContextPanel";
 import { AgentDebugPanel } from "./AgentDebugPanel";
+import { AgentDependencyGraph } from "./AgentDependencyGraph";
+import { AgentMemoryPanel } from "./AgentMemoryPanel";
 import { inspectorTabs } from "./constants";
 import type { AgentInspectorTab, ContextPreferences } from "./types";
 
@@ -66,7 +69,13 @@ type AgentInspectorProps = {
   activeTab: AgentInspectorTab;
   artifactsRollbackBusy?: boolean;
   artifactsRollbackError?: null | string;
+  compact?: boolean;
   contextPreferences?: ContextPreferences;
+  dagCompletedTasks?: Set<string>;
+  dagConflicts?: [string, string][];
+  dagExecutingTaskId?: null | string;
+  dagFailedTasks?: Set<string>;
+  dagTasks?: TaskNode[];
   drawer?: boolean;
   inputTokenEstimate: number;
   latestAssistantMessage?: AgentChatMessage;
@@ -92,6 +101,11 @@ function InspectorPanels({
   artifactsRollbackBusy,
   artifactsRollbackError,
   contextPreferences,
+  dagCompletedTasks,
+  dagConflicts,
+  dagExecutingTaskId,
+  dagFailedTasks,
+  dagTasks,
   inputTokenEstimate,
   latestAssistantMessage,
   lastRollbackPayload,
@@ -110,7 +124,6 @@ function InspectorPanels({
 }: Omit<AgentInspectorProps, "drawer"> & { panelIdPrefix: string; tabListId: string }) {
   return (
     <>
-      <AgentInspectorTabs activeTab={activeTab} onActiveTabChange={onActiveTabChange} panelIdPrefix={panelIdPrefix} tabListId={tabListId} />
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
@@ -145,6 +158,16 @@ function InspectorPanels({
             onRollback={onArtifactsRollback}
           />
         ) : null}
+        {activeTab === "memory" ? <AgentMemoryPanel traceSteps={traceSteps} /> : null}
+        {activeTab === "dag" ? (
+          <AgentDependencyGraph
+            completedTasks={dagCompletedTasks ?? new Set()}
+            conflictTasks={dagConflicts ?? []}
+            executingTaskId={dagExecutingTaskId ?? null}
+            failedTasks={dagFailedTasks ?? new Set()}
+            tasks={dagTasks ?? []}
+          />
+        ) : null}
         {activeTab === "debug" ? (
           <AgentDebugPanel inputTokenEstimate={inputTokenEstimate} tokenUsage={tokenUsage} traceSteps={traceSteps} />
         ) : null}
@@ -159,7 +182,13 @@ export function AgentInspector({
   activeTab,
   artifactsRollbackBusy,
   artifactsRollbackError,
+  compact = false,
   contextPreferences,
+  dagCompletedTasks,
+  dagConflicts,
+  dagExecutingTaskId,
+  dagFailedTasks,
+  dagTasks,
   drawer = false,
   inputTokenEstimate,
   latestAssistantMessage,
@@ -180,6 +209,8 @@ export function AgentInspector({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [compactOpen, setCompactOpen] = useState(false);
+  const currentTabLabel = inspectorTabs.find((tab) => tab.key === activeTab)?.label ?? "上下文";
 
   useEffect(() => {
     if (!drawer || !drawerOpen) {
@@ -233,36 +264,69 @@ export function AgentInspector({
     triggerRef.current?.focus();
   }, []);
 
+  const panelsNode = (
+    <InspectorPanels
+      action={action}
+      activeTab={activeTab}
+      artifactsRollbackBusy={artifactsRollbackBusy}
+      artifactsRollbackError={artifactsRollbackError}
+      contextPreferences={contextPreferences}
+      dagCompletedTasks={dagCompletedTasks}
+      dagConflicts={dagConflicts}
+      dagExecutingTaskId={dagExecutingTaskId}
+      dagFailedTasks={dagFailedTasks}
+      dagTasks={dagTasks}
+      inputTokenEstimate={inputTokenEstimate}
+      latestAssistantMessage={latestAssistantMessage}
+      lastRollbackPayload={lastRollbackPayload}
+      messages={messages}
+      onActiveTabChange={onActiveTabChange}
+      onArtifactsRollback={onArtifactsRollback}
+      onToggleContextExclude={onToggleContextExclude}
+      onToggleContextPin={onToggleContextPin}
+      panelIdPrefix={panelIdPrefix}
+      pendingAction={pendingAction}
+      statusLabel={statusLabel}
+      tabListId={tabListId}
+      threadId={threadId}
+      tokenUsage={tokenUsage}
+      traceSteps={traceSteps}
+    />
+  );
+
+  if (compact) {
+    return (
+      <aside className={`sunny-agent-inspector-compact${compactOpen ? " is-open" : ""}`}>
+        <button
+          type="button"
+          className="sunny-agent-inspector-compact-header"
+          aria-expanded={compactOpen}
+          onClick={() => setCompactOpen((v) => !v)}
+        >
+          <span className="sunny-agent-inspector-compact-label">检查器</span>
+          <span className="sunny-agent-inspector-compact-tab">{currentTabLabel}</span>
+          <span className="sunny-agent-inspector-compact-chevron" aria-hidden="true">{compactOpen ? "▾" : "▸"}</span>
+        </button>
+        {compactOpen ? (
+          <div className="sunny-agent-inspector-compact-body">
+            <AgentInspectorTabs activeTab={activeTab} onActiveTabChange={onActiveTabChange} panelIdPrefix={panelIdPrefix} tabListId={tabListId} />
+            {panelsNode}
+          </div>
+        ) : null}
+      </aside>
+    );
+  }
+
   const shell = (
     <aside className="sunny-agent-inspector-shell">
       <div className="sunny-agent-inspector-head">
         <div>
           <p>检查器</p>
-          <h2>{inspectorTabs.find((tab) => tab.key === activeTab)?.label ?? "上下文"}</h2>
+          <h2>{currentTabLabel}</h2>
         </div>
       </div>
-      <InspectorPanels
-        action={action}
-        activeTab={activeTab}
-        artifactsRollbackBusy={artifactsRollbackBusy}
-        artifactsRollbackError={artifactsRollbackError}
-        contextPreferences={contextPreferences}
-        inputTokenEstimate={inputTokenEstimate}
-        latestAssistantMessage={latestAssistantMessage}
-        lastRollbackPayload={lastRollbackPayload}
-        messages={messages}
-        onActiveTabChange={onActiveTabChange}
-        onArtifactsRollback={onArtifactsRollback}
-        onToggleContextExclude={onToggleContextExclude}
-        onToggleContextPin={onToggleContextPin}
-        panelIdPrefix={panelIdPrefix}
-        pendingAction={pendingAction}
-        statusLabel={statusLabel}
-        tabListId={tabListId}
-        threadId={threadId}
-        tokenUsage={tokenUsage}
-        traceSteps={traceSteps}
-      />
+      <AgentInspectorTabs activeTab={activeTab} onActiveTabChange={onActiveTabChange} panelIdPrefix={panelIdPrefix} tabListId={tabListId} />
+      {panelsNode}
     </aside>
   );
 

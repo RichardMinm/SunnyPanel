@@ -14,7 +14,6 @@ export type DashboardPageViewModel = {
   displayName: string;
   draftContentWithoutPlans: WorkspaceSnapshot["execution"]["recentContentWithoutPlans"];
   dueSoonPlans: Array<{ dayOffset: number; plan: Plan }>;
-  fullAgentHref: string;
   initialThreadId?: number;
   locale: SiteLocale;
   metricToneFor: (metricKey: FocusMetricKey, hasAttention: boolean) => StatusBadgeTone;
@@ -22,17 +21,15 @@ export type DashboardPageViewModel = {
   pendingOnboardingTasks: WorkspaceSnapshot["onboarding"]["tasks"];
   primaryFocusItem: FocusItem;
   secondaryActionItems: FocusItem[];
-  showFullAgentConsole: boolean;
   snapshot: WorkspaceSnapshot;
 };
 
 export const buildDashboardPageViewModel = (input: {
   initialThreadId?: number;
   locale: SiteLocale;
-  showFullAgentConsole: boolean;
   snapshot: WorkspaceSnapshot;
 }): DashboardPageViewModel => {
-  const { initialThreadId, locale, showFullAgentConsole, snapshot } = input;
+  const { initialThreadId, locale, snapshot } = input;
   const displayName = snapshot.user.displayName || snapshot.user.email;
   const nextUndoneOnboardingTask = snapshot.onboarding.tasks.find((task) => !task.done);
   const plansNeedingOutputs = snapshot.execution.plansWithoutOutputs.filter((plan) => plan.state === "active");
@@ -144,10 +141,6 @@ export const buildDashboardPageViewModel = (input: {
   const continueWritingTarget = snapshot.execution.recentDrafts[0];
   const continueWritingHref = continueWritingTarget?.href ?? "/admin/collections/posts/create";
   const continueWritingLabel = continueWritingTarget ? "继续写草稿" : "新建文章";
-  const fullAgentHref = initialThreadId
-    ? `/dashboard?agent=full&threadId=${initialThreadId}`
-    : "/dashboard?agent=full";
-
   return {
     contentQueues,
     continueWritingHref,
@@ -155,7 +148,6 @@ export const buildDashboardPageViewModel = (input: {
     displayName,
     draftContentWithoutPlans,
     dueSoonPlans,
-    fullAgentHref,
     initialThreadId,
     locale,
     metricToneFor,
@@ -163,7 +155,6 @@ export const buildDashboardPageViewModel = (input: {
     pendingOnboardingTasks,
     primaryFocusItem,
     secondaryActionItems,
-    showFullAgentConsole,
     snapshot,
   };
 };

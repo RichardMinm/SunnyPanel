@@ -3,6 +3,7 @@ import path from "node:path";
 import type { CollectionConfig } from "payload";
 
 import { adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const Media: CollectionConfig = {
   slug: "media",
@@ -14,6 +15,7 @@ export const Media: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("content"),
     defaultColumns: ["filename", "alt", "updatedAt"],
   },
   fields: [

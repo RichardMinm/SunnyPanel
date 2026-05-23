@@ -1,101 +1,169 @@
 /**
- * 设计令牌：浅色 / 深色主题 CSS 变量（含 Agent 工作台专用变量）。
- * 须在 @theme inline 之前由入口样式表导入。
+ * 设计令牌：结构变量（字体、间距、Agent 尺寸等）。
+ * 配色见 sunny-palettes.css。
  */
 
 :root {
-  --site-scale: 0.92;
-  --background: #f3efe7;
-  --foreground: #18222c;
-  --surface: rgba(255, 252, 248, 0.88);
-  --surface-strong: rgba(255, 250, 244, 0.96);
-  --surface-tint: rgba(248, 241, 232, 0.82);
-  --border: rgba(24, 34, 44, 0.12);
-  --accent: #d36b2d;
-  --accent-strong: #8f3510;
-  --accent-soft: rgba(211, 107, 45, 0.14);
-  --accent-cool: rgba(65, 127, 117, 0.12);
-  --muted: #6c726b;
-  --tone-accent-bg: rgba(211, 107, 45, 0.14);
-  --tone-accent-border: rgba(211, 107, 45, 0.24);
-  --tone-accent-text: #8f3510;
-  --tone-success-bg: rgba(62, 142, 92, 0.12);
-  --tone-success-border: rgba(62, 142, 92, 0.22);
-  --tone-success-text: #2f7d4d;
-  --tone-warning-bg: rgba(213, 139, 32, 0.14);
-  --tone-warning-border: rgba(213, 139, 32, 0.28);
-  --tone-warning-text: #8a520f;
-  --tone-danger-bg: rgba(202, 72, 72, 0.12);
-  --tone-danger-border: rgba(202, 72, 72, 0.24);
-  --tone-danger-text: #a33b3b;
-  --tone-info-bg: rgba(58, 126, 160, 0.12);
-  --tone-info-border: rgba(58, 126, 160, 0.22);
-  --tone-info-text: #2f6f8d;
-  --tone-neutral-bg: rgba(132, 124, 112, 0.14);
-  --tone-neutral-border: rgba(132, 124, 112, 0.2);
-  --tone-neutral-text: #635f57;
+  --site-scale: 1;
   --sunny-font-sans: "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   --sunny-font-mono: "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
   --sunny-font-display: var(--sunny-font-sans);
-  /* Agent workbench: spacing / radii / column widths (used by .sunny-agent-*) */
   --agent-gap-xs: 0.35rem;
   --agent-gap-sm: 0.45rem;
   --agent-gap-md: 0.65rem;
   --agent-gap-lg: 0.75rem;
-  --agent-radius-shell: 1rem;
-  --agent-radius-panel: 0.75rem;
-  --agent-radius-control: 0.48rem;
+  --radius-chrome: 0.5rem;
+  --radius-panel: 0.5rem;
+  --radius-control: 0.4rem;
+  --radius-pill: 0.4rem;
+  --agent-radius-shell: var(--radius-chrome);
+  --agent-radius-panel: var(--radius-panel);
+  --agent-radius-control: var(--radius-control);
   --agent-rail-width: 15rem;
   --agent-inspector-width: 18.75rem;
   --agent-min-height: 42rem;
-  /* 断点：宽屏三栏（侧栏 / 主栏 / Inspector）；1180↓ Inspector 折行；820↓ 单栏堆叠 */
-  --agent-shadow-shell: 0 20px 48px rgba(24, 34, 44, 0.07);
-  --agent-surface-elevated: rgba(255, 252, 247, 0.78);
+  --dashboard-left-width: 18rem;
+  --dashboard-right-width: 20rem;
+  /* Type scale — Site / Admin / Agent 共用 */
+  --text-icon: 0.45rem;
+  --text-3xs: 0.625rem;
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm-compact: 0.8125rem;
+  --text-sm: 0.875rem;
+  --text-base: 0.9375rem;
+  --text-md: 1rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.1875rem;
+  --text-2xl: 1.375rem;
+  --text-3xl: 2.25rem;
+  --font-weight-body: 450;
+  --font-weight-ui: 600;
+  --font-weight-title: 700;
+  --font-weight-kicker: 700;
+  --leading-tight: 1.3;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.75;
+  --kicker-tracking: 0.08em;
+  --kicker-tracking-brand: 0.12em;
+  --chrome-padding-y: 0.7rem;
+  --chrome-padding-x: 1.1rem;
+  --chrome-panel-padding: 0.8rem;
+  --nav-link-padding-y: 0.42rem;
+  --nav-link-padding-x: 0.8rem;
+  --control-min-height: 2.25rem;
+  /* Admin 别名（兼容旧引用，值来自 --text-*） */
+  --admin-text-xs: var(--text-xs);
+  --admin-text-sm: var(--text-sm);
+  --admin-text-md: var(--text-base);
+  --admin-text-lg: var(--text-lg);
+  --admin-text-xl: var(--text-xl);
+  --admin-text-2xl: var(--text-2xl);
+  --admin-font-weight-body: var(--font-weight-body);
+  --admin-font-weight-ui: var(--font-weight-ui);
+  --admin-font-weight-title: var(--font-weight-title);
+  --admin-font-weight-kicker: var(--font-weight-kicker);
+  --admin-leading: var(--leading-normal);
+  --admin-panel-radius: var(--radius-chrome);
+  --admin-shell-gap: var(--agent-gap-lg);
+  --admin-content-padding: var(--chrome-padding-x);
+  --dashboard-topbar-height: var(--app-header-height, 2.75rem);
+  --tone-success-bg: rgba(22, 120, 82, 0.1);
+  --tone-success-border: rgba(22, 120, 82, 0.2);
+  --tone-success-text: #166534;
+  --tone-warning-bg: rgba(180, 132, 38, 0.12);
+  --tone-warning-border: rgba(180, 132, 38, 0.24);
+  --tone-warning-text: #854d0e;
+  --tone-danger-bg: rgba(185, 58, 58, 0.1);
+  --tone-danger-border: rgba(185, 58, 58, 0.22);
+  --tone-danger-text: #991b1b;
+  --tone-neutral-bg: rgba(94, 106, 120, 0.1);
+  --tone-neutral-border: rgba(94, 106, 120, 0.18);
+  --tone-neutral-text: #475569;
   --agent-risk-high-bg: var(--tone-danger-bg);
   --agent-risk-high-border: var(--tone-danger-border);
   --agent-risk-medium-bg: var(--tone-warning-bg);
   --agent-risk-medium-border: var(--tone-warning-border);
   --agent-risk-low-bg: var(--tone-success-bg);
   --agent-risk-low-border: var(--tone-success-border);
+  --agent-text-on-accent: #fffaf3;
+  --agent-panel-bg: color-mix(in srgb, var(--surface) 86%, transparent);
+  --agent-control-bg: color-mix(in srgb, var(--surface-strong) 76%, transparent);
+  --agent-bubble-assistant-bg: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+  --agent-bubble-assistant-border: var(--border);
+  --agent-bubble-user-bg: color-mix(in srgb, var(--accent) 13%, var(--surface-strong));
+  --agent-bubble-user-border: color-mix(in srgb, var(--accent) 30%, var(--border));
+  --agent-input-bg: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+  --agent-segment-bg: color-mix(in srgb, var(--surface) 72%, transparent);
+  --agent-segment-active-bg: color-mix(in srgb, var(--accent) 14%, var(--surface-strong));
+  --agent-segment-active-text: var(--accent-strong);
+  --agent-code-inline-bg: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --agent-code-block-bg: color-mix(in srgb, var(--foreground) 4%, var(--surface));
+  --agent-code-block-header-bg: color-mix(in srgb, var(--foreground) 7%, transparent);
+  --agent-table-header-bg: color-mix(in srgb, var(--foreground) 4%, transparent);
+  --agent-thinking-bg: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  --agent-thinking-border: color-mix(in srgb, var(--accent) 16%, var(--border));
+  --agent-thinking-text: var(--muted);
+  --agent-thinking-content-bg: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  --agent-label-text: var(--muted);
 }
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --background: #11161b;
-  --foreground: #fff6ea;
-  --surface: rgba(27, 33, 40, 0.9);
-  --surface-strong: rgba(22, 27, 33, 0.97);
-  --surface-tint: rgba(25, 31, 38, 0.94);
-  --border: rgba(255, 244, 227, 0.16);
-  --accent: #ee9b61;
-  --accent-strong: #ffd0a7;
-  --accent-soft: rgba(224, 138, 77, 0.18);
-  --accent-cool: rgba(102, 171, 156, 0.18);
-  --muted: #d4cdc1;
-  --tone-accent-bg: rgba(238, 155, 97, 0.18);
-  --tone-accent-border: rgba(238, 155, 97, 0.32);
-  --tone-accent-text: #ffd0a7;
-  --tone-success-bg: rgba(111, 194, 138, 0.16);
-  --tone-success-border: rgba(111, 194, 138, 0.28);
-  --tone-success-text: #a8e4b6;
-  --tone-warning-bg: rgba(232, 166, 67, 0.18);
-  --tone-warning-border: rgba(232, 166, 67, 0.32);
-  --tone-warning-text: #ffd189;
-  --tone-danger-bg: rgba(231, 102, 102, 0.18);
-  --tone-danger-border: rgba(231, 102, 102, 0.32);
-  --tone-danger-text: #ffb5b5;
-  --tone-info-bg: rgba(110, 174, 207, 0.16);
-  --tone-info-border: rgba(110, 174, 207, 0.28);
-  --tone-info-text: #a9ddf5;
-  --tone-neutral-bg: rgba(255, 244, 227, 0.1);
-  --tone-neutral-border: rgba(255, 244, 227, 0.16);
-  --tone-neutral-text: #e7dccd;
-  --agent-risk-high-bg: var(--tone-danger-bg);
-  --agent-risk-high-border: var(--tone-danger-border);
-  --agent-risk-medium-bg: var(--tone-warning-bg);
-  --agent-risk-medium-border: var(--tone-warning-border);
-  --agent-risk-low-bg: var(--tone-success-bg);
-  --agent-risk-low-border: var(--tone-success-border);
-  --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.35);
-  --agent-surface-elevated: rgba(28, 34, 41, 0.92);
+  --tone-success-bg: rgba(74, 180, 120, 0.14);
+  --tone-success-border: rgba(74, 180, 120, 0.26);
+  --tone-success-text: #86efac;
+  --tone-warning-bg: rgba(212, 162, 64, 0.16);
+  --tone-warning-border: rgba(212, 162, 64, 0.28);
+  --tone-warning-text: #fcd34d;
+  --tone-danger-bg: rgba(220, 96, 96, 0.16);
+  --tone-danger-border: rgba(220, 96, 96, 0.28);
+  --tone-danger-text: #fca5a5;
+  --tone-neutral-bg: rgba(168, 180, 196, 0.1);
+  --tone-neutral-border: rgba(168, 180, 196, 0.16);
+  --tone-neutral-text: #cbd5e1;
+  --agent-text-on-accent: color-mix(in srgb, var(--background) 88%, #050505);
+  --agent-panel-bg: color-mix(in srgb, var(--surface) 94%, transparent);
+  --agent-control-bg: color-mix(in srgb, var(--surface-strong) 86%, var(--foreground) 4%);
+  --agent-bubble-assistant-bg: color-mix(in srgb, var(--surface-strong) 92%, var(--foreground) 6%);
+  --agent-bubble-assistant-border: color-mix(in srgb, var(--foreground) 14%, var(--border));
+  --agent-bubble-user-bg: color-mix(in srgb, var(--accent) 26%, var(--surface-strong));
+  --agent-bubble-user-border: color-mix(in srgb, var(--accent) 50%, var(--border));
+  --agent-input-bg: color-mix(in srgb, var(--background) 70%, var(--surface-strong));
+  --agent-segment-bg: color-mix(in srgb, var(--surface-strong) 80%, transparent);
+  --agent-segment-active-bg: color-mix(in srgb, var(--accent) 28%, var(--surface-strong));
+  --agent-segment-active-text: var(--accent-strong);
+  --agent-code-inline-bg: color-mix(in srgb, var(--foreground) 11%, transparent);
+  --agent-code-block-bg: color-mix(in srgb, var(--background) 60%, var(--foreground) 6%);
+  --agent-code-block-header-bg: color-mix(in srgb, var(--foreground) 9%, transparent);
+  --agent-table-header-bg: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --agent-thinking-bg: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  --agent-thinking-border: color-mix(in srgb, var(--accent) 28%, var(--border));
+  --agent-thinking-text: color-mix(in srgb, var(--foreground) 76%, var(--muted));
+  --agent-thinking-content-bg: color-mix(in srgb, var(--accent) 14%, var(--surface-strong));
+  --agent-label-text: color-mix(in srgb, var(--foreground) 70%, var(--muted));
+}
+
+/**
+ * 工作区阅读尺度 — Admin + Dashboard（公开站保持 :root 默认，便于长时间阅读）
+ */
+.template-default,
+.sunny-dashboard-shell {
+  --text-2xs: 0.75rem;
+  --text-xs: 0.8125rem;
+  --text-sm-compact: 0.875rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1.0625rem;
+  --text-md: 1.125rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2.375rem;
+  --leading-normal: 1.6;
+  --leading-relaxed: 1.8;
+  --chrome-padding-y: 0.8rem;
+  --chrome-panel-padding: 0.9rem;
+  --nav-link-padding-y: 0.5rem;
+  --nav-link-padding-x: 0.9rem;
+  --control-min-height: 2.5rem;
 }

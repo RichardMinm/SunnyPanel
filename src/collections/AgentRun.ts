@@ -3,6 +3,7 @@ import type { CollectionAfterChangeHook, CollectionConfig } from "payload";
 import type { Plan } from "@/payload-types";
 
 import { adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 const runStatusToPlanAgentState: Record<string, NonNullable<Plan["agentState"]>> = {
   canceled: "ready",
@@ -53,6 +54,7 @@ export const AgentRun: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("agent"),
     defaultColumns: ["title", "workflow", "status", "trigger", "startedAt", "updatedAt"],
     useAsTitle: "title",
   },
@@ -315,6 +317,33 @@ export const AgentRun: CollectionConfig = {
       type: "checkbox",
       label: "可回滚",
       defaultValue: false,
+    },
+    {
+      name: "orchestrationId",
+      type: "text",
+      label: "编排批次 ID",
+      admin: {
+        description: "同一复合意图拆解与批量确认共享的关联 ID。",
+        position: "sidebar",
+      },
+    },
+    {
+      name: "agentRole",
+      type: "select",
+      label: "Agent 角色",
+      admin: {
+        description: "执行该次写操作的专业 Agent 角色。",
+        position: "sidebar",
+      },
+      options: [
+        { label: "计划", value: "plan" },
+        { label: "排期", value: "schedule" },
+        { label: "回顾", value: "review" },
+        { label: "记忆", value: "memory" },
+        { label: "内容", value: "content" },
+        { label: "查询", value: "query" },
+        { label: "编排", value: "orchestrator" },
+      ],
     },
     {
       name: "model",
