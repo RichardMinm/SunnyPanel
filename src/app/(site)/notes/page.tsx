@@ -19,8 +19,8 @@ export default async function NotesPage() {
     <PublicSiteFrame locale={locale}>
       <main className="flex flex-1 flex-col gap-8 pb-4">
         <SectionIntro
-          eyebrow="Notes"
-          title="Notes"
+          eyebrow={locale === "en" ? "Notes" : "笔记"}
+          title={locale === "en" ? "Notes" : "笔记"}
           stats={[
             { label: copy.notes.statsNotes, value: notes.length },
             { label: copy.notes.statsPinned, value: notes.filter((note) => note.pinned).length },
@@ -52,7 +52,7 @@ export default async function NotesPage() {
                     {note.mood ? <span className="sunny-badge sunny-badge-accent">{note.mood}</span> : null}
                     <span>{formatDate(note.createdAt, locale)}</span>
                     {note.pinned ? (
-                      <span className="rounded-full bg-white/70 px-2 py-1 text-accent-strong">
+                      <span className="sunny-badge sunny-badge-accent">
                         {copy.common.pinned}
                       </span>
                     ) : null}
