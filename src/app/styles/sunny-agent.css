@@ -582,6 +582,24 @@ html[data-theme="dark"] .sunny-agent-inspector-tabs {
   font-weight: var(--font-weight-title);
 }
 
+.sunny-agent-mode-switch-v2 button {
+  display: inline-grid;
+  align-items: center;
+  justify-items: center;
+  gap: 0.08rem;
+}
+
+.sunny-agent-mode-switch-v2 button small {
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-body);
+  opacity: 0.68;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sunny-agent-mode-switch-v2 button:hover,
 .sunny-agent-run-tabs button:hover,
 .sunny-agent-inspector-tabs button:hover,

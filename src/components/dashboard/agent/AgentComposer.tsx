@@ -47,7 +47,8 @@ function AgentModeSwitch({ mode, onModeChange, suggestedMode }: AgentModeSwitchP
             suggestedMode === item.key && item.key !== mode ? "suggested" : "",
           ].filter(Boolean).join(" ")}
         >
-          {item.label}
+          <span>{item.label}</span>
+          <small>{item.description}</small>
           {suggestedMode === item.key && item.key !== mode ? (
             <span className="sunny-agent-mode-hint" aria-label="建议模式">●</span>
           ) : null}
@@ -84,6 +85,18 @@ export function AgentComposer({
   statusLabel,
   suggestedMode,
 }: AgentComposerProps) {
+  const operationState = pendingAction?.type === "await_confirmation"
+    ? "等待确认"
+    : mode === "ask"
+      ? "只回答"
+      : mode === "plan"
+        ? "生成建议"
+        : mode === "execute"
+          ? "可执行"
+          : mode === "review"
+            ? "复盘"
+            : "时间线";
+
   return (
     <form
       className="sunny-agent-composer"
@@ -94,7 +107,7 @@ export function AgentComposer({
     >
       <div className="sunny-agent-composer-top">
         <AgentModeSwitch mode={mode} onModeChange={onModeChange} suggestedMode={suggestedMode} />
-        <span>{statusLabel}</span>
+        <span>{operationState} · {statusLabel}</span>
       </div>
       <div className="sunny-agent-composer-row">
         <textarea

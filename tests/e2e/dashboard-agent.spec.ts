@@ -62,6 +62,8 @@ test("Agent Composer 使用命令式可访问输入", async ({ page }) => {
 
   await expect(textarea).toBeVisible();
   await expect(shell.getByRole("tablist", { name: "Agent 工作台模式" })).toContainText("只回答");
+  await expect(shell.getByRole("tablist", { name: "Agent 工作台模式" })).toContainText("不写入数据库");
+  await expect(shell.locator(".sunny-agent-composer-top")).toContainText("时间线 ·");
   await expect(shell.getByRole("button", { name: "发送" })).toBeVisible();
 });
 
