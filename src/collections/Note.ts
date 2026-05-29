@@ -2,6 +2,8 @@ import type { CollectionConfig } from "payload";
 
 import { adminsOnly, adminsOrPublished, canAccessAdmin } from "../lib/payload/access.ts";
 import { statusField, visibilityField } from "../lib/payload/fields.ts";
+import { markdownContentField } from "../lib/payload/markdown-fields.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const Note: CollectionConfig = {
   slug: "notes",
@@ -13,20 +15,17 @@ export const Note: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("content"),
     defaultColumns: ["category", "mood", "status", "visibility", "updatedAt"],
     useAsTitle: "category",
   },
   defaultSort: "-createdAt",
   fields: [
-    {
-      name: "content",
-      type: "textarea",
+    markdownContentField({
+      description: "支持 Markdown 短札写作。",
       label: "内容",
-      admin: {
-        placeholder: "直接写下这条短札想记录的内容。",
-      },
-      required: true,
-    },
+      toolbarMode: "minimal",
+    }),
     {
       name: "mood",
       type: "text",

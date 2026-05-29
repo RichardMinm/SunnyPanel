@@ -6,6 +6,8 @@ import {
   statusField,
   visibilityField,
 } from "../lib/payload/fields.ts";
+import { markdownContentField } from "../lib/payload/markdown-fields.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const Page: CollectionConfig = {
   slug: "pages",
@@ -17,6 +19,7 @@ export const Page: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("content"),
     defaultColumns: ["title", "status", "visibility", "updatedAt"],
     useAsTitle: "title",
   },
@@ -32,15 +35,10 @@ export const Page: CollectionConfig = {
       required: true,
     },
     createSlugField(),
-    {
-      name: "content",
-      type: "richText",
+    markdownContentField({
+      description: "先把页面的核心内容写出来，版式可以之后再慢慢调整。",
       label: "页面内容",
-      admin: {
-        description: "先把页面的核心内容写出来，版式可以之后再慢慢调整。",
-      },
-      required: true,
-    },
+    }),
     {
       name: "coverImage",
       type: "relationship",

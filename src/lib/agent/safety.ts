@@ -1,4 +1,17 @@
-import { parseAgentIntentResult, type AgentIntent, type ProposedAgentAction } from "./schemas";
+import {
+  dryRunAgentTool,
+  getAgentToolDefinition,
+  type AgentToolDryRunContext,
+} from "./tool-registry";
+import {
+  parseAgentIntentResult,
+  type AgentDryRunResult,
+  type AgentIntent,
+  type AgentWriteIntentName,
+  type PendingAction,
+  type ProposedAgentAction,
+} from "./schemas";
+import type { UserPreferences } from "./user-preferences";
 
 const riskLabelMap: Record<ProposedAgentAction["riskLevel"], string> = {
   high: "高风险",
@@ -12,119 +25,61 @@ const operationLabelMap: Record<ProposedAgentAction["changes"][number]["operatio
   update: "更新",
 };
 
-const createProposedActionId = () =>
-  globalThis.crypto?.randomUUID?.() ?? `agent-action-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+const writeIntentValues = new Set<AgentWriteIntentName>([
+  "add_completion_note",
+  "append_plan_item",
+  "cancel_schedule_item",
+  "complete_plan_item",
+  "compose_plan",
+  "compose_schedule_item",
+  "compose_timeline_event",
+  "create_plan",
+  "query_plan_progress",
+  "reschedule_item",
+  "save_memory",
+  "schedule_plan",
+  "weekly_review",
+]);
 
-const getTargetLabel = (checklistTitle: string, groupTitle: null | string | undefined, itemTitle?: string) =>
-  [checklistTitle, groupTitle, itemTitle].filter((value): value is string => Boolean(value)).join(" / ");
+const isWritableIntent = (intent: AgentIntent): intent is Extract<AgentIntent, { intent: AgentWriteIntentName }> =>
+  writeIntentValues.has(intent.intent as AgentWriteIntentName);
 
-export const getAgentIntentRiskLevel = (intent: AgentIntent["intent"]): ProposedAgentAction["riskLevel"] => {
-  switch (intent) {
-    case "create_plan":
-    case "append_plan_item":
-      return "medium";
-    case "add_completion_note":
-    case "complete_plan_item":
-      return "high";
-    case "answer_question":
-    case "clarify":
-    case "evaluate_plan":
-    case "query_progress":
-    default:
-      return "low";
-  }
+export const getAgentIntentRiskLevel = (intent: AgentIntent["intent"]): ProposedAgentAction["riskLevel"] =>
+  getAgentToolDefinition(intent)?.riskLevel ??
+  (writeIntentValues.has(intent as AgentWriteIntentName) ? "medium" : "low");
+
+export type AutoApprovalContext = {
+  isFirstActionInThread: boolean;
+  lastIntent?: string | null;
+  pendingActionHistory: PendingAction[];
+  threadId: number;
+  userPreferences?: UserPreferences | null;
 };
 
-export const createProposedAgentAction = (intent: AgentIntent): null | ProposedAgentAction => {
-  const riskLevel = getAgentIntentRiskLevel(intent.intent);
-
-  if (riskLevel === "low") {
-    return null;
+export const dryRunAgentIntent = async (
+  intent: AgentIntent,
+  context: AgentToolDryRunContext = {},
+): Promise<AgentDryRunResult> => {
+  if (!isWritableIntent(intent)) {
+    return { type: "bypass" };
   }
 
-  switch (intent.intent) {
-    case "create_plan":
-      return {
-        args: intent.args,
-        changes: [
-          {
-            collection: "plans",
-            operation: "create",
-            preview: `创建私有草稿计划「${intent.args.title}」，状态 ${intent.args.state ?? "backlog"}，优先级 ${intent.args.priority ?? "medium"}，执行模式 ${intent.args.executionMode ?? "manual"}。`,
-          },
-        ],
-        id: createProposedActionId(),
-        intent: intent.intent,
-        riskLevel,
-        summary: `创建计划「${intent.args.title}」`,
-      };
-    case "append_plan_item": {
-      const target = getTargetLabel(intent.args.checklistTitle, intent.args.groupTitle);
+  const result = await dryRunAgentTool(intent, context);
 
-      return {
-        args: intent.args,
-        changes: [
-          {
-            collection: "checklists",
-            operation: "update",
-            preview: `向「${target}」追加未完成条目「${intent.args.itemTitle}」${intent.args.description ? `，说明：${intent.args.description}` : ""}。`,
-          },
-        ],
-        id: createProposedActionId(),
-        intent: intent.intent,
-        riskLevel,
-        summary: `向清单追加计划项「${intent.args.itemTitle}」`,
-      };
-    }
-    case "complete_plan_item": {
-      const target = getTargetLabel(intent.args.checklistTitle, intent.args.groupTitle, intent.args.itemTitle);
-
-      return {
-        args: intent.args,
-        changes: [
-          {
-            collection: "checklists",
-            operation: "update",
-            preview: `将「${target}」标记为完成${intent.args.completionNote ? `，并写入备注：${intent.args.completionNote}` : ""}。`,
-          },
-          {
-            collection: "timeline-events",
-            operation: "update",
-            preview: "同步创建或更新对应 Timeline 完成节点，可能影响公开时间线内容。",
-          },
-        ],
-        id: createProposedActionId(),
-        intent: intent.intent,
-        riskLevel,
-        summary: `标记清单条目完成「${target}」`,
-      };
-    }
-    case "add_completion_note": {
-      const target = getTargetLabel(intent.args.checklistTitle, intent.args.groupTitle, intent.args.itemTitle);
-
-      return {
-        args: intent.args,
-        changes: [
-          {
-            collection: "checklists",
-            operation: "update",
-            preview: `为「${target}」写入完成备注：${intent.args.completionNote}。`,
-          },
-          {
-            collection: "timeline-events",
-            operation: "update",
-            preview: "同步更新对应 Timeline 节点说明，可能影响公开时间线内容。",
-          },
-        ],
-        id: createProposedActionId(),
-        intent: intent.intent,
-        riskLevel,
-        summary: `补充完成备注「${target}」`,
-      };
-    }
-    default:
-      return null;
+  if (result.type === "proposed_action" && !result.action.requiresConfirmation) {
+    return { type: "bypass" };
   }
+
+  return result;
+};
+
+export const createProposedAgentAction = async (
+  intent: AgentIntent,
+  context: AgentToolDryRunContext = {},
+): Promise<null | ProposedAgentAction> => {
+  const result = await dryRunAgentIntent(intent, context);
+
+  return result.type === "proposed_action" ? result.action : null;
 };
 
 export const createIntentFromProposedAction = (action: ProposedAgentAction): AgentIntent | null =>
@@ -138,10 +93,23 @@ export const buildProposedActionMessage = (action: ProposedAgentAction) => {
   const changes = action.changes
     .map((change) => {
       const target = change.documentId ? `${change.collection} #${change.documentId}` : change.collection;
+      const beforeAfter =
+        change.beforePreview || change.afterPreview
+          ? `\n  Before：${change.beforePreview ?? "未记录"}\n  After：${change.afterPreview ?? change.preview}`
+          : "";
+      const metadata = [
+        change.visibility ? `visibility=${change.visibility}` : null,
+        change.timelineAffected ? "Timeline affected" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
 
-      return `- ${operationLabelMap[change.operation]} ${target}：${change.preview}`;
+      return `- ${operationLabelMap[change.operation]} ${target}：${change.preview}${metadata ? `（${metadata}）` : ""}${beforeAfter}`;
     })
     .join("\n");
+  const rollback = action.rollbackPayload
+    ? `\n\n回滚准备：${action.rollbackAvailable ? "已准备结构化 rollbackPayload" : "已有占位 payload，需执行后补齐目标 ID"}。`
+    : "";
 
-  return `我已经整理好一个待确认动作。风险等级：${riskLabelMap[action.riskLevel]}。\n\n将要做：${action.summary}\n\n影响范围：\n${changes}\n\n回复「确认」或「执行」后我再真正写入；回复「取消」会放弃这次动作。`;
+  return `我已经 dry-run 了这个工具动作。风险等级：${riskLabelMap[action.riskLevel]}。\n\n将要做：${action.summary}\n\n影响范围：\n${changes}${rollback}\n\n回复「确认」或「执行」后我再真正写入；回复「取消」会放弃这次动作。`;
 };

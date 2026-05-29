@@ -6,20 +6,114 @@ export type AgentChatMessage = {
 export type PlanExecutionModeValue = "agent" | "hybrid" | "manual";
 export type PlanPriorityValue = "high" | "low" | "medium";
 export type PlanStateValue = "active" | "backlog" | "done" | "paused";
+export type AgentActionVisibility = "private" | "public" | "unknown";
+export type TimelineComposerSourceType = "checklist_item" | "free_text" | "note" | "plan" | "post" | "update";
+export type TimelineComposerEventType = "life" | "milestone" | "project";
+export type ScheduleSourceType = "agent" | "checklist" | "manual" | "plan";
+
+export type PlanProposal = {
+  agentBrief: string;
+  goal: string;
+  keySteps: string[];
+  motivation?: null | string;
+  nextActions: string[];
+  outOfScope?: null | string;
+  risks: string[];
+  scope?: null | string;
+  successCriteria: string[];
+  suggestedDueDate?: null | string;
+  suggestedPriority: PlanPriorityValue;
+  title: string;
+};
+
+export type ScheduleConflict = {
+  endTime?: null | string;
+  scheduleItemId: number;
+  startTime?: null | string;
+  title: string;
+};
+
+export type ScheduleProposal = {
+  conflicts: ScheduleConflict[];
+  date: string;
+  description?: null | string;
+  endTime?: null | string;
+  isAllDay: boolean;
+  priority: PlanPriorityValue;
+  reason: string;
+  relatedChecklistId?: null | number;
+  relatedChecklistItemKey?: null | string;
+  relatedPlanId?: null | number;
+  startTime?: null | string;
+  title: string;
+};
+
+export type ProposedAgentActionChange = {
+  afterPreview?: string;
+  beforePreview?: string;
+  collection: string;
+  documentId?: number;
+  operation: "create" | "delete" | "update";
+  preview: string;
+  timelineAffected?: boolean;
+  visibility?: AgentActionVisibility;
+};
 
 export type ProposedAgentAction = {
   args: unknown;
-  changes: Array<{
+  affectedDocuments?: Array<{
     collection: string;
     documentId?: number;
     operation: "create" | "delete" | "update";
-    preview: string;
+    visibility?: AgentActionVisibility;
   }>;
+  afterSnapshot?: unknown;
+  beforeSnapshot?: unknown;
+  changes: ProposedAgentActionChange[];
   id: string;
   intent: AgentIntent["intent"];
+  requiresConfirmation?: boolean;
   riskLevel: "high" | "low" | "medium";
+  rollbackAvailable?: boolean;
+  rollbackPayload?: unknown;
   summary: string;
+  toolName?: string;
 };
+
+export type AgentWriteIntentName =
+  | "add_completion_note"
+  | "append_plan_item"
+  | "cancel_schedule_item"
+  | "complete_plan_item"
+  | "compose_plan"
+  | "compose_schedule_item"
+  | "compose_timeline_event"
+  | "create_plan"
+  | "query_plan_progress"
+  | "reschedule_item"
+  | "save_memory"
+  | "schedule_plan"
+  | "weekly_review";
+
+export type AgentDryRunClarifyResult = {
+  assistantMessage: string;
+  pendingAction: null | PendingAction;
+  type: "clarify";
+};
+
+export type AgentDryRunProposedActionResult = {
+  action: ProposedAgentAction;
+  type: "proposed_action";
+};
+
+export type AgentDryRunBypassResult = {
+  type: "bypass";
+};
+
+export type AgentDryRunResult =
+  | AgentDryRunBypassResult
+  | AgentDryRunClarifyResult
+  | AgentDryRunProposedActionResult;
 
 export type PendingAction = {
   checklistTitle: string;
@@ -28,11 +122,43 @@ export type PendingAction = {
   type: "await_completion_note";
 } | {
   action: ProposedAgentAction;
+  deferredActions?: ProposedAgentAction[];
+  orchestrationId?: string;
   type: "await_confirmation";
 } | {
-  args: Partial<AppendPlanItemArgs | CompletePlanItemArgs | CreatePlanArgs>;
-  intent: Extract<AgentIntent["intent"], "append_plan_item" | "complete_plan_item" | "create_plan">;
+  actions: ProposedAgentAction[];
+  orchestrationId?: string;
+  type: "await_batch_confirmation";
+} | {
+  args: Partial<
+    | AddCompletionNoteArgs
+    | AppendPlanItemArgs
+    | CancelScheduleItemArgs
+    | CompletePlanItemArgs
+    | ComposePlanArgs
+    | ComposeScheduleItemArgs
+    | CreatePlanArgs
+    | QueryPlanProgressArgs
+    | RescheduleItemArgs
+    | SaveMemoryArgs
+    | SchedulePlanArgs
+  >;
+  intent: Extract<
+    AgentIntent["intent"],
+    | "add_completion_note"
+    | "append_plan_item"
+    | "cancel_schedule_item"
+    | "complete_plan_item"
+    | "compose_plan"
+    | "compose_schedule_item"
+    | "create_plan"
+    | "query_plan_progress"
+    | "reschedule_item"
+    | "save_memory"
+    | "schedule_plan"
+  >;
   missingFields: string[];
+  originalMessage?: string;
   question: string;
   type: "await_clarification";
 };
@@ -89,6 +215,98 @@ export type AnswerQuestionArgs = {
   suggestAction?: null | string;
 };
 
+export type SaveMemoryArgs = {
+  confidence?: number;
+  content: string;
+  title?: null | string;
+  type?: "fact" | "preference" | "project_context" | "workflow_rule" | "writing_style";
+};
+
+export type WeeklyReviewArgs = {
+  createSuggestions?: boolean;
+  now?: null | string;
+  persistReview?: boolean;
+};
+
+export type ComposePlanArgs = {
+  agentBrief?: null | string;
+  /** LLM 拆解的阶段计划结果。随 PendingAction 持久化以在确认后继续使用。 */
+  decomposed?: null | import("./workflows/plan-decomposer").DecomposedPlan;
+  domain?: string;
+  goal?: null | string;
+  keySteps?: string[];
+  motivation?: null | string;
+  nextActions?: string[];
+  outOfScope?: null | string;
+  proposal?: PlanProposal;
+  risks?: string[];
+  scope?: null | string;
+  sourceText?: null | string;
+  successCriteria?: string[];
+  suggestedDueDate?: null | string;
+  suggestedPriority?: PlanPriorityValue;
+  title?: null | string;
+};
+
+export type ComposeScheduleItemArgs = {
+  date?: null | string;
+  description?: null | string;
+  endTime?: null | string;
+  isAllDay?: boolean;
+  priority?: PlanPriorityValue;
+  proposal?: ScheduleProposal;
+  reason?: null | string;
+  relatedChecklistId?: null | number;
+  relatedChecklistItemKey?: null | string;
+  relatedPlanId?: null | number;
+  sourceText?: null | string;
+  sourceType?: null | ScheduleSourceType;
+  startTime?: null | string;
+  title?: null | string;
+};
+
+export type SchedulePlanArgs = {
+  planId: number;
+  defaultDurationMinutes?: number;
+  defaultStartTime?: null | string;
+  startDate?: null | string;
+};
+
+export type RescheduleItemArgs = {
+  itemId: number;
+  newDate?: null | string;
+  newEndTime?: null | string;
+  newStartTime?: null | string;
+  newTitle?: null | string;
+  reason?: null | string;
+};
+
+export type CancelScheduleItemArgs = {
+  itemId: number;
+  reason?: null | string;
+};
+
+export type QueryPlanProgressArgs = {
+  planId?: null | number;
+  planTitle?: null | string;
+};
+
+export type ComposeTimelineEventArgs = {
+  checklistTitle?: null | string;
+  createEvent?: boolean;
+  eventDate?: null | string;
+  groupTitle?: null | string;
+  isFeatured?: boolean;
+  itemTitle?: null | string;
+  relatedTaskKey?: null | string;
+  sourceId?: null | number;
+  sourceText?: null | string;
+  sourceTitle?: null | string;
+  sourceType?: null | TimelineComposerSourceType;
+  type?: null | TimelineComposerEventType;
+  visibility?: null | "private" | "public";
+};
+
 export type AgentIntent =
   | {
       args: AnswerQuestionArgs;
@@ -121,6 +339,24 @@ export type AgentIntent =
       reply?: string;
     }
   | {
+      args: ComposePlanArgs;
+      confidence?: number;
+      intent: "compose_plan";
+      reply?: string;
+    }
+  | {
+      args: ComposeScheduleItemArgs;
+      confidence?: number;
+      intent: "compose_schedule_item";
+      reply?: string;
+    }
+  | {
+      args: ComposeTimelineEventArgs;
+      confidence?: number;
+      intent: "compose_timeline_event";
+      reply?: string;
+    }
+  | {
       args: CreatePlanArgs;
       confidence?: number;
       intent: "create_plan";
@@ -137,9 +373,45 @@ export type AgentIntent =
       confidence?: number;
       intent: "query_progress";
       reply?: string;
+    }
+  | {
+      args: QueryPlanProgressArgs;
+      confidence?: number;
+      intent: "query_plan_progress";
+      reply?: string;
+    }
+  | {
+      args: SaveMemoryArgs;
+      confidence?: number;
+      intent: "save_memory";
+      reply?: string;
+    }
+  | {
+      args: SchedulePlanArgs;
+      confidence?: number;
+      intent: "schedule_plan";
+      reply?: string;
+    }
+  | {
+      args: RescheduleItemArgs;
+      confidence?: number;
+      intent: "reschedule_item";
+      reply?: string;
+    }
+  | {
+      args: CancelScheduleItemArgs;
+      confidence?: number;
+      intent: "cancel_schedule_item";
+      reply?: string;
+    }
+  | {
+      args: WeeklyReviewArgs;
+      confidence?: number;
+      intent: "weekly_review";
+      reply?: string;
     };
 
-export type AgentEngine = "glm" | "heuristic" | "workflow";
+export type AgentEngine = "glm" | "heuristic" | "model" | "openai" | "openai-compatible" | "workflow" | "zai";
 
 export type AgentTokenUsage = {
   contextTokens: number;
@@ -157,10 +429,14 @@ export type AgentChatResponse = {
   confidence?: number;
   engine: AgentEngine;
   intent: AgentIntent["intent"];
+  /** 本轮写入成功后，若存在可自动执行的 rollback 描述则附带（用于 Artifacts 一键撤销）。 */
+  lastRollbackPayload?: unknown;
   pendingAction: null | PendingAction;
   trace?: AgentTraceStep[];
   threadId?: number;
   tokenUsage?: AgentTokenUsage;
+  /** 服务端回传的工作台模式，供日志和 UI 可观测。 */
+  workbenchMode?: string;
 };
 
 export type AgentTraceStep = {
@@ -175,18 +451,30 @@ const planPriorityValues = ["high", "low", "medium"] as const;
 const planStateValues = ["active", "backlog", "done", "paused"] as const;
 const executionModeValues = ["agent", "hybrid", "manual"] as const;
 const progressScopeValues = ["all", "checklists", "plans"] as const;
+const scheduleSourceTypeValues = ["agent", "checklist", "manual", "plan"] as const;
+const timelineComposerSourceTypeValues = ["checklist_item", "free_text", "note", "plan", "post", "update"] as const;
+const timelineComposerEventTypeValues = ["life", "milestone", "project"] as const;
+const timelineComposerVisibilityValues = ["private", "public"] as const;
 const agentIntentValues = [
   "add_completion_note",
   "answer_question",
   "append_plan_item",
+  "cancel_schedule_item",
   "clarify",
   "complete_plan_item",
+  "compose_plan",
+  "compose_schedule_item",
+  "compose_timeline_event",
   "create_plan",
   "evaluate_plan",
   "query_progress",
+  "reschedule_item",
+  "save_memory",
+  "weekly_review",
 ] as const;
 const proposedActionRiskValues = ["high", "low", "medium"] as const;
 const proposedActionOperationValues = ["create", "delete", "update"] as const;
+const proposedActionVisibilityValues = ["private", "public", "unknown"] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -241,6 +529,14 @@ const getOptionalNumber = (value: unknown) => {
 
   return undefined;
 };
+
+const getOptionalStringArray = (value: unknown) =>
+  Array.isArray(value)
+    ? value
+        .map((item) => getOptionalString(item))
+        .filter((item): item is string => Boolean(item))
+        .slice(0, 12)
+    : undefined;
 
 const getConfidence = (value: unknown) => {
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -305,9 +601,37 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
       return null;
     }
 
+    const deferredActions = Array.isArray(value.deferredActions)
+      ? value.deferredActions
+          .map((item) => parseProposedAgentAction(item))
+          .filter((item): item is ProposedAgentAction => item !== null)
+      : undefined;
+
     return {
       action,
+      deferredActions: deferredActions && deferredActions.length > 0 ? deferredActions : undefined,
+      orchestrationId: getOptionalString(value.orchestrationId) ?? undefined,
       type: "await_confirmation",
+    };
+  }
+
+  if (value.type === "await_batch_confirmation") {
+    if (!Array.isArray(value.actions)) {
+      return null;
+    }
+
+    const actions = value.actions
+      .map((item) => parseProposedAgentAction(item))
+      .filter((action): action is ProposedAgentAction => action !== null);
+
+    if (actions.length === 0) {
+      return null;
+    }
+
+    return {
+      actions,
+      orchestrationId: getOptionalString(value.orchestrationId) ?? undefined,
+      type: "await_batch_confirmation",
     };
   }
 
@@ -317,7 +641,15 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
 
   const question = getRequiredString(value.question);
   const intent =
-    value.intent === "append_plan_item" || value.intent === "complete_plan_item" || value.intent === "create_plan"
+    value.intent === "add_completion_note" ||
+    value.intent === "append_plan_item" ||
+    value.intent === "cancel_schedule_item" ||
+    value.intent === "complete_plan_item" ||
+    value.intent === "compose_plan" ||
+    value.intent === "compose_schedule_item" ||
+    value.intent === "create_plan" ||
+    value.intent === "reschedule_item" ||
+    value.intent === "save_memory"
       ? value.intent
       : null;
 
@@ -326,11 +658,20 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
   }
 
   return {
-    args: value.args as Partial<AppendPlanItemArgs | CompletePlanItemArgs | CreatePlanArgs>,
+    args: value.args as Partial<
+      | AddCompletionNoteArgs
+      | AppendPlanItemArgs
+      | CompletePlanItemArgs
+      | ComposePlanArgs
+      | ComposeScheduleItemArgs
+      | CreatePlanArgs
+      | SaveMemoryArgs
+    >,
     intent,
     missingFields: Array.isArray(value.missingFields)
       ? value.missingFields.filter((item): item is string => typeof item === "string" && item.length > 0)
       : [],
+    originalMessage: getOptionalString(value.originalMessage) ?? undefined,
     question,
     type: "await_clarification",
   };
@@ -360,16 +701,24 @@ export const parseProposedAgentAction = (value: unknown): null | ProposedAgentAc
       const operation = getOptionalEnum(change.operation, proposedActionOperationValues);
       const preview = getRequiredString(change.preview);
       const documentId = getOptionalNumber(change.documentId);
+      const afterPreview = getOptionalString(change.afterPreview);
+      const beforePreview = getOptionalString(change.beforePreview);
+      const timelineAffected = typeof change.timelineAffected === "boolean" ? change.timelineAffected : undefined;
+      const visibility = getOptionalEnum(change.visibility, proposedActionVisibilityValues);
 
       if (!collection || !operation || !preview) {
         return null;
       }
 
       return {
+        ...(afterPreview ? { afterPreview } : {}),
+        ...(beforePreview ? { beforePreview } : {}),
         collection,
         ...(documentId ? { documentId } : {}),
         operation,
         preview,
+        ...(typeof timelineAffected === "boolean" ? { timelineAffected } : {}),
+        ...(visibility ? { visibility } : {}),
       };
     })
     .filter((change): change is ProposedAgentAction["changes"][number] => Boolean(change));
@@ -378,13 +727,46 @@ export const parseProposedAgentAction = (value: unknown): null | ProposedAgentAc
     return null;
   }
 
+  const affectedDocuments = Array.isArray(value.affectedDocuments)
+    ? value.affectedDocuments
+        .map((item) => {
+          if (!isRecord(item)) {
+            return null;
+          }
+
+          const collection = getRequiredString(item.collection);
+          const operation = getOptionalEnum(item.operation, proposedActionOperationValues);
+          const documentId = getOptionalNumber(item.documentId);
+          const visibility = getOptionalEnum(item.visibility, proposedActionVisibilityValues);
+
+          if (!collection || !operation) {
+            return null;
+          }
+
+          return {
+            collection,
+            ...(documentId ? { documentId } : {}),
+            operation,
+            ...(visibility ? { visibility } : {}),
+          };
+        })
+        .filter((item): item is NonNullable<ProposedAgentAction["affectedDocuments"]>[number] => Boolean(item))
+    : undefined;
+
   return {
     args: value.args,
+    ...(affectedDocuments && affectedDocuments.length > 0 ? { affectedDocuments } : {}),
+    ...("afterSnapshot" in value ? { afterSnapshot: value.afterSnapshot } : {}),
+    ...("beforeSnapshot" in value ? { beforeSnapshot: value.beforeSnapshot } : {}),
     changes,
     id,
     intent,
+    ...(typeof value.requiresConfirmation === "boolean" ? { requiresConfirmation: value.requiresConfirmation } : {}),
     riskLevel,
+    ...(typeof value.rollbackAvailable === "boolean" ? { rollbackAvailable: value.rollbackAvailable } : {}),
+    ...("rollbackPayload" in value ? { rollbackPayload: value.rollbackPayload } : {}),
     summary,
+    ...(typeof value.toolName === "string" ? { toolName: value.toolName } : {}),
   };
 };
 
@@ -395,6 +777,96 @@ export const createClarifyIntent = (question: string, missingFields: string[] = 
   },
   intent: "clarify",
 });
+
+const parsePlanProposal = (value: unknown): undefined | PlanProposal => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const title = getRequiredString(value.title);
+  const goal = getRequiredString(value.goal);
+  const agentBrief = getRequiredString(value.agentBrief);
+  const suggestedPriority = getOptionalEnum(value.suggestedPriority, planPriorityValues) ?? "medium";
+
+  if (!title || !goal || !agentBrief) {
+    return undefined;
+  }
+
+  return {
+    agentBrief,
+    goal,
+    keySteps: getOptionalStringArray(value.keySteps) ?? [],
+    motivation: getOptionalString(value.motivation) ?? null,
+    nextActions: getOptionalStringArray(value.nextActions) ?? [],
+    outOfScope: getOptionalString(value.outOfScope) ?? null,
+    risks: getOptionalStringArray(value.risks) ?? [],
+    scope: getOptionalString(value.scope) ?? null,
+    successCriteria: getOptionalStringArray(value.successCriteria) ?? [],
+    suggestedDueDate: getOptionalDateString(value.suggestedDueDate) ?? null,
+    suggestedPriority,
+    title,
+  };
+};
+
+const parseScheduleConflicts = (value: unknown): ScheduleConflict[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const conflicts: ScheduleConflict[] = [];
+
+  for (const item of value) {
+    if (!isRecord(item)) {
+      continue;
+    }
+
+    const title = getRequiredString(item.title);
+    const scheduleItemId = getOptionalNumber(item.scheduleItemId);
+
+    if (!title || !scheduleItemId) {
+      continue;
+    }
+
+    conflicts.push({
+      endTime: getOptionalString(item.endTime) ?? null,
+      scheduleItemId,
+      startTime: getOptionalString(item.startTime) ?? null,
+      title,
+    });
+  }
+
+  return conflicts;
+};
+
+const parseScheduleProposal = (value: unknown): undefined | ScheduleProposal => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const title = getRequiredString(value.title);
+  const date = getRequiredString(value.date);
+  const reason = getRequiredString(value.reason);
+  const priority = getOptionalEnum(value.priority, planPriorityValues) ?? "medium";
+
+  if (!title || !date || !reason) {
+    return undefined;
+  }
+
+  return {
+    conflicts: parseScheduleConflicts(value.conflicts),
+    date,
+    description: getOptionalString(value.description) ?? null,
+    endTime: getOptionalString(value.endTime) ?? null,
+    isAllDay: typeof value.isAllDay === "boolean" ? value.isAllDay : false,
+    priority,
+    reason,
+    relatedChecklistId: getOptionalNumber(value.relatedChecklistId) ?? null,
+    relatedChecklistItemKey: getOptionalString(value.relatedChecklistItemKey) ?? null,
+    relatedPlanId: getOptionalNumber(value.relatedPlanId) ?? null,
+    startTime: getOptionalString(value.startTime) ?? null,
+    title,
+  };
+};
 
 export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
   if (!isRecord(value) || typeof value.intent !== "string" || !isRecord(value.args)) {
@@ -506,6 +978,71 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         reply,
       };
     }
+    case "compose_plan":
+      return {
+        args: {
+          agentBrief: getOptionalString(value.args.agentBrief) ?? null,
+          goal: getOptionalString(value.args.goal) ?? null,
+          keySteps: getOptionalStringArray(value.args.keySteps),
+          motivation: getOptionalString(value.args.motivation) ?? null,
+          nextActions: getOptionalStringArray(value.args.nextActions),
+          outOfScope: getOptionalString(value.args.outOfScope) ?? null,
+          proposal: parsePlanProposal(value.args.proposal),
+          risks: getOptionalStringArray(value.args.risks),
+          scope: getOptionalString(value.args.scope) ?? null,
+          sourceText: getOptionalString(value.args.sourceText) ?? null,
+          successCriteria: getOptionalStringArray(value.args.successCriteria),
+          suggestedDueDate: getOptionalDateString(value.args.suggestedDueDate) ?? null,
+          suggestedPriority: getOptionalEnum(value.args.suggestedPriority, planPriorityValues),
+          title: getOptionalString(value.args.title) ?? null,
+        },
+        confidence,
+        intent: "compose_plan",
+        reply,
+      };
+    case "compose_schedule_item":
+      return {
+        args: {
+          date: getOptionalString(value.args.date) ?? null,
+          description: getOptionalString(value.args.description) ?? null,
+          endTime: getOptionalString(value.args.endTime) ?? null,
+          isAllDay: typeof value.args.isAllDay === "boolean" ? value.args.isAllDay : undefined,
+          priority: getOptionalEnum(value.args.priority, planPriorityValues),
+          proposal: parseScheduleProposal(value.args.proposal),
+          reason: getOptionalString(value.args.reason) ?? null,
+          relatedChecklistId: getOptionalNumber(value.args.relatedChecklistId) ?? null,
+          relatedChecklistItemKey: getOptionalString(value.args.relatedChecklistItemKey) ?? null,
+          relatedPlanId: getOptionalNumber(value.args.relatedPlanId) ?? null,
+          sourceText: getOptionalString(value.args.sourceText) ?? null,
+          sourceType: getOptionalEnum(value.args.sourceType, scheduleSourceTypeValues) ?? null,
+          startTime: getOptionalString(value.args.startTime) ?? null,
+          title: getOptionalString(value.args.title) ?? null,
+        },
+        confidence,
+        intent: "compose_schedule_item",
+        reply,
+      };
+    case "compose_timeline_event":
+      return {
+        args: {
+          checklistTitle: getOptionalString(value.args.checklistTitle) ?? null,
+          createEvent: typeof value.args.createEvent === "boolean" ? value.args.createEvent : true,
+          eventDate: getOptionalDateString(value.args.eventDate) ?? null,
+          groupTitle: getOptionalString(value.args.groupTitle) ?? null,
+          isFeatured: typeof value.args.isFeatured === "boolean" ? value.args.isFeatured : undefined,
+          itemTitle: getOptionalString(value.args.itemTitle) ?? null,
+          relatedTaskKey: getOptionalString(value.args.relatedTaskKey) ?? null,
+          sourceId: getOptionalNumber(value.args.sourceId) ?? null,
+          sourceText: getOptionalString(value.args.sourceText) ?? null,
+          sourceTitle: getOptionalString(value.args.sourceTitle) ?? null,
+          sourceType: getOptionalEnum(value.args.sourceType, timelineComposerSourceTypeValues) ?? null,
+          type: getOptionalEnum(value.args.type, timelineComposerEventTypeValues) ?? null,
+          visibility: getOptionalEnum(value.args.visibility, timelineComposerVisibilityValues) ?? null,
+        },
+        confidence,
+        intent: "compose_timeline_event",
+        reply,
+      };
     case "query_progress":
       return {
         args: {
@@ -526,6 +1063,67 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         intent: "evaluate_plan",
         reply,
       };
+    case "save_memory": {
+      const content = getRequiredString(value.args.content);
+
+      if (!content) {
+        return null;
+      }
+
+      return {
+        args: {
+          confidence: getConfidence(value.args.confidence),
+          content,
+          title: getOptionalString(value.args.title) ?? null,
+          type: getOptionalEnum(value.args.type, ["fact", "preference", "project_context", "workflow_rule", "writing_style"] as const),
+        },
+        confidence,
+        intent: "save_memory",
+        reply,
+      };
+    }
+    case "weekly_review":
+      return {
+        args: {
+          createSuggestions:
+            typeof value.args.createSuggestions === "boolean" ? value.args.createSuggestions : true,
+          now: getOptionalDateString(value.args.now) ?? null,
+          persistReview: typeof value.args.persistReview === "boolean" ? value.args.persistReview : true,
+        },
+        confidence,
+        intent: "weekly_review",
+        reply,
+      };
+    case "reschedule_item": {
+      const rescheduleItemId = getOptionalNumber(value.args.itemId);
+      if (!rescheduleItemId) return null;
+      return {
+        args: {
+          itemId: rescheduleItemId,
+          newDate: getOptionalDateString(value.args.newDate) ?? null,
+          newEndTime: getOptionalString(value.args.newEndTime) ?? null,
+          newStartTime: getOptionalString(value.args.newStartTime) ?? null,
+          newTitle: getOptionalString(value.args.newTitle) ?? null,
+          reason: getOptionalString(value.args.reason) ?? null,
+        },
+        confidence,
+        intent: "reschedule_item",
+        reply,
+      };
+    }
+    case "cancel_schedule_item": {
+      const cancelItemId = getOptionalNumber(value.args.itemId);
+      if (!cancelItemId) return null;
+      return {
+        args: {
+          itemId: cancelItemId,
+          reason: getOptionalString(value.args.reason) ?? null,
+        },
+        confidence,
+        intent: "cancel_schedule_item",
+        reply,
+      };
+    }
     case "clarify": {
       const question = getRequiredString(value.args.question) ?? reply;
 

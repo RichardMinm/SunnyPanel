@@ -1,6 +1,7 @@
 import type { CollectionConfig } from "payload";
 
 import { adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const AgentThread: CollectionConfig = {
   slug: "agent-threads",
@@ -12,6 +13,7 @@ export const AgentThread: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("agent"),
     defaultColumns: ["title", "status", "lastIntent", "lastEngine", "lastInteractionAt", "updatedAt"],
     useAsTitle: "title",
   },
@@ -121,16 +123,52 @@ export const AgentThread: CollectionConfig = {
           value: "complete_plan_item",
         },
         {
+          label: "生成完整计划",
+          value: "compose_plan",
+        },
+        {
+          label: "生成日程",
+          value: "compose_schedule_item",
+        },
+        {
+          label: "生成时间线节点",
+          value: "compose_timeline_event",
+        },
+        {
           label: "补完成备注",
           value: "add_completion_note",
+        },
+        {
+          label: "保存长期记忆",
+          value: "save_memory",
         },
         {
           label: "查询进度",
           value: "query_progress",
         },
         {
+          label: "查询计划进度",
+          value: "query_plan_progress",
+        },
+        {
           label: "评估计划",
           value: "evaluate_plan",
+        },
+        {
+          label: "计划排期",
+          value: "schedule_plan",
+        },
+        {
+          label: "本周回顾",
+          value: "weekly_review",
+        },
+        {
+          label: "改期日程",
+          value: "reschedule_item",
+        },
+        {
+          label: "取消日程",
+          value: "cancel_schedule_item",
         },
         {
           label: "追问澄清",
@@ -149,6 +187,14 @@ export const AgentThread: CollectionConfig = {
         {
           label: "GLM",
           value: "glm",
+        },
+        {
+          label: "OpenAI",
+          value: "openai",
+        },
+        {
+          label: "Z.ai",
+          value: "zai",
         },
         {
           label: "规则",
@@ -174,6 +220,24 @@ export const AgentThread: CollectionConfig = {
       name: "lastInteractionAt",
       type: "date",
       label: "最近交互时间",
+      admin: {
+        position: "sidebar",
+      },
+    },
+    {
+      name: "tags",
+      type: "json",
+      label: "标签",
+      admin: {
+        position: "sidebar",
+        description: "JSON 字符串数组，用于分类检索。",
+      },
+    },
+    {
+      name: "archived",
+      type: "checkbox",
+      label: "已归档",
+      defaultValue: false,
       admin: {
         position: "sidebar",
       },

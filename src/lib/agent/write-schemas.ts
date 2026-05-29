@@ -1,12 +1,22 @@
-import type { AgentRun, AgentThread, Checklist, Plan, PlanReview, TimelineEvent } from "@/payload-types";
+import type { AgentMemory, AgentRun, AgentThread, Checklist, Plan, PlanReview, TimelineEvent } from "@/payload-types";
 
 type AgentRunRelatedContent = NonNullable<AgentRun["relatedContent"]>;
+type AgentRunJsonField =
+  | {
+      [k: string]: unknown;
+    }
+  | boolean
+  | null
+  | number
+  | string
+  | unknown[];
 
 const planPriorityValues = ["high", "low", "medium"] as const;
 const planStateValues = ["active", "backlog", "done", "paused"] as const;
 const planStatusValues = ["draft", "published"] as const;
 const planExecutionModeValues = ["agent", "hybrid", "manual"] as const;
 const planAgentStateValues = ["blocked", "idle", "ready", "review", "running"] as const;
+const planDomainValues = ["creative", "fitness", "other", "study", "travel", "work"] as const;
 const visibilityValues = ["private", "public"] as const;
 const timelineTypeValues = ["life", "milestone", "project"] as const;
 const agentRunStatusValues = ["canceled", "failed", "queued", "running", "succeeded"] as const;
@@ -17,26 +27,41 @@ const agentRunWorkflowValues = [
   "publishing-review",
   "readiness-audit",
   "sync",
+  "weekly-review",
 ] as const;
+const agentRunRoleValues = ["content", "memory", "orchestrator", "plan", "query", "review", "schedule"] as const;
 const planReviewScopeValues = ["overall", "plan"] as const;
 const planReviewHealthValues = ["attention", "healthy", "risk"] as const;
 const planReviewSourceValues = ["agent", "manual"] as const;
+const scheduleStatusValues = ["canceled", "done", "planned", "skipped"] as const;
+const scheduleSourceTypeValues = ["agent", "checklist", "manual", "plan"] as const;
+const scheduleCreatedByValues = ["agent", "manual"] as const;
 const agentThreadStatusValues = ["active", "closed"] as const;
 const agentIntentValues = [
   "add_completion_note",
   "append_plan_item",
   "clarify",
   "complete_plan_item",
+  "compose_plan",
+  "compose_schedule_item",
+  "compose_timeline_event",
   "create_plan",
   "evaluate_plan",
+  "query_plan_progress",
   "query_progress",
+  "save_memory",
+  "schedule_plan",
+  "weekly_review",
 ] as const;
-const agentEngineValues = ["glm", "heuristic", "workflow"] as const;
+const agentMemoryTypeValues = ["fact", "preference", "project_context", "workflow_rule", "writing_style"] as const;
+const agentMemoryStatusValues = ["active", "archived"] as const;
+const agentEngineValues = ["glm", "heuristic", "openai", "workflow", "zai"] as const;
 const relatedContentRelationValues = [
   "checklists",
   "notes",
   "pages",
   "plan-reviews",
+  "agent-memories",
   "posts",
   "timeline-events",
   "updates",
@@ -72,6 +97,11 @@ const getNumber = (value: unknown, fieldName: string) => {
 };
 
 const getOptionalNumber = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : undefined);
+
+const getOptionalBoolean = (value: unknown) => (typeof value === "boolean" ? value : undefined);
+
+const getOptionalJson = (value: unknown): AgentRunJsonField | undefined =>
+  value === undefined ? undefined : (value as AgentRunJsonField);
 
 const getBoolean = (value: unknown, fieldName: string) => {
   if (typeof value !== "boolean") {
@@ -122,18 +152,54 @@ export const validatePlanCreateData = (value: unknown) => {
     throw new Error("Agent write validation failed: plan data must be an object.");
   }
 
+  const getJsonField = (v: unknown) => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === "object" || Array.isArray(v)) return v as Record<string, unknown> | unknown[];
+    return null;
+  };
+
   return {
     agentBrief: getOptionalString(value.agentBrief),
     agentState: getEnum(value.agentState, planAgentStateValues, "agentState"),
     description: getOptionalString(value.description),
+    domain: (getOptionalString(value.domain) as typeof planDomainValues[number] | undefined) ?? "other",
     dueDate: getOptionalDateString(value.dueDate),
     executionMode: getEnum(value.executionMode, planExecutionModeValues, "executionMode"),
+    phases: getJsonField(value.phases),
+    prerequisites: getJsonField(value.prerequisites),
     priority: getEnum(value.priority, planPriorityValues, "priority"),
+    progress: getOptionalNumber(value.progress),
     state: getEnum(value.state, planStateValues, "state"),
     status: getEnum(value.status, planStatusValues, "status"),
     title: getString(value.title, "title"),
+    totalEstimatedDays: getOptionalNumber(value.totalEstimatedDays),
     visibility: getEnum(value.visibility, visibilityValues, "visibility"),
+    weeklyRhythm: getOptionalString(value.weeklyRhythm),
   } satisfies Partial<Plan>;
+};
+
+export const validateScheduleItemData = (value: unknown) => {
+  if (!isRecord(value)) {
+    throw new Error("Agent write validation failed: schedule item data must be an object.");
+  }
+
+  return {
+    agentBrief: getOptionalString(value.agentBrief),
+    conflictNote: getOptionalString(value.conflictNote),
+    createdBy: getEnum(value.createdBy, scheduleCreatedByValues, "createdBy"),
+    date: getDateString(value.date, "date"),
+    description: getOptionalString(value.description),
+    endTime: getOptionalString(value.endTime),
+    isAllDay: getBoolean(value.isAllDay, "isAllDay"),
+    priority: getEnum(value.priority, planPriorityValues, "priority"),
+    relatedChecklist: getOptionalNumber(value.relatedChecklist),
+    relatedChecklistItemKey: getOptionalString(value.relatedChecklistItemKey),
+    relatedPlan: getOptionalNumber(value.relatedPlan),
+    sourceType: getEnum(value.sourceType, scheduleSourceTypeValues, "sourceType"),
+    startTime: getOptionalString(value.startTime),
+    status: getEnum(value.status, scheduleStatusValues, "status"),
+    title: getString(value.title, "title"),
+  };
 };
 
 export const validateChecklistGroupsData = (value: unknown): NonNullable<Checklist["groups"]> => {
@@ -178,8 +244,10 @@ export const validateTimelineEventData = (value: unknown) => {
     description: getOptionalString(value.description),
     eventDate: getDateString(value.eventDate, "eventDate"),
     isFeatured: getBoolean(value.isFeatured, "isFeatured"),
-    relatedChecklist: getNumber(value.relatedChecklist, "relatedChecklist"),
-    relatedTaskKey: getString(value.relatedTaskKey, "relatedTaskKey"),
+    relatedChecklist: getOptionalNumber(value.relatedChecklist),
+    relatedPost: getOptionalNumber(value.relatedPost),
+    relatedTaskKey: getOptionalString(value.relatedTaskKey),
+    relatedUpdate: getOptionalNumber(value.relatedUpdate),
     sortOrder: getNumber(value.sortOrder, "sortOrder"),
     status: getEnum(value.status, planStatusValues, "status"),
     title: getString(value.title, "title"),
@@ -217,11 +285,20 @@ export const validateAgentRunData = (value: unknown) => {
   const steps = Array.isArray(value.steps) ? value.steps : [];
 
   return {
+    affectedDocuments: getOptionalJson(value.affectedDocuments),
+    afterSnapshot: getOptionalJson(value.afterSnapshot),
+    agentRole: value.agentRole === undefined ? undefined : getEnum(value.agentRole, agentRunRoleValues, "agentRole"),
+    beforeSnapshot: getOptionalJson(value.beforeSnapshot),
     completedAt: getOptionalDateString(value.completedAt),
     goal: getOptionalString(value.goal),
+    model: getOptionalString(value.model),
+    orchestrationId: getOptionalString(value.orchestrationId) ?? undefined,
     nextAction: getOptionalString(value.nextAction),
+    provider: getOptionalString(value.provider),
     relatedContent: validateRelatedContent(value.relatedContent),
     relatedPlan: getOptionalNumber(value.relatedPlan),
+    rollbackAvailable: getOptionalBoolean(value.rollbackAvailable),
+    rollbackPayload: getOptionalJson(value.rollbackPayload),
     startedAt: getOptionalDateString(value.startedAt),
     status: getEnum(value.status, agentRunStatusValues, "status"),
     steps: steps.map((step, index) => {
@@ -236,6 +313,8 @@ export const validateAgentRunData = (value: unknown) => {
       };
     }),
     summary: getOptionalString(value.summary),
+    tokenUsage: getOptionalJson(value.tokenUsage),
+    trace: getOptionalJson(value.trace),
     title: getString(value.title, "title"),
     trigger: getEnum(value.trigger, ["agent", "manual", "scheduled", "webhook"] as const, "trigger"),
     workflow: getEnum(value.workflow, agentRunWorkflowValues, "workflow"),
@@ -303,4 +382,22 @@ export const validateAgentThreadData = (value: unknown) => {
     title: getOptionalString(value.title) ?? undefined,
     user: getOptionalNumber(value.user),
   } satisfies Partial<AgentThread>;
+};
+
+export const validateAgentMemoryData = (value: unknown) => {
+  if (!isRecord(value)) {
+    throw new Error("Agent write validation failed: agent memory data must be an object.");
+  }
+
+  return {
+    confidence: Math.max(0, Math.min(1, getNumber(value.confidence ?? 0.7, "confidence"))),
+    content: getString(value.content, "content"),
+    lastUsedAt: getOptionalDateString(value.lastUsedAt),
+    sourceRun: getOptionalNumber(value.sourceRun),
+    sourceThread: getOptionalNumber(value.sourceThread),
+    status: getEnum(value.status ?? "active", agentMemoryStatusValues, "status"),
+    title: getString(value.title, "title"),
+    type: getEnum(value.type ?? "fact", agentMemoryTypeValues, "type"),
+    visibility: "private" as const,
+  } satisfies Partial<AgentMemory>;
 };

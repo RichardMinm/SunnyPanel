@@ -1,0 +1,56 @@
+/* MDXEditor + 公开站 Markdown 展示共用样式 */
+
+.sunny-markdown-editor-root .mdxeditor {
+  --mdx-editor-font-family: var(--sunny-font-sans, ui-sans-serif, system-ui, sans-serif);
+  border: 1px solid color-mix(in srgb, var(--foreground, #182430) 12%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface, #fff) 92%, transparent);
+  overflow: hidden;
+}
+
+.sunny-markdown-editor-root .mdxeditor-toolbar {
+  border-bottom: 1px solid color-mix(in srgb, var(--foreground, #182430) 8%, transparent);
+  background: color-mix(in srgb, var(--surface-tint, #f5efe6) 70%, transparent);
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.sunny-markdown-editor-root .mdxeditor-root-contenteditable {
+  min-height: 22rem;
+  padding: 1.25rem 1.5rem 1.75rem;
+}
+
+.sunny-markdown-editor-root .mdxeditor-root-contenteditable .sunny-prose {
+  max-width: none;
+}
+
+.sunny-markdown-editor-root--minimal .mdxeditor-root-contenteditable {
+  min-height: 12rem;
+}
+
+.sunny-markdown-display .mdxeditor {
+  border: none;
+  background: transparent;
+}
+
+.sunny-markdown-display .mdxeditor-toolbar,
+.sunny-markdown-display .mdxeditor-popup-container {
+  display: none !important;
+}
+
+.sunny-markdown-display .sunny-prose pre,
+.sunny-markdown-display .sunny-prose table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+@media (max-width: 768px) {
+  .sunny-markdown-editor-root .mdxeditor-root-contenteditable {
+    min-height: 14rem;
+  }
+}
+
+html[data-theme="dark"] .sunny-markdown-editor-root .mdxeditor {
+  background: color-mix(in srgb, var(--surface, #2a3038) 96%, transparent);
+}

@@ -3,6 +3,7 @@ import type { CollectionAfterChangeHook, CollectionConfig } from "payload";
 import type { Plan } from "@/payload-types";
 
 import { adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 const runStatusToPlanAgentState: Record<string, NonNullable<Plan["agentState"]>> = {
   canceled: "ready",
@@ -53,6 +54,7 @@ export const AgentRun: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("agent"),
     defaultColumns: ["title", "workflow", "status", "trigger", "startedAt", "updatedAt"],
     useAsTitle: "title",
   },
@@ -95,6 +97,10 @@ export const AgentRun: CollectionConfig = {
         {
           label: "流程同步",
           value: "sync",
+        },
+        {
+          label: "周回顾",
+          value: "weekly-review",
         },
         {
           label: "自动执行",
@@ -205,7 +211,7 @@ export const AgentRun: CollectionConfig = {
         position: "sidebar",
       },
       hasMany: true,
-      relationTo: ["posts", "notes", "updates", "checklists", "timeline-events", "plan-reviews", "pages"],
+      relationTo: ["posts", "notes", "updates", "checklists", "timeline-events", "plan-reviews", "agent-memories", "pages"],
     },
     {
       name: "startedAt",
@@ -279,6 +285,91 @@ export const AgentRun: CollectionConfig = {
           required: true,
         },
       ],
+    },
+    {
+      name: "affectedDocuments",
+      type: "json",
+      label: "影响文档",
+      admin: {
+        description: "dry-run / execute 阶段解析出的真实影响范围。",
+      },
+    },
+    {
+      name: "beforeSnapshot",
+      type: "json",
+      label: "执行前快照",
+    },
+    {
+      name: "afterSnapshot",
+      type: "json",
+      label: "执行后快照",
+    },
+    {
+      name: "rollbackPayload",
+      type: "json",
+      label: "回滚载荷",
+      admin: {
+        description: "暂不自动执行，仅保存后续实现 rollback 所需的结构化数据。",
+      },
+    },
+    {
+      name: "rollbackAvailable",
+      type: "checkbox",
+      label: "可回滚",
+      defaultValue: false,
+    },
+    {
+      name: "orchestrationId",
+      type: "text",
+      label: "编排批次 ID",
+      admin: {
+        description: "同一复合意图拆解与批量确认共享的关联 ID。",
+        position: "sidebar",
+      },
+    },
+    {
+      name: "agentRole",
+      type: "select",
+      label: "Agent 角色",
+      admin: {
+        description: "执行该次写操作的专业 Agent 角色。",
+        position: "sidebar",
+      },
+      options: [
+        { label: "计划", value: "plan" },
+        { label: "排期", value: "schedule" },
+        { label: "回顾", value: "review" },
+        { label: "记忆", value: "memory" },
+        { label: "内容", value: "content" },
+        { label: "查询", value: "query" },
+        { label: "编排", value: "orchestrator" },
+      ],
+    },
+    {
+      name: "model",
+      type: "text",
+      label: "模型",
+      admin: {
+        position: "sidebar",
+      },
+    },
+    {
+      name: "provider",
+      type: "text",
+      label: "提供方",
+      admin: {
+        position: "sidebar",
+      },
+    },
+    {
+      name: "tokenUsage",
+      type: "json",
+      label: "Token 用量",
+    },
+    {
+      name: "trace",
+      type: "json",
+      label: "Trace",
     },
   ],
   hooks: {

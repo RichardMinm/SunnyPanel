@@ -7,6 +7,7 @@ import {
   statusField,
   visibilityField,
 } from "../lib/payload/fields.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 type ChecklistItem = {
   completedAt?: null | string;
@@ -138,6 +139,7 @@ export const Checklist: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("content"),
     defaultColumns: ["title", "status", "visibility", "publishedAt", "updatedAt"],
     useAsTitle: "title",
   },

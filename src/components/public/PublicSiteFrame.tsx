@@ -32,7 +32,7 @@ export async function PublicSiteFrame({
       <PublicRouteTransition
         aside={
           <aside className="hidden xl:block">
-            <div className="sunny-panel sticky top-6 rounded-[1.6rem] px-5 py-5">
+            <div className="sunny-panel sticky top-6 rounded-xl px-5 py-5">
               <SectionHeader
                 action={
                   <Link href="/timeline" className="text-sm font-semibold text-accent-strong">

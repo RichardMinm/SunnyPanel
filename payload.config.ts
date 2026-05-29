@@ -2,13 +2,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { postgresAdapter } from "@payloadcms/db-postgres";
-import { lexicalEditor } from "@payloadcms/richtext-lexical";
 import { en } from "payload/i18n/en";
 import { zh } from "payload/i18n/zh";
 import sharp from "sharp";
 import { buildConfig } from "payload";
 
 import { AgentRun } from "./src/collections/AgentRun.ts";
+import { AgentMemory } from "./src/collections/AgentMemory.ts";
+import { AgentSuggestion } from "./src/collections/AgentSuggestion.ts";
 import { AgentThread } from "./src/collections/AgentThread.ts";
 import { Media } from "./src/collections/Media.ts";
 import { Note } from "./src/collections/Note.ts";
@@ -16,6 +17,7 @@ import { Page } from "./src/collections/Page.ts";
 import { Plan } from "./src/collections/Plan.ts";
 import { PlanReview } from "./src/collections/PlanReview.ts";
 import { Post } from "./src/collections/Post.ts";
+import { ScheduleItem } from "./src/collections/ScheduleItem.ts";
 import { Checklist } from "./src/collections/Checklist.ts";
 import { TimelineEvent } from "./src/collections/TimelineEvent.ts";
 import { Update } from "./src/collections/Update.ts";
@@ -30,6 +32,22 @@ const serverURL = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3000";
 
 export default buildConfig({
   admin: {
+    suppressHydrationWarning: true,
+    theme: "all",
+    components: {
+      providers: ["@/components/admin/SunnyAdminProviders#SunnyAdminProviders"],
+      Nav: "@/components/admin/SunnyAdminNav#SunnyAdminNav",
+      header: ["@/components/admin/SunnyAdminHeader#SunnyAdminHeader"],
+      graphics: {
+        Icon: "@/components/admin/SunnyAdminIcon#SunnyAdminIcon",
+        Logo: "@/components/admin/SunnyAdminLogo#SunnyAdminLogo",
+      },
+      views: {
+        dashboard: {
+          Component: "@/components/admin/SunnyAdminDashboard#SunnyAdminDashboard",
+        },
+      },
+    },
     livePreview: {
       breakpoints: [...livePreviewBreakpoints],
       collections: ["posts", "pages", "notes", "updates", "checklists", "timeline-events"],
@@ -54,15 +72,15 @@ export default buildConfig({
       importMapFile: path.resolve(dirname, "src/app/(payload)/admin/importMap.js"),
     },
   },
-  collections: [Users, Media, Post, Note, Update, Checklist, TimelineEvent, Plan, PlanReview, AgentThread, AgentRun, Page],
+  collections: [Users, Media, Post, Note, Update, Checklist, TimelineEvent, Plan, ScheduleItem, PlanReview, AgentThread, AgentRun, AgentMemory, AgentSuggestion, Page],
   cors: [serverURL],
   csrf: [serverURL],
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || "",
     },
+    push: process.env.PAYLOAD_DB_PUSH === "false" ? false : undefined,
   }),
-  editor: lexicalEditor(),
   globals: [AgentSettings],
   graphQL: {
     disablePlaygroundInProduction: true,

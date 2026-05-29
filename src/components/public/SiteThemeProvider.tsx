@@ -1,17 +1,21 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ThemeProvider } from "next-themes";
 
-export function SiteThemeProvider({ children }: { children: ReactNode }) {
+import { SunnyAppProviders } from "@/components/shared/SunnyAppProviders";
+import type { SiteLocale } from "@/lib/site-copy";
+import type { SitePalette } from "@/lib/site-palette";
+
+type SiteThemeProviderProps = {
+  children: ReactNode;
+  initialLocale: SiteLocale;
+  initialPalette: SitePalette;
+};
+
+export function SiteThemeProvider({ children, initialLocale, initialPalette }: SiteThemeProviderProps) {
   return (
-    <ThemeProvider
-      attribute="data-theme"
-      defaultTheme="system"
-      disableTransitionOnChange
-      enableSystem
-    >
+    <SunnyAppProviders initialLocale={initialLocale} initialPalette={initialPalette} withPreferences>
       {children}
-    </ThemeProvider>
+    </SunnyAppProviders>
   );
 }

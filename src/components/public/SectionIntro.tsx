@@ -18,11 +18,11 @@ type SectionIntroProps = {
 export function SectionIntro({ actions, description, eyebrow, stats, title }: SectionIntroProps) {
   return (
     <MotionReveal>
-      <header className="sunny-panel rounded-[1.45rem] px-4 py-4 md:rounded-[1.7rem] md:px-6 md:py-5">
+      <header className="sunny-panel rounded-xl px-4 py-4 md:rounded-xl md:px-6 md:py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <p className="sunny-kicker text-[0.68rem] text-muted">{eyebrow}</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground md:text-[2rem]">
+            <p className="sunny-kicker text-muted">{eyebrow}</p>
+            <h1 className="text-page-title mt-2 text-foreground">
               {title}
             </h1>
             {description ? (
@@ -38,7 +38,7 @@ export function SectionIntro({ actions, description, eyebrow, stats, title }: Se
             {stats.map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-full border border-border bg-white/68 px-3.5 py-2 text-sm"
+                className="rounded-md border border-border bg-white/68 px-3.5 py-2 text-sm"
               >
                 <span className="text-muted">{stat.label}</span>
                 <span className="ml-2 font-semibold text-foreground">{stat.value}</span>

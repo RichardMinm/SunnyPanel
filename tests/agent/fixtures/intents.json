@@ -1,5 +1,22 @@
 [
   {
+    "name": "compose full plan from planning request",
+    "message": "帮我制定计划：两个月内完成计算机组成原理一轮复习",
+    "expectedIntent": "compose_plan",
+    "expectedArgs": {
+      "sourceText": "两个月内完成计算机组成原理一轮复习"
+    }
+  },
+  {
+    "name": "compose schedule item for tomorrow morning",
+    "message": "把「反函数习题复盘」安排到明天上午",
+    "expectedIntent": "compose_schedule_item",
+    "expectedArgs": {
+      "sourceText": "把「反函数习题复盘」安排到明天上午",
+      "title": "反函数习题复盘"
+    }
+  },
+  {
     "name": "create plan from explicit title",
     "message": "帮我创建计划：整理计算机组成原理复习路径",
     "expectedIntent": "create_plan",
@@ -43,6 +60,44 @@
     "expectedIntent": "evaluate_plan",
     "expectedArgs": {
       "planTitle": null
+    }
+  },
+  {
+    "name": "save memory from explicit preference",
+    "message": "记住我的偏好：回答先给结论，再给必要细节",
+    "expectedIntent": "save_memory",
+    "expectedArgs": {
+      "content": "我的偏好：回答先给结论，再给必要细节",
+      "type": "preference"
+    }
+  },
+  {
+    "name": "generate weekly review",
+    "message": "生成本周回顾",
+    "expectedIntent": "weekly_review",
+    "expectedArgs": {
+      "createSuggestions": true,
+      "persistReview": true
+    }
+  },
+  {
+    "name": "preview weekly plan execution",
+    "message": "看看本周计划执行情况",
+    "expectedIntent": "weekly_review",
+    "expectedArgs": {
+      "createSuggestions": true,
+      "persistReview": false
+    }
+  },
+  {
+    "name": "compose timeline event from explicit source",
+    "message": "用 compose_timeline_event 为「发布 Agent Inbox」生成 Timeline 节点，来源类型 update，来源 ID 7",
+    "expectedIntent": "compose_timeline_event",
+    "expectedArgs": {
+      "createEvent": true,
+      "sourceId": 7,
+      "sourceTitle": "发布 Agent Inbox",
+      "sourceType": "update"
     }
   },
   {

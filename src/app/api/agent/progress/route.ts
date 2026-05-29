@@ -1,32 +1,11 @@
 import { NextResponse } from "next/server";
 
+import {
+  parseQueryProgressArgs,
+  parseQueryProgressArgsFromSearchParams,
+} from "@/lib/agent/api/parse-evaluate-progress-args";
 import { formatProgressAssistantMessage, getAgentProgressSnapshot } from "@/lib/agent/progress";
-import type { QueryProgressArgs } from "@/lib/agent/schemas";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const parseScope = (value: unknown): QueryProgressArgs["scope"] => {
-  if (value === "all" || value === "checklists" || value === "plans") {
-    return value;
-  }
-
-  return "all";
-};
-
-const parseProgressArgs = (value: unknown): QueryProgressArgs => {
-  if (!isRecord(value)) {
-    return {
-      scope: "all",
-    };
-  }
-
-  return {
-    checklistTitle: typeof value.checklistTitle === "string" ? value.checklistTitle.trim() || null : null,
-    scope: parseScope(value.scope),
-  };
-};
 
 const requireAgentAuth = async () => {
   const authResult = await getPayloadAuthResult();
@@ -51,10 +30,7 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const args = parseProgressArgs({
-    checklistTitle: url.searchParams.get("checklistTitle"),
-    scope: url.searchParams.get("scope"),
-  });
+  const args = parseQueryProgressArgsFromSearchParams(url.searchParams);
   const snapshot = await getAgentProgressSnapshot(args);
 
   return NextResponse.json({
@@ -71,7 +47,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  const args = parseProgressArgs(body);
+  const args = parseQueryProgressArgs(body);
   const snapshot = await getAgentProgressSnapshot(args);
 
   return NextResponse.json({

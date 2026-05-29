@@ -4,6 +4,7 @@ import type { User } from "@/payload-types";
 
 import { ensureInitialWorkspace } from "../lib/payload/onboarding.ts";
 import { adminsOrFirstUser, adminsOnly, canAccessAdmin } from "../lib/payload/access.ts";
+import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 const seedInitialWorkspace: CollectionAfterChangeHook<User> = async ({ doc, operation, req }) => {
   if (operation !== "create") {
@@ -34,6 +35,7 @@ export const Users: CollectionConfig = {
     update: adminsOnly,
   },
   admin: {
+    ...withAdminNavGroup("system"),
     useAsTitle: "email",
   },
   auth: true,

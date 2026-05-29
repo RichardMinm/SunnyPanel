@@ -1,0 +1,235 @@
+/**
+ * 经典配色方案：通过 html[data-palette] 切换。
+ * 默认 cobalt；与 data-theme 组合支持浅色 / 深色。
+ */
+
+:root,
+html[data-palette="cobalt"] {
+  --background: #f2f4f7;
+  --foreground: #1a2332;
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-strong: rgba(255, 255, 255, 0.97);
+  --surface-tint: rgba(237, 242, 248, 0.88);
+  --border: rgba(26, 35, 50, 0.11);
+  --accent: #2457aa;
+  --accent-strong: #183e7a;
+  --accent-cool: rgba(15, 118, 110, 0.1);
+  --muted: #5e6a78;
+  --page-glow: rgba(107, 163, 232, 0.22);
+  --page-gradient-top: #f8fafc;
+  --page-gradient-mid: #f1f5f9;
+  --page-gradient-bottom: #eaeff5;
+  --card-shadow: rgba(26, 35, 50, 0.06);
+  --grid-line: rgba(26, 35, 50, 0.025);
+  --agent-shadow-shell: 0 20px 48px rgba(26, 35, 50, 0.08);
+  --agent-surface-elevated: rgba(255, 255, 255, 0.82);
+}
+
+html[data-palette="forest"] {
+  --background: #f3f6f2;
+  --foreground: #1a2e24;
+  --surface: rgba(255, 255, 253, 0.9);
+  --surface-strong: rgba(252, 255, 250, 0.97);
+  --surface-tint: rgba(237, 245, 238, 0.88);
+  --border: rgba(27, 67, 50, 0.11);
+  --accent: #2d6a4f;
+  --accent-strong: #1b4332;
+  --accent-cool: rgba(64, 145, 108, 0.1);
+  --muted: #5c6f63;
+  --page-glow: rgba(116, 198, 157, 0.2);
+  --page-gradient-top: #f7faf7;
+  --page-gradient-mid: #eef4ee;
+  --page-gradient-bottom: #e4ece4;
+  --card-shadow: rgba(27, 67, 50, 0.06);
+  --grid-line: rgba(27, 67, 50, 0.025);
+  --agent-shadow-shell: 0 20px 48px rgba(27, 67, 50, 0.08);
+  --agent-surface-elevated: rgba(255, 255, 253, 0.82);
+}
+
+html[data-palette="wine"] {
+  --background: #f7f3f1;
+  --foreground: #2a1f22;
+  --surface: rgba(255, 252, 251, 0.9);
+  --surface-strong: rgba(255, 249, 247, 0.97);
+  --surface-tint: rgba(245, 237, 234, 0.88);
+  --border: rgba(107, 31, 46, 0.1);
+  --accent: #922b3e;
+  --accent-strong: #6b1f2e;
+  --accent-cool: rgba(146, 43, 62, 0.08);
+  --muted: #75666a;
+  --page-glow: rgba(224, 122, 138, 0.18);
+  --page-gradient-top: #faf6f4;
+  --page-gradient-mid: #f3ebe7;
+  --page-gradient-bottom: #ebe1dc;
+  --card-shadow: rgba(42, 31, 34, 0.06);
+  --grid-line: rgba(42, 31, 34, 0.024);
+  --agent-shadow-shell: 0 20px 48px rgba(42, 31, 34, 0.08);
+  --agent-surface-elevated: rgba(255, 252, 251, 0.82);
+}
+
+html[data-palette="midnight"] {
+  --background: #f4f3ef;
+  --foreground: #1c1a16;
+  --surface: rgba(255, 255, 253, 0.9);
+  --surface-strong: rgba(255, 254, 249, 0.97);
+  --surface-tint: rgba(241, 239, 232, 0.88);
+  --border: rgba(26, 39, 68, 0.11);
+  --accent: #9a7b2f;
+  --accent-strong: #7a6020;
+  --accent-cool: rgba(26, 39, 68, 0.08);
+  --muted: #6b665c;
+  --page-glow: rgba(154, 123, 47, 0.18);
+  --page-gradient-top: #faf9f5;
+  --page-gradient-mid: #f2f0ea;
+  --page-gradient-bottom: #e8e4db;
+  --card-shadow: rgba(28, 26, 22, 0.06);
+  --grid-line: rgba(28, 26, 22, 0.024);
+  --agent-shadow-shell: 0 20px 48px rgba(28, 26, 22, 0.08);
+  --agent-surface-elevated: rgba(255, 255, 253, 0.82);
+}
+
+html[data-palette="slate"] {
+  --background: #f4f4f5;
+  --foreground: #18181b;
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-strong: rgba(255, 255, 255, 0.97);
+  --surface-tint: rgba(244, 244, 245, 0.88);
+  --border: rgba(24, 24, 27, 0.1);
+  --accent: #4f46e5;
+  --accent-strong: #3730a3;
+  --accent-cool: rgba(79, 70, 229, 0.08);
+  --muted: #71717a;
+  --page-glow: rgba(129, 140, 248, 0.2);
+  --page-gradient-top: #fafafa;
+  --page-gradient-mid: #f4f4f5;
+  --page-gradient-bottom: #ececee;
+  --card-shadow: rgba(24, 24, 27, 0.06);
+  --grid-line: rgba(24, 24, 27, 0.024);
+  --agent-shadow-shell: 0 20px 48px rgba(24, 24, 27, 0.08);
+  --agent-surface-elevated: rgba(255, 255, 255, 0.82);
+}
+
+html[data-palette="cobalt"][data-theme="dark"],
+html[data-theme="dark"]:not([data-palette]) {
+  --background: #0e1318;
+  --foreground: #edf2f8;
+  --surface: rgba(22, 29, 38, 0.92);
+  --surface-strong: rgba(18, 24, 32, 0.97);
+  --surface-tint: rgba(20, 27, 36, 0.94);
+  --border: rgba(226, 235, 246, 0.12);
+  --accent: #6ba3e8;
+  --accent-strong: #a8cbf5;
+  --accent-cool: rgba(94, 189, 173, 0.14);
+  --muted: #b5c1d1;
+  --page-glow: rgba(107, 163, 232, 0.14);
+  --page-gradient-top: #121820;
+  --page-gradient-mid: #0f141a;
+  --page-gradient-bottom: #0c1015;
+  --card-shadow: rgba(0, 0, 0, 0.28);
+  --grid-line: rgba(226, 235, 246, 0.04);
+  --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.35);
+  --agent-surface-elevated: rgba(28, 34, 41, 0.92);
+}
+
+html[data-palette="forest"][data-theme="dark"] {
+  --background: #0d1210;
+  --foreground: #e8f0ea;
+  --surface: rgba(20, 28, 24, 0.92);
+  --surface-strong: rgba(16, 22, 19, 0.97);
+  --surface-tint: rgba(18, 26, 22, 0.94);
+  --border: rgba(183, 228, 199, 0.12);
+  --accent: #74c69d;
+  --accent-strong: #b7e4c7;
+  --accent-cool: rgba(64, 145, 108, 0.14);
+  --muted: #b5c9bc;
+  --page-glow: rgba(116, 198, 157, 0.12);
+  --page-gradient-top: #101814;
+  --page-gradient-mid: #0d1210;
+  --page-gradient-bottom: #0a0e0c;
+  --card-shadow: rgba(0, 0, 0, 0.28);
+  --grid-line: rgba(183, 228, 199, 0.04);
+  --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.35);
+  --agent-surface-elevated: rgba(24, 32, 28, 0.92);
+}
+
+html[data-palette="wine"][data-theme="dark"] {
+  --background: #151012;
+  --foreground: #f5ebe8;
+  --surface: rgba(28, 20, 23, 0.92);
+  --surface-strong: rgba(22, 16, 18, 0.97);
+  --surface-tint: rgba(25, 18, 21, 0.94);
+  --border: rgba(245, 179, 189, 0.12);
+  --accent: #e07a8a;
+  --accent-strong: #f5b3bd;
+  --accent-cool: rgba(224, 122, 138, 0.12);
+  --muted: #d0b8b3;
+  --page-glow: rgba(224, 122, 138, 0.12);
+  --page-gradient-top: #1a1215;
+  --page-gradient-mid: #151012;
+  --page-gradient-bottom: #110d0f;
+  --card-shadow: rgba(0, 0, 0, 0.28);
+  --grid-line: rgba(245, 179, 189, 0.04);
+  --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.35);
+  --agent-surface-elevated: rgba(32, 24, 27, 0.92);
+}
+
+html[data-palette="midnight"][data-theme="dark"] {
+  --background: #0a0c12;
+  --foreground: #eceae4;
+  --surface: rgba(18, 22, 34, 0.92);
+  --surface-strong: rgba(14, 17, 28, 0.97);
+  --surface-tint: rgba(16, 20, 31, 0.94);
+  --border: rgba(212, 175, 55, 0.14);
+  --accent: #d4af37;
+  --accent-strong: #f0cc55;
+  --accent-cool: rgba(26, 39, 68, 0.18);
+  --muted: #c5bfb2;
+  --page-glow: rgba(212, 175, 55, 0.12);
+  --page-gradient-top: #0f121c;
+  --page-gradient-mid: #0a0c12;
+  --page-gradient-bottom: #070910;
+  --card-shadow: rgba(0, 0, 0, 0.32);
+  --grid-line: rgba(212, 175, 55, 0.04);
+  --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.38);
+  --agent-surface-elevated: rgba(22, 27, 40, 0.92);
+}
+
+html[data-palette="slate"][data-theme="dark"] {
+  --background: #0f0f12;
+  --foreground: #f4f4f5;
+  --surface: rgba(24, 24, 27, 0.92);
+  --surface-strong: rgba(18, 18, 20, 0.97);
+  --surface-tint: rgba(21, 21, 24, 0.94);
+  --border: rgba(228, 228, 231, 0.12);
+  --accent: #818cf8;
+  --accent-strong: #a5b4fc;
+  --accent-cool: rgba(129, 140, 248, 0.12);
+  --muted: #b0b0b8;
+  --page-glow: rgba(129, 140, 248, 0.14);
+  --page-gradient-top: #141417;
+  --page-gradient-mid: #0f0f12;
+  --page-gradient-bottom: #0b0b0e;
+  --card-shadow: rgba(0, 0, 0, 0.28);
+  --grid-line: rgba(228, 228, 231, 0.04);
+  --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.35);
+  --agent-surface-elevated: rgba(28, 28, 32, 0.92);
+}
+
+/* 由 accent 派生的光晕 / 阴影 / 语义 accent tone */
+:root,
+html[data-palette] {
+  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-ring: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-ring-strong: color-mix(in srgb, var(--accent) 38%, transparent);
+  --accent-glow-soft: color-mix(in srgb, var(--accent) 8%, transparent);
+  --accent-glow: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-glow-strong: color-mix(in srgb, var(--accent) 20%, transparent);
+  --accent-shadow: color-mix(in srgb, var(--accent-strong) 16%, transparent);
+  --accent-shadow-strong: color-mix(in srgb, var(--accent-strong) 22%, transparent);
+  --tone-accent-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+  --tone-accent-border: color-mix(in srgb, var(--accent) 22%, transparent);
+  --tone-accent-text: var(--accent-strong);
+  --tone-info-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+  --tone-info-border: color-mix(in srgb, var(--accent) 20%, transparent);
+  --tone-info-text: var(--accent-strong);
+}
