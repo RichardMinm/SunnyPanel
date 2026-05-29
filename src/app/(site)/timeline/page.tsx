@@ -155,7 +155,7 @@ function TimelineEventCard({
 
   return (
     <article
-      className={`sunny-card px-4 py-4 md:px-5 md:py-5 ${
+      className={`sunny-card rounded-[1rem] px-4 py-4 md:px-5 md:py-5 ${
         event.isFeatured ? "sunny-card-strong shadow-[inset_3px_0_0_var(--accent)]" : ""
       }`}
     >

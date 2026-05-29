@@ -2,17 +2,17 @@
 
 :root {
   --site-scale: 0.92;
-  --background: #f3efe7;
-  --foreground: #18222c;
-  --surface: rgba(255, 252, 248, 0.88);
-  --surface-strong: rgba(255, 250, 244, 0.96);
-  --surface-tint: rgba(248, 241, 232, 0.82);
-  --border: rgba(24, 34, 44, 0.12);
-  --accent: #d36b2d;
-  --accent-strong: #8f3510;
-  --accent-soft: rgba(211, 107, 45, 0.14);
-  --accent-cool: rgba(65, 127, 117, 0.12);
-  --muted: #6c726b;
+  --background: #eef2f4;
+  --foreground: #172026;
+  --surface: rgba(255, 255, 255, 0.86);
+  --surface-strong: rgba(255, 255, 255, 0.96);
+  --surface-tint: rgba(232, 238, 241, 0.82);
+  --border: rgba(23, 32, 38, 0.12);
+  --accent: #2d746d;
+  --accent-strong: #134d48;
+  --accent-soft: rgba(45, 116, 109, 0.14);
+  --accent-cool: rgba(74, 91, 168, 0.12);
+  --muted: #66737b;
   --sunny-font-sans: "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   --sunny-font-mono: "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
   --sunny-font-display: var(--sunny-font-sans);
@@ -20,17 +20,17 @@
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --background: #11161b;
-  --foreground: #fff6ea;
-  --surface: rgba(27, 33, 40, 0.9);
-  --surface-strong: rgba(22, 27, 33, 0.97);
-  --surface-tint: rgba(25, 31, 38, 0.94);
-  --border: rgba(255, 244, 227, 0.16);
-  --accent: #ee9b61;
-  --accent-strong: #ffd0a7;
-  --accent-soft: rgba(224, 138, 77, 0.18);
-  --accent-cool: rgba(102, 171, 156, 0.18);
-  --muted: #d4cdc1;
+  --background: #10161a;
+  --foreground: #f3f7f5;
+  --surface: rgba(24, 31, 36, 0.9);
+  --surface-strong: rgba(18, 24, 29, 0.97);
+  --surface-tint: rgba(22, 30, 35, 0.94);
+  --border: rgba(235, 244, 240, 0.14);
+  --accent: #66b9ad;
+  --accent-strong: #a5e5dd;
+  --accent-soft: rgba(102, 185, 173, 0.18);
+  --accent-cool: rgba(129, 147, 235, 0.16);
+  --muted: #bac6c6;
 }
 
 @theme inline {
@@ -65,8 +65,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   background-image:
-    radial-gradient(circle at top left, rgba(239, 185, 126, 0.26), transparent 28%),
-    linear-gradient(180deg, #f8f4ed 0%, #f1ebe1 46%, #ede5d9 100%);
+    linear-gradient(135deg, rgba(45, 116, 109, 0.08), transparent 30%),
+    linear-gradient(180deg, #f7f9f8 0%, #edf2f4 48%, #e8eeeb 100%);
   font-family: var(--font-sans);
   font-feature-settings: "kern";
   text-rendering: optimizeLegibility;
@@ -76,8 +76,8 @@ body {
 
 html[data-theme="dark"] body {
   background-image:
-    radial-gradient(circle at top left, rgba(224, 138, 77, 0.14), transparent 24%),
-    linear-gradient(180deg, #10151a 0%, #0d1216 46%, #0a0f13 100%);
+    linear-gradient(135deg, rgba(102, 185, 173, 0.1), transparent 28%),
+    linear-gradient(180deg, #10161a 0%, #0d1317 46%, #090f12 100%);
 }
 
 html[data-theme="dark"] .bg-white\/45 {
@@ -162,7 +162,7 @@ a {
 }
 
 ::selection {
-  background: rgba(211, 107, 45, 0.18);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .sunny-shell {
@@ -189,22 +189,11 @@ html[data-theme="dark"] .sunny-shell::before {
 }
 
 .sunny-shell::after {
-  position: fixed;
-  inset: auto 0 0 auto;
-  z-index: -1;
-  width: min(28rem, 40vw);
-  height: min(28rem, 40vw);
-  content: "";
-  pointer-events: none;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle, rgba(211, 107, 45, 0.14) 0%, rgba(211, 107, 45, 0.04) 42%, transparent 72%);
-  filter: blur(12px);
-  transform: translate(18%, 18%);
+  display: none;
 }
 
 html[data-theme="dark"] .sunny-shell::after {
-  background: radial-gradient(circle, rgba(224, 138, 77, 0.18) 0%, rgba(224, 138, 77, 0.06) 42%, transparent 72%);
+  display: none;
 }
 
 .sunny-card {
@@ -222,19 +211,11 @@ html[data-theme="dark"] .sunny-card {
 }
 
 .sunny-card::after {
-  position: absolute;
-  top: -4rem;
-  right: -4rem;
-  width: 8rem;
-  height: 8rem;
-  content: "";
-  pointer-events: none;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(211, 107, 45, 0.08), transparent 70%);
+  display: none;
 }
 
 html[data-theme="dark"] .sunny-card::after {
-  background: radial-gradient(circle, rgba(224, 138, 77, 0.12), transparent 70%);
+  display: none;
 }
 
 .sunny-card > * {
@@ -243,7 +224,7 @@ html[data-theme="dark"] .sunny-card::after {
 
 .sunny-card-strong {
   background:
-    linear-gradient(180deg, rgba(255, 252, 248, 0.98), rgba(255, 245, 230, 0.92)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 247, 245, 0.92)),
     var(--surface-strong);
 }
 
@@ -265,6 +246,468 @@ html[data-theme="dark"] .sunny-card-strong {
   letter-spacing: 0;
 }
 
+.sunny-workspace-shell {
+  display: grid;
+  grid-template-columns: minmax(11.5rem, 13.5rem) minmax(0, 1fr);
+  gap: 1rem;
+  width: min(100%, 96rem);
+  margin-inline: auto;
+  padding: 1rem;
+}
+
+.sunny-workspace-sidebar {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-self: start;
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 0.85rem;
+  backdrop-filter: blur(18px);
+}
+
+html[data-theme="dark"] .sunny-workspace-sidebar {
+  background: rgba(20, 27, 32, 0.9);
+}
+
+.sunny-workspace-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.85rem;
+}
+
+.sunny-workspace-brand-mark {
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  background: var(--foreground);
+  color: var(--background);
+  font-weight: 800;
+}
+
+.sunny-workspace-nav {
+  display: grid;
+  gap: 1rem;
+}
+
+.sunny-workspace-nav-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sunny-workspace-nav-label {
+  padding-inline: 0.2rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.sunny-workspace-nav-item {
+  display: grid;
+  gap: 0.1rem;
+  border-radius: 0.5rem;
+  padding: 0.58rem 0.65rem;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.sunny-workspace-nav-item:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.sunny-workspace-nav-item span:first-child {
+  color: var(--foreground);
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.sunny-workspace-nav-item span:last-child {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.sunny-workspace-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sunny-workspace-topbar {
+  position: sticky;
+  top: 1rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.8rem 0.95rem;
+  backdrop-filter: blur(18px);
+}
+
+html[data-theme="dark"] .sunny-workspace-topbar {
+  background: rgba(20, 27, 32, 0.92);
+}
+
+.sunny-workspace-topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.sunny-workspace-command {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.42);
+  padding: 0.45rem 0.75rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+html[data-theme="dark"] .sunny-workspace-command {
+  background: rgba(38, 45, 52, 0.72);
+}
+
+.sunny-workspace-module-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.sunny-workspace-module-card {
+  display: block;
+  min-height: 8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.48);
+  padding: 0.9rem;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.sunny-workspace-module-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: rgba(255, 255, 255, 0.68);
+}
+
+html[data-theme="dark"] .sunny-workspace-module-card {
+  background: rgba(25, 33, 39, 0.78);
+}
+
+/* Agent-first workspace (Codex / Cursor style) */
+body:has(.sunny-agent-workspace) .sunny-command-trigger {
+  display: none;
+}
+
+.sunny-agent-workspace {
+  display: grid;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  width: min(100%, 100%);
+  min-height: calc(100dvh - 0px);
+  margin-inline: auto;
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+}
+
+.sunny-agent-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  border-right: 1px solid var(--border);
+  padding: 0.85rem 0.45rem;
+}
+
+.sunny-agent-rail-brand {
+  display: inline-flex;
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  border-radius: 0.55rem;
+  background: var(--foreground);
+  color: var(--background);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.sunny-agent-rail-nav {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.sunny-agent-rail-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.1rem;
+  border-radius: 0.45rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  text-align: center;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.sunny-agent-rail-link:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--foreground);
+}
+
+.sunny-agent-stage {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.sunny-agent-stage-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 1.1rem;
+}
+
+.sunny-agent-stage-eyebrow {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sunny-agent-stage-title {
+  margin-top: 0.15rem;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.sunny-agent-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.sunny-agent-stage-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.sunny-agent-stage-command,
+.sunny-agent-stage-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: transparent;
+  padding: 0.35rem 0.65rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.sunny-agent-stage-link:hover,
+.sunny-agent-stage-command:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--foreground);
+}
+
+.sunny-agent-stage-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.sunny-agent-context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--border);
+  padding: 0.65rem 1.1rem;
+}
+
+.sunny-agent-context-link {
+  flex: 0 0 auto;
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.sunny-agent-workspace-console {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sunny-agent-workspace-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 1.1rem 0;
+}
+
+.sunny-agent-workspace-status {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sunny-agent-workspace-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sunny-agent-workspace-action {
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.28rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.sunny-agent-workspace-action:hover {
+  color: var(--foreground);
+}
+
+.sunny-agent-workspace-thread {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.sunny-agent-command-bar-workspace {
+  border-bottom: none;
+  padding: 0.35rem 1.1rem 0;
+}
+
+.sunny-agent-thread-bar-workspace {
+  border-bottom: none;
+  padding: 0.35rem 1.1rem;
+}
+
+.sunny-agent-conversation-workspace {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  padding: 0.65rem 1.1rem 1rem;
+}
+
+.sunny-agent-workspace-console .sunny-agent-transcript {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  mask-image: none;
+}
+
+.sunny-agent-workspace-console .sunny-agent-line {
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  border-bottom: none;
+  padding: 0.95rem 0;
+}
+
+.sunny-agent-workspace-console .sunny-agent-line + .sunny-agent-line,
+.sunny-agent-workspace-console .sunny-agent-line-body {
+  border-top: none;
+}
+
+.sunny-agent-workspace-console .sunny-agent-line-label {
+  padding-top: 0.15rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sunny-agent-workspace-console .sunny-agent-line-body {
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+.sunny-agent-input-row-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+}
+
+.sunny-agent-input-workspace {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.sunny-agent-input-workspace:focus {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
 .sunny-dashboard-card {
   position: relative;
   overflow: hidden;
@@ -275,7 +718,7 @@ html[data-theme="dark"] .sunny-card-strong {
     var(--surface);
   padding: clamp(0.95rem, 1.7vw, 1.2rem);
   backdrop-filter: blur(18px);
-  box-shadow: 0 8px 24px rgba(64, 42, 16, 0.035);
+  box-shadow: 0 8px 24px rgba(20, 39, 45, 0.045);
 }
 
 html[data-theme="dark"] .sunny-dashboard-card {
@@ -287,7 +730,7 @@ html[data-theme="dark"] .sunny-dashboard-card {
 
 .sunny-dashboard-card.sunny-card-strong {
   background:
-    linear-gradient(180deg, rgba(255, 252, 248, 0.98), rgba(255, 245, 230, 0.92)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(239, 247, 245, 0.92)),
     var(--surface-strong);
 }
 
@@ -557,7 +1000,7 @@ html[data-theme="dark"] .sunny-quick-create-card:hover {
   font-size: calc(0.95rem * var(--site-scale));
   font-weight: 700;
   color: white;
-  box-shadow: 0 10px 24px rgba(143, 53, 16, 0.16);
+  box-shadow: 0 10px 24px rgba(19, 77, 72, 0.16);
   transition:
     transform 180ms ease,
     box-shadow 180ms ease,
@@ -566,7 +1009,7 @@ html[data-theme="dark"] .sunny-quick-create-card:hover {
 
 .sunny-button-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(143, 53, 16, 0.2);
+  box-shadow: 0 14px 30px rgba(19, 77, 72, 0.2);
 }
 
 .sunny-button-secondary {
@@ -1360,7 +1803,7 @@ html[data-theme="dark"] .sunny-agent-status {
 }
 
 html[data-theme="dark"] .sunny-agent-status-warn {
-  background: rgba(80, 52, 35, 0.72);
+  background: rgba(34, 73, 70, 0.72);
   color: var(--accent-strong);
 }
 
@@ -2023,8 +2466,13 @@ html[data-theme="dark"] .sunny-agent-sidebar {
 
 .sunny-agent-sidebar .sunny-agent-thread-bar {
   flex-wrap: nowrap;
-  overflow: hidden;
+  overflow-x: auto;
   padding-top: 0;
+  scrollbar-width: none;
+}
+
+.sunny-agent-sidebar .sunny-agent-thread-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .sunny-agent-sidebar .sunny-agent-quick,
@@ -2211,6 +2659,16 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
   }
 }
 
+@media (max-width: 1180px) {
+  .sunny-workspace-shell {
+    grid-template-columns: minmax(10rem, 12rem) minmax(0, 1fr);
+  }
+
+  .sunny-workspace-module-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
   :root {
     --site-scale: 0.88;
@@ -2218,8 +2676,8 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
 
   body {
     background-image:
-      radial-gradient(circle at top, rgba(239, 185, 126, 0.38), transparent 32%),
-      linear-gradient(180deg, #f8f2e6 0%, #efe6d5 100%);
+      linear-gradient(135deg, rgba(45, 116, 109, 0.1), transparent 34%),
+      linear-gradient(180deg, #f7f9f8 0%, #e8eeeb 100%);
   }
 
   .sunny-shell::before {
@@ -2232,12 +2690,87 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
   }
 
   .sunny-card {
-    box-shadow: 0 14px 38px rgba(64, 42, 16, 0.08);
+    box-shadow: 0 14px 38px rgba(20, 39, 45, 0.08);
   }
 
   .sunny-button-primary,
   .sunny-button-secondary {
     min-height: 2.85rem;
+  }
+
+  .sunny-workspace-shell {
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+  }
+
+  .sunny-workspace-sidebar {
+    position: relative;
+    top: auto;
+    max-height: none;
+  }
+
+  .sunny-workspace-nav {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+  }
+
+  .sunny-workspace-nav-group {
+    min-width: min(14rem, 78vw);
+  }
+
+  .sunny-workspace-topbar {
+    position: relative;
+    top: auto;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sunny-workspace-topbar-actions {
+    justify-content: flex-start;
+  }
+
+  .sunny-workspace-module-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sunny-agent-workspace {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .sunny-agent-rail {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 0.65rem 0.85rem;
+  }
+
+  .sunny-agent-rail-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .sunny-agent-rail-link {
+    min-height: 1.85rem;
+    padding-inline: 0.45rem;
+  }
+
+  .sunny-agent-stage-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sunny-agent-stage-actions {
+    justify-content: flex-start;
+  }
+
+  .sunny-agent-workspace-console .sunny-agent-transcript {
+    max-height: min(52dvh, 36rem);
   }
 
   .sunny-home-hero {
