@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+test.describe.configure({ mode: "serial" });
+
 async function loginIfConfigured(page: import("@playwright/test").Page) {
   const email = process.env.AGENT_E2E_EMAIL ?? process.env.AGENT_SMOKE_EMAIL;
   const password = process.env.AGENT_E2E_PASSWORD ?? process.env.AGENT_SMOKE_PASSWORD;
@@ -11,13 +13,14 @@ async function loginIfConfigured(page: import("@playwright/test").Page) {
   });
 
   expect(response.ok()).toBe(true);
+
+  const storageState = await page.request.storageState();
+  await page.context().addCookies(storageState.cookies);
 }
 
 async function getWorkbench(page: import("@playwright/test").Page) {
   await loginIfConfigured(page);
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-
-  test.skip(page.url().includes("/admin/login"), "未登录，跳过需登录的 Dashboard 合同");
 
   return page.getByTestId("agent-workbench");
 }
