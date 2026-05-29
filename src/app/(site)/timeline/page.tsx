@@ -155,8 +155,8 @@ function TimelineEventCard({
 
   return (
     <article
-      className={`relative rounded-[1rem] border border-border px-4 py-4 md:px-5 md:py-5 ${
-        event.isFeatured ? "bg-white/68 shadow-[inset_3px_0_0_var(--accent)]" : "bg-white/42"
+      className={`sunny-card px-4 py-4 md:px-5 md:py-5 ${
+        event.isFeatured ? "sunny-card-strong shadow-[inset_3px_0_0_var(--accent)]" : ""
       }`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -214,8 +214,8 @@ export default async function TimelinePage({ searchParams }: TimelinePageProps) 
       <main className="flex flex-1 flex-col gap-6 pb-4">
         <SectionIntro
           description={timelineCopy.description}
-          eyebrow="Timeline"
-          title="Timeline"
+          eyebrow={locale === "en" ? "Timeline" : "时间线"}
+          title={locale === "en" ? "Timeline" : "时间线"}
           stats={[
             { label: copy.timeline.statsEvents, value: events.length },
             { label: copy.timeline.statsFeatured, value: events.filter((event) => event.isFeatured).length },
@@ -223,7 +223,7 @@ export default async function TimelinePage({ searchParams }: TimelinePageProps) 
           ]}
         />
 
-        <SurfaceCard as="section" className="rounded-[1.1rem] md:rounded-[1.25rem]" variant="subtle">
+        <SurfaceCard as="section" variant="subtle">
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap gap-2">
               <Link
