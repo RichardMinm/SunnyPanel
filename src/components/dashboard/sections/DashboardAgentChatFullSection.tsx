@@ -4,7 +4,7 @@ type DashboardAgentChatFullSectionProps = Pick<AgentChatPanelProps, "initialThre
 
 export function DashboardAgentChatFullSection({ initialThreadId, quickPrompts, suggestions }: DashboardAgentChatFullSectionProps) {
   return (
-    <section className="sunny-dashboard-col-center sunny-dashboard-agent-host">
+    <section className="sunny-dashboard-agent-host" data-testid="dashboard-agent-host" aria-label="Agent 工作台">
       <AgentChatPanel initialThreadId={initialThreadId} quickPrompts={quickPrompts} suggestions={suggestions} />
     </section>
   );
