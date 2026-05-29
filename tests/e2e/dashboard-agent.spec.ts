@@ -20,7 +20,11 @@ async function loginIfConfigured(page: import("@playwright/test").Page) {
 
 async function getWorkbench(page: import("@playwright/test").Page) {
   await loginIfConfigured(page);
+  const threadResponse = page.waitForResponse(
+    (response) => response.url().includes("/api/agent/thread") && response.request().method() === "GET",
+  );
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+  await expect((await threadResponse).ok()).toBe(true);
 
   return page.getByTestId("agent-workbench");
 }
@@ -33,6 +37,8 @@ test("Dashboard 默认展示 Agent Workspace，而不是旧统计卡片首页", 
   await expect(page.getByText("内容队列")).toHaveCount(0);
   await expect(page.getByText("计划跑道")).toHaveCount(0);
   await expect(page.getByText("阶段时间线")).toHaveCount(0);
+  await expect(shell.getByRole("alert")).toHaveCount(0);
+  await expect(shell.getByTestId("agent-sidebar")).not.toContainText("加载失败");
 });
 
 test("Agent Workspace 左侧包含工作台导航、线程与待确认区域", async ({ page }) => {

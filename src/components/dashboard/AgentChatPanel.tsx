@@ -72,8 +72,28 @@ export function AgentChatPanel({
       const selectedThread = await fetchThread(nextThreadId);
 
       if (!selectedThread) {
-        setErrorMessage("无法加载会话，请稍后重试。");
-        setStatusText("加载失败");
+        if (typeof nextThreadId === "number") {
+          setErrorMessage("无法加载会话，请稍后重试。");
+          setStatusText("加载失败");
+          setThreadHydrated(true);
+          return;
+        }
+
+        setErrorMessage(null);
+        setPendingAction(null);
+        setMessages(initialMessages);
+        setTokenUsage(
+          createTokenUsageSnapshot({
+            contextTokens: estimateMessagesTokenCount(initialMessages),
+          }),
+        );
+        setTraceSteps([]);
+        setLastRollbackPayload(null);
+        setArtifactsRollbackError(null);
+        if (!options?.preserveInspector) {
+          setActiveInspectorTab("context");
+        }
+        setStatusText("已就绪");
         setThreadHydrated(true);
         return;
       }
