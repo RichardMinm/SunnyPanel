@@ -935,6 +935,11 @@ html[data-theme="dark"] .sunny-agent-change-row {
   content: "";
 }
 
+.sunny-agent-trace-panel-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
 .sunny-agent-run-step-v2,
 .sunny-agent-run-empty-v2 {
   position: relative;

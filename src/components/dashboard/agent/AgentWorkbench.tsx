@@ -16,7 +16,7 @@ import type {
 import { AgentApprovalCard } from "./AgentApprovalCard";
 import { AgentComposer } from "./AgentComposer";
 import { AgentConversation } from "./AgentConversation";
-import { DashboardLayoutSwitcher, useDashboardLayout, useDebugMode } from "./DashboardLayoutSwitcher";
+import { DashboardLayoutSwitcher, useDashboardLayout } from "./DashboardLayoutSwitcher";
 import { AgentErrorBoundary } from "./AgentErrorBoundary";
 import { AgentInspector } from "./AgentInspector";
 import { AgentThinkingPanel } from "./AgentThinkingPanel";
@@ -118,9 +118,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const batchActions = pendingAction?.type === "await_batch_confirmation" ? pendingAction.actions : null;
   const latestAssistantMessage = getLatestAssistantMessage(messages);
   const suggestedPlaceholder = quickPrompts[0]?.prompt ?? "整理今天最应该推进的一个动作";
-  const { debugMode, setDebugMode } = useDebugMode();
   const { layout, setLayout } = useDashboardLayout();
-  const useInspectorColumn = debugMode && layout === "inspector";
+  const useInspectorColumn = layout !== "focus";
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const toggleSidebar = useCallback(() => setSidebarCollapsed((v) => !v), []);
 
@@ -218,7 +217,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           transcriptRef={transcriptRef}
         />
       </div>
-      {useInspectorColumn || !debugMode ? null : inspectorPanel}
+      {useInspectorColumn ? null : inspectorPanel}
       <AgentComposer
         disabled={isSubmitting}
         input={input}
@@ -277,14 +276,6 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           />
           <div className="sunny-agent-rail-footer">
             <DashboardLayoutSwitcher layout={layout} onLayoutChange={setLayout} />
-            <button
-              type="button"
-              className={`sunny-agent-debug-toggle${debugMode ? " active" : ""}`}
-              onClick={() => setDebugMode(!debugMode)}
-              title={debugMode ? "隐藏检查器" : "显示检查器"}
-            >
-              调试
-            </button>
           </div>
         </>
       )}

@@ -93,7 +93,7 @@ export function AgentChatPanel({
         setActiveInspectorTab(
           selectedThread.pendingAction?.type === "await_confirmation" ||
             selectedThread.pendingAction?.type === "await_batch_confirmation"
-            ? "changes"
+            ? "approval"
             : "context",
         );
       }

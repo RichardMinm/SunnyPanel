@@ -7,12 +7,9 @@ import { AnimatePresence, motion } from "motion/react";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
 import type { TaskNode } from "@/lib/agent/orchestration/types";
 
-import { AgentArtifactsPanel } from "./AgentArtifactsPanel";
-import { AgentChangesPanel } from "./AgentChangesPanel";
+import { AgentApprovalPanel } from "./AgentApprovalPanel";
 import { AgentContextPanel } from "./AgentContextPanel";
-import { AgentDebugPanel } from "./AgentDebugPanel";
-import { AgentDependencyGraph } from "./AgentDependencyGraph";
-import { AgentMemoryPanel } from "./AgentMemoryPanel";
+import { AgentTracePanel } from "./AgentTracePanel";
 import { inspectorTabs } from "./constants";
 import type { AgentInspectorTab, ContextPreferences } from "./types";
 
@@ -45,7 +42,7 @@ export function AgentInspectorTabs({ activeTab, onActiveTabChange, panelIdPrefix
   };
 
   return (
-    <div className="sunny-agent-inspector-tabs" id={tabListId} role="tablist" aria-label="检查器分区" onKeyDown={handleKeyDown}>
+    <div className="sunny-agent-inspector-tabs" id={tabListId} role="tablist" aria-label="Agent 详情面板" onKeyDown={handleKeyDown}>
       {inspectorTabs.map((tab) => (
         <button
           key={tab.key}
@@ -98,20 +95,8 @@ const noop = () => undefined;
 function InspectorPanels({
   action,
   activeTab,
-  artifactsRollbackBusy,
-  artifactsRollbackError,
   contextPreferences,
-  dagCompletedTasks,
-  dagConflicts,
-  dagExecutingTaskId,
-  dagFailedTasks,
-  dagTasks,
-  inputTokenEstimate,
-  latestAssistantMessage,
-  lastRollbackPayload,
   messages,
-  onActiveTabChange,
-  onArtifactsRollback,
   onToggleContextExclude,
   onToggleContextPin,
   panelIdPrefix,
@@ -119,7 +104,6 @@ function InspectorPanels({
   statusLabel,
   tabListId,
   threadId,
-  tokenUsage,
   traceSteps,
 }: Omit<AgentInspectorProps, "drawer"> & { panelIdPrefix: string; tabListId: string }) {
   return (
@@ -135,42 +119,20 @@ function InspectorPanels({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
         >
-        {activeTab === "context" ? (
-          <AgentContextPanel
-            contextPreferences={contextPreferences ?? emptyPreferences}
-            messages={messages}
-            onToggleExclude={onToggleContextExclude ?? noop}
-            onTogglePin={onToggleContextPin ?? noop}
-            pendingAction={pendingAction}
-            statusLabel={statusLabel}
-            threadId={threadId}
-            traceSteps={traceSteps}
-          />
-        ) : null}
-        {activeTab === "changes" ? <AgentChangesPanel action={action} /> : null}
-        {activeTab === "artifacts" ? (
-          <AgentArtifactsPanel
-            action={action}
-            artifactsRollbackBusy={artifactsRollbackBusy}
-            artifactsRollbackError={artifactsRollbackError}
-            latestAssistantMessage={latestAssistantMessage}
-            lastRollbackPayload={lastRollbackPayload}
-            onRollback={onArtifactsRollback}
-          />
-        ) : null}
-        {activeTab === "memory" ? <AgentMemoryPanel traceSteps={traceSteps} /> : null}
-        {activeTab === "dag" ? (
-          <AgentDependencyGraph
-            completedTasks={dagCompletedTasks ?? new Set()}
-            conflictTasks={dagConflicts ?? []}
-            executingTaskId={dagExecutingTaskId ?? null}
-            failedTasks={dagFailedTasks ?? new Set()}
-            tasks={dagTasks ?? []}
-          />
-        ) : null}
-        {activeTab === "debug" ? (
-          <AgentDebugPanel inputTokenEstimate={inputTokenEstimate} tokenUsage={tokenUsage} traceSteps={traceSteps} />
-        ) : null}
+          {activeTab === "context" ? (
+            <AgentContextPanel
+              contextPreferences={contextPreferences ?? emptyPreferences}
+              messages={messages}
+              onToggleExclude={onToggleContextExclude ?? noop}
+              onTogglePin={onToggleContextPin ?? noop}
+              pendingAction={pendingAction}
+              statusLabel={statusLabel}
+              threadId={threadId}
+              traceSteps={traceSteps}
+            />
+          ) : null}
+          {activeTab === "approval" ? <AgentApprovalPanel action={action} pendingAction={pendingAction} /> : null}
+          {activeTab === "trace" ? <AgentTracePanel statusLabel={statusLabel} traceSteps={traceSteps} /> : null}
         </motion.div>
       </AnimatePresence>
     </>
@@ -210,7 +172,7 @@ export function AgentInspector({
   const drawerRef = useRef<HTMLDivElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [compactOpen, setCompactOpen] = useState(false);
-  const currentTabLabel = inspectorTabs.find((tab) => tab.key === activeTab)?.label ?? "上下文";
+  const currentTabLabel = inspectorTabs.find((tab) => tab.key === activeTab)?.label ?? "Context";
 
   useEffect(() => {
     if (!drawer || !drawerOpen) {
