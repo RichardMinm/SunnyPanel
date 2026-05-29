@@ -76,6 +76,17 @@ test("移动端 Dashboard 优先展示主 Agent Workspace 且不横向溢出", a
   await expect(shell.getByLabel("输入要交给 Agent 的话")).toBeVisible();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+  const layoutStyles = await shell.evaluate((element) => {
+    const host = document.querySelector<HTMLElement>('[data-testid="dashboard-agent-host"]');
+    const style = window.getComputedStyle(element);
+
+    return {
+      hostMaxWidth: host ? window.getComputedStyle(host).maxWidth : "none",
+      overflowY: style.overflowY,
+    };
+  });
 
   expect(overflow).toBe(false);
+  expect(layoutStyles.overflowY).toBe("auto");
+  expect(layoutStyles.hostMaxWidth).not.toBe("none");
 });

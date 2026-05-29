@@ -13,6 +13,7 @@
   box-shadow: var(--agent-shadow-shell);
   background: var(--surface);
   padding: var(--agent-gap-lg);
+  overflow: hidden;
 }
 
 html[data-theme="dark"] .sunny-agent-workbench-layout {
@@ -1905,30 +1906,40 @@ html[data-theme="dark"] .sunny-agent-dock-v2-status {
 }
 
 @media (max-width: 820px) {
-  .sunny-agent-workbench-layout {
-    grid-template-columns: minmax(0, 1fr);
+  .sunny-agent-workbench-layout,
+  .sunny-agent-workbench-layout.sunny-agent-sidebar-collapsed,
+  .sunny-agent-workbench-layout.sunny-agent-layout-focus,
+  .sunny-agent-workbench-layout.sunny-agent-layout-inspector {
+    grid-template-columns: minmax(0, 1fr) !important;
     min-height: auto;
-    padding: 0.55rem;
-  }
-
-  .sunny-agent-workbench-layout.sunny-agent-sidebar-collapsed {
-    grid-template-columns: auto minmax(0, 1fr) !important;
+    padding: 0.5rem;
+    overflow-y: auto;
   }
 
   .sunny-agent-left-rail-column {
     max-height: none;
   }
 
+  .sunny-agent-left-rail-column.is-collapsed {
+    order: -1;
+  }
+
   .sunny-agent-left-rail {
     max-height: 16rem;
+  }
+
+  .sunny-agent-sidebar-collapsed .sunny-agent-center-surface {
+    min-width: 0;
   }
 
   .sunny-agent-rail-footer {
     display: none;
   }
 
-  .sunny-dashboard-col-center .sunny-agent-rail-footer {
-    display: block;
+  .sunny-agent-composer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
   }
 
   .sunny-agent-inspector-drawer-trigger {
