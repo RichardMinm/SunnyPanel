@@ -16,6 +16,9 @@ type PermissionContext = {
 
 const READ_ONLY_INTENTS = new Set(["query_plan_progress", "query_progress"]);
 
+const hasReachedAutoApprovalLimit = (context: PermissionContext) =>
+  context.consecutiveAutoCount >= context.userPreferences.maxConsecutiveAutoApprovals;
+
 export const shouldAutoApprove = (
   action: ProposedAgentAction,
   context: PermissionContext,
@@ -25,32 +28,53 @@ export const shouldAutoApprove = (
     return { approved: true, reason: "只读操作无需确认" };
   }
 
-  // High risk never auto-approves
-  if (action.riskLevel === "high") {
-    return { approved: false, reason: "高风险操作必须手动确认" };
-  }
-
-  // First action in thread always requires confirmation (safety baseline)
-  if (context.isFirstActionInThread) {
-    return { approved: false, reason: "会话首次写操作需手动确认" };
-  }
+  const autonomyLevel = context.userPreferences.autonomyLevel ?? 2;
 
   // User has explicitly denied this intent
   if (context.userPreferences.deniedIntents.has(action.intent)) {
     return { approved: false, reason: `用户已禁止自动批准 ${action.intent}` };
   }
 
+  if (autonomyLevel === 0) {
+    return { approved: false, reason: "Level 0 完全确认模式：写操作必须手动确认" };
+  }
+
+  // First action remains a trust-building confirmation except in fully autonomous mode.
+  if (context.isFirstActionInThread && autonomyLevel < 3) {
+    return { approved: false, reason: "会话首次写操作需手动确认" };
+  }
+
+  if (hasReachedAutoApprovalLimit(context)) {
+    return { approved: false, reason: `连续自动批准已达上限 ${context.userPreferences.maxConsecutiveAutoApprovals}` };
+  }
+
+  if (action.riskLevel === "high") {
+    if (autonomyLevel >= 3) {
+      return { approved: true, reason: "Level 3 全部自动模式允许高风险操作自动执行" };
+    }
+
+    return { approved: false, reason: "高风险操作必须手动确认" };
+  }
+
   // Medium risk: only auto-approve if user previously confirmed same intent (or intent+collection)
   if (action.riskLevel === "medium") {
+    if (autonomyLevel >= 3) {
+      return { approved: true, reason: "Level 3 全部自动模式允许中风险操作自动执行" };
+    }
+
+    if (autonomyLevel < 2 && !context.userPreferences.autoApproveIntents.has(action.intent)) {
+      return { approved: false, reason: "Level 1 仅自动执行低风险操作" };
+    }
+
     const collectionKey = action.changes.map((c) => c.collection).join(",");
     const comboKey = `${action.intent}:${collectionKey}`;
 
-    if (context.previouslyConfirmedIntents.has(comboKey) || context.previouslyConfirmedIntents.has(action.intent)) {
-      return { approved: true, reason: `已确认过相同操作 ${action.intent}` };
-    }
-
     if (context.userPreferences.autoApproveIntents.has(action.intent)) {
       return { approved: true, reason: `用户在偏好中允许 ${action.intent}` };
+    }
+
+    if (autonomyLevel >= 2 && (context.previouslyConfirmedIntents.has(comboKey) || context.previouslyConfirmedIntents.has(action.intent))) {
+      return { approved: true, reason: `Level 2 已确认过同领域相同操作 ${action.intent}` };
     }
 
     return { approved: false, reason: "中风险操作未经历史确认" };
@@ -60,10 +84,6 @@ export const shouldAutoApprove = (
   if (action.riskLevel === "low") {
     if (!context.userPreferences.autoApproveLowRisk) {
       return { approved: false, reason: "用户禁用了低风险自动批准" };
-    }
-
-    if (context.consecutiveAutoCount >= context.userPreferences.maxConsecutiveAutoApprovals) {
-      return { approved: false, reason: `连续自动批准已达上限 ${context.userPreferences.maxConsecutiveAutoApprovals}` };
     }
 
     return { approved: true, reason: "低风险操作在自动批准范围内" };
