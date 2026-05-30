@@ -1,6 +1,7 @@
 export {
   buildObservationTraceStep,
   buildTaskObservation,
+  decideNextActionFromObservations,
   executeOrchestrationGraph,
   formatTaskObservation,
   formatTaskObservations,

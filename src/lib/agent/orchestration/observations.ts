@@ -47,6 +47,48 @@ export const formatTaskObservation = (observation: AgentTaskObservation): string
 export const formatTaskObservations = (observations: AgentTaskObservation[]): string =>
   observations.map(formatTaskObservation).join("\n");
 
+export type ObservationDecision =
+  | {
+      type: "continue";
+    }
+  | {
+      failedTaskId: string;
+      reason: string;
+      type: "replan";
+    };
+
+const replanTriggerStatuses = new Set<TaskObservationStatus>(["blocked", "failed", "skipped"]);
+
+export const decideNextActionFromObservations = (
+  observations: AgentTaskObservation[],
+  context: {
+    canReplan: boolean;
+    hasPendingProposals: boolean;
+  },
+): ObservationDecision => {
+  if (!context.canReplan) {
+    return { type: "continue" };
+  }
+
+  const blockingObservation = observations.find((observation) =>
+    replanTriggerStatuses.has(observation.status),
+  );
+
+  if (!blockingObservation) {
+    return { type: "continue" };
+  }
+
+  if (!context.hasPendingProposals && blockingObservation.status !== "blocked") {
+    return { type: "continue" };
+  }
+
+  return {
+    failedTaskId: blockingObservation.taskId,
+    reason: blockingObservation.error ?? blockingObservation.message,
+    type: "replan",
+  };
+};
+
 export const buildObservationTraceStep = (observations: AgentTaskObservation[]): AgentTraceStep | null => {
   if (observations.length === 0) {
     return null;

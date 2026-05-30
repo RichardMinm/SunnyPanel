@@ -20,10 +20,12 @@ import { parseAgentIntentResult, type AgentIntent, type PendingAction, type Prop
 import { detectRuleBasedConflicts } from "./conflict-detector";
 import {
   buildTaskObservation,
+  decideNextActionFromObservations,
   formatTaskObservations,
 } from "./observations";
 import { groupTasksIntoParallelLayers } from "./parallel-layers";
 import { replanAfterTaskFailure } from "./replan";
+import type { ReplanInput } from "./replan";
 import type { AgentRole, AgentTaskObservation, ExecutionGraphResult, OrchestratorPlan, TaskNode } from "./types";
 
 const MAX_REPLAN_ATTEMPTS = 2;
@@ -31,6 +33,7 @@ const MAX_REPLAN_ATTEMPTS = 2;
 export {
   buildObservationTraceStep,
   buildTaskObservation,
+  decideNextActionFromObservations,
   formatTaskObservation,
   formatTaskObservations,
 } from "./observations";
@@ -145,6 +148,7 @@ export const executeOrchestrationGraph = async (
     message?: string;
     orchestrationId?: string;
     promptContext?: AgentPromptContext;
+    replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
     replanAttempts?: number;
   } = {},
 ): Promise<ExecutionGraphResult> => {
@@ -159,6 +163,7 @@ export const executeOrchestrationGraph = async (
   let bus = createAgentBus();
   const message = options.message ?? "";
   const promptContext = options.promptContext;
+  const replanTaskFailure = options.replanTaskFailure ?? replanAfterTaskFailure;
   const orchestrationId = options.orchestrationId ?? `orch-${Date.now()}`;
   let clarifyMessage: string | null = null;
   let clarifyPending: PendingAction | null = null;
@@ -382,6 +387,73 @@ export const executeOrchestrationGraph = async (
     (left, right) =>
       (proposalOrder.get(left.id) ?? 0) - (proposalOrder.get(right.id) ?? 0),
   );
+  const canReplan = Boolean(promptContext && message && replanAttempts < MAX_REPLAN_ATTEMPTS);
+  const replanFromTask = async (args: {
+    failedTask: TaskNode;
+    failureReason: string;
+    failureType: ReplanInput["failureType"];
+  }): Promise<ExecutionGraphResult | null> => {
+    if (!promptContext || !message || replanAttempts >= MAX_REPLAN_ATTEMPTS) {
+      return null;
+    }
+
+    const failedIndex = plan.tasks.findIndex((task) => task.id === args.failedTask.id);
+
+    logAgentEvent("info", "orchestrator.replan", {
+      attempt: replanAttempts + 1,
+      failedTaskId: args.failedTask.id,
+      reason: args.failureReason,
+      strategy: args.failureType,
+    });
+
+    const replanned = await replanTaskFailure({
+      failedTask: args.failedTask,
+      failedTaskIndex: failedIndex >= 0 ? failedIndex : plan.tasks.length - 1,
+      failureReason: args.failureReason,
+      failureType: args.failureType,
+      message,
+      originalPlan: plan,
+      promptContext,
+    });
+
+    if (replanned.tasks.length === 0) {
+      return null;
+    }
+
+    const replannedResult = await executeOrchestrationGraph(replanned, dryRunContext, {
+      ...options,
+      replanAttempts: replanAttempts + 1,
+    });
+
+    return {
+      ...replannedResult,
+      assistantMessage: [
+        observations.length > 0 ? `重规划前观察：\n${formatTaskObservations(observations)}` : null,
+        replannedResult.assistantMessage,
+      ].filter(Boolean).join("\n\n"),
+      observations: [...observations, ...replannedResult.observations],
+    };
+  };
+  const observationDecision = decideNextActionFromObservations(observations, {
+    canReplan,
+    hasPendingProposals: sortedProposals.length > 0,
+  });
+
+  if (observationDecision.type === "replan") {
+    const failedTask = plan.tasks.find((task) => task.id === observationDecision.failedTaskId);
+
+    if (failedTask) {
+      const replannedResult = await replanFromTask({
+        failedTask,
+        failureReason: observationDecision.reason.slice(0, 200),
+        failureType: "tool_error",
+      });
+
+      if (replannedResult) {
+        return replannedResult;
+      }
+    }
+  }
 
   if (sortedProposals.length === 0) {
     if (clarifyMessage) {
@@ -406,7 +478,6 @@ export const executeOrchestrationGraph = async (
         : (plan.tasks.find((task) => orphanedTaskIds.includes(task.id)) ?? plan.tasks[plan.tasks.length - 1]);
 
       if (failedTask) {
-        const failedIndex = plan.tasks.findIndex((t) => t.id === failedTask.id);
         const failureReason = firstError
           ? firstError.error.slice(0, 200)
           : orphanedTaskIds.length > 0
@@ -414,37 +485,14 @@ export const executeOrchestrationGraph = async (
             : "部分子任务无法解析或跳过";
         const failureType = firstError ? "tool_error" as const : orphanedTaskIds.length > 0 ? "dependency_failure" as const : "parse_error" as const;
 
-        logAgentEvent("info", "orchestrator.replan", {
-          attempt: replanAttempts + 1,
-          failedTaskId: failedTask.id,
-          reason: failureReason,
-          strategy: failureType,
-        });
-
-        const replanned = await replanAfterTaskFailure({
+        const replannedResult = await replanFromTask({
           failedTask,
-          failedTaskIndex: failedIndex >= 0 ? failedIndex : plan.tasks.length - 1,
           failureReason,
           failureType,
-          message,
-          originalPlan: plan,
-          promptContext,
         });
 
-        if (replanned.tasks.length > 0) {
-          const replannedResult = await executeOrchestrationGraph(replanned, dryRunContext, {
-            ...options,
-            replanAttempts: replanAttempts + 1,
-          });
-
-          return {
-            ...replannedResult,
-            assistantMessage: [
-              observations.length > 0 ? `重规划前观察：\n${formatTaskObservations(observations)}` : null,
-              replannedResult.assistantMessage,
-            ].filter(Boolean).join("\n\n"),
-            observations: [...observations, ...replannedResult.observations],
-          };
+        if (replannedResult) {
+          return replannedResult;
         }
       }
     }
