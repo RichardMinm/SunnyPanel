@@ -7,6 +7,7 @@ import {
   decideNextActionFromObservations,
   executeOrchestrationGraph,
   formatTaskObservation,
+  summarizeExecutionQueue,
 } from "../../src/lib/agent/execution-graph";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
 import type { ProposedAgentAction } from "../../src/lib/agent/schemas";
@@ -117,6 +118,43 @@ test("buildObservationTraceStep summarizes task observations for UI trace", () =
   });
 });
 
+test("summarizeExecutionQueue reports completed, proposed, failed, and remaining tasks", () => {
+  const tasks = [
+    sampleTask({ id: "task-answered", label: "回答状态" }),
+    sampleTask({ id: "task-proposed", label: "创建计划" }),
+    sampleTask({ id: "task-failed", label: "完成清单项" }),
+    sampleTask({ id: "task-remaining", label: "安排日程" }),
+  ];
+  const summary = summarizeExecutionQueue(tasks, [
+    buildTaskObservation(tasks[0], {
+      message: "已回答。",
+      status: "answered",
+    }),
+    buildTaskObservation(tasks[1], {
+      action: sampleAction(),
+      message: "创建计划「测试计划」",
+      status: "proposed",
+    }),
+    buildTaskObservation(tasks[2], {
+      error: "resolver offline",
+      message: "执行失败。",
+      status: "failed",
+    }),
+  ]);
+
+  assert.deepEqual(summary, {
+    autoExecutedTaskIds: [],
+    blockedTaskIds: [],
+    completedTaskIds: ["task-answered"],
+    deferredTaskIds: [],
+    failedTaskIds: ["task-failed"],
+    pendingTaskIds: ["task-remaining"],
+    proposedTaskIds: ["task-proposed"],
+    skippedTaskIds: [],
+    totalTasks: 4,
+  });
+});
+
 test("executeOrchestrationGraph returns observations for direct answers", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
@@ -221,4 +259,37 @@ test("executeOrchestrationGraph replans failed compound work before returning st
   assert.equal(result.observations.some((item) => item.status === "failed"), true);
   assert.equal(result.observations.some((item) => item.actionId === "stale-create-plan-action"), true);
   assert.equal(result.observations.at(-1)?.status, "answered");
+});
+
+test("executeOrchestrationGraph pauses remaining tasks when max task budget is reached", async () => {
+  const plan: OrchestratorPlan = {
+    mode: "compound",
+    reasoning: "先回答，再创建计划。",
+    tasks: [
+      sampleTask({
+        agentRole: "query",
+        args: {
+          answer: "先说明当前状态。",
+        },
+        id: "task-answer",
+        intent: "answer_question",
+        label: "回答当前状态",
+      }),
+      sampleTask({
+        id: "task-create-plan",
+        label: "创建后续计划",
+      }),
+    ],
+  };
+
+  const result = await executeOrchestrationGraph(plan, {}, {
+    maxTasksPerRun: 1,
+  });
+
+  assert.equal(result.pendingAction, null);
+  assert.match(result.assistantMessage, /执行预算/);
+  assert.equal(result.observations.some((item) => item.taskId === "task-create-plan" && item.status === "deferred"), true);
+  assert.deepEqual(result.queueState.completedTaskIds, ["task-answer"]);
+  assert.deepEqual(result.queueState.deferredTaskIds, ["task-create-plan"]);
+  assert.deepEqual(result.queueState.pendingTaskIds, []);
 });

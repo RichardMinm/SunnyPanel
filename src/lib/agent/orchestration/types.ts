@@ -22,6 +22,7 @@ export type TaskObservationStatus =
   | "auto_executed"
   | "blocked"
   | "clarified"
+  | "deferred"
   | "executed"
   | "failed"
   | "proposed"
@@ -40,10 +41,23 @@ export type AgentTaskObservation = {
   taskId: string;
 };
 
+export type ExecutionQueueState = {
+  autoExecutedTaskIds: string[];
+  blockedTaskIds: string[];
+  completedTaskIds: string[];
+  deferredTaskIds: string[];
+  failedTaskIds: string[];
+  pendingTaskIds: string[];
+  proposedTaskIds: string[];
+  skippedTaskIds: string[];
+  totalTasks: number;
+};
+
 export type ExecutionGraphResult = {
   assistantMessage: string;
   executedCount: number;
   observations: AgentTaskObservation[];
   pendingAction: import("../schemas").PendingAction | null;
   proposals: import("../schemas").ProposedAgentAction[];
+  queueState: ExecutionQueueState;
 };

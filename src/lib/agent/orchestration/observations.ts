@@ -1,11 +1,12 @@
 import type { AgentTraceStep, ProposedAgentAction } from "../schemas";
-import type { AgentTaskObservation, TaskNode, TaskObservationStatus } from "./types";
+import type { AgentTaskObservation, ExecutionQueueState, TaskNode, TaskObservationStatus } from "./types";
 
 const statusLabelMap: Record<TaskObservationStatus, string> = {
   answered: "已回答",
   auto_executed: "已自动执行",
   blocked: "已阻塞",
   clarified: "需澄清",
+  deferred: "已延后",
   executed: "已执行",
   failed: "执行失败",
   proposed: "待确认",
@@ -46,6 +47,65 @@ export const formatTaskObservation = (observation: AgentTaskObservation): string
 
 export const formatTaskObservations = (observations: AgentTaskObservation[]): string =>
   observations.map(formatTaskObservation).join("\n");
+
+const completedStatuses = new Set<TaskObservationStatus>(["answered", "auto_executed", "executed"]);
+
+const latestObservationByTask = (observations: AgentTaskObservation[]) => {
+  const byTask = new Map<string, AgentTaskObservation>();
+
+  for (const observation of observations) {
+    byTask.set(observation.taskId, observation);
+  }
+
+  return byTask;
+};
+
+export const summarizeExecutionQueue = (
+  tasks: TaskNode[],
+  observations: AgentTaskObservation[],
+): ExecutionQueueState => {
+  const byTask = latestObservationByTask(observations);
+  const state: ExecutionQueueState = {
+    autoExecutedTaskIds: [],
+    blockedTaskIds: [],
+    completedTaskIds: [],
+    deferredTaskIds: [],
+    failedTaskIds: [],
+    pendingTaskIds: [],
+    proposedTaskIds: [],
+    skippedTaskIds: [],
+    totalTasks: tasks.length,
+  };
+
+  for (const task of tasks) {
+    const observation = byTask.get(task.id);
+
+    if (!observation) {
+      state.pendingTaskIds.push(task.id);
+      continue;
+    }
+
+    if (completedStatuses.has(observation.status)) {
+      state.completedTaskIds.push(task.id);
+    }
+
+    if (observation.status === "auto_executed") {
+      state.autoExecutedTaskIds.push(task.id);
+    } else if (observation.status === "blocked") {
+      state.blockedTaskIds.push(task.id);
+    } else if (observation.status === "deferred") {
+      state.deferredTaskIds.push(task.id);
+    } else if (observation.status === "failed") {
+      state.failedTaskIds.push(task.id);
+    } else if (observation.status === "proposed") {
+      state.proposedTaskIds.push(task.id);
+    } else if (observation.status === "skipped") {
+      state.skippedTaskIds.push(task.id);
+    }
+  }
+
+  return state;
+};
 
 export type ObservationDecision =
   | {

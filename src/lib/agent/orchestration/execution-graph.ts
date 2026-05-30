@@ -22,6 +22,7 @@ import {
   buildTaskObservation,
   decideNextActionFromObservations,
   formatTaskObservations,
+  summarizeExecutionQueue,
 } from "./observations";
 import { groupTasksIntoParallelLayers } from "./parallel-layers";
 import { replanAfterTaskFailure } from "./replan";
@@ -36,6 +37,7 @@ export {
   decideNextActionFromObservations,
   formatTaskObservation,
   formatTaskObservations,
+  summarizeExecutionQueue,
 } from "./observations";
 
 const taskToIntent = (task: TaskNode): AgentIntent | null =>
@@ -148,6 +150,7 @@ export const executeOrchestrationGraph = async (
     message?: string;
     orchestrationId?: string;
     promptContext?: AgentPromptContext;
+    maxTasksPerRun?: number;
     replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
     replanAttempts?: number;
   } = {},
@@ -162,12 +165,15 @@ export const executeOrchestrationGraph = async (
   const observations: AgentTaskObservation[] = [];
   let bus = createAgentBus();
   const message = options.message ?? "";
+  const maxTasksPerRun = options.maxTasksPerRun;
   const promptContext = options.promptContext;
   const replanTaskFailure = options.replanTaskFailure ?? replanAfterTaskFailure;
   const orchestrationId = options.orchestrationId ?? `orch-${Date.now()}`;
   let clarifyMessage: string | null = null;
   let clarifyPending: PendingAction | null = null;
   let orderIndex = 0;
+  let processedTaskCount = 0;
+  let budgetPaused = false;
 
   const registerProposal = (taskId: string, action: ProposedAgentAction) => {
     proposalOrder.set(taskId, orderIndex);
@@ -176,6 +182,35 @@ export const executeOrchestrationGraph = async (
   };
 
   const taskErrors: Array<{ error: string; task: TaskNode }> = [];
+  const buildQueueState = () => summarizeExecutionQueue(plan.tasks, observations);
+  const hasTaskObservation = (taskId: string) => observations.some((observation) => observation.taskId === taskId);
+  const budgetLimitReached = () =>
+    typeof maxTasksPerRun === "number" && maxTasksPerRun >= 0 && processedTaskCount >= maxTasksPerRun;
+  const deferTasks = (tasks: TaskNode[], reason: string) => {
+    for (const task of tasks) {
+      if (hasTaskObservation(task.id)) {
+        continue;
+      }
+
+      observations.push(buildTaskObservation(task, {
+        message: reason,
+        status: "deferred",
+      }));
+    }
+  };
+  const processTaskWithinBudget = async (task: TaskNode): Promise<boolean> => {
+    if (budgetLimitReached()) {
+      budgetPaused = true;
+      deferTasks([task], `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+
+      return false;
+    }
+
+    processedTaskCount += 1;
+    await processTask(task);
+
+    return true;
+  };
 
   const processTask = async (
     task: TaskNode,
@@ -358,13 +393,43 @@ export const executeOrchestrationGraph = async (
     const serialTasks = layer.filter((t) => errorConflicts.some((c) => c.tasks.includes(t.id)));
     const parallelTasks = layer.filter((t) => !serialTasks.some((st) => st.id === t.id));
 
-    if (parallelTasks.length > 0) {
-      await Promise.all(parallelTasks.map((task) => processTask(task)));
+    if (budgetLimitReached()) {
+      budgetPaused = true;
+      deferTasks(layers.slice(layers.indexOf(layer)).flat(), `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+      break;
     }
 
-    for (const task of serialTasks) {
-      await processTask(task);
+    if (parallelTasks.length > 0) {
+      await Promise.all(parallelTasks.map((task) => processTaskWithinBudget(task)));
     }
+
+    if (budgetPaused) {
+      deferTasks(serialTasks, `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+      const currentLayerIndex = layers.indexOf(layer);
+      deferTasks(layers.slice(currentLayerIndex + 1).flat(), `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+      break;
+    }
+
+    for (let index = 0; index < serialTasks.length; index += 1) {
+      const processed = await processTaskWithinBudget(serialTasks[index]);
+
+      if (!processed) {
+        deferTasks(serialTasks.slice(index + 1), `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+        const currentLayerIndex = layers.indexOf(layer);
+        deferTasks(layers.slice(currentLayerIndex + 1).flat(), `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+        break;
+      }
+    }
+
+    if (budgetPaused) {
+      break;
+    }
+  }
+
+  if (budgetPaused) {
+    readOnlyMessages.push(
+      `⏸ 已达到本轮执行预算（${processedTaskCount}/${plan.tasks.length} 个子任务），剩余任务已延后，可在下一轮继续。`,
+    );
   }
 
   if (orphanedTaskIds.length > 0) {
@@ -432,6 +497,10 @@ export const executeOrchestrationGraph = async (
         replannedResult.assistantMessage,
       ].filter(Boolean).join("\n\n"),
       observations: [...observations, ...replannedResult.observations],
+      queueState: summarizeExecutionQueue(
+        [...plan.tasks, ...replanned.tasks.filter((task) => !plan.tasks.some((existing) => existing.id === task.id))],
+        [...observations, ...replannedResult.observations],
+      ),
     };
   };
   const observationDecision = decideNextActionFromObservations(observations, {
@@ -463,6 +532,7 @@ export const executeOrchestrationGraph = async (
         observations,
         pendingAction: clarifyPending,
         proposals: [],
+        queueState: buildQueueState(),
       };
     }
 
@@ -510,6 +580,7 @@ export const executeOrchestrationGraph = async (
       observations,
       pendingAction: null,
       proposals: [],
+      queueState: buildQueueState(),
     };
   }
 
@@ -533,6 +604,7 @@ export const executeOrchestrationGraph = async (
       observations,
       pendingAction: { action, type: "await_confirmation" },
       proposals: sortedProposals,
+      queueState: buildQueueState(),
     };
   }
 
@@ -552,6 +624,7 @@ export const executeOrchestrationGraph = async (
       observations,
       pendingAction: { actions: sortedProposals, orchestrationId, type: "await_batch_confirmation" },
       proposals: sortedProposals,
+      queueState: buildQueueState(),
     };
   }
 
@@ -574,6 +647,7 @@ export const executeOrchestrationGraph = async (
         type: "await_confirmation",
       },
       proposals: sortedProposals,
+      queueState: buildQueueState(),
     };
   }
 
@@ -589,6 +663,7 @@ export const executeOrchestrationGraph = async (
     observations,
     pendingAction: { actions: sortedProposals, orchestrationId, type: "await_batch_confirmation" },
     proposals: sortedProposals,
+    queueState: buildQueueState(),
   };
 };
 
