@@ -1,7 +1,7 @@
 import type { Payload } from "payload";
 
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
-import { executeOrchestrationGraph } from "@/lib/agent/execution-graph";
+import { buildObservationTraceStep, executeOrchestrationGraph } from "@/lib/agent/execution-graph";
 import { orchestratorPlanToIntent, runOrchestrator } from "@/lib/agent/orchestrator";
 import { logAgentEvent } from "@/lib/agent/logger";
 import type {
@@ -171,6 +171,11 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         promptContext: context,
       },
     );
+    const observationTraceStep = buildObservationTraceStep(graphResult.observations);
+
+    if (observationTraceStep) {
+      pushTrace(observationTraceStep);
+    }
 
     if (graphResult.pendingAction) {
       const assistantMessage = graphResult.assistantMessage;

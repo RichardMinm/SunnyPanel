@@ -18,11 +18,22 @@ import { getAgentToolDefinition } from "../tool-registry";
 import type { AgentToolDryRunContext } from "../tool-registry";
 import { parseAgentIntentResult, type AgentIntent, type PendingAction, type ProposedAgentAction } from "../schemas";
 import { detectRuleBasedConflicts } from "./conflict-detector";
+import {
+  buildTaskObservation,
+  formatTaskObservations,
+} from "./observations";
 import { groupTasksIntoParallelLayers } from "./parallel-layers";
 import { replanAfterTaskFailure } from "./replan";
-import type { AgentRole, ExecutionGraphResult, OrchestratorPlan, TaskNode } from "./types";
+import type { AgentRole, AgentTaskObservation, ExecutionGraphResult, OrchestratorPlan, TaskNode } from "./types";
 
 const MAX_REPLAN_ATTEMPTS = 2;
+
+export {
+  buildObservationTraceStep,
+  buildTaskObservation,
+  formatTaskObservation,
+  formatTaskObservations,
+} from "./observations";
 
 const taskToIntent = (task: TaskNode): AgentIntent | null =>
   parseAgentIntentResult({
@@ -144,6 +155,7 @@ export const executeOrchestrationGraph = async (
   const proposalOrder = new Map<string, number>();
   const readOnlyMessages: string[] = [];
   const autoExecutedMessages: string[] = [];
+  const observations: AgentTaskObservation[] = [];
   let bus = createAgentBus();
   const message = options.message ?? "";
   const promptContext = options.promptContext;
@@ -178,6 +190,10 @@ export const executeOrchestrationGraph = async (
 
         if (!baseIntent) {
           readOnlyMessages.push(`「${task.label}」无法解析，已跳过。`);
+          observations.push(buildTaskObservation(task, {
+            message: "无法解析为有效意图。",
+            status: "skipped",
+          }));
 
           return null;
         }
@@ -194,14 +210,21 @@ export const executeOrchestrationGraph = async (
 
       if (!intent) {
         readOnlyMessages.push(`「${task.label}」无法解析，已跳过。`);
+        observations.push(buildTaskObservation(task, {
+          message: "无法解析为有效意图。",
+          status: "skipped",
+        }));
 
         return null;
       }
 
       if (intent.intent === "answer_question" || intent.intent === "clarify") {
-        readOnlyMessages.push(
-          intent.intent === "answer_question" ? (intent.reply ?? intent.args.answer) : intent.args.question,
-        );
+        const message = intent.intent === "answer_question" ? (intent.reply ?? intent.args.answer) : intent.args.question;
+        readOnlyMessages.push(message);
+        observations.push(buildTaskObservation(task, {
+          message,
+          status: intent.intent === "answer_question" ? "answered" : "clarified",
+        }));
 
         return null;
       }
@@ -228,7 +251,13 @@ export const executeOrchestrationGraph = async (
           if (decision.approved) {
             incrementAutoCount(autoApproval.threadId);
             const executed = await executeAgentIntent(intent);
-            autoExecutedMessages.push(`✅ 已自动执行「${task.label}」：${executed.assistantMessage.slice(0, 80)}`);
+            const message = executed.assistantMessage.slice(0, 120);
+            autoExecutedMessages.push(`✅ 已自动执行「${task.label}」：${message.slice(0, 80)}`);
+            observations.push(buildTaskObservation(task, {
+              action: dryRun.action,
+              message,
+              status: "auto_executed",
+            }));
             bus = publishTaskArtifact(bus, {
               from: task.agentRole,
               payload: buildArtifactPayload(task, intent, dryRun.action),
@@ -245,6 +274,11 @@ export const executeOrchestrationGraph = async (
         }
 
         registerProposal(task.id, dryRun.action);
+        observations.push(buildTaskObservation(task, {
+          action: dryRun.action,
+          message: dryRun.action.summary,
+          status: "proposed",
+        }));
         bus = publishTaskArtifact(bus, {
           from: task.agentRole,
           payload: buildArtifactPayload(task, intent, dryRun.action),
@@ -259,6 +293,10 @@ export const executeOrchestrationGraph = async (
           clarifyMessage = dryRun.assistantMessage;
           clarifyPending = dryRun.pendingAction;
         }
+        observations.push(buildTaskObservation(task, {
+          message: dryRun.assistantMessage,
+          status: "clarified",
+        }));
 
         return null;
       }
@@ -268,6 +306,10 @@ export const executeOrchestrationGraph = async (
       if (tool && !tool.requiresConfirmation) {
         const executed = await executeAgentIntent(intent);
         readOnlyMessages.push(executed.assistantMessage);
+        observations.push(buildTaskObservation(task, {
+          message: executed.assistantMessage,
+          status: "executed",
+        }));
         bus = publishTaskArtifact(bus, {
           from: task.agentRole,
           payload: buildArtifactPayload(task, intent),
@@ -280,6 +322,11 @@ export const executeOrchestrationGraph = async (
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       taskErrors.push({ error: errorMessage, task });
       readOnlyMessages.push(`❌「${task.label}」执行失败：${errorMessage.slice(0, 120)}`);
+      observations.push(buildTaskObservation(task, {
+        error: errorMessage,
+        message: "执行失败，等待重规划或用户处理。",
+        status: "failed",
+      }));
 
       logAgentEvent("error", "orchestrator.task_error", {
         error: errorMessage,
@@ -319,6 +366,16 @@ export const executeOrchestrationGraph = async (
     readOnlyMessages.push(
       `有 ${orphanedTaskIds.length} 个子任务因依赖关系无法解析（${orphanedTaskIds.join("、")}），请检查编排依赖。`,
     );
+    for (const taskId of orphanedTaskIds) {
+      const task = plan.tasks.find((item) => item.id === taskId);
+      if (task) {
+        observations.push(buildTaskObservation(task, {
+          error: "依赖关系无法解析。",
+          message: "依赖关系无法解析，未进入执行层。",
+          status: "blocked",
+        }));
+      }
+    }
   }
 
   const sortedProposals = [...proposals].sort(
@@ -331,6 +388,7 @@ export const executeOrchestrationGraph = async (
       return {
         assistantMessage: clarifyMessage,
         executedCount: 0,
+        observations,
         pendingAction: clarifyPending,
         proposals: [],
       };
@@ -374,10 +432,19 @@ export const executeOrchestrationGraph = async (
         });
 
         if (replanned.tasks.length > 0) {
-          return executeOrchestrationGraph(replanned, dryRunContext, {
+          const replannedResult = await executeOrchestrationGraph(replanned, dryRunContext, {
             ...options,
             replanAttempts: replanAttempts + 1,
           });
+
+          return {
+            ...replannedResult,
+            assistantMessage: [
+              observations.length > 0 ? `重规划前观察：\n${formatTaskObservations(observations)}` : null,
+              replannedResult.assistantMessage,
+            ].filter(Boolean).join("\n\n"),
+            observations: [...observations, ...replannedResult.observations],
+          };
         }
       }
     }
@@ -392,6 +459,7 @@ export const executeOrchestrationGraph = async (
         .filter(Boolean)
         .join("\n\n"),
       executedCount,
+      observations,
       pendingAction: null,
       proposals: [],
     };
@@ -414,6 +482,7 @@ export const executeOrchestrationGraph = async (
     return {
       assistantMessage: [plan.reasoning, proposalIntro, buildProposedActionMessage(action)].filter(Boolean).join("\n\n"),
       executedCount,
+      observations,
       pendingAction: { action, type: "await_confirmation" },
       proposals: sortedProposals,
     };
@@ -432,6 +501,7 @@ export const executeOrchestrationGraph = async (
         .filter(Boolean)
         .join("\n"),
       executedCount,
+      observations,
       pendingAction: { actions: sortedProposals, orchestrationId, type: "await_batch_confirmation" },
       proposals: sortedProposals,
     };
@@ -448,6 +518,7 @@ export const executeOrchestrationGraph = async (
         `检测到 ${highRisk.length} 项高风险操作需单独确认，另有 ${batchable.length} 项可在下一步批量确认。请先处理：${highRisk[0].summary}`,
       ].join("\n"),
       executedCount,
+      observations,
       pendingAction: {
         action: highRisk[0],
         deferredActions: batchable,
@@ -467,6 +538,7 @@ export const executeOrchestrationGraph = async (
       "回复「确认」执行全部，或「取消」放弃。",
     ].join("\n"),
     executedCount,
+    observations,
     pendingAction: { actions: sortedProposals, orchestrationId, type: "await_batch_confirmation" },
     proposals: sortedProposals,
   };
