@@ -433,6 +433,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
         ...plan,
         agentBrief,
         agentState,
+        domain: "other" as const,
         executionMode,
         linkedContent,
         startDate: samplePublishedAt,

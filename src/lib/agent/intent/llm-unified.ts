@@ -19,11 +19,17 @@ export const resolveUnifiedIntent = async (input: {
   tokenUsage?: AgentTokenUsage;
 }> => {
   const resolveModel = input.modelResolver ?? generateIntentWithAgentModel;
-  const modelResult = await resolveModel({
-    context: input.context,
-    history: input.history,
-    message: input.message,
-  });
+  let modelResult: Awaited<ReturnType<AgentModelIntentResolver>> | null = null;
+
+  try {
+    modelResult = await resolveModel({
+      context: input.context,
+      history: input.history,
+      message: input.message,
+    });
+  } catch (error) {
+    console.warn("[agent] Intent model unavailable; falling back to heuristics.", error);
+  }
 
   if (modelResult) {
     return {

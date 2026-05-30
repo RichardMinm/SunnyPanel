@@ -26,7 +26,21 @@ export const completeStructured = async <T>({
   parse,
   temperature = 0.3,
 }: CompleteStructuredOptions<T>): Promise<StructuredLLMResult<T> | null> => {
-  const config = await getAgentModelConfig();
+  if (process.env.AGENT_DISABLE_LLM === "1") {
+    const fallbackData = fallback ? await fallback() : null;
+
+    return fallbackData
+      ? { data: fallbackData, raw: "", tokenUsage: createTokenUsageSnapshot() }
+      : null;
+  }
+
+  let config: Awaited<ReturnType<typeof getAgentModelConfig>> | null = null;
+
+  try {
+    config = await getAgentModelConfig();
+  } catch {
+    config = null;
+  }
 
   if (!config) {
     if (!fallback) {
