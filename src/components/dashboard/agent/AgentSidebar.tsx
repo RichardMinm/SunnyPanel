@@ -8,6 +8,8 @@ import { riskLevelLabelMap } from "./constants";
 import { AgentTaskRow } from "./AgentTaskRow";
 import type { AgentRunSummary, AgentThreadSummary } from "./types";
 import { buildSuggestedTasks, getPendingActionLabel } from "./utils";
+import Link from "next/link";
+import { workspaceNavSections } from "@/components/dashboard/nav/dashboard-nav-items";
 
 type AgentSidebarProps = {
   disabled?: boolean;
@@ -69,7 +71,7 @@ export function AgentSidebar({
     <aside className="sunny-agent-left-rail">
       <div className="sunny-agent-rail-head">
         <button type="button" onClick={onNewThread} className="sunny-agent-new-task-button">
-          新任务
+          + 新建 Thread
         </button>
       </div>
 
@@ -122,6 +124,27 @@ export function AgentSidebar({
           <AgentTaskRow detail="输入一个目标即可开始" label="暂无建议" tone="muted" />
         )}
       </div>
+
+      {workspaceNavSections.map((section) => (
+        <details key={section.id} className="sunny-agent-rail-section sunny-agent-rail-details" open>
+          <summary>{section.label}</summary>
+          <div className="sunny-agent-rail-detail-list">
+            {section.items.map((item) => (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="sunny-agent-nav-item"
+              >
+                <AgentTaskRow
+                  detail={item.badge ? String(item.badge) : undefined}
+                  label={item.label}
+                  tone="muted"
+                />
+              </Link>
+            ))}
+          </div>
+        </details>
+      ))}
 
       <details className="sunny-agent-rail-section sunny-agent-rail-details" open>
         <summary>会话列表</summary>

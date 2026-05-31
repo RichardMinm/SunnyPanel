@@ -19,8 +19,8 @@
   --agent-radius-shell: var(--radius-chrome);
   --agent-radius-panel: var(--radius-panel);
   --agent-radius-control: var(--radius-control);
-  --agent-rail-width: 15rem;
-  --agent-inspector-width: 18.75rem;
+  --agent-rail-width: 18rem;
+  --agent-inspector-width: 20rem;
   --agent-min-height: 42rem;
   --dashboard-left-width: 18rem;
   --dashboard-right-width: 20rem;

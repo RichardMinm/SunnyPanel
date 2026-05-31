@@ -2500,3 +2500,225 @@ html[data-theme="dark"] .sunny-agent-thread-search-input {
 .sunny-agent-thread-show-more:hover {
   color: var(--accent-strong);
 }
+
+/* ── Dashboard shell v2 (full-page workspace) ── */
+.sunny-dashboard-shell-v2 {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  padding: var(--agent-gap-md);
+  gap: var(--agent-gap-md);
+}
+
+.sunny-dashboard-workspace {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+
+.sunny-dashboard-workspace .sunny-dashboard-col-center {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ── Mode description line ── */
+.sunny-agent-mode-description {
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.25rem 0.25rem 0.5rem;
+}
+
+/* ── Workspace nav items ── */
+.sunny-agent-nav-item {
+  display: block;
+  text-decoration: none;
+  border-radius: var(--agent-radius-control);
+  transition: background 160ms ease;
+}
+
+.sunny-agent-nav-item:hover {
+  background: var(--agent-control-bg);
+}
+
+/* ── Reduced border density: workbench shell ── */
+.sunny-agent-workbench-layout {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+html[data-theme="dark"] .sunny-agent-workbench-layout {
+  background: transparent;
+}
+
+/* Inner panels keep subtle borders for separation */
+.sunny-agent-center-surface {
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-radius: var(--agent-radius-shell);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.sunny-agent-left-rail-column {
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-radius: var(--agent-radius-shell);
+  background: var(--surface);
+}
+
+.sunny-agent-inspector-shell {
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-radius: var(--agent-radius-shell);
+  background: var(--surface);
+}
+
+/* ── Responsive: Tablet ── */
+@media (max-width: 1024px) {
+  /* Force single-column on tablet regardless of collapse state */
+  .sunny-agent-workbench-layout,
+  .sunny-agent-workbench-layout.sunny-agent-sidebar-collapsed,
+  .sunny-agent-workbench-layout.sunny-agent-sidebar-collapsed.sunny-agent-workbench-layout--no-inspector {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Sidebar becomes a fixed overlay drawer */
+  .sunny-agent-left-rail-column {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 60;
+    width: 18rem;
+    overflow-y: auto;
+    transform: translateX(0);
+    transition: transform 220ms ease;
+  }
+
+  /* Collapsed = drawer hidden */
+  .sunny-agent-left-rail-column.is-collapsed {
+    transform: translateX(-100%);
+  }
+
+  /* Toggle button always visible on tablet for drawer control */
+  .sunny-agent-sidebar-toggle {
+    position: fixed;
+    left: 0.5rem;
+    top: 50%;
+    z-index: 61;
+    transform: translateY(-50%);
+  }
+
+  .sunny-agent-inspector-shell {
+    display: none;
+  }
+
+  .sunny-agent-inspector-compact {
+    display: block;
+  }
+
+  /* Backdrop when drawer is open */
+  .sunny-agent-left-rail-column:not(.is-collapsed)::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+  }
+}
+
+/* ── Responsive: Mobile ── */
+@media (max-width: 640px) {
+  .sunny-dashboard-shell-v2 {
+    padding: var(--agent-gap-xs);
+    gap: var(--agent-gap-xs);
+  }
+
+  .sunny-agent-center-surface {
+    border-radius: var(--radius-control);
+  }
+
+  .sunny-agent-composer {
+    padding: var(--agent-gap-sm);
+  }
+}
+
+/* ── Sidebar collapsed state ── */
+.sunny-agent-sidebar-collapsed {
+  grid-template-columns: 2.5rem minmax(0, 1fr) var(--agent-inspector-width) !important;
+}
+
+.sunny-agent-sidebar-collapsed.sunny-agent-workbench-layout--no-inspector {
+  grid-template-columns: 2.5rem minmax(0, 1fr) !important;
+}
+
+/* Ensure collapsed column hides overflow */
+.sunny-agent-left-rail-column.is-collapsed {
+  overflow: hidden;
+}
+
+/* ── Top bar polish ── */
+.sunny-dashboard-chrome {
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+/* ── Message width, alignment & reduced borders ── */
+.sunny-agent-conversation-surface {
+  border: none;
+  box-shadow: none;
+}
+
+.sunny-agent-conversation-scroll {
+  padding: 0.5rem 0;
+}
+
+.sunny-agent-message-row {
+  max-width: 860px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  border: none;
+  padding: 0.5rem 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.sunny-agent-message-row-user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sunny-agent-message-row-user p {
+  max-width: 80%;
+  text-align: right;
+}
+
+/* ── Slash command chips ── */
+.sunny-agent-slash-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.sunny-agent-slash-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-radius: var(--radius-pill);
+  padding: 0.15rem 0.55rem;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--muted);
+  background: var(--agent-control-bg);
+  cursor: pointer;
+  transition: background 160ms, color 160ms, border-color 160ms;
+}
+
+.sunny-agent-slash-chip:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}

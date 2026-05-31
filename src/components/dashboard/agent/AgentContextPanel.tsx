@@ -91,6 +91,25 @@ export function AgentContextPanel({
 
   return (
     <div className="sunny-agent-inspector-panel">
+      {/* Action-oriented metrics — backend provides actual counts */}
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="rounded-md border border-border/60 bg-surface p-2.5 text-center">
+          <p className="text-lg font-bold text-amber-500">0</p>
+          <p className="text-xs text-muted">待确认</p>
+        </div>
+        <div className="rounded-md border border-border/60 bg-surface p-2.5 text-center">
+          <p className="text-lg font-bold text-blue-500">0</p>
+          <p className="text-xs text-muted">今日日程</p>
+        </div>
+        <div className="rounded-md border border-border/60 bg-surface p-2.5 text-center">
+          <p className="text-lg font-bold text-green-500">0</p>
+          <p className="text-xs text-muted">进行中计划</p>
+        </div>
+        <div className="rounded-md border border-border/60 bg-surface p-2.5 text-center">
+          <p className="text-lg font-bold text-purple-500">0</p>
+          <p className="text-xs text-muted">未完成任务</p>
+        </div>
+      </div>
       <div className="sunny-agent-context-grid-v2">
         <span>Thread</span>
         <strong>{threadId ? `#${threadId}` : "新任务"}</strong>

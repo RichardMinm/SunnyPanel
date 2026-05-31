@@ -258,21 +258,21 @@ const renderPreviewDocument = ({
               {(checklist.groups ?? []).map((group, groupIndex) => (
                 <div
                   key={group.id ?? `${id}-${groupIndex}`}
-                  className="rounded-lg border border-border bg-white/60 p-5"
+                  className="rounded-lg border border-border bg-surface p-5"
                 >
                   <h3 className="text-lg font-semibold text-foreground">{group.title}</h3>
                   <div className="mt-4 space-y-3">
                     {(group.items ?? []).map((item, itemIndex) => (
                       <div
                         key={item.id ?? `${group.id ?? "group"}-${itemIndex}`}
-                        className="rounded-md border border-border/80 bg-background/60 px-4 py-3"
+                        className="rounded-md border border-border/80 bg-surface/50 px-4 py-3"
                       >
                         <div className="flex items-start gap-3">
                           <span
                             className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-icon-badge ${
                               item?.isCompleted
-                                ? "border-emerald-300 bg-emerald-100 text-emerald-700"
-                                : "border-border bg-white text-muted"
+                                ? "border-[var(--tone-success-border)] bg-[var(--tone-success-bg)] text-[var(--tone-success-text)]"
+                                : "border-border bg-surface text-muted"
                             }`}
                           >
                             {item?.isCompleted ? "✓" : ""}

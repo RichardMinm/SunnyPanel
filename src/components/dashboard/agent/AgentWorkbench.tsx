@@ -16,7 +16,7 @@ import type {
 import { AgentApprovalCard } from "./AgentApprovalCard";
 import { AgentComposer } from "./AgentComposer";
 import { AgentConversation } from "./AgentConversation";
-import { DashboardLayoutSwitcher, useDashboardLayout, useDebugMode } from "./DashboardLayoutSwitcher";
+import { useDashboardLayout } from "./DashboardLayoutSwitcher";
 import { AgentErrorBoundary } from "./AgentErrorBoundary";
 import { AgentInspector } from "./AgentInspector";
 import { AgentThinkingPanel } from "./AgentThinkingPanel";
@@ -118,15 +118,14 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const batchActions = pendingAction?.type === "await_batch_confirmation" ? pendingAction.actions : null;
   const latestAssistantMessage = getLatestAssistantMessage(messages);
   const suggestedPlaceholder = quickPrompts[0]?.prompt ?? "整理今天最应该推进的一个动作";
-  const { debugMode, setDebugMode } = useDebugMode();
-  const { layout, setLayout } = useDashboardLayout();
-  const useInspectorColumn = debugMode && layout === "inspector";
+  const { layout } = useDashboardLayout();
+  /* Inspector is always visible as a collapsible right panel */
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const toggleSidebar = useCallback(() => setSidebarCollapsed((v) => !v), []);
 
   const inspectorPanel = (
     <AgentInspector
-      compact={!useInspectorColumn}
+      compact={false}
       action={confirmationAction}
       activeTab={activeInspectorTab}
       artifactsRollbackBusy={artifactsRollbackBusy}
@@ -218,7 +217,6 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           transcriptRef={transcriptRef}
         />
       </div>
-      {useInspectorColumn || !debugMode ? null : inspectorPanel}
       <AgentComposer
         disabled={isSubmitting}
         input={input}
@@ -245,7 +243,9 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           aria-label="\u5c55\u5f00\u4fa7\u8fb9\u680f"
           title="\u5c55\u5f00\u4fa7\u8fb9\u680f"
         >
-          \u25b8
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M5 2L9 6L5 10" />
+          </svg>
         </button>
       ) : (
         <>
@@ -256,7 +256,9 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             aria-label="\u6536\u8d77\u4fa7\u8fb9\u680f"
             title="\u6536\u8d77\u4fa7\u8fb9\u680f"
           >
-            \u25c2
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M7 2L3 6L7 10" />
+            </svg>
           </button>
           <AgentSidebar
             disabled={isSubmitting}
@@ -275,17 +277,6 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             threadId={threadId}
             threads={threads}
           />
-          <div className="sunny-agent-rail-footer">
-            <DashboardLayoutSwitcher layout={layout} onLayoutChange={setLayout} />
-            <button
-              type="button"
-              className={`sunny-agent-debug-toggle${debugMode ? " active" : ""}`}
-              onClick={() => setDebugMode(!debugMode)}
-              title={debugMode ? "隐藏检查器" : "显示检查器"}
-            >
-              调试
-            </button>
-          </div>
         </>
       )}
     </div>
@@ -296,7 +287,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
       <AgentWorkbenchShell
         center={center}
         dataTestId="agent-workbench"
-        inspector={useInspectorColumn ? inspectorPanel : null}
+        inspector={inspectorPanel}
         inspectorDrawer={false}
         layout={layout}
         sidebar={sidebar}

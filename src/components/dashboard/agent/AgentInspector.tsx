@@ -7,12 +7,15 @@ import { AnimatePresence, motion } from "motion/react";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
 import type { TaskNode } from "@/lib/agent/orchestration/types";
 
+import { AgentApprovalPanel } from "./AgentApprovalPanel";
 import { AgentArtifactsPanel } from "./AgentArtifactsPanel";
 import { AgentChangesPanel } from "./AgentChangesPanel";
 import { AgentContextPanel } from "./AgentContextPanel";
 import { AgentDebugPanel } from "./AgentDebugPanel";
 import { AgentDependencyGraph } from "./AgentDependencyGraph";
+import { AgentLinkedPanel } from "./AgentLinkedPanel";
 import { AgentMemoryPanel } from "./AgentMemoryPanel";
+import { AgentTracePanel } from "./AgentTracePanel";
 import { inspectorTabs } from "./constants";
 import type { AgentInspectorTab, ContextPreferences } from "./types";
 
@@ -147,6 +150,13 @@ function InspectorPanels({
             traceSteps={traceSteps}
           />
         ) : null}
+        {activeTab === "approval" ? (
+          <AgentApprovalPanel action={action} pendingAction={pendingAction} />
+        ) : null}
+        {activeTab === "trace" ? (
+          <AgentTracePanel traceSteps={traceSteps} statusLabel={statusLabel} />
+        ) : null}
+        {activeTab === "linked" ? <AgentLinkedPanel /> : null}
         {activeTab === "changes" ? <AgentChangesPanel action={action} /> : null}
         {activeTab === "artifacts" ? (
           <AgentArtifactsPanel

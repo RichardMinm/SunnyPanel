@@ -12,9 +12,12 @@ export const modeItems: Array<{ key: AgentWorkbenchMode; label: string }> = [
 
 export const inspectorTabs: Array<{ key: AgentInspectorTab; label: string }> = [
   { key: "context", label: "上下文" },
-  { key: "changes", label: "变更" },
-  { key: "artifacts", label: "产物" },
+  { key: "approval", label: "审批" },
+  { key: "trace", label: "追踪" },
+  { key: "linked", label: "关联" },
   { key: "memory", label: "记忆" },
+  { key: "artifacts", label: "产物" },
+  { key: "changes", label: "变更" },
   { key: "dag", label: "任务图" },
   { key: "debug", label: "调试" },
 ];
@@ -62,4 +65,12 @@ export const intentLabelMap: Record<string, string> = {
   save_memory: "保存记忆",
   schedule_plan: "计划排期",
   weekly_review: "本周回顾",
+};
+
+export const modeDescriptionMap: Record<AgentWorkbenchMode, string> = {
+  ask: "问答 · 不会修改数据",
+  plan: "规划 · 仅生成计划建议",
+  execute: "执行 · 需要确认后写入",
+  review: "复盘 · 只读分析",
+  timeline: "时间线 · 查看与记录",
 };
