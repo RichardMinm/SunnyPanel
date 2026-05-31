@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import Link from "next/link";
+import { useCallback, useMemo, useState } from "react";
 
 import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
 import type { PendingAction } from "@/lib/agent/schemas";
@@ -8,8 +9,6 @@ import { riskLevelLabelMap } from "./constants";
 import { AgentTaskRow } from "./AgentTaskRow";
 import type { AgentRunSummary, AgentThreadSummary } from "./types";
 import { buildSuggestedTasks, getPendingActionLabel } from "./utils";
-import Link from "next/link";
-import { workspaceNavSections } from "@/components/dashboard/nav/dashboard-nav-items";
 
 type AgentSidebarProps = {
   disabled?: boolean;
@@ -28,6 +27,28 @@ type AgentSidebarProps = {
   threadId: null | number;
   threads: AgentThreadSummary[];
 };
+
+const workspaceNav = [
+  { href: "/dashboard", label: "总览" },
+  { href: "/dashboard", label: "Agent" },
+  { href: "/admin/collections/schedule-items", label: "今日" },
+  { href: "/admin/collections/plans", label: "计划" },
+  { href: "/admin/collections/schedule-items", label: "日程" },
+  { href: "/admin/collections/posts", label: "写作" },
+  { href: "/admin/collections/agent-memories", label: "记忆" },
+] as const;
+
+function getPendingTone(pendingAction: PendingAction | null) {
+  if (pendingAction?.type === "await_confirmation") {
+    return pendingAction.action.riskLevel === "high"
+      ? "danger"
+      : pendingAction.action.riskLevel === "medium"
+        ? "warning"
+        : "success";
+  }
+
+  return "warning";
+}
 
 export function AgentSidebar({
   disabled,
@@ -59,21 +80,31 @@ export function AgentSidebar({
 
   const visibleThreads = showAllThreads ? threads : threads.slice(0, 8);
   const tasks = buildSuggestedTasks(inboxSuggestions, quickPrompts).slice(0, 5);
-  const pendingTone = pendingAction?.type === "await_confirmation"
-    ? pendingAction.action.riskLevel === "high"
-      ? "danger"
-      : pendingAction.action.riskLevel === "medium"
-        ? "warning"
-        : "success"
-    : "warning";
+  const pinnedItems = useMemo(() => {
+    const tags = threads.flatMap((thread) => thread.tags ?? []).filter(Boolean);
+
+    return Array.from(new Set(tags)).slice(0, 5);
+  }, [threads]);
+  const pendingTone = getPendingTone(pendingAction);
 
   return (
-    <aside className="sunny-agent-left-rail">
+    <aside className="sunny-agent-left-rail" data-testid="agent-sidebar" aria-label="Agent 任务导航">
       <div className="sunny-agent-rail-head">
         <button type="button" onClick={onNewThread} className="sunny-agent-new-task-button">
-          + 新建 Thread
+          新建 Thread
         </button>
       </div>
+
+      <nav className="sunny-agent-rail-section" data-testid="agent-workspace-nav" aria-label="工作台导航">
+        <p className="sunny-agent-rail-label">工作台</p>
+        <div className="sunny-agent-workspace-nav-list">
+          {workspaceNav.map((item) => (
+            <Link key={`${item.label}-${item.href}`} href={item.href} className="sunny-agent-nav-link">
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      </nav>
 
       <div className="sunny-agent-rail-section">
         <p className="sunny-agent-rail-label">当前任务</p>
@@ -85,7 +116,7 @@ export function AgentSidebar({
         />
       </div>
 
-      <div className="sunny-agent-rail-section">
+      <div className="sunny-agent-rail-section" data-testid="agent-pending-list">
         <p className="sunny-agent-rail-label">待确认</p>
         {pendingAction ? (
           <AgentTaskRow
@@ -125,37 +156,19 @@ export function AgentSidebar({
         )}
       </div>
 
-      {workspaceNavSections.map((section) => (
-        <details key={section.id} className="sunny-agent-rail-section sunny-agent-rail-details" open>
-          <summary>{section.label}</summary>
-          <div className="sunny-agent-rail-detail-list">
-            {section.items.map((item) => (
-              <Link
-                key={item.id}
-                href={item.href}
-                className="sunny-agent-nav-item"
-              >
-                <AgentTaskRow
-                  detail={item.badge ? String(item.badge) : undefined}
-                  label={item.label}
-                  tone="muted"
-                />
-              </Link>
-            ))}
-          </div>
-        </details>
-      ))}
-
-      <details className="sunny-agent-rail-section sunny-agent-rail-details" open>
-        <summary>会话列表</summary>
+      <section className="sunny-agent-rail-section" data-testid="agent-thread-list" aria-label="Agent Threads">
+        <div className="sunny-agent-rail-section-head">
+          <p className="sunny-agent-rail-label">Agent Threads</p>
+          <span>{threads.length}</span>
+        </div>
         <div className="sunny-agent-thread-search">
           <input
             type="text"
             value={threadSearch}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="搜索会话..."
+            onChange={(event) => handleSearchChange(event.target.value)}
+            placeholder="搜索 Thread..."
             className="sunny-agent-thread-search-input"
-            aria-label="搜索 Agent 会话"
+            aria-label="搜索 Agent Thread"
           />
         </div>
         <div className="sunny-agent-rail-detail-list">
@@ -163,8 +176,8 @@ export function AgentSidebar({
             <div key={thread.id} className="sunny-agent-thread-row-wrapper">
               <AgentTaskRow
                 detail={thread.pendingAction ? getPendingActionLabel(thread.pendingAction) : thread.title}
-                label={`Thread #${thread.id}`}
-                meta={thread.archived ? "归档" : thread.tags?.length ? thread.tags[0] : undefined}
+                label={thread.title || `Thread #${thread.id}`}
+                meta={thread.archived ? "归档" : thread.tags?.length ? thread.tags[0] : `#${thread.id}`}
                 onClick={() => onLoadThread(thread.id)}
                 selected={thread.id === threadId}
                 tone={thread.archived ? "muted" : thread.pendingAction ? "warning" : "muted"}
@@ -174,8 +187,8 @@ export function AgentSidebar({
                   type="button"
                   className="sunny-agent-thread-archive-btn"
                   title={thread.archived ? "取消归档" : "归档"}
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  onClick={(event) => {
+                    event.stopPropagation();
                     onArchiveThread(thread.id, !thread.archived);
                   }}
                 >
@@ -185,26 +198,31 @@ export function AgentSidebar({
             </div>
           ))}
           {!showAllThreads && threads.length > 8 ? (
-            <button
-              type="button"
-              className="sunny-agent-thread-show-more"
-              onClick={() => setShowAllThreads(true)}
-            >
+            <button type="button" className="sunny-agent-thread-show-more" onClick={() => setShowAllThreads(true)}>
               显示全部 ({threads.length})
             </button>
           ) : null}
           {threads.length === 0 ? (
             <AgentTaskRow
-              detail={threadSearch ? "没有匹配的会话" : "还没有历史会话"}
+              detail={threadSearch ? "没有匹配的 Thread" : "还没有历史 Thread"}
               label={threadSearch ? "未找到" : "No threads"}
               tone="muted"
             />
           ) : null}
         </div>
-      </details>
+      </section>
+
+      <section className="sunny-agent-rail-section" data-testid="agent-pinned-list" aria-label="Pinned">
+        <p className="sunny-agent-rail-label">Pinned</p>
+        {pinnedItems.length > 0 ? (
+          pinnedItems.map((tag) => <AgentTaskRow key={tag} detail="来自 Thread 标签" label={tag} tone="accent" />)
+        ) : (
+          <AgentTaskRow detail="后续可固定计划、项目和记忆" label="暂无固定对象" tone="muted" />
+        )}
+      </section>
 
       <details className="sunny-agent-rail-section sunny-agent-rail-details">
-        <summary>Recent AgentRuns</summary>
+        <summary>最近执行</summary>
         <div className="sunny-agent-rail-detail-list">
           {recentRuns.slice(0, 4).map((run) => (
             <AgentTaskRow

@@ -1,18 +1,9 @@
-import { useCallback, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import type { PendingAction } from "@/lib/agent/schemas";
 
-import { modeItems, modeDescriptionMap } from "./constants";
+import { modeItems } from "./constants";
 import type { AgentWorkbenchMode } from "./types";
-
-const slashCommands = [
-  { command: "/plan", label: "创建计划" },
-  { command: "/schedule", label: "安排日程" },
-  { command: "/review", label: "生成复盘" },
-  { command: "/write", label: "写文章" },
-  { command: "/memory", label: "保存记忆" },
-  { command: "/query", label: "查询状态" },
-];
 
 type AgentModeSwitchProps = {
   mode: AgentWorkbenchMode;
@@ -56,7 +47,8 @@ function AgentModeSwitch({ mode, onModeChange, suggestedMode }: AgentModeSwitchP
             suggestedMode === item.key && item.key !== mode ? "suggested" : "",
           ].filter(Boolean).join(" ")}
         >
-          {item.label}
+          <span>{item.label}</span>
+          <small>{item.description}</small>
           {suggestedMode === item.key && item.key !== mode ? (
             <span className="sunny-agent-mode-hint" aria-label="建议模式">●</span>
           ) : null}
@@ -93,12 +85,17 @@ export function AgentComposer({
   statusLabel,
   suggestedMode,
 }: AgentComposerProps) {
-  const handleSlashCommand = useCallback(
-    (command: string) => {
-      onInputChange(`${command} ${input}`.trim());
-    },
-    [input, onInputChange],
-  );
+  const operationState = pendingAction?.type === "await_confirmation"
+    ? "等待确认"
+    : mode === "ask"
+      ? "只回答"
+      : mode === "plan"
+        ? "生成建议"
+        : mode === "execute"
+          ? "可执行"
+          : mode === "review"
+            ? "复盘"
+            : "时间线";
 
   return (
     <form
@@ -110,26 +107,7 @@ export function AgentComposer({
     >
       <div className="sunny-agent-composer-top">
         <AgentModeSwitch mode={mode} onModeChange={onModeChange} suggestedMode={suggestedMode} />
-        <span>{statusLabel}</span>
-      </div>
-      <div className="sunny-agent-mode-description">
-        <span className="text-xs text-muted">
-          {modeDescriptionMap[mode]}
-        </span>
-      </div>
-      {/* Slash command hints */}
-      <div className="sunny-agent-slash-hints">
-        {slashCommands.map((sc) => (
-          <button
-            key={sc.command}
-            type="button"
-            className="sunny-agent-slash-chip"
-            title={sc.label}
-            onClick={() => handleSlashCommand(sc.command)}
-          >
-            {sc.command}
-          </button>
-        ))}
+        <span>{operationState} · {statusLabel}</span>
       </div>
       <div className="sunny-agent-composer-row">
         <textarea

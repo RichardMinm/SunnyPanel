@@ -16,15 +16,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const { agentQuickPrompts, agentSuggestions, model } = await loadDashboardData(params);
 
   return (
-    <main className="sunny-dashboard-shell-v2">
+    <main className="sunny-dashboard-shell sunny-dashboard-agent-shell">
       <DashboardWorkspaceChrome />
-      <div className="sunny-dashboard-workspace">
-        <DashboardAgentChatFullSection
-          initialThreadId={model.initialThreadId}
-          quickPrompts={agentQuickPrompts}
-          suggestions={agentSuggestions}
-        />
-      </div>
+      <DashboardAgentChatFullSection
+        initialThreadId={model.initialThreadId}
+        quickPrompts={agentQuickPrompts}
+        suggestions={agentSuggestions}
+      />
     </main>
   );
 }

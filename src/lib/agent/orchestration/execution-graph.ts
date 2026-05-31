@@ -18,11 +18,27 @@ import { getAgentToolDefinition } from "../tool-registry";
 import type { AgentToolDryRunContext } from "../tool-registry";
 import { parseAgentIntentResult, type AgentIntent, type PendingAction, type ProposedAgentAction } from "../schemas";
 import { detectRuleBasedConflicts } from "./conflict-detector";
+import {
+  buildTaskObservation,
+  decideNextActionFromObservations,
+  formatTaskObservations,
+  summarizeExecutionQueue,
+} from "./observations";
 import { groupTasksIntoParallelLayers } from "./parallel-layers";
 import { replanAfterTaskFailure } from "./replan";
-import type { AgentRole, ExecutionGraphResult, OrchestratorPlan, TaskNode } from "./types";
+import type { ReplanInput } from "./replan";
+import type { AgentRole, AgentTaskObservation, ExecutionGraphResult, OrchestratorPlan, TaskNode } from "./types";
 
 const MAX_REPLAN_ATTEMPTS = 2;
+
+export {
+  buildObservationTraceStep,
+  buildTaskObservation,
+  decideNextActionFromObservations,
+  formatTaskObservation,
+  formatTaskObservations,
+  summarizeExecutionQueue,
+} from "./observations";
 
 const taskToIntent = (task: TaskNode): AgentIntent | null =>
   parseAgentIntentResult({
@@ -134,6 +150,8 @@ export const executeOrchestrationGraph = async (
     message?: string;
     orchestrationId?: string;
     promptContext?: AgentPromptContext;
+    maxTasksPerRun?: number;
+    replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
     replanAttempts?: number;
   } = {},
 ): Promise<ExecutionGraphResult> => {
@@ -144,13 +162,18 @@ export const executeOrchestrationGraph = async (
   const proposalOrder = new Map<string, number>();
   const readOnlyMessages: string[] = [];
   const autoExecutedMessages: string[] = [];
+  const observations: AgentTaskObservation[] = [];
   let bus = createAgentBus();
   const message = options.message ?? "";
+  const maxTasksPerRun = options.maxTasksPerRun;
   const promptContext = options.promptContext;
+  const replanTaskFailure = options.replanTaskFailure ?? replanAfterTaskFailure;
   const orchestrationId = options.orchestrationId ?? `orch-${Date.now()}`;
   let clarifyMessage: string | null = null;
   let clarifyPending: PendingAction | null = null;
   let orderIndex = 0;
+  let processedTaskCount = 0;
+  let budgetPaused = false;
 
   const registerProposal = (taskId: string, action: ProposedAgentAction) => {
     proposalOrder.set(taskId, orderIndex);
@@ -159,6 +182,35 @@ export const executeOrchestrationGraph = async (
   };
 
   const taskErrors: Array<{ error: string; task: TaskNode }> = [];
+  const buildQueueState = () => summarizeExecutionQueue(plan.tasks, observations);
+  const hasTaskObservation = (taskId: string) => observations.some((observation) => observation.taskId === taskId);
+  const budgetLimitReached = () =>
+    typeof maxTasksPerRun === "number" && maxTasksPerRun >= 0 && processedTaskCount >= maxTasksPerRun;
+  const deferTasks = (tasks: TaskNode[], reason: string) => {
+    for (const task of tasks) {
+      if (hasTaskObservation(task.id)) {
+        continue;
+      }
+
+      observations.push(buildTaskObservation(task, {
+        message: reason,
+        status: "deferred",
+      }));
+    }
+  };
+  const processTaskWithinBudget = async (task: TaskNode): Promise<boolean> => {
+    if (budgetLimitReached()) {
+      budgetPaused = true;
+      deferTasks([task], `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+
+      return false;
+    }
+
+    processedTaskCount += 1;
+    await processTask(task);
+
+    return true;
+  };
 
   const processTask = async (
     task: TaskNode,
@@ -178,6 +230,10 @@ export const executeOrchestrationGraph = async (
 
         if (!baseIntent) {
           readOnlyMessages.push(`「${task.label}」无法解析，已跳过。`);
+          observations.push(buildTaskObservation(task, {
+            message: "无法解析为有效意图。",
+            status: "skipped",
+          }));
 
           return null;
         }
@@ -194,14 +250,21 @@ export const executeOrchestrationGraph = async (
 
       if (!intent) {
         readOnlyMessages.push(`「${task.label}」无法解析，已跳过。`);
+        observations.push(buildTaskObservation(task, {
+          message: "无法解析为有效意图。",
+          status: "skipped",
+        }));
 
         return null;
       }
 
       if (intent.intent === "answer_question" || intent.intent === "clarify") {
-        readOnlyMessages.push(
-          intent.intent === "answer_question" ? (intent.reply ?? intent.args.answer) : intent.args.question,
-        );
+        const message = intent.intent === "answer_question" ? (intent.reply ?? intent.args.answer) : intent.args.question;
+        readOnlyMessages.push(message);
+        observations.push(buildTaskObservation(task, {
+          message,
+          status: intent.intent === "answer_question" ? "answered" : "clarified",
+        }));
 
         return null;
       }
@@ -219,6 +282,7 @@ export const executeOrchestrationGraph = async (
             userPreferences: prefs ?? {
               autoApproveIntents: new Set(),
               autoApproveLowRisk: false,
+              autonomyLevel: 0,
               deniedIntents: new Set(),
               maxConsecutiveAutoApprovals: 0,
             },
@@ -227,7 +291,13 @@ export const executeOrchestrationGraph = async (
           if (decision.approved) {
             incrementAutoCount(autoApproval.threadId);
             const executed = await executeAgentIntent(intent);
-            autoExecutedMessages.push(`✅ 已自动执行「${task.label}」：${executed.assistantMessage.slice(0, 80)}`);
+            const message = executed.assistantMessage.slice(0, 120);
+            autoExecutedMessages.push(`✅ 已自动执行「${task.label}」：${message.slice(0, 80)}`);
+            observations.push(buildTaskObservation(task, {
+              action: dryRun.action,
+              message,
+              status: "auto_executed",
+            }));
             bus = publishTaskArtifact(bus, {
               from: task.agentRole,
               payload: buildArtifactPayload(task, intent, dryRun.action),
@@ -244,6 +314,11 @@ export const executeOrchestrationGraph = async (
         }
 
         registerProposal(task.id, dryRun.action);
+        observations.push(buildTaskObservation(task, {
+          action: dryRun.action,
+          message: dryRun.action.summary,
+          status: "proposed",
+        }));
         bus = publishTaskArtifact(bus, {
           from: task.agentRole,
           payload: buildArtifactPayload(task, intent, dryRun.action),
@@ -258,6 +333,10 @@ export const executeOrchestrationGraph = async (
           clarifyMessage = dryRun.assistantMessage;
           clarifyPending = dryRun.pendingAction;
         }
+        observations.push(buildTaskObservation(task, {
+          message: dryRun.assistantMessage,
+          status: "clarified",
+        }));
 
         return null;
       }
@@ -267,6 +346,10 @@ export const executeOrchestrationGraph = async (
       if (tool && !tool.requiresConfirmation) {
         const executed = await executeAgentIntent(intent);
         readOnlyMessages.push(executed.assistantMessage);
+        observations.push(buildTaskObservation(task, {
+          message: executed.assistantMessage,
+          status: "executed",
+        }));
         bus = publishTaskArtifact(bus, {
           from: task.agentRole,
           payload: buildArtifactPayload(task, intent),
@@ -279,6 +362,11 @@ export const executeOrchestrationGraph = async (
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       taskErrors.push({ error: errorMessage, task });
       readOnlyMessages.push(`❌「${task.label}」执行失败：${errorMessage.slice(0, 120)}`);
+      observations.push(buildTaskObservation(task, {
+        error: errorMessage,
+        message: "执行失败，等待重规划或用户处理。",
+        status: "failed",
+      }));
 
       logAgentEvent("error", "orchestrator.task_error", {
         error: errorMessage,
@@ -305,33 +393,146 @@ export const executeOrchestrationGraph = async (
     const serialTasks = layer.filter((t) => errorConflicts.some((c) => c.tasks.includes(t.id)));
     const parallelTasks = layer.filter((t) => !serialTasks.some((st) => st.id === t.id));
 
-    if (parallelTasks.length > 0) {
-      await Promise.all(parallelTasks.map((task) => processTask(task)));
+    if (budgetLimitReached()) {
+      budgetPaused = true;
+      deferTasks(layers.slice(layers.indexOf(layer)).flat(), `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+      break;
     }
 
-    for (const task of serialTasks) {
-      await processTask(task);
+    if (parallelTasks.length > 0) {
+      await Promise.all(parallelTasks.map((task) => processTaskWithinBudget(task)));
     }
+
+    if (budgetPaused) {
+      deferTasks(serialTasks, `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+      const currentLayerIndex = layers.indexOf(layer);
+      deferTasks(layers.slice(currentLayerIndex + 1).flat(), `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+      break;
+    }
+
+    for (let index = 0; index < serialTasks.length; index += 1) {
+      const processed = await processTaskWithinBudget(serialTasks[index]);
+
+      if (!processed) {
+        deferTasks(serialTasks.slice(index + 1), `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+        const currentLayerIndex = layers.indexOf(layer);
+        deferTasks(layers.slice(currentLayerIndex + 1).flat(), `本轮最多处理 ${maxTasksPerRun} 个子任务，已延后。`);
+        break;
+      }
+    }
+
+    if (budgetPaused) {
+      break;
+    }
+  }
+
+  if (budgetPaused) {
+    readOnlyMessages.push(
+      `⏸ 已达到本轮执行预算（${processedTaskCount}/${plan.tasks.length} 个子任务），剩余任务已延后，可在下一轮继续。`,
+    );
   }
 
   if (orphanedTaskIds.length > 0) {
     readOnlyMessages.push(
       `有 ${orphanedTaskIds.length} 个子任务因依赖关系无法解析（${orphanedTaskIds.join("、")}），请检查编排依赖。`,
     );
+    for (const taskId of orphanedTaskIds) {
+      const task = plan.tasks.find((item) => item.id === taskId);
+      if (task) {
+        observations.push(buildTaskObservation(task, {
+          error: "依赖关系无法解析。",
+          message: "依赖关系无法解析，未进入执行层。",
+          status: "blocked",
+        }));
+      }
+    }
   }
 
   const sortedProposals = [...proposals].sort(
     (left, right) =>
       (proposalOrder.get(left.id) ?? 0) - (proposalOrder.get(right.id) ?? 0),
   );
+  const canReplan = Boolean(promptContext && message && replanAttempts < MAX_REPLAN_ATTEMPTS);
+  const replanFromTask = async (args: {
+    failedTask: TaskNode;
+    failureReason: string;
+    failureType: ReplanInput["failureType"];
+  }): Promise<ExecutionGraphResult | null> => {
+    if (!promptContext || !message || replanAttempts >= MAX_REPLAN_ATTEMPTS) {
+      return null;
+    }
+
+    const failedIndex = plan.tasks.findIndex((task) => task.id === args.failedTask.id);
+
+    logAgentEvent("info", "orchestrator.replan", {
+      attempt: replanAttempts + 1,
+      failedTaskId: args.failedTask.id,
+      reason: args.failureReason,
+      strategy: args.failureType,
+    });
+
+    const replanned = await replanTaskFailure({
+      failedTask: args.failedTask,
+      failedTaskIndex: failedIndex >= 0 ? failedIndex : plan.tasks.length - 1,
+      failureReason: args.failureReason,
+      failureType: args.failureType,
+      message,
+      originalPlan: plan,
+      promptContext,
+    });
+
+    if (replanned.tasks.length === 0) {
+      return null;
+    }
+
+    const replannedResult = await executeOrchestrationGraph(replanned, dryRunContext, {
+      ...options,
+      replanAttempts: replanAttempts + 1,
+    });
+
+    return {
+      ...replannedResult,
+      assistantMessage: [
+        observations.length > 0 ? `重规划前观察：\n${formatTaskObservations(observations)}` : null,
+        replannedResult.assistantMessage,
+      ].filter(Boolean).join("\n\n"),
+      observations: [...observations, ...replannedResult.observations],
+      queueState: summarizeExecutionQueue(
+        [...plan.tasks, ...replanned.tasks.filter((task) => !plan.tasks.some((existing) => existing.id === task.id))],
+        [...observations, ...replannedResult.observations],
+      ),
+    };
+  };
+  const observationDecision = decideNextActionFromObservations(observations, {
+    canReplan,
+    hasPendingProposals: sortedProposals.length > 0,
+  });
+
+  if (observationDecision.type === "replan") {
+    const failedTask = plan.tasks.find((task) => task.id === observationDecision.failedTaskId);
+
+    if (failedTask) {
+      const replannedResult = await replanFromTask({
+        failedTask,
+        failureReason: observationDecision.reason.slice(0, 200),
+        failureType: "tool_error",
+      });
+
+      if (replannedResult) {
+        return replannedResult;
+      }
+    }
+  }
 
   if (sortedProposals.length === 0) {
     if (clarifyMessage) {
       return {
         assistantMessage: clarifyMessage,
         executedCount: 0,
+        observations,
         pendingAction: clarifyPending,
         proposals: [],
+        queueState: buildQueueState(),
       };
     }
 
@@ -347,7 +548,6 @@ export const executeOrchestrationGraph = async (
         : (plan.tasks.find((task) => orphanedTaskIds.includes(task.id)) ?? plan.tasks[plan.tasks.length - 1]);
 
       if (failedTask) {
-        const failedIndex = plan.tasks.findIndex((t) => t.id === failedTask.id);
         const failureReason = firstError
           ? firstError.error.slice(0, 200)
           : orphanedTaskIds.length > 0
@@ -355,28 +555,14 @@ export const executeOrchestrationGraph = async (
             : "部分子任务无法解析或跳过";
         const failureType = firstError ? "tool_error" as const : orphanedTaskIds.length > 0 ? "dependency_failure" as const : "parse_error" as const;
 
-        logAgentEvent("info", "orchestrator.replan", {
-          attempt: replanAttempts + 1,
-          failedTaskId: failedTask.id,
-          reason: failureReason,
-          strategy: failureType,
-        });
-
-        const replanned = await replanAfterTaskFailure({
+        const replannedResult = await replanFromTask({
           failedTask,
-          failedTaskIndex: failedIndex >= 0 ? failedIndex : plan.tasks.length - 1,
           failureReason,
           failureType,
-          message,
-          originalPlan: plan,
-          promptContext,
         });
 
-        if (replanned.tasks.length > 0) {
-          return executeOrchestrationGraph(replanned, dryRunContext, {
-            ...options,
-            replanAttempts: replanAttempts + 1,
-          });
+        if (replannedResult) {
+          return replannedResult;
         }
       }
     }
@@ -391,8 +577,10 @@ export const executeOrchestrationGraph = async (
         .filter(Boolean)
         .join("\n\n"),
       executedCount,
+      observations,
       pendingAction: null,
       proposals: [],
+      queueState: buildQueueState(),
     };
   }
 
@@ -413,8 +601,10 @@ export const executeOrchestrationGraph = async (
     return {
       assistantMessage: [plan.reasoning, proposalIntro, buildProposedActionMessage(action)].filter(Boolean).join("\n\n"),
       executedCount,
+      observations,
       pendingAction: { action, type: "await_confirmation" },
       proposals: sortedProposals,
+      queueState: buildQueueState(),
     };
   }
 
@@ -431,8 +621,10 @@ export const executeOrchestrationGraph = async (
         .filter(Boolean)
         .join("\n"),
       executedCount,
+      observations,
       pendingAction: { actions: sortedProposals, orchestrationId, type: "await_batch_confirmation" },
       proposals: sortedProposals,
+      queueState: buildQueueState(),
     };
   }
 
@@ -447,6 +639,7 @@ export const executeOrchestrationGraph = async (
         `检测到 ${highRisk.length} 项高风险操作需单独确认，另有 ${batchable.length} 项可在下一步批量确认。请先处理：${highRisk[0].summary}`,
       ].join("\n"),
       executedCount,
+      observations,
       pendingAction: {
         action: highRisk[0],
         deferredActions: batchable,
@@ -454,6 +647,7 @@ export const executeOrchestrationGraph = async (
         type: "await_confirmation",
       },
       proposals: sortedProposals,
+      queueState: buildQueueState(),
     };
   }
 
@@ -466,8 +660,10 @@ export const executeOrchestrationGraph = async (
       "回复「确认」执行全部，或「取消」放弃。",
     ].join("\n"),
     executedCount,
+    observations,
     pendingAction: { actions: sortedProposals, orchestrationId, type: "await_batch_confirmation" },
     proposals: sortedProposals,
+    queueState: buildQueueState(),
   };
 };
 

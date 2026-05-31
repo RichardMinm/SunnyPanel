@@ -269,9 +269,9 @@ export function useAgentChatMessaging({
           responseData.pendingAction?.type === "await_confirmation" ||
           responseData.pendingAction?.type === "await_batch_confirmation"
         ) {
-          setActiveInspectorTab("changes");
+          setActiveInspectorTab("approval");
         } else if (assistantMessage) {
-          setActiveInspectorTab("artifacts");
+          setActiveInspectorTab("trace");
         }
         if (responseData.tokenUsage) {
           setTokenUsage(responseData.tokenUsage);

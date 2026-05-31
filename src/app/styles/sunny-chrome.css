@@ -196,6 +196,6 @@ html[data-theme="dark"] .sunny-chrome-panel {
   margin-bottom: 0;
 }
 
-.sunny-dashboard-chrome + .sunny-dashboard-triple {
+.sunny-dashboard-chrome + .sunny-dashboard-agent-host {
   padding-top: 0;
 }

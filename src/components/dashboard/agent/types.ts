@@ -9,7 +9,8 @@ export type ContextPreferences = {
 };
 
 export type AgentWorkbenchTab = "conversation" | "timeline";
-export type AgentInspectorTab = "context" | "approval" | "trace" | "linked" | "memory" | "artifacts" | "changes" | "dag" | "debug";
+export type AgentInspectorTab = "approval" | "context" | "trace";
+export type AgentDeveloperInspectorTab = "artifacts" | "dag" | "debug" | "memory";
 export type DashboardLayout = "balanced" | "focus" | "inspector";
 
 export type AgentThreadSummary = {

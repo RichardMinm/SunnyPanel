@@ -2,24 +2,18 @@ import type { AgentTraceStep } from "@/lib/agent/schemas";
 
 import type { AgentInspectorTab, AgentWorkbenchMode } from "./types";
 
-export const modeItems: Array<{ key: AgentWorkbenchMode; label: string }> = [
-  { key: "ask", label: "问答" },
-  { key: "plan", label: "规划" },
-  { key: "execute", label: "执行" },
-  { key: "review", label: "复盘" },
-  { key: "timeline", label: "时间线" },
+export const modeItems: Array<{ description: string; key: AgentWorkbenchMode; label: string }> = [
+  { key: "ask", label: "只回答", description: "不写入数据库，只回答当前问题" },
+  { key: "plan", label: "生成建议", description: "生成计划或内容建议，默认不执行" },
+  { key: "execute", label: "可执行", description: "允许进入 DryRun 和确认流程" },
+  { key: "review", label: "复盘", description: "汇总进展和下一步" },
+  { key: "timeline", label: "时间线", description: "整理长期记录和节点" },
 ];
 
 export const inspectorTabs: Array<{ key: AgentInspectorTab; label: string }> = [
-  { key: "context", label: "上下文" },
-  { key: "approval", label: "审批" },
-  { key: "trace", label: "追踪" },
-  { key: "linked", label: "关联" },
-  { key: "memory", label: "记忆" },
-  { key: "artifacts", label: "产物" },
-  { key: "changes", label: "变更" },
-  { key: "dag", label: "任务图" },
-  { key: "debug", label: "调试" },
+  { key: "context", label: "Context" },
+  { key: "approval", label: "Approval" },
+  { key: "trace", label: "Trace" },
 ];
 
 export const traceKindLabelMap: Record<AgentTraceStep["kind"], string> = {
@@ -65,12 +59,4 @@ export const intentLabelMap: Record<string, string> = {
   save_memory: "保存记忆",
   schedule_plan: "计划排期",
   weekly_review: "本周回顾",
-};
-
-export const modeDescriptionMap: Record<AgentWorkbenchMode, string> = {
-  ask: "问答 · 不会修改数据",
-  plan: "规划 · 仅生成计划建议",
-  execute: "执行 · 需要确认后写入",
-  review: "复盘 · 只读分析",
-  timeline: "时间线 · 查看与记录",
 };

@@ -199,6 +199,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       userPreferences: prefs ?? {
         autoApproveIntents: new Set(),
         autoApproveLowRisk: false,
+        autonomyLevel: 0,
         deniedIntents: new Set(),
         maxConsecutiveAutoApprovals: 0,
       },
