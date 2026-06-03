@@ -16,8 +16,6 @@ export { AgentTaskRow } from "./AgentTaskRow";
 export { AgentTokenMeter } from "./AgentTokenMeter";
 export { AgentTracePanel } from "./AgentTracePanel";
 export { AgentWorkbench } from "./AgentWorkbench";
-export { AgentWorkbenchLayout } from "./AgentWorkbenchLayout";
-export { AgentWorkbenchShell } from "./AgentWorkbenchShell";
 
 export type {
   AgentInspectorTab,
