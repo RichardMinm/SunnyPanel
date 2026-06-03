@@ -55,7 +55,6 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const [activeMode, setActiveMode] = useState<DashboardIconMode>("agent");
   const [panelOpen, setPanelOpen] = useState(true);
-  const [inspectorOpen, setInspectorOpen] = useState(false);
 
   const handleModeChange = useCallback(
     (_mode: DashboardIconMode, prompt: string) => {

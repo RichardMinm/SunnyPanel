@@ -205,15 +205,39 @@ export function DashboardSlidePanel({
         {/* Thread list */}
         <div className="sunny-dashboard-slide-section-label">会话</div>
         {visibleThreads.map((thread) => (
-          <AgentTaskRow
-            key={thread.id}
-            detail={thread.pendingAction ? getPendingActionLabel(thread.pendingAction) : thread.title}
-            label={thread.title || `会话 #${thread.id}`}
-            meta={thread.archived ? "归档" : thread.tags?.length ? thread.tags[0] : `#${thread.id}`}
-            onClick={() => onLoadThread(thread.id)}
-            selected={thread.id === threadId}
-            tone={thread.archived ? "muted" : thread.pendingAction ? "warning" : "muted"}
-          />
+          <div key={thread.id} style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+            <div style={{ flex: 1, minWidth: 0 }} onClick={() => onLoadThread(thread.id)}>
+              <AgentTaskRow
+                detail={thread.pendingAction ? getPendingActionLabel(thread.pendingAction) : thread.title}
+                label={thread.title || `会话 #${thread.id}`}
+                meta={thread.archived ? "归档" : thread.tags?.length ? thread.tags[0] : `#${thread.id}`}
+                selected={thread.id === threadId}
+                tone={thread.archived ? "muted" : thread.pendingAction ? "warning" : "muted"}
+              />
+            </div>
+            {onArchiveThread ? (
+              <button
+                type="button"
+                style={{
+                  padding: "0.15rem 0.4rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "0.3rem",
+                  background: "transparent",
+                  color: "var(--muted)",
+                  fontSize: "0.65rem",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+                title={thread.archived ? "取消归档" : "归档"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onArchiveThread(thread.id, !thread.archived);
+                }}
+              >
+                {thread.archived ? "恢复" : "归档"}
+              </button>
+            ) : null}
+          </div>
         ))}
         {!showAllThreads && threads.length > 8 ? (
           <button
