@@ -1,14 +1,10 @@
-import { DashboardWorkspaceChrome } from "@/components/dashboard/DashboardWorkspaceChrome";
-import { DashboardAgentChatFullSection } from "@/components/dashboard/sections/DashboardAgentChatFullSection";
+import { DashboardPageClient } from "@/components/dashboard/DashboardPageClient";
 import { loadDashboardData } from "@/lib/dashboard/load-dashboard-data";
 
 export const dynamic = "force-dynamic";
 
 type DashboardPageProps = {
-  searchParams: Promise<{
-    threadId?: string;
-    week?: string;
-  }>;
+  searchParams: Promise<{ threadId?: string; week?: string }>;
 };
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
@@ -16,13 +12,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const { agentQuickPrompts, agentSuggestions, model } = await loadDashboardData(params);
 
   return (
-    <main className="sunny-dashboard-shell sunny-dashboard-agent-shell">
-      <DashboardWorkspaceChrome />
-      <DashboardAgentChatFullSection
-        initialThreadId={model.initialThreadId}
-        quickPrompts={agentQuickPrompts}
-        suggestions={agentSuggestions}
-      />
-    </main>
+    <DashboardPageClient
+      initialThreadId={model.initialThreadId}
+      quickPrompts={agentQuickPrompts}
+      suggestions={agentSuggestions}
+    />
   );
 }
