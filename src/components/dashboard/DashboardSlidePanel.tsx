@@ -9,6 +9,16 @@ import { riskLevelLabelMap } from "@/components/dashboard/agent/constants";
 import type { AgentRunSummary, AgentThreadSummary } from "@/components/dashboard/agent/types";
 import { getPendingActionLabel } from "@/components/dashboard/agent/utils";
 
+type UnifiedTask = {
+  id: string;
+  label: string;
+  prompt: string;
+  reason: string;
+  riskLevel?: "high" | "low" | "medium";
+  source?: string;
+  suggestion?: AgentInboxSuggestion;
+};
+
 type DashboardSlidePanelProps = {
   disabled?: boolean;
   isThinking: boolean;
@@ -79,7 +89,7 @@ export function DashboardSlidePanel({
     prompt: p.prompt,
     reason: p.prompt,
   }));
-  const allTasks = [...suggestionTasks, ...quickTasks];
+  const allTasks: UnifiedTask[] = [...suggestionTasks, ...quickTasks];
 
   const visibleThreads = showAllThreads ? threads : threads.slice(0, 8);
 
