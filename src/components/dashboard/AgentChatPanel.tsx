@@ -6,14 +6,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AgentWorkbench,
   type AgentInspectorTab,
-  type AgentWorkbenchMode,
   type ContextPreferences,
 } from "@/components/dashboard/agent";
 import { initialMessages, thinkingStatusKeywords } from "@/components/dashboard/agent-chat/constants";
+import {
+  formatRollbackResultStatus,
+  normalizeRollbackExecutionResult,
+  type AgentRollbackExecutionResult,
+} from "@/components/dashboard/agent/rollback-display";
 import { useAgentChatMessaging } from "@/components/dashboard/agent-chat/use-agent-chat-messaging";
 import { useDashboardUrlThreadSync } from "@/components/dashboard/agent-chat/use-dashboard-url-thread-sync";
 import { useAgentThreadList } from "@/components/dashboard/agent-chat/use-agent-thread";
 import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
+import { canRollbackAgentRunDetail } from "@/lib/agent/run-summary";
 import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
 import {
@@ -39,19 +44,19 @@ export function AgentChatPanel({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const {
     archiveThread: archiveThreadRequest,
+    clearRunDetail,
     fetchThread,
-    recentRuns,
-    searchThreads,
+    fetchRunDetail,
+    runDetailError,
+    selectedRunDetail,
     setThreadId,
     threadId,
-    threads,
   } = useAgentThreadList();
   const [inboxSuggestions, setInboxSuggestions] = useState<AgentInboxSuggestion[]>(suggestions);
   const [statusText, setStatusText] = useState("已就绪");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [streamingState, setStreamingState] = useState<"idle" | "responding" | "thinking">("idle");
   const [traceSteps, setTraceSteps] = useState<AgentTraceStep[]>([]);
-  const [workbenchMode, setWorkbenchMode] = useState<AgentWorkbenchMode>("timeline");
   const [activeInspectorTab, setActiveInspectorTab] = useState<AgentInspectorTab>("context");
   const [tokenUsage, setTokenUsage] = useState<AgentTokenUsage>(() =>
     createTokenUsageSnapshot({
@@ -59,10 +64,12 @@ export function AgentChatPanel({
     }),
   );
   const [lastRollbackPayload, setLastRollbackPayload] = useState<unknown | null>(null);
+  const [lastRollbackResult, setLastRollbackResult] = useState<AgentRollbackExecutionResult | null>(null);
   const [artifactsRollbackBusy, setArtifactsRollbackBusy] = useState(false);
   const [artifactsRollbackError, setArtifactsRollbackError] = useState<string | null>(null);
+  const [selectedRunRollbackBusy, setSelectedRunRollbackBusy] = useState(false);
+  const [selectedRunRollbackError, setSelectedRunRollbackError] = useState<string | null>(null);
   const [contextPreferences, setContextPreferences] = useState<ContextPreferences>({ excluded: [], pinned: [] });
-  const [suggestedMode, setSuggestedMode] = useState<AgentWorkbenchMode | null>(null);
   const [thinkingContent, setThinkingContent] = useState("");
   const [threadHydrated, setThreadHydrated] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -89,7 +96,9 @@ export function AgentChatPanel({
         );
         setTraceSteps([]);
         setLastRollbackPayload(null);
+        setLastRollbackResult(null);
         setArtifactsRollbackError(null);
+        setSelectedRunRollbackError(null);
         if (!options?.preserveInspector) {
           setActiveInspectorTab("context");
         }
@@ -108,7 +117,9 @@ export function AgentChatPanel({
       );
       setTraceSteps([]);
       setLastRollbackPayload(null);
+      setLastRollbackResult(null);
       setArtifactsRollbackError(null);
+      setSelectedRunRollbackError(null);
       if (!options?.preserveInspector) {
         setActiveInspectorTab(
           selectedThread.pendingAction?.type === "await_confirmation" ||
@@ -129,7 +140,6 @@ export function AgentChatPanel({
     editApproval,
     resetThread,
     runArtifactsRollback,
-    runSuggestion,
     sendMessage,
     stopGeneration,
   } = useAgentChatMessaging({
@@ -147,23 +157,26 @@ export function AgentChatPanel({
     setInput,
     setIsSubmitting,
     setLastRollbackPayload,
+    setLastRollbackResult,
     setMessages,
     setPendingAction,
     setStatusText,
     setStreamingState,
-    setSuggestedMode,
     setThinkingContent,
     setThreadId,
     setTokenUsage,
     setTraceSteps,
     threadId,
-    workbenchMode,
   });
 
   useDashboardUrlThreadSync(threadId, threadHydrated);
 
   useEffect(() => {
-    setInboxSuggestions(suggestions);
+    const timer = window.setTimeout(() => {
+      setInboxSuggestions(suggestions);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [suggestions]);
 
   useEffect(() => {
@@ -238,6 +251,69 @@ export function AgentChatPanel({
     [archiveThreadRequest],
   );
 
+  const selectRunDetail = useCallback(
+    async (runId: number) => {
+      const run = await fetchRunDetail(runId);
+
+      if (!run) {
+        setErrorMessage(runDetailError ?? "无法读取执行记录。");
+        return;
+      }
+
+      setErrorMessage(null);
+      setSelectedRunRollbackError(null);
+      setActiveInspectorTab("trace");
+      setStatusText(`已载入 AgentRun #${runId}`);
+    },
+    [fetchRunDetail, runDetailError],
+  );
+
+  const rollbackSelectedRun = useCallback(async () => {
+    if (!selectedRunDetail || !canRollbackAgentRunDetail(selectedRunDetail)) {
+      setSelectedRunRollbackError("这条执行记录没有可自动撤销的 rollbackPayload。");
+      return;
+    }
+
+    setSelectedRunRollbackBusy(true);
+    setSelectedRunRollbackError(null);
+
+    try {
+      const response = await fetch("/api/agent/rollback", {
+        body: JSON.stringify({
+          rollbackPayload: selectedRunDetail.rollbackPayload,
+          sourceRunId: selectedRunDetail.id,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const data = (await response.json()) as { message?: string; result?: unknown };
+
+      if (!response.ok) {
+        throw new Error(typeof data.message === "string" ? data.message : "回滚失败");
+      }
+
+      const rollbackResult = normalizeRollbackExecutionResult(data.result);
+
+      await loadThread(threadId ?? undefined, { preserveInspector: true });
+      setLastRollbackPayload(null);
+      setLastRollbackResult(rollbackResult);
+      setActiveInspectorTab("trace");
+      setStatusText(rollbackResult ? formatRollbackResultStatus(rollbackResult) : "已执行撤销");
+    } catch (error) {
+      setSelectedRunRollbackError(error instanceof Error ? error.message : "回滚失败");
+    } finally {
+      setSelectedRunRollbackBusy(false);
+    }
+  }, [loadThread, selectedRunDetail, threadId]);
+
+  const tokenCountStr = (() => {
+    if (tokenUsage.totalTokens <= 0) return undefined;
+    const k = Math.round(tokenUsage.totalTokens / 100) / 10;
+    return `${k}k tokens`;
+  })();
+
   return (
     <AgentWorkbench
       activeInspectorTab={activeInspectorTab}
@@ -245,47 +321,45 @@ export function AgentChatPanel({
       artifactsRollbackError={artifactsRollbackError}
       contextPreferences={contextPreferences}
       errorMessage={errorMessage}
-      inboxSuggestions={inboxSuggestions}
       input={input}
       inputTokenEstimate={inputTokenEstimate}
       isSubmitting={isSubmitting}
       isThinking={isThinking}
       lastRollbackPayload={lastRollbackPayload}
+      lastRollbackResult={lastRollbackResult}
       messages={messages}
-      mode={workbenchMode}
       onActiveInspectorTabChange={setActiveInspectorTab}
-      onArchiveThread={archiveThread}
-      onArtifactsRollback={runArtifactsRollback}
-      onCancelApproval={cancelApproval}
+      onArtifactsRollback={() => {
+        clearRunDetail();
+        runArtifactsRollback();
+      }}
+      onCancelApproval={() => {
+        clearRunDetail();
+        cancelApproval();
+      }}
       onEditApproval={editApproval}
-      onConfirmApproval={confirmApproval}
+      onConfirmApproval={() => {
+        clearRunDetail();
+        confirmApproval();
+      }}
       onInputChange={setInput}
-      onLoadThread={(nextThreadId) => {
-        void loadThread(nextThreadId);
+      onRollbackSelectedRun={() => {
+        void rollbackSelectedRun();
       }}
-      onModeChange={setWorkbenchMode}
-      onNewThread={resetThread}
-      onRunPrompt={(prompt) => {
-        void sendMessage(prompt);
-      }}
-      onRunSuggestion={(suggestion) => {
-        void runSuggestion(suggestion);
-      }}
-      onSearchThreads={searchThreads}
       onStop={stopGeneration}
       onSubmit={() => {
+        clearRunDetail();
         void sendMessage(input);
       }}
       onToggleContextExclude={toggleContextExclude}
       onToggleContextPin={toggleContextPin}
       pendingAction={pendingAction}
-      quickPrompts={quickPrompts}
-      recentRuns={recentRuns}
+      selectedRunDetail={selectedRunDetail}
+      selectedRunRollbackBusy={selectedRunRollbackBusy}
+      selectedRunRollbackError={selectedRunRollbackError}
       statusLabel={statusLabel}
-      suggestedMode={suggestedMode}
       thinkingContent={thinkingContent}
       threadId={threadId}
-      threads={threads}
       tokenUsage={tokenUsage}
       traceSteps={traceSteps}
       transcriptRef={transcriptRef}
