@@ -42,7 +42,7 @@
 }
 
 html[data-theme="dark"] .sunny-dashboard-icon-bar {
-  background: var(--surface-strong);
+  background: var(--surface);
 }
 
 .sunny-dashboard-icon-bar-top {
@@ -151,13 +151,8 @@ html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
   transition: width 180ms ease;
 }
 
-.sunny-dashboard-shell.is-panel-collapsed .sunny-dashboard-slide-panel {
-  width: 0;
-  border-right: none;
-}
-
 html[data-theme="dark"] .sunny-dashboard-slide-panel {
-  background: var(--surface-strong);
+  background: var(--surface);
 }
 
 /* 面板头部 */
@@ -243,7 +238,8 @@ html[data-theme="dark"] .sunny-dashboard-slide-panel-search input {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0.35rem 0;
+  overscroll-behavior: contain;
+  padding: 0.35rem 0.5rem 0.5rem;
 }
 
 /* 分区标签 */
@@ -264,7 +260,7 @@ html[data-theme="dark"] .sunny-dashboard-slide-panel-search input {
   align-items: center;
   justify-content: space-between;
   grid-row: 2;
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
   height: var(--dashboard-status-height);
   padding: 0 0.65rem;
   border-top: 1px solid var(--border);
@@ -279,13 +275,21 @@ html[data-theme="dark"] .sunny-dashboard-slide-panel-search input {
 }
 
 html[data-theme="dark"] .sunny-dashboard-status-bar {
-  background: var(--surface-strong);
+  background: var(--surface);
 }
 
 .sunny-dashboard-status-bar > * {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.sunny-dashboard-status-dot {
+  width: 0.44rem;
+  height: 0.44rem;
+  border-radius: 50%;
+  background: var(--success, #3fb950);
+  flex-shrink: 0;
 }
 
 /* ── 主区域 ── */
@@ -310,6 +314,7 @@ html[data-theme="dark"] .sunny-dashboard-status-bar {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
+  margin-bottom: 0.75rem;
 }
 
 .sunny-dashboard-mode-chip {
@@ -365,7 +370,7 @@ html[data-theme="dark"] .sunny-dashboard-mode-chip.is-active {
   font-family: var(--sunny-font-sans);
   font-weight: var(--font-weight-ui);
   cursor: pointer;
-  box-shadow: var(--agent-shadow-shell);
+  box-shadow: var(--agent-shadow-shell, 0 4px 12px rgba(0,0,0,0.08));
   transition: background 140ms ease, border-color 140ms ease;
 }
 
