@@ -26,7 +26,6 @@ export function DashboardPageClient({
       traceSteps={chat.traceSteps}
       tokenUsage={chat.tokenUsage}
       threadTitle={chat.threadTitle}
-      onEditApproval={chat.editApproval}
       onCancelApproval={() => { chat.clearRunDetail(); chat.cancelApproval(); }}
       onConfirmApproval={() => { chat.clearRunDetail(); chat.confirmApproval(); }}
       onArchiveThread={chat.archiveThread}
