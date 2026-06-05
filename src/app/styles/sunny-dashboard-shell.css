@@ -18,7 +18,7 @@
 /* ── Shell 网格容器 ── */
 .sunny-dashboard-shell {
   display: grid;
-  grid-template-columns: var(--dashboard-sidebar-width) minmax(0, 1fr) var(--dashboard-panel-width);
+  grid-template-columns: var(--dashboard-icon-bar-width) var(--dashboard-panel-width) minmax(0, 1fr) 340px;
   grid-template-rows: 1fr var(--dashboard-status-height);
   height: 100vh;
   height: 100dvh;
@@ -29,7 +29,7 @@
 }
 
 .sunny-dashboard-shell.is-panel-collapsed {
-  grid-template-columns: var(--dashboard-sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr) 340px;
 }
 
 .sunny-dashboard-shell.is-panel-collapsed .sunny-dashboard-slide-panel {
@@ -406,7 +406,7 @@ html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
   width: auto;
   max-height: calc(100dvh - 5.5rem);
   grid-row: 1;
-  grid-column: 3;
+  grid-column: 4;
   margin: 4.25rem 1.25rem 0 0;
   background: #fff;
   border: 1px solid var(--dashboard-card-border);
@@ -605,7 +605,7 @@ html[data-theme="dark"] .sunny-dashboard-slide-panel-search input {
   align-items: center;
   justify-content: space-between;
   grid-row: 2;
-  grid-column: 2 / -1;
+  grid-column: 3 / -1;
   height: var(--dashboard-status-height);
   padding: 0 0.65rem;
   border-top: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
@@ -640,7 +640,7 @@ html[data-theme="dark"] .sunny-dashboard-status-bar {
 /* ── 主区域 ── */
 .sunny-dashboard-main {
   grid-row: 1;
-  grid-column: 2;
+  grid-column: 3;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -702,6 +702,16 @@ html[data-theme="dark"] .sunny-dashboard-main {
   background: var(--background);
 }
 
+/* ── 响应式：隐藏右面板 ── */
+@media (max-width: 1200px) {
+  .sunny-dashboard-shell {
+    grid-template-columns: var(--dashboard-icon-bar-width) var(--dashboard-panel-width) minmax(0, 1fr);
+  }
+  .sunny-dashboard-shell.is-panel-collapsed {
+    grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr);
+  }
+}
+
 /* ── 响应式：窄屏折叠面板 ── */
 @media (max-width: 900px) {
   :root {
@@ -709,7 +719,7 @@ html[data-theme="dark"] .sunny-dashboard-main {
   }
 
   .sunny-dashboard-shell {
-    grid-template-columns: var(--dashboard-sidebar-width) minmax(0, 1fr);
+    grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr);
   }
 
   .sunny-codex-sidebar {
