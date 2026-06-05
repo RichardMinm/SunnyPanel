@@ -5,7 +5,7 @@ export { AgentChangesPanel } from "./AgentChangesPanel";
 export { AgentComposer } from "./AgentComposer";
 export { AgentContextPanel } from "./AgentContextPanel";
 export { AgentConversation } from "./AgentConversation";
-export { AgentInspector, AgentInspectorTabs } from "./AgentInspector";
+
 export { AgentTaskRow } from "./AgentTaskRow";
 export { AgentTracePanel } from "./AgentTracePanel";
 export { AgentWorkbench } from "./AgentWorkbench";
