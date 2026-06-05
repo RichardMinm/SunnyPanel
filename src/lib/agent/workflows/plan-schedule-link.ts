@@ -23,12 +23,12 @@ const addMinutesToTime = (time: string, minutes: number): string => {
 const persistScheduleItems = async (
   plan: Plan,
   items: SmartScheduleItem[],
-): Promise<Array<{ date: string; title: string; phaseTitle: string }>> => {
-  const createdItems: Array<{ date: string; title: string; phaseTitle: string }> = [];
+): Promise<Array<{ date: string; id: number; title: string; phaseTitle: string }>> => {
+  const createdItems: Array<{ date: string; id: number; title: string; phaseTitle: string }> = [];
 
   for (const item of items) {
     try {
-      await createScheduleItem({
+      const created = await createScheduleItem({
         title: item.title.startsWith("[") ? item.title : `[${item.phaseTitle}] ${item.title}`,
         description: `从计划「${plan.title}」智能排期生成。`,
         date: item.date,
@@ -43,7 +43,7 @@ const persistScheduleItems = async (
         agentBrief: `智能排期：${item.phaseTitle}`,
       });
 
-      createdItems.push({ date: item.date, title: item.title, phaseTitle: item.phaseTitle });
+      createdItems.push({ date: item.date, id: created.id, title: item.title, phaseTitle: item.phaseTitle });
     } catch {
       // 单条失败不阻塞整体
     }
@@ -56,7 +56,7 @@ export const generateScheduleFromPlanRuleBased = async (
   plan: Plan,
   phases: DecomposedPhase[],
   options: ScheduleGenerationOptions,
-): Promise<Array<{ date: string; title: string; phaseTitle: string }>> => {
+): Promise<Array<{ date: string; id: number; title: string; phaseTitle: string }>> => {
   const ruleItems: SmartScheduleItem[] = [];
   const currentDate = new Date(options.startDate);
 
@@ -94,11 +94,10 @@ export const generateScheduleFromPlan = async (
   plan: Plan,
   phases: DecomposedPhase[],
   options: ScheduleGenerationOptions,
-): Promise<Array<{ date: string; title: string; phaseTitle: string }>> => {
+): Promise<Array<{ date: string; id: number; title: string; phaseTitle: string }>> => {
   const start = options.startDate;
   const endDate = new Date(start);
   endDate.setDate(endDate.getDate() + 60);
-  const end = endDate.toISOString().split("T")[0] ?? start;
 
   const occupied: Array<{ date: string; endTime?: string | null; startTime?: string | null; title: string }> = [];
 

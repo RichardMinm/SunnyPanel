@@ -1,4 +1,5 @@
 import type { PendingAction } from "@/lib/agent/schemas";
+import type { AgentRunDetailView, AgentRunSummaryView } from "@/lib/agent/run-summary";
 import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 
 export type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
@@ -22,14 +23,8 @@ export type AgentThreadSummary = {
   title: string;
 };
 
-export type AgentRunSummary = {
-  id: number;
-  startedAt?: null | string;
-  status: string;
-  summary?: null | string;
-  title: string;
-  workflow: string;
-};
+export type AgentRunSummary = AgentRunSummaryView;
+export type AgentRunDetail = AgentRunDetailView;
 
 export type SuggestionAction = {
   id: string;

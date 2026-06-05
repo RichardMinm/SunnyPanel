@@ -349,23 +349,33 @@ export const streamChatCompletion = async ({
 const REPLY_SYSTEM_PROMPT =
   "你是 SunnyPanel 的 AI Agent，一个个人长期工作台的智能助手。请用自然、友好的中文直接回答用户的问题。不要输出 JSON 格式，直接输出对话回复。回答要简洁、有帮助。";
 
-/** Generate a conversational reply with true LLM token streaming. Returns token usage + full text, or null if unavailable. */
-export const generateStreamingReply = async ({
-  history,
-  message,
-  onToken,
-  signal,
-}: {
+const buildReplySystemPrompt = (groundedAnswer?: string) =>
+  groundedAnswer && groundedAnswer.trim().length > 0
+    ? `${REPLY_SYSTEM_PROMPT}\n\n当前工作流已经基于 SunnyPanel 工作台上下文生成了一份答案。你可以润色和组织语言，但必须保留其中的事实、对象名称、行动建议和约束，不要改写成泛泛建议：\n${groundedAnswer}`
+    : REPLY_SYSTEM_PROMPT;
+
+export type GenerateStreamingReplyArgs = {
+  context?: AgentPromptContext;
+  groundedAnswer?: string;
   history: AgentChatMessage[];
   message: string;
   onToken: StreamTokenCallback;
   signal?: AbortSignal;
-}): Promise<{ tokenUsage: ReturnType<typeof createTokenUsageSnapshot>; text: string } | null> => {
+};
+
+/** Generate a conversational reply with true LLM token streaming. Returns token usage + full text, or null if unavailable. */
+export const generateStreamingReply = async ({
+  groundedAnswer,
+  history,
+  message,
+  onToken,
+  signal,
+}: GenerateStreamingReplyArgs): Promise<{ tokenUsage: ReturnType<typeof createTokenUsageSnapshot>; text: string } | null> => {
   const config = await getAgentModelConfig();
   if (!config) return null;
 
   const messages = [
-    { content: REPLY_SYSTEM_PROMPT, role: "system" as const },
+    { content: buildReplySystemPrompt(groundedAnswer), role: "system" as const },
     ...history.slice(-8).map((item) => ({
       content: item.content,
       role: item.role,

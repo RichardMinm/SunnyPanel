@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { SettingsMenu } from "@/components/public/SettingsMenu";
@@ -22,7 +21,6 @@ export function PublicSiteHeader({ locale: localeProp, palette: paletteProp }: P
   const locale = localeProp ?? preferences?.locale ?? "zh";
   const palette = paletteProp ?? preferences?.palette ?? "cobalt";
   const pathname = usePathname();
-  const copy = getSiteCopy(locale);
   const navigation = getPublicNavItems(locale);
   const workspaceItems = getWorkspaceNavItems(locale);
   const workspaceActive = workspaceItems.some((item) => isNavActive(pathname, item.href));

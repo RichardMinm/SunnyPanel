@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
+import { PublicCollectionEmptySwitch } from "@/components/public/PublicCollectionEmptySwitch";
 import { PublicListPage } from "@/components/public/PublicListPage";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDateTime } from "@/lib/formatters";
@@ -44,7 +44,11 @@ export default async function ChecklistsPage() {
               }
             />
 
-            {checklists.docs.length > 0 ? (
+            <PublicCollectionEmptySwitch
+              body={copy.checklists.emptyBody}
+              isEmpty={checklists.docs.length === 0}
+              title={copy.checklists.emptyTitle}
+            >
               <section className="grid gap-5">
                 {checklists.docs.map((checklist) => {
                   const groups = checklist.groups ?? [];
@@ -153,12 +157,7 @@ export default async function ChecklistsPage() {
                   );
                 })}
               </section>
-            ) : (
-              <CollectionEmptyState
-                title={copy.checklists.emptyTitle}
-                body={copy.checklists.emptyBody}
-              />
-            )}
+            </PublicCollectionEmptySwitch>
           </>
         );
       }}

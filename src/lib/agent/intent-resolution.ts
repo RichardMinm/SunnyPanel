@@ -1,10 +1,12 @@
 import type { AgentPromptContext } from "./prompts";
 import {
   cleanupText,
+  extractConsultationTopic,
   inferMemoryType,
   isBatchConfirmationReply,
   isCancellationReply,
   isConfirmationReply,
+  isGeneralConsultationQuestion,
   isNegativeReply,
   isNewCommand,
   parseKnowledgeAnswerIntent,
@@ -15,6 +17,7 @@ import {
   type AgentChatMessage,
   type AgentEngine,
   type AgentIntent,
+  type AgentLearningProfile,
   type AgentTokenUsage,
   type PendingAction,
 } from "./schemas";
@@ -222,6 +225,395 @@ const resolveClarificationIntent = (pendingAction: PendingAction, message: strin
   };
 };
 
+const isLearningPlanFollowup = (message: string) =>
+  /(学习计划|复习计划|复习清单|学习清单|拆成|拆分|拆解|规划一下|制定|生成|做成)/.test(message) &&
+  !/(日程|排期|排进|排入|安排到)/.test(message);
+
+const profileFieldLabels: Record<keyof AgentLearningProfile, string> = {
+  baseline: "当前基础",
+  dailyTime: "每天可投入时间",
+  deadline: "期望完成期限",
+  goal: "学习目标",
+};
+
+const extractSegment = (message: string, pattern: RegExp) => cleanupText(message.match(pattern)?.[0] ?? "");
+
+const parseLearningProfileFromMessage = (message: string): AgentLearningProfile => {
+  const profile: AgentLearningProfile = {};
+  const goal = extractSegment(message, /(考研\s*数?\s*(二|2)|考研|期末|课程|自学|工作应用|面试)[^，,；;。]*/);
+  const baseline = extractSegment(message, /(零基础|基础\s*(一般|薄弱|还行|较好|很好|不好)|有基础|没学过|学过[^，,；;。]*)/);
+  const dailyTime = extractSegment(message, /(?:每天|每日|每晚|晚上|早上|每周)[^，,；;。]*(?:小时|分钟|h|H)/);
+  const deadline = extractSegment(message, /(?:[一二三四五六七八九十两\d]+个?月|[一二三四五六七八九十\d]+周|[一二三四五六七八九十\d]+天|月底|下个月|本月底)[^，,；;。]*(?:完成|学完)?/);
+
+  if (goal) profile.goal = goal;
+  if (baseline) profile.baseline = baseline;
+  if (dailyTime) profile.dailyTime = dailyTime;
+  if (deadline) profile.deadline = deadline;
+
+  return profile;
+};
+
+const mergeLearningProfile = (
+  existing: AgentLearningProfile | undefined,
+  incoming: AgentLearningProfile,
+): AgentLearningProfile => ({
+  ...existing,
+  ...Object.fromEntries(Object.entries(incoming).filter(([, value]) => typeof value === "string" && value.length > 0)),
+});
+
+const getMissingLearningProfileFields = (profile: AgentLearningProfile) =>
+  (["goal", "baseline", "dailyTime", "deadline"] as Array<keyof AgentLearningProfile>).filter((field) => !profile[field]);
+
+const summarizeLearningProfile = (profile: AgentLearningProfile) =>
+  [
+    profile.goal ? `目标=${profile.goal}` : null,
+    profile.baseline ? `基础=${profile.baseline}` : null,
+    profile.dailyTime ? `每日时间=${profile.dailyTime}` : null,
+    profile.deadline ? `期限=${profile.deadline}` : null,
+  ]
+    .filter(Boolean)
+    .join("；");
+
+const contextKeywordStopwords = [
+  "给我",
+  "帮我",
+  "请你",
+  "请",
+  "关于",
+  "参谋一下",
+  "参谋",
+  "分析一下",
+  "评估一下",
+  "建议一下",
+  "帮我看看",
+  "给我看看",
+  "看看",
+  "聊聊",
+  "说说",
+  "怎么看",
+  "怎么做",
+  "怎么办",
+  "如何推进",
+  "如何处理",
+  "如何",
+  "怎样",
+  "应该",
+  "可以",
+  "一下",
+  "下一步",
+  "目前",
+  "当前",
+  "学习",
+  "复习",
+  "建议",
+  "方案",
+  "路线",
+  "问题",
+  "情况",
+];
+
+const contextSemanticAliasGroups = [
+  ["agent", "ai", "aiagent", "助手", "智能体", "个人助手"],
+  ["泛化", "通用", "开放", "开放式", "开放式请求", "模糊", "模糊问题"],
+  ["咨询", "参谋", "建议", "判断", "评估", "分析", "诊断", "决策"],
+  ["上下文", "context", "语境", "工作台", "长期目标"],
+  ["写库", "写入", "数据库", "保存"],
+  ["计划", "规划", "plan"],
+  ["清单", "检查", "质量门", "checklist"],
+  ["记忆", "长期记忆", "memory"],
+];
+
+const normalizeContextMatchText = (value: null | string | undefined) =>
+  cleanupText(value ?? "")
+    .toLowerCase()
+    .replace(/[\s，,。！!？?：:；;、“”"'（）()【】[\]{}<>《》-]+/g, "");
+
+const removeContextKeywordNoise = (value: string) =>
+  contextKeywordStopwords.reduce((current, stopword) => current.replaceAll(stopword, ""), value);
+
+const addKeywordWithSemanticAliases = (keywords: Set<string>, keyword: string, normalizedTopic: string) => {
+  if (keyword.length >= 2 && !contextKeywordStopwords.includes(keyword)) {
+    keywords.add(keyword);
+  }
+
+  for (const group of contextSemanticAliasGroups) {
+    if (group.some((alias) => keyword.includes(alias) || normalizedTopic.includes(alias))) {
+      for (const alias of group) {
+        const normalizedAlias = normalizeContextMatchText(alias);
+
+        if (normalizedAlias.length >= 2) {
+          keywords.add(normalizedAlias);
+        }
+      }
+    }
+  }
+};
+
+const extractContextMatchKeywords = (topic: string) => {
+  const normalized = normalizeContextMatchText(topic);
+  const keywords = new Set<string>();
+
+  for (const token of normalized.match(/[a-z0-9]+/g) ?? []) {
+    addKeywordWithSemanticAliases(keywords, token, normalized);
+  }
+
+  for (const segment of normalized.match(/[\u4e00-\u9fff]+/g) ?? []) {
+    const cleaned = removeContextKeywordNoise(segment);
+
+    addKeywordWithSemanticAliases(keywords, cleaned, normalized);
+
+    for (let size = Math.min(4, cleaned.length); size >= 2; size--) {
+      for (let index = 0; index + size <= cleaned.length; index++) {
+        addKeywordWithSemanticAliases(keywords, cleaned.slice(index, index + size), normalized);
+      }
+    }
+  }
+
+  return [...keywords].filter((keyword) => keyword.length >= 2 && !contextKeywordStopwords.includes(keyword));
+};
+
+const scoreContextMatch = (parts: Array<null | string | undefined>, topic: string) => {
+  const searchable = normalizeContextMatchText(parts.filter(Boolean).join(" "));
+  const normalizedTopic = normalizeContextMatchText(topic);
+  const compactTopic = removeContextKeywordNoise(normalizedTopic);
+
+  if (!searchable || (!compactTopic && extractContextMatchKeywords(topic).length === 0)) {
+    return 0;
+  }
+
+  let score = compactTopic && (searchable.includes(compactTopic) || compactTopic.includes(searchable)) ? 12 : 0;
+
+  for (const keyword of extractContextMatchKeywords(topic)) {
+    if (searchable.includes(keyword)) {
+      score += Math.min(keyword.length, 8);
+    }
+  }
+
+  return score;
+};
+
+const buildWorkspaceContextSummary = (context: AgentPromptContext, topic: string) => {
+  const normalizedTopic = normalizeContextMatchText(topic);
+
+  if (!normalizedTopic) {
+    return null;
+  }
+
+  const relevantPlans = context.plans
+    .map((plan) => ({
+      plan,
+      score: scoreContextMatch([plan.title, plan.agentBrief], topic),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+  const relevantChecklists = context.checklists
+    .map((checklist) => ({
+      checklist,
+      score: scoreContextMatch(
+        [
+          checklist.title,
+          ...checklist.groups.flatMap((group) => [group.title, ...group.items]),
+        ],
+        topic,
+      ),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+  const relevantMemories = (context.memories ?? [])
+    .map((memory) => ({
+      memory,
+      score: scoreContextMatch([memory.title, memory.content], topic),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2);
+  const lines = [
+    relevantPlans.length > 0
+      ? `已有计划：${relevantPlans.map(({ plan }) => `「${plan.title}」（${plan.state}，${plan.priority}）`).join("；")}`
+      : null,
+    relevantChecklists.length > 0
+      ? `相关清单：${relevantChecklists
+          .map(({ checklist }) => {
+            const groups = checklist.groups
+              .slice(0, 2)
+              .map((group) => `${group.title}${group.items[0] ? `：${group.items.slice(0, 2).join("、")}` : ""}`)
+              .join("；");
+
+            return `「${checklist.title}」${groups ? `（${groups}）` : ""}`;
+          })
+          .join("；")}`
+      : null,
+    relevantMemories.length > 0
+      ? `已记录偏好/事实：${relevantMemories.map(({ memory }) => memory.content).join("；")}`
+      : null,
+  ].filter(Boolean);
+
+  return lines.length > 0 ? lines.join("\n") : null;
+};
+
+const buildLearningWorkspaceContextSummary = (context: AgentPromptContext, subject: string) =>
+  buildWorkspaceContextSummary(context, subject);
+
+const enrichLearningAdviceWithWorkspaceContext = (intent: AgentIntent, context: AgentPromptContext): AgentIntent => {
+  if (intent.intent !== "answer_question" || !intent.args.learningContext?.subject) {
+    return intent;
+  }
+
+  const contextSummary = buildLearningWorkspaceContextSummary(context, intent.args.learningContext.subject);
+
+  if (!contextSummary) {
+    return intent;
+  }
+
+  return {
+    ...intent,
+    args: {
+      ...intent.args,
+      answer: `${intent.args.answer}\n\n结合当前工作台：\n${contextSummary}\n\n所以这次我会优先沿着已有计划和清单做诊断：先看错题/专项里反复卡住的部分，再决定是补概念还是加题型训练。`,
+    },
+  };
+};
+
+const resolveGeneralConsultationIntent = (message: string, context: AgentPromptContext): AgentIntent | null => {
+  if (!isGeneralConsultationQuestion(message)) {
+    return null;
+  }
+
+  const topic = extractConsultationTopic(message);
+
+  if (!topic) {
+    return null;
+  }
+
+  const contextSummary = buildWorkspaceContextSummary(context, topic);
+  const contextBlock = contextSummary ?? "当前工作台里还没有明显匹配的计划、清单或记忆；我会先按目标、现状、约束来给出初步判断。";
+
+  return {
+    args: {
+      answer: `我先把「${topic}」当作一个咨询判断问题处理，不会直接写入数据库。
+
+我的判断：
+1. 先明确你要解决的是方向选择、节奏安排，还是某个具体执行障碍。
+2. 优先复用当前工作台里已有的计划、清单和记忆，避免重新发明一套方案。
+3. 下一步只选一个最小切片推进，先验证它是否真的改善结果。
+
+结合当前工作台：
+${contextBlock}
+
+所以这次我会先看上下文再给建议：如果已有计划和清单能支撑，就围绕它们调整下一步；如果上下文不足，再补目标、约束和成功标准。`,
+      suggestAction: `我可以继续把「${topic}」拆成下一步计划或检查清单，先生成 DryRun 供你确认。`,
+    },
+    confidence: contextSummary ? 0.8 : 0.74,
+    intent: "answer_question",
+  };
+};
+
+const resolveLearningFollowupIntent = (pendingAction: PendingAction, message: string): AgentIntent | null => {
+  if (pendingAction.type !== "await_learning_followup") {
+    return null;
+  }
+
+  if (isNegativeReply(message) || isCancellationReply(message)) {
+    return {
+      args: {
+        answer: `好的，我先不把${pendingAction.subject}拆成计划。你之后想继续时，可以直接说“基于刚才的建议生成学习计划”。`,
+        suggestAction: null,
+      },
+      confidence: 1,
+      intent: "answer_question",
+    };
+  }
+
+  if (pendingAction.requestedAction === "compose_plan") {
+    const profile = cleanupText(message);
+    const mergedProfile = mergeLearningProfile(pendingAction.profile, parseLearningProfileFromMessage(profile));
+    const missingFields = getMissingLearningProfileFields(mergedProfile);
+
+    if (!profile || missingFields.length > 0) {
+      const recorded = summarizeLearningProfile(mergedProfile);
+      const missing = missingFields.map((field) => profileFieldLabels[field]).join("、");
+
+      return {
+        args: {
+          answer: recorded
+            ? `我已记录：${recorded}。还需要补充：${missing}。`
+            : `要把${pendingAction.subject}拆成计划，我还需要你的学习目标、当前基础、每天可投入时间和期望完成期限。`,
+          learningContext: {
+            originalMessage: pendingAction.originalMessage,
+            profile: mergedProfile,
+            requestedAction: "compose_plan",
+            subject: pendingAction.subject,
+          },
+          suggestAction: "补充这些信息后，我会生成可确认的学习计划草稿。",
+        },
+        confidence: 0.88,
+        intent: "answer_question",
+      };
+    }
+
+    return {
+      args: {
+        goal: `系统学习${pendingAction.subject}`,
+        sourceText: `${pendingAction.originalMessage}；学习画像：${summarizeLearningProfile(mergedProfile)}。请基于上一轮学习参谋建议和这份画像，生成一份可执行的${pendingAction.subject}学习计划。`,
+        title: `${pendingAction.subject}学习计划`,
+      },
+      confidence: 0.94,
+      intent: "compose_plan",
+    };
+  }
+
+  if (!isLearningPlanFollowup(message)) {
+    return null;
+  }
+
+  return {
+    args: {
+      answer: `可以。为了让${pendingAction.subject}计划真的贴合你，我先确认 4 个信息：目标是什么（考试/课程/自学/工作应用）、当前基础如何、每天能投入多久、希望多久完成？`,
+      learningContext: {
+        originalMessage: pendingAction.originalMessage,
+        profile: parseLearningProfileFromMessage(message),
+        requestedAction: "compose_plan",
+        subject: pendingAction.subject,
+      },
+      suggestAction: "你给出这 4 点后，我会生成可确认的学习计划草稿。",
+    },
+    confidence: 0.9,
+    intent: "answer_question",
+  };
+};
+
+export const resolveOrchestrationPreflightIntent = ({
+  context,
+  message,
+  pendingAction,
+}: {
+  context: AgentPromptContext;
+  message: string;
+  pendingAction: null | PendingAction;
+}): AgentIntent | null => {
+  if (pendingAction?.type === "await_learning_followup") {
+    return resolveLearningFollowupIntent(pendingAction, message);
+  }
+
+  if (
+    pendingAction &&
+    pendingAction.type !== "await_clarification" &&
+    pendingAction.type !== "await_completion_note"
+  ) {
+    return null;
+  }
+
+  const deterministicKnowledgeIntent = parseKnowledgeAnswerIntent(message);
+
+  if (deterministicKnowledgeIntent) {
+    return enrichLearningAdviceWithWorkspaceContext(deterministicKnowledgeIntent, context);
+  }
+
+  return resolveGeneralConsultationIntent(message, context);
+};
+
 export const resolveAgentIntent = async ({
   context,
   history,
@@ -237,6 +629,19 @@ export const resolveAgentIntent = async ({
   modelResolver?: AgentModelIntentResolver;
   pendingAction: null | PendingAction;
 }) => {
+  const preflightIntent = resolveOrchestrationPreflightIntent({
+    context,
+    message,
+    pendingAction,
+  });
+
+  if (preflightIntent) {
+    return {
+      engine: pendingAction?.type === "await_learning_followup" ? "workflow" as const : "heuristic" as const,
+      intent: preflightIntent,
+    };
+  }
+
   if (pendingAction?.type === "await_clarification") {
     const clarificationIntent = resolveClarificationIntent(pendingAction, message);
 
@@ -261,15 +666,6 @@ export const resolveAgentIntent = async ({
         confidence: 1,
         intent: "add_completion_note" as const,
       },
-    };
-  }
-
-  const deterministicKnowledgeIntent = parseKnowledgeAnswerIntent(message);
-
-  if (deterministicKnowledgeIntent) {
-    return {
-      engine: "heuristic" as const,
-      intent: deterministicKnowledgeIntent,
     };
   }
 

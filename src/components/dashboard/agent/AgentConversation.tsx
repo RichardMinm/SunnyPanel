@@ -1,11 +1,12 @@
 "use client";
 
-import { type RefObject, useMemo } from "react";
+import { type RefObject, useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
-import type { AgentChatMessage } from "@/lib/agent/schemas";
+import type { AgentChatMessage, AgentTraceStep } from "@/lib/agent/schemas";
 
-import { AgentMarkdownBubble } from "./AgentMarkdownBubble";
+import { AgentThinkingPanel } from "./AgentThinkingPanel";
+import { MessageCard } from "./MessageCard";
 
 const messageVariants = {
   assistant: { animate: { opacity: 1, x: 0 }, exit: { opacity: 0 }, initial: { opacity: 0, x: -12 } },
@@ -14,17 +15,25 @@ const messageVariants = {
 
 type AgentConversationProps = {
   errorMessage: null | string;
+  isThinking: boolean;
   isSubmitting: boolean;
   messages: AgentChatMessage[];
   statusLabel: string;
+  thinkingContent: string;
+  threadId: null | number;
+  traceSteps: AgentTraceStep[];
   transcriptRef: RefObject<HTMLDivElement | null>;
 };
 
 export function AgentConversation({
   errorMessage,
+  isThinking,
   isSubmitting,
   messages,
   statusLabel,
+  thinkingContent,
+  threadId,
+  traceSteps,
   transcriptRef,
 }: AgentConversationProps) {
   const lastAssistantIndex = useMemo(() => {
@@ -35,43 +44,71 @@ export function AgentConversation({
     return -1;
   }, [messages]);
 
+  useEffect(() => {
+    const transcript = transcriptRef.current;
+
+    if (!transcript || !isThinking) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      transcript.scrollTo({
+        behavior: "auto",
+        top: transcript.scrollHeight,
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isThinking, messages.length, thinkingContent, traceSteps.length, transcriptRef]);
+
   return (
     <section className="sunny-agent-conversation-surface">
       <div className="sunny-agent-run-surface-head">
         <div>
-          <p>对话</p>
-          <h2>对话记录</h2>
+          <p>Agent 会话</p>
+          <h2>{threadId ? `Thread #${threadId}` : "新会话"}</h2>
         </div>
-        <span>{isSubmitting ? statusLabel : "已就绪"}</span>
+        <span>{isSubmitting ? "运行中" : "已就绪"}</span>
       </div>
       <div ref={transcriptRef} className="sunny-agent-conversation-scroll" aria-live="polite" aria-relevant="additions">
-        <AnimatePresence initial={false}>
-          {messages.map((message, index) => {
-            const variant = messageVariants[message.role === "assistant" ? "assistant" : "user"];
-            const isStreamingMsg = isSubmitting && message.role === "assistant" && index === lastAssistantIndex;
+        {messages.length === 0 ? (
+          <div className="sunny-agent-empty-state">
+            <strong>准备好开始一次 Agent 会话</strong>
+            <span>描述目标、约束或需要推进的任务，Agent 会自动判断是咨询、规划还是执行。</span>
+          </div>
+        ) : (
+          <>
+            <AnimatePresence initial={false}>
+              {messages.map((message, index) => {
+                const variant = messageVariants[message.role === "assistant" ? "assistant" : "user"];
+                const isStreamingMsg = isSubmitting && message.role === "assistant" && index === lastAssistantIndex;
 
-            return (
-              <motion.div
-                key={`${message.role}-${index}`}
-                className={`sunny-agent-message-row sunny-agent-message-row-${message.role}`}
-                initial={variant.initial}
-                animate={variant.animate}
-                exit={variant.exit}
-                transition={{ duration: 0.25 }}
-              >
-                <span>{message.role === "assistant" ? "助手" : "你"}</span>
-                {message.role === "assistant" ? (
-                  <AgentMarkdownBubble
-                    content={message.content || (isSubmitting && index === messages.length - 1 ? "正在生成回复..." : "")}
-                    isStreaming={isStreamingMsg && Boolean(message.content)}
-                  />
-                ) : (
-                  <p>{message.content}</p>
-                )}
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
+                return (
+                  <motion.div
+                    key={`${message.role}-${index}`}
+                    className={`sunny-agent-message-row sunny-agent-message-row-${message.role}`}
+                    initial={variant.initial}
+                    animate={variant.animate}
+                    exit={variant.exit}
+                    transition={{ duration: 0.25 }}
+                  >
+                    <MessageCard
+                      content={message.content || (isSubmitting && index === messages.length - 1 ? "正在生成回复..." : "")}
+                      isStreaming={isStreamingMsg}
+                      role={message.role}
+                    />
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+            <AgentThinkingPanel
+              isThinking={isThinking}
+              statusLabel={statusLabel}
+              steps={traceSteps}
+              thinkingContent={thinkingContent}
+            />
+          </>
+        )}
       </div>
       {errorMessage ? <div className="sunny-agent-error-card-v2" role="alert">{errorMessage}</div> : null}
     </section>

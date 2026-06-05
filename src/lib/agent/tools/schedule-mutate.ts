@@ -1,8 +1,58 @@
 import { getPayloadClient } from "@/lib/payload/client";
-import { createScheduleItem, updateScheduleItemStatus, type ScheduleItemRecord } from "@/lib/schedule/items";
+import { updateScheduleItemStatus, type ScheduleItemRecord } from "@/lib/schedule/items";
 
 import type { CancelScheduleItemArgs, RescheduleItemArgs, SchedulePlanArgs } from "../schemas";
 import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
+
+const relationId = (value: ScheduleItemRecord["relatedChecklist"] | ScheduleItemRecord["relatedPlan"]) =>
+  typeof value === "number" ? value : value?.id ?? null;
+
+const scheduleSnapshot = (item: ScheduleItemRecord) => ({
+  ...(item.agentBrief !== undefined ? { agentBrief: item.agentBrief } : {}),
+  ...(item.conflictNote !== undefined ? { conflictNote: item.conflictNote } : {}),
+  date: item.date,
+  ...(item.description !== undefined ? { description: item.description } : {}),
+  endTime: item.endTime ?? null,
+  isAllDay: item.isAllDay,
+  priority: item.priority,
+  relatedChecklist: relationId(item.relatedChecklist),
+  relatedChecklistItemKey: item.relatedChecklistItemKey ?? null,
+  relatedPlan: relationId(item.relatedPlan),
+  sourceType: item.sourceType,
+  startTime: item.startTime ?? null,
+  status: item.status,
+  title: item.title,
+});
+
+export const buildDeleteCreatedScheduleItemsRollbackPayload = (
+  items: Array<Pick<ScheduleItemRecord, "id">>,
+) => ({
+  strategy: "delete_created_documents",
+  target: {
+    collection: "schedule-items",
+    documentIds: items.map((item) => item.id),
+  },
+});
+
+export const buildScheduleItemSnapshotRollbackPayload = (item: ScheduleItemRecord, documentId = item.id) => ({
+  beforeSnapshot: scheduleSnapshot(item),
+  strategy: "restore_schedule_item_snapshot",
+  target: {
+    collection: "schedule-items",
+    documentId,
+  },
+});
+
+export const buildScheduleItemStatusRollbackPayload = (item: Pick<ScheduleItemRecord, "id" | "status">, documentId = item.id) => ({
+  beforeSnapshot: {
+    status: item.status,
+  },
+  strategy: "restore_schedule_item_status",
+  target: {
+    collection: "schedule-items",
+    documentId,
+  },
+});
 
 export const schedulePlanFromIntent = async (
   args: SchedulePlanArgs,
@@ -61,8 +111,9 @@ export const schedulePlanFromIntent = async (
   });
 
   await createAgentRun({
-    affectedDocuments: items.map(() => ({
+    affectedDocuments: items.map((item) => ({
       collection: "schedule-items",
+      documentId: item.id,
       operation: "create",
       visibility: "private",
     })),
@@ -77,13 +128,7 @@ export const schedulePlanFromIntent = async (
     nextAction: `查看 ${startDate} 的日程安排`,
     relatedPlan: plan.id,
     rollbackAvailable: true,
-    rollbackPayload: {
-      strategy: "delete_created_document",
-      target: {
-        collection: "schedule-items",
-        documentIds: items.map((_, i) => null),
-      },
-    },
+    rollbackPayload: buildDeleteCreatedScheduleItemsRollbackPayload(items),
     status: "succeeded",
     steps: items.map((item) => ({
       level: "info" as const,
@@ -100,6 +145,7 @@ export const schedulePlanFromIntent = async (
       .map((item) => `- ${item.date} [${item.phaseTitle}] ${item.title}`)
       .join("\n")}${items.length > 10 ? `\n...等共 ${items.length} 条` : ""}`,
     pendingAction: null,
+    rollbackPayload: buildDeleteCreatedScheduleItemsRollbackPayload(items),
   };
 };
 
@@ -141,6 +187,7 @@ export const rescheduleItemFromIntent = async (
     id: args.itemId,
     overrideAccess: true,
   }) as ScheduleItemRecord;
+  const rollbackPayload = buildScheduleItemSnapshotRollbackPayload(item, updated.id);
 
   onTrace?.({
     detail: `已改为：${updated.date} ${updated.startTime ?? "?"}-${updated.endTime ?? "?"} ${updated.title}`,
@@ -175,13 +222,7 @@ export const rescheduleItemFromIntent = async (
     },
     relatedPlan: typeof item.relatedPlan === "number" ? item.relatedPlan : undefined,
     rollbackAvailable: true,
-    rollbackPayload: {
-      strategy: "restore_schedule_item_snapshot",
-      target: {
-        collection: "schedule-items",
-        documentId: updated.id,
-      },
-    },
+    rollbackPayload,
     status: "succeeded",
     steps: [
       {
@@ -199,13 +240,7 @@ export const rescheduleItemFromIntent = async (
   return {
     assistantMessage: `已将「${updated.title}」改期至 ${updated.date} ${updated.startTime ?? ""}${updated.endTime ? `-${updated.endTime}` : ""}。`,
     pendingAction: null,
-    rollbackPayload: {
-      strategy: "restore_schedule_item_snapshot",
-      target: {
-        collection: "schedule-items",
-        documentId: updated.id,
-      },
-    },
+    rollbackPayload,
   };
 };
 
@@ -236,6 +271,7 @@ export const cancelScheduleItemFromIntent = async (
   });
 
   const updated = await updateScheduleItemStatus(args.itemId, "canceled");
+  const rollbackPayload = buildScheduleItemStatusRollbackPayload(item, updated.id);
 
   onTrace?.({
     detail: `status: ${item.status} → canceled`,
@@ -266,13 +302,7 @@ export const cancelScheduleItemFromIntent = async (
     },
     relatedPlan: typeof item.relatedPlan === "number" ? item.relatedPlan : undefined,
     rollbackAvailable: true,
-    rollbackPayload: {
-      strategy: "restore_schedule_item_status",
-      target: {
-        collection: "schedule-items",
-        documentId: updated.id,
-      },
-    },
+    rollbackPayload,
     status: "succeeded",
     steps: [
       {
@@ -292,13 +322,6 @@ export const cancelScheduleItemFromIntent = async (
       ? `已取消日程「${item.title}」（${args.reason}）。`
       : `已取消日程「${item.title}」。`,
     pendingAction: null,
-    rollbackPayload: {
-      strategy: "restore_schedule_item_status",
-      target: {
-        collection: "schedule-items",
-        documentId: updated.id,
-      },
-    },
+    rollbackPayload,
   };
 };
-

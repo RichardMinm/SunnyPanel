@@ -119,6 +119,7 @@ export async function POST(request: Request) {
     summary: `已根据建议创建跟进计划「${createdPlan.title}」。`,
     title: `Applied recommendation · PlanReview #${review.id}`,
     trigger: "agent",
+    user: authResult.user.id,
     workflow: "planning",
   });
 

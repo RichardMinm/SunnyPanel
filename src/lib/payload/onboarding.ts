@@ -516,7 +516,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
   if (agentFoundationPlan) {
     const existingAgentRun = await findFirstByWhere<Pick<
       AgentRun,
-      "completedAt" | "goal" | "id" | "nextAction" | "relatedPlan" | "startedAt" | "status" | "steps" | "summary"
+      "completedAt" | "goal" | "id" | "nextAction" | "relatedPlan" | "startedAt" | "status" | "steps" | "summary" | "user"
     >>(payload, "agent-runs", {
       title: {
         equals: "Agent readiness audit baseline",
@@ -565,6 +565,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
       summary: "默认内容闭环已经就位，Agent 前置工作需要继续补齐计划执行状态、运行日志和工作台视图。",
       title: "Agent readiness audit baseline",
       trigger: "manual" as const,
+      user: user.id,
       workflow: "readiness-audit" as const,
     };
 
@@ -597,6 +598,10 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
 
       if (!existingAgentRun.completedAt) {
         agentRunPatch.completedAt = agentRunData.completedAt;
+      }
+
+      if (!existingAgentRun.user) {
+        agentRunPatch.user = agentRunData.user;
       }
 
       if (!Array.isArray(existingAgentRun.steps) || existingAgentRun.steps.length === 0) {

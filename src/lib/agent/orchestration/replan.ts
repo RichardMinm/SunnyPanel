@@ -1,6 +1,8 @@
 import type { AgentPromptContext } from "../prompts";
 import { runOrchestrator } from "./orchestrator";
-import type { OrchestratorPlan, TaskNode } from "./types";
+import type { ProposedAgentAction } from "../schemas";
+import { formatTaskObservations } from "./observations";
+import type { AgentTaskObservation, ExecutionQueueState, OrchestratorPlan, TaskNode } from "./types";
 
 export type ReplanStrategy = "local" | "incremental" | "global";
 
@@ -10,8 +12,13 @@ export type ReplanInput = {
   failureReason: string;
   failureType: "dependency_failure" | "missing_info" | "parse_error" | "timeout" | "tool_error";
   message: string;
+  observations?: AgentTaskObservation[];
   originalPlan: OrchestratorPlan;
+  proposals?: ProposedAgentAction[];
   promptContext: AgentPromptContext;
+  queueState?: ExecutionQueueState;
+  strategyNote?: string;
+  strategyOverride?: ReplanStrategy;
 };
 
 const FAILURE_TYPE_LABELS: Record<ReplanInput["failureType"], string> = {
@@ -20,6 +27,55 @@ const FAILURE_TYPE_LABELS: Record<ReplanInput["failureType"], string> = {
   parse_error: "解析错误",
   timeout: "执行超时",
   tool_error: "工具执行错误",
+};
+
+const formatQueueState = (state?: ExecutionQueueState) => {
+  if (!state) {
+    return "队列状态：未记录";
+  }
+
+  return [
+    `队列状态：总计 ${state.totalTasks} 项`,
+    state.completedTaskIds.length > 0 ? `已完成 ${state.completedTaskIds.length} 项` : null,
+    state.proposedTaskIds.length > 0 ? `待确认 ${state.proposedTaskIds.length} 项` : null,
+    state.deferredTaskIds.length > 0 ? `延后 ${state.deferredTaskIds.length} 项` : null,
+    state.failedTaskIds.length > 0 ? `失败 ${state.failedTaskIds.length} 项` : null,
+    state.blockedTaskIds.length > 0 ? `阻塞 ${state.blockedTaskIds.length} 项` : null,
+    state.pendingTaskIds.length > 0 ? `未处理 ${state.pendingTaskIds.length} 项` : null,
+    state.skippedTaskIds.length > 0 ? `跳过 ${state.skippedTaskIds.length} 项` : null,
+    state.autoExecutedTaskIds.length > 0 ? `自动执行 ${state.autoExecutedTaskIds.length} 项` : null,
+  ]
+    .filter(Boolean)
+    .join("，");
+};
+
+const formatProposals = (proposals?: ProposedAgentAction[]) => {
+  if (!proposals?.length) {
+    return "待确认操作：无";
+  }
+
+  const proposalLines = proposals.map((proposal) => {
+    const collections = Array.from(new Set(proposal.changes.map((change) => change.collection))).join(",");
+
+    return `${proposal.summary} | risk=${proposal.riskLevel}${collections ? ` | collections=${collections}` : ""}`;
+  });
+
+  return proposalLines.length === 1
+    ? `待确认操作：${proposalLines[0]}`
+    : ["待确认操作：", ...proposalLines.map((line) => `- ${line}`)].join("\n");
+};
+
+export const buildReplanExecutionSnapshot = (input: ReplanInput) => {
+  const observations = input.observations?.length
+    ? formatTaskObservations(input.observations)
+    : "暂无执行观察。";
+
+  return [
+    "## 执行观察快照",
+    observations,
+    formatQueueState(input.queueState),
+    formatProposals(input.proposals),
+  ].join("\n");
 };
 
 export const decideReplanStrategy = (input: ReplanInput): ReplanStrategy => {
@@ -77,23 +133,31 @@ const replanLocal = (input: ReplanInput): OrchestratorPlan => {
   };
 };
 
-const replanIncremental = async (input: ReplanInput): Promise<OrchestratorPlan> => {
+export const buildIncrementalReplanMessage = (input: ReplanInput) => {
   const failedLabel = input.failedTask.label;
   const failureLabel = FAILURE_TYPE_LABELS[input.failureType];
   const completedLabels = input.originalPlan.tasks
     .slice(0, input.failedTaskIndex)
     .map((t) => t.label);
 
-  const replanMessage = [
+  return [
     `原始用户请求：${input.message}`,
     `原计划：${input.originalPlan.reasoning}`,
     `失败类型：${failureLabel}`,
     `失败子任务「${failedLabel}」失败原因：${input.failureReason}`,
+    buildReplanExecutionSnapshot(input),
+    input.strategyNote ? `策略约束：${input.strategyNote}` : null,
     completedLabels.length > 0
       ? `已完成的子任务：${completedLabels.join("、")}`
       : "尚无已完成子任务",
+    "不要重复创建或覆盖已经观察到成功的对象；如果已有待确认操作，请避免生成与其冲突的重复动作。",
     "请为失败的子任务重新生成 1-3 个替代步骤（可包含前置补全步骤），保留已完成任务的结果，并保持其余未执行任务的依赖关系。",
-  ].join("\n");
+  ].filter(Boolean).join("\n");
+};
+
+const replanIncremental = async (input: ReplanInput): Promise<OrchestratorPlan> => {
+  const failureLabel = FAILURE_TYPE_LABELS[input.failureType];
+  const replanMessage = buildIncrementalReplanMessage(input);
 
   const nextPlan = await runOrchestrator(replanMessage, input.promptContext);
 
@@ -110,7 +174,6 @@ const replanIncremental = async (input: ReplanInput): Promise<OrchestratorPlan> 
   );
 
   // Fixup dependencies: tasks that depended on the failed task now depend on new tasks
-  const newTaskIds = new Set(nextPlan.tasks.map((t) => t.id));
   const fixedAfter = after.map((task) => ({
     ...task,
     dependsOn: task.dependsOn.map((depId) =>
@@ -150,9 +213,11 @@ const replanGlobal = async (input: ReplanInput): Promise<OrchestratorPlan> => {
     `原计划在执行中遇到问题：${input.failureReason}`,
     `失败类型：${failureLabel}`,
     `失败发生在「${input.failedTask.label}」`,
+    buildReplanExecutionSnapshot(input),
     completedLabels.length > 0
       ? `已完成的子任务（请保留不再生成）：${completedLabels.join("、")}`
       : "尚无已完成子任务",
+    "不要重复创建或覆盖已经观察到成功的对象；保留执行观察中的真实数据变化。",
     "请基于当前状态重新规划剩余所有工作，给出新的可执行子任务 DAG。",
   ].join("\n");
 
@@ -168,7 +233,7 @@ const replanGlobal = async (input: ReplanInput): Promise<OrchestratorPlan> => {
 };
 
 export const replanAfterTaskFailure = async (input: ReplanInput): Promise<OrchestratorPlan> => {
-  const strategy = decideReplanStrategy(input);
+  const strategy = input.strategyOverride ?? decideReplanStrategy(input);
 
   switch (strategy) {
     case "local":

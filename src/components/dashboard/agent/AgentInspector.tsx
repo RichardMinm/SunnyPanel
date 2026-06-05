@@ -11,7 +11,8 @@ import { AgentApprovalPanel } from "./AgentApprovalPanel";
 import { AgentContextPanel } from "./AgentContextPanel";
 import { AgentTracePanel } from "./AgentTracePanel";
 import { inspectorTabs } from "./constants";
-import type { AgentInspectorTab, ContextPreferences } from "./types";
+import type { AgentRollbackExecutionResult } from "./rollback-display";
+import type { AgentInspectorTab, AgentRunDetail, ContextPreferences } from "./types";
 
 type AgentInspectorTabsProps = {
   activeTab: AgentInspectorTab;
@@ -77,12 +78,17 @@ type AgentInspectorProps = {
   inputTokenEstimate: number;
   latestAssistantMessage?: AgentChatMessage;
   lastRollbackPayload?: null | unknown;
+  lastRollbackResult?: AgentRollbackExecutionResult | null;
   messages: AgentChatMessage[];
   onActiveTabChange: (tab: AgentInspectorTab) => void;
   onArtifactsRollback?: () => void;
+  onRollbackSelectedRun?: () => void;
   onToggleContextExclude?: (key: string) => void;
   onToggleContextPin?: (key: string) => void;
   pendingAction: null | PendingAction;
+  selectedRunDetail?: AgentRunDetail | null;
+  selectedRunRollbackBusy?: boolean;
+  selectedRunRollbackError?: null | string;
   statusLabel: string;
   threadId: null | number;
   tokenUsage: AgentTokenUsage;
@@ -95,12 +101,22 @@ const noop = () => undefined;
 function InspectorPanels({
   action,
   activeTab,
+  artifactsRollbackBusy,
+  artifactsRollbackError,
   contextPreferences,
+  latestAssistantMessage,
+  lastRollbackPayload,
+  lastRollbackResult,
   messages,
+  onArtifactsRollback,
   onToggleContextExclude,
   onToggleContextPin,
+  onRollbackSelectedRun,
   panelIdPrefix,
   pendingAction,
+  selectedRunDetail,
+  selectedRunRollbackBusy,
+  selectedRunRollbackError,
   statusLabel,
   tabListId,
   threadId,
@@ -132,7 +148,23 @@ function InspectorPanels({
             />
           ) : null}
           {activeTab === "approval" ? <AgentApprovalPanel action={action} pendingAction={pendingAction} /> : null}
-          {activeTab === "trace" ? <AgentTracePanel statusLabel={statusLabel} traceSteps={traceSteps} /> : null}
+          {activeTab === "trace" ? (
+            <AgentTracePanel
+              action={action}
+              artifactsRollbackBusy={artifactsRollbackBusy}
+              artifactsRollbackError={artifactsRollbackError}
+              lastRollbackResult={lastRollbackResult}
+              latestAssistantMessage={latestAssistantMessage}
+              lastRollbackPayload={lastRollbackPayload}
+              onArtifactsRollback={onArtifactsRollback}
+              onRollbackSelectedRun={onRollbackSelectedRun}
+              selectedRunDetail={selectedRunDetail}
+              selectedRunRollbackBusy={selectedRunRollbackBusy}
+              selectedRunRollbackError={selectedRunRollbackError}
+              statusLabel={statusLabel}
+              traceSteps={traceSteps}
+            />
+          ) : null}
         </motion.div>
       </AnimatePresence>
     </>
@@ -155,12 +187,17 @@ export function AgentInspector({
   inputTokenEstimate,
   latestAssistantMessage,
   lastRollbackPayload,
+  lastRollbackResult,
   messages,
   onActiveTabChange,
   onArtifactsRollback,
+  onRollbackSelectedRun,
   onToggleContextExclude,
   onToggleContextPin,
   pendingAction,
+  selectedRunDetail,
+  selectedRunRollbackBusy,
+  selectedRunRollbackError,
   statusLabel,
   threadId,
   tokenUsage,
@@ -172,7 +209,7 @@ export function AgentInspector({
   const drawerRef = useRef<HTMLDivElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [compactOpen, setCompactOpen] = useState(false);
-  const currentTabLabel = inspectorTabs.find((tab) => tab.key === activeTab)?.label ?? "Context";
+  const currentTabLabel = inspectorTabs.find((tab) => tab.key === activeTab)?.label ?? "上下文";
 
   useEffect(() => {
     if (!drawer || !drawerOpen) {
@@ -241,13 +278,18 @@ export function AgentInspector({
       inputTokenEstimate={inputTokenEstimate}
       latestAssistantMessage={latestAssistantMessage}
       lastRollbackPayload={lastRollbackPayload}
+      lastRollbackResult={lastRollbackResult}
       messages={messages}
       onActiveTabChange={onActiveTabChange}
       onArtifactsRollback={onArtifactsRollback}
+      onRollbackSelectedRun={onRollbackSelectedRun}
       onToggleContextExclude={onToggleContextExclude}
       onToggleContextPin={onToggleContextPin}
       panelIdPrefix={panelIdPrefix}
       pendingAction={pendingAction}
+      selectedRunDetail={selectedRunDetail}
+      selectedRunRollbackBusy={selectedRunRollbackBusy}
+      selectedRunRollbackError={selectedRunRollbackError}
       statusLabel={statusLabel}
       tabListId={tabListId}
       threadId={threadId}

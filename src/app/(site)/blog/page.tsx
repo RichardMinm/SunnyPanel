@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
+import { PublicCollectionEmptySwitch } from "@/components/public/PublicCollectionEmptySwitch";
 import { PostPreviewCard } from "@/components/public/PostPreviewCard";
 import { PublicListPage } from "@/components/public/PublicListPage";
 import { SectionIntro } from "@/components/public/SectionIntro";
@@ -39,9 +39,11 @@ export default async function BlogIndexPage() {
               title="Blog"
             />
 
-            {posts.length === 0 ? (
-              <CollectionEmptyState body={copy.blog.emptyBody} title={copy.blog.emptyTitle} />
-            ) : (
+            <PublicCollectionEmptySwitch
+              body={copy.blog.emptyBody}
+              isEmpty={posts.length === 0}
+              title={copy.blog.emptyTitle}
+            >
               <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                 <PostPreviewCard locale={locale} post={posts[0]} variant="featured" />
 
@@ -51,7 +53,7 @@ export default async function BlogIndexPage() {
                   ))}
                 </div>
               </section>
-            )}
+            </PublicCollectionEmptySwitch>
           </>
         );
       }}

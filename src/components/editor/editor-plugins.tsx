@@ -37,26 +37,31 @@ const basePlugins = (): RealmPlugin[] => [
   codeBlockPlugin({ defaultCodeBlockLanguage: "text" }),
 ];
 
-const editToolbarContents = (minimal: boolean) => () =>
-  minimal ? (
-    <DiffSourceToggleWrapper>
-      <UndoRedo />
-      <BoldItalicUnderlineToggles />
-      <ListsToggle />
-      <CreateLink />
-    </DiffSourceToggleWrapper>
-  ) : (
-    <DiffSourceToggleWrapper>
-      <UndoRedo />
-      <BoldItalicUnderlineToggles />
-      <ListsToggle />
-      <BlockTypeSelect />
-      <CreateLink />
-      <InsertImage />
-      <InsertCodeBlock />
-      <InsertThematicBreak />
-    </DiffSourceToggleWrapper>
-  );
+const editToolbarContents = (minimal: boolean) => {
+  function SunnyEditorToolbarContents() {
+    return minimal ? (
+      <DiffSourceToggleWrapper>
+        <UndoRedo />
+        <BoldItalicUnderlineToggles />
+        <ListsToggle />
+        <CreateLink />
+      </DiffSourceToggleWrapper>
+    ) : (
+      <DiffSourceToggleWrapper>
+        <UndoRedo />
+        <BoldItalicUnderlineToggles />
+        <ListsToggle />
+        <BlockTypeSelect />
+        <CreateLink />
+        <InsertImage />
+        <InsertCodeBlock />
+        <InsertThematicBreak />
+      </DiffSourceToggleWrapper>
+    );
+  }
+
+  return SunnyEditorToolbarContents;
+};
 
 export const buildSunnyEditorPlugins = (mode: EditorPluginMode): RealmPlugin[] => {
   if (mode === "readonly") {

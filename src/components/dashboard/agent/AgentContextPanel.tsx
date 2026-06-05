@@ -67,22 +67,33 @@ export function AgentContextPanel({
   const contextDetail = contextSteps.find((step) => step.id === "context-bootstrap" && step.status === "done")?.detail ?? "";
   const planMatch = contextDetail.match(/(\d+) 条计划/);
   const checklistMatch = contextDetail.match(/(\d+) 份清单/);
-  const memoryMatch = contextDetail.match(/(\d+) 条长期记忆/);
   const memoryTitlesMatch = contextDetail.match(/命中记忆：(.+)/);
   const planCount = planMatch ? Number(planMatch[1]) : 0;
   const checklistCount = checklistMatch ? Number(checklistMatch[1]) : 0;
   const memoryTitles = memoryTitlesMatch
     ? memoryTitlesMatch[1].split("、").filter(Boolean)
     : [];
+  const hasContextRead = contextSteps.length > 0;
+  const pendingCount = pendingAction?.type === "await_batch_confirmation"
+    ? pendingAction.actions.length
+    : pendingAction
+      ? 1
+      : 0;
+  const metricItems = [
+    { label: "待确认", value: String(pendingCount) },
+    { label: "引用计划", value: hasContextRead ? String(planCount) : "—" },
+    { label: "引用清单", value: hasContextRead ? String(checklistCount) : "—" },
+    { label: "命中记忆", value: hasContextRead ? String(memoryTitles.length) : "—" },
+  ];
 
   const contextItems: { key: string; label: string }[] = [];
 
-  for (let i = 0; i < planCount; i++) {
-    contextItems.push({ key: `plan:${i}`, label: `计划 #${i + 1}` });
+  if (planCount > 0) {
+    contextItems.push({ key: "plans:referenced", label: `已引用 ${planCount} 条计划（详情见记录）` });
   }
 
-  for (let i = 0; i < checklistCount; i++) {
-    contextItems.push({ key: `checklist:${i}`, label: `清单 #${i + 1}` });
+  if (checklistCount > 0) {
+    contextItems.push({ key: "checklists:referenced", label: `已引用 ${checklistCount} 份清单（详情见记录）` });
   }
 
   for (const title of memoryTitles) {
@@ -91,33 +102,22 @@ export function AgentContextPanel({
 
   return (
     <div className="sunny-agent-inspector-panel">
-      {/* Action-oriented metrics — backend provides actual counts */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <div className="rounded-md border border-border/60 bg-surface p-2.5 text-center">
-          <p className="text-lg font-bold text-amber-500">0</p>
-          <p className="text-xs text-muted">待确认</p>
-        </div>
-        <div className="rounded-md border border-border/60 bg-surface p-2.5 text-center">
-          <p className="text-lg font-bold text-blue-500">0</p>
-          <p className="text-xs text-muted">今日日程</p>
-        </div>
-        <div className="rounded-md border border-border/60 bg-surface p-2.5 text-center">
-          <p className="text-lg font-bold text-green-500">0</p>
-          <p className="text-xs text-muted">进行中计划</p>
-        </div>
-        <div className="rounded-md border border-border/60 bg-surface p-2.5 text-center">
-          <p className="text-lg font-bold text-purple-500">0</p>
-          <p className="text-xs text-muted">未完成任务</p>
-        </div>
+      <div className="sunny-agent-context-metric-strip">
+        {metricItems.map((item) => (
+          <div key={item.label}>
+            <strong>{item.value}</strong>
+            <span>{item.label}</span>
+          </div>
+        ))}
       </div>
       <div className="sunny-agent-context-grid-v2">
-        <span>Thread</span>
+        <span>线程</span>
         <strong>{threadId ? `#${threadId}` : "新任务"}</strong>
-        <span>Messages</span>
+        <span>消息</span>
         <strong>{messages.length}</strong>
-        <span>Status</span>
+        <span>状态</span>
         <strong>{statusLabel}</strong>
-        <span>Pending</span>
+        <span>待办</span>
         <strong>{pendingAction ? getPendingActionLabel(pendingAction) : "无"}</strong>
       </div>
       {contextItems.length > 0 ? (

@@ -130,7 +130,6 @@ const detectOrderingViolation = (
   tasks: TaskNode[],
   layers: TaskNode[][],
 ): [string, string] | null => {
-  const taskIndex = new Map(tasks.map((t, i) => [t.id, i]));
   const layerIndex = new Map<string, number>();
 
   for (let i = 0; i < layers.length; i++) {

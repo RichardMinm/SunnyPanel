@@ -1,5 +1,5 @@
 import type { AgentPromptContext } from "./prompts";
-import type { AgentChatMessage, PendingAction } from "./schemas";
+import type { PendingAction } from "./schemas";
 import type { AgentRole } from "./orchestration/types";
 import { getRelevantMemories } from "./memory";
 

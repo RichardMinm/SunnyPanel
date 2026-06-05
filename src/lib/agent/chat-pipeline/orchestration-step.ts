@@ -1,9 +1,22 @@
 import type { Payload } from "payload";
 
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
-import { buildObservationTraceStep, executeOrchestrationGraph } from "@/lib/agent/execution-graph";
+import {
+  buildExecutionDecisionTraceStep,
+  buildObservationTraceStep,
+  buildResumedOrchestratorPlan,
+  buildStrategyResumeOrchestratorPlan,
+  executeOrchestrationGraph,
+} from "@/lib/agent/execution-graph";
 import { orchestratorPlanToIntent, runOrchestrator } from "@/lib/agent/orchestrator";
+import { replanAfterTaskFailure, type ReplanInput } from "@/lib/agent/orchestration/replan";
+import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
 import { logAgentEvent } from "@/lib/agent/logger";
+import {
+  isCancellationReply,
+  isConfirmationReply,
+  resolveOrchestrationPreflightIntent,
+} from "@/lib/agent/intent-resolution";
 import type {
   AgentChatResponse,
   AgentEngine,
@@ -12,6 +25,7 @@ import type {
   PendingAction,
 } from "@/lib/agent/schemas";
 import type { AutoApprovalContext } from "@/lib/agent/safety";
+import type { AgentToolDryRunContext } from "@/lib/agent/tool-registry";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
@@ -23,9 +37,12 @@ import {
   resolveChecklistItem,
 } from "../checklist-resolvers";
 
+const ORCHESTRATION_MAX_TASKS_PER_RUN = 10;
+
 export type OrchestrationStepParams = {
   autoApproval?: AutoApprovalContext;
   context: BuildContextStepResult["context"];
+  dryRunContextOverrides?: Partial<AgentToolDryRunContext>;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   message: string;
@@ -39,6 +56,8 @@ export type OrchestrationStepParams = {
     nextPendingAction: null | PendingAction;
   }) => Promise<AgentThread>;
   pushTrace: (step: AgentTraceStep) => void;
+  replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
+  runOrchestratorFn?: typeof runOrchestrator;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { id: number };
@@ -58,6 +77,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
   const {
     autoApproval,
     context,
+    dryRunContextOverrides,
     emitStatus,
     emitToken,
     message,
@@ -65,10 +85,83 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     pendingAction,
     persistAgentTurn,
     pushTrace,
+    replanTaskFailure,
+    runOrchestratorFn = runOrchestrator,
     tokenUsage: tokenUsageIn,
     trace,
     user,
   } = params;
+  let tokenUsage = tokenUsageIn;
+  const graphDryRunContext = {
+    detectScheduleConflicts: (args: {
+      date: string;
+      endTime?: null | string;
+      excludeId?: number;
+      startTime?: null | string;
+    }) =>
+      detectScheduleConflicts(args.date, args.startTime, args.endTime, args.excludeId, payload),
+    findTimelineEvent: findChecklistTimelineEvent,
+    now: context.now,
+    planCandidates: context.plans,
+    resolveChecklistGroupForAppend,
+    resolveChecklistItem,
+    ...dryRunContextOverrides,
+  };
+  const pushGraphTraceSteps = (graphResult: Awaited<ReturnType<typeof executeOrchestrationGraph>>) => {
+    const observationTraceStep = buildObservationTraceStep(graphResult.observations);
+
+    if (observationTraceStep) {
+      pushTrace(observationTraceStep);
+    }
+
+    pushTrace(buildExecutionDecisionTraceStep(graphResult));
+  };
+
+  const emitAndPersistEarlyExit = async ({
+    assistantMessage,
+    confidence = 0.9,
+    engine = "workflow",
+    intent,
+    nextPendingAction,
+  }: {
+    assistantMessage: string;
+    confidence?: number;
+    engine?: AgentEngine;
+    intent: AgentIntent["intent"];
+    nextPendingAction: null | PendingAction;
+  }): Promise<OrchestrationStepResult> => {
+    for (const token of splitIntoWordTokens(assistantMessage)) {
+      emitToken(token, 'response');
+      await new Promise((r) => setTimeout(r, 6));
+    }
+    const outputTokens = estimateTokenCount(assistantMessage);
+    tokenUsage = {
+      ...tokenUsage,
+      outputTokens,
+      totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+    };
+    const updatedThread = await persistAgentTurn({
+      assistantMessage,
+      confidence,
+      engine,
+      intent,
+      nextPendingAction,
+    });
+
+    return {
+      outcome: "early_exit",
+      response: {
+        assistantMessage,
+        confidence,
+        engine,
+        intent,
+        pendingAction: nextPendingAction,
+        trace,
+        threadId: updatedThread.id,
+        tokenUsage,
+      },
+    };
+  };
 
   // Skip orchestration only for confirm/cancel/completion-note flows — those
   // are handled by their respective resolution branches. When the user responds
@@ -85,6 +178,237 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     };
   }
 
+  if (pendingAction?.type === "await_strategy_resume") {
+    if (isCancellationReply(message)) {
+      pushTrace({
+        detail: `已放弃策略重试：${pendingAction.reason}`,
+        id: "orchestrator-strategy-resume",
+        kind: "complete",
+        status: "done",
+        title: "已取消策略重试",
+      });
+
+      return emitAndPersistEarlyExit({
+        assistantMessage: "已取消这次策略重试。我不会继续沿着刚才失败的路径执行。",
+        confidence: 1,
+        intent: "answer_question",
+        nextPendingAction: null,
+      });
+    }
+
+    if (!isConfirmationReply(message)) {
+      pushTrace({
+        detail: pendingAction.reason,
+        id: "orchestrator-strategy-resume",
+        kind: "analysis",
+        status: "done",
+        title: "仍在等待继续重试指令",
+      });
+
+      return emitAndPersistEarlyExit({
+        assistantMessage: "这一步仍在策略暂停中。回复「继续」会换一种重规划策略重试，回复「取消」会放弃这次重试。",
+        confidence: 1,
+        intent: "answer_question",
+        nextPendingAction: pendingAction,
+      });
+    }
+
+    emitStatus("正在换一种策略重试...");
+    pushTrace({
+      detail: [
+        `原策略：${pendingAction.strategyMode}`,
+        `最近失败 Run：${pendingAction.recentRunIds.join("、") || "无"}`,
+        `失败原因：${pendingAction.failureReason}`,
+      ].join("\n"),
+      id: "orchestrator-strategy-resume",
+      kind: "analysis",
+      status: "running",
+      title: "正在换策略重试",
+    });
+
+    const resumedPlan = buildStrategyResumeOrchestratorPlan(pendingAction);
+
+    if (resumedPlan.tasks.length === 0) {
+      pushTrace({
+        detail: "保存的策略暂停上下文中没有可恢复的子任务。",
+        id: "orchestrator-strategy-resume",
+        kind: "complete",
+        status: "done",
+        title: "策略重试已停止",
+      });
+
+      return emitAndPersistEarlyExit({
+        assistantMessage: "这次策略暂停已经没有可继续执行的子任务。",
+        confidence: 1,
+        intent: "answer_question",
+        nextPendingAction: null,
+      });
+    }
+
+    const resumeReplanTaskFailure =
+      replanTaskFailure ??
+      ((input: ReplanInput) =>
+        replanAfterTaskFailure({
+          ...input,
+          strategyNote: "用户已明确要求继续。避免重复同一个失败工具调用，优先改为前置核对、澄清目标或生成替代步骤。",
+          strategyOverride: "incremental",
+        }));
+
+    const graphResult = await executeOrchestrationGraph(resumedPlan, graphDryRunContext, {
+      autoApproval,
+      disableToolFailureRepair: true,
+      disabledLoopDirectiveModes: ["avoid_recent_failure"],
+      maxTasksPerRun: ORCHESTRATION_MAX_TASKS_PER_RUN,
+      message: pendingAction.originalMessage,
+      orchestrationId: pendingAction.orchestrationId ?? `orch-strategy-resume-${Date.now()}-${user.id}`,
+      promptContext: context,
+      replanTaskFailure: resumeReplanTaskFailure,
+    });
+    pushGraphTraceSteps(graphResult);
+
+    pushTrace({
+      detail: graphResult.evaluation.summary,
+      id: "orchestrator-strategy-resume",
+      kind: "complete",
+      status: "done",
+      title: "策略重试已完成",
+    });
+
+    logAgentEvent("info", "chat.orchestration_strategy_resumed", {
+      failedTaskId: pendingAction.failedTaskId,
+      nextPendingAction: graphResult.pendingAction?.type ?? null,
+      strategyMode: pendingAction.strategyMode,
+      threadId: undefined,
+      userId: user.id,
+    });
+
+    return emitAndPersistEarlyExit({
+      assistantMessage: graphResult.assistantMessage,
+      confidence: 0.9,
+      intent: graphResult.proposals[0]?.intent ?? graphResult.observations[0]?.intent ?? resumedPlan.tasks[0]?.intent ?? "answer_question",
+      nextPendingAction: graphResult.pendingAction,
+    });
+  }
+
+  if (pendingAction?.type === "await_queue_resume") {
+    if (isCancellationReply(message)) {
+      pushTrace({
+        detail: `${pendingAction.deferredTaskIds.length} 个延后子任务已放弃。`,
+        id: "orchestrator-resume",
+        kind: "complete",
+        status: "done",
+        title: "已取消延后队列",
+      });
+
+      return emitAndPersistEarlyExit({
+        assistantMessage: `已取消继续执行延后队列（${pendingAction.deferredTaskIds.length} 个子任务）。这次不会继续写入或执行后续动作。`,
+        confidence: 1,
+        intent: "answer_question",
+        nextPendingAction: null,
+      });
+    }
+
+    if (!isConfirmationReply(message)) {
+      pushTrace({
+        detail: `${pendingAction.deferredTaskIds.length} 个延后子任务等待恢复。`,
+        id: "orchestrator-resume",
+        kind: "analysis",
+        status: "done",
+        title: "仍在等待继续指令",
+      });
+
+      return emitAndPersistEarlyExit({
+        assistantMessage: `还有 ${pendingAction.deferredTaskIds.length} 个延后子任务等待继续。回复「继续」从保存的队列恢复执行，或回复「取消」放弃这条待执行队列。`,
+        confidence: 1,
+        intent: "answer_question",
+        nextPendingAction: pendingAction,
+      });
+    }
+
+    emitStatus("正在恢复延后队列...");
+    pushTrace({
+      detail: `${pendingAction.deferredTaskIds.length} 个延后子任务将从保存的编排计划恢复，不重新解释“继续”。`,
+      id: "orchestrator-resume",
+      kind: "analysis",
+      status: "running",
+      title: "正在恢复延后队列",
+    });
+
+    const resumedPlan = buildResumedOrchestratorPlan(pendingAction);
+
+    if (resumedPlan.tasks.length === 0) {
+      pushTrace({
+        detail: "保存的延后队列中没有可恢复的任务。",
+        id: "orchestrator-resume",
+        kind: "complete",
+        status: "done",
+        title: "延后队列已清空",
+      });
+
+      return emitAndPersistEarlyExit({
+        assistantMessage: "这条延后队列已经没有可继续执行的子任务。",
+        confidence: 1,
+        intent: "answer_question",
+        nextPendingAction: null,
+      });
+    }
+
+    pushTrace({
+      detail: `恢复 ${resumedPlan.tasks.length} 个子任务：${resumedPlan.tasks.map((task) => task.label).join(" → ")}`,
+      id: "orchestrator-resume",
+      kind: "analysis",
+      status: "done",
+      title: "延后队列已恢复",
+    });
+
+    const graphResult = await executeOrchestrationGraph(resumedPlan, graphDryRunContext, {
+      autoApproval,
+      maxTasksPerRun: ORCHESTRATION_MAX_TASKS_PER_RUN,
+      message: pendingAction.originalMessage,
+      orchestrationId: pendingAction.orchestrationId ?? `orch-resume-${Date.now()}-${user.id}`,
+      promptContext: context,
+    });
+    pushGraphTraceSteps(graphResult);
+
+    logAgentEvent("info", "chat.orchestration_queue_resumed", {
+      deferredTaskCount: pendingAction.deferredTaskIds.length,
+      nextPendingAction: graphResult.pendingAction?.type ?? null,
+      threadId: undefined,
+      userId: user.id,
+    });
+
+    return emitAndPersistEarlyExit({
+      assistantMessage: graphResult.assistantMessage,
+      confidence: 0.9,
+      intent: graphResult.proposals[0]?.intent ?? resumedPlan.tasks[0]?.intent ?? "answer_question",
+      nextPendingAction: graphResult.pendingAction,
+    });
+  }
+
+  const preflightIntent = resolveOrchestrationPreflightIntent({
+    context,
+    message,
+    pendingAction,
+  });
+
+  if (preflightIntent) {
+    pushTrace({
+      detail: "这轮输入先命中咨询/学习 follow-up 保护，不交给行动编排器执行写入型任务。",
+      id: "orchestrator-readonly-preflight",
+      kind: "analysis",
+      status: "done",
+      title: "已确认这轮先按咨询处理",
+    });
+
+    return {
+      outcome: "continue",
+      data: {
+        preResolvedIntent: preflightIntent,
+        tokenUsage,
+      },
+    };
+  }
+
   emitStatus("编排器正在理解你的请求...");
   pushTrace({
     detail: "分析是否为复合意图，并拆解子任务 DAG。",
@@ -94,8 +418,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     title: "编排器正在拆解任务",
   });
 
-  const plan = await runOrchestrator(message, context, (token) => emitToken(token, 'thinking'));
-  let tokenUsage = tokenUsageIn;
+  const plan = await runOrchestratorFn(message, context);
 
   pushTrace({
     detail: `${plan.mode === "compound" ? "复合" : "单一"}意图 · ${plan.tasks.length} 个子任务 · ${plan.reasoning}`,
@@ -155,27 +478,16 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
 
     const graphResult = await executeOrchestrationGraph(
       plan,
-      {
-        detectScheduleConflicts: (args) =>
-          detectScheduleConflicts(args.date, args.startTime, args.endTime, args.excludeId, payload),
-        findTimelineEvent: findChecklistTimelineEvent,
-        now: context.now,
-        planCandidates: context.plans,
-        resolveChecklistGroupForAppend,
-        resolveChecklistItem,
-      },
+      graphDryRunContext,
       {
         autoApproval,
+        maxTasksPerRun: ORCHESTRATION_MAX_TASKS_PER_RUN,
         message,
         orchestrationId,
         promptContext: context,
       },
     );
-    const observationTraceStep = buildObservationTraceStep(graphResult.observations);
-
-    if (observationTraceStep) {
-      pushTrace(observationTraceStep);
-    }
+    pushGraphTraceSteps(graphResult);
 
     if (graphResult.pendingAction) {
       const assistantMessage = graphResult.assistantMessage;

@@ -1,6 +1,6 @@
 import type { Update } from "@/payload-types";
 
-import { MarkdownContent } from "@/components/editor/MarkdownContent";
+import { MarkdownField } from "@/components/public/ContentRenderer";
 import { RecordCoverImage } from "@/components/public/RecordCoverImage";
 import { formatDate } from "@/lib/formatters";
 import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
@@ -40,7 +40,7 @@ export function UpdateCard({ locale, update, variant = "feed" }: UpdateCardProps
       />
 
       <div className={isHomeCard ? "mt-4" : "mt-4"}>
-        <MarkdownContent markdown={update.content} />
+        <MarkdownField content={update.content} />
       </div>
 
       {update.link ? (

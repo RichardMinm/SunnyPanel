@@ -3,6 +3,14 @@ import { syncMemoryEmbedding } from "../memory-vector";
 import type { SaveMemoryArgs } from "../schemas";
 import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
 
+export const buildArchiveMemoryRollbackPayload = (documentId: number) => ({
+  strategy: "archive_created_memory",
+  target: {
+    collection: "agent-memories",
+    documentId,
+  },
+});
+
 export const saveMemoryFromIntent = async (
   args: SaveMemoryArgs,
   onTrace?: AgentExecutionTraceReporter,
@@ -62,13 +70,7 @@ export const saveMemoryFromIntent = async (
       },
     ],
     rollbackAvailable: true,
-    rollbackPayload: {
-      strategy: "archive_created_memory",
-      target: {
-        collection: "agent-memories",
-        documentId: memory.id,
-      },
-    },
+    rollbackPayload: buildArchiveMemoryRollbackPayload(memory.id),
     status: "succeeded",
     steps: [
       {
@@ -91,6 +93,6 @@ export const saveMemoryFromIntent = async (
   return {
     assistantMessage: `已记住：${memory.content}`,
     pendingAction: null,
+    rollbackPayload: buildArchiveMemoryRollbackPayload(memory.id),
   };
 };
-

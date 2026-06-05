@@ -39,7 +39,9 @@ const scheduleCreatedByValues = ["agent", "manual"] as const;
 const agentThreadStatusValues = ["active", "closed"] as const;
 const agentIntentValues = [
   "add_completion_note",
+  "answer_question",
   "append_plan_item",
+  "cancel_schedule_item",
   "clarify",
   "complete_plan_item",
   "compose_plan",
@@ -49,6 +51,7 @@ const agentIntentValues = [
   "evaluate_plan",
   "query_plan_progress",
   "query_progress",
+  "reschedule_item",
   "save_memory",
   "schedule_plan",
   "weekly_review",
@@ -66,6 +69,25 @@ const relatedContentRelationValues = [
   "timeline-events",
   "updates",
 ] as const;
+
+type AgentThreadWriteData = {
+  lastConfidence?: null | number;
+  lastEngine?: (typeof agentEngineValues)[number];
+  lastIntent?: (typeof agentIntentValues)[number];
+  lastInteractionAt?: null | string;
+  messages: Array<{
+    content: string;
+    recordedAt?: null | string;
+    role: "assistant" | "user";
+  }>;
+  pendingAction: AgentThread["pendingAction"];
+  status: (typeof agentThreadStatusValues)[number];
+  summary?: null | string;
+  summaryMessageCount?: null | number;
+  summaryUpdatedAt?: null | string;
+  title?: string;
+  user?: number;
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -162,7 +184,7 @@ export const validatePlanCreateData = (value: unknown) => {
     agentBrief: getOptionalString(value.agentBrief),
     agentState: getEnum(value.agentState, planAgentStateValues, "agentState"),
     description: getOptionalString(value.description),
-    domain: (getOptionalString(value.domain) as typeof planDomainValues[number] | undefined) ?? "other",
+    domain: getOptionalEnum(value.domain, planDomainValues) ?? "other",
     dueDate: getOptionalDateString(value.dueDate),
     executionMode: getEnum(value.executionMode, planExecutionModeValues, "executionMode"),
     phases: getJsonField(value.phases),
@@ -317,6 +339,7 @@ export const validateAgentRunData = (value: unknown) => {
     trace: getOptionalJson(value.trace),
     title: getString(value.title, "title"),
     trigger: getEnum(value.trigger, ["agent", "manual", "scheduled", "webhook"] as const, "trigger"),
+    user: getOptionalNumber(value.user),
     workflow: getEnum(value.workflow, agentRunWorkflowValues, "workflow"),
   } satisfies Partial<AgentRun>;
 };
@@ -355,8 +378,7 @@ export const validateAgentThreadData = (value: unknown) => {
   }
 
   const messages = Array.isArray(value.messages) ? value.messages : [];
-
-  return {
+  const data: AgentThreadWriteData = {
     lastConfidence: value.lastConfidence === null ? null : getOptionalNumber(value.lastConfidence),
     lastEngine: getOptionalEnum(value.lastEngine, agentEngineValues),
     lastIntent: getOptionalEnum(value.lastIntent, agentIntentValues),
@@ -381,7 +403,21 @@ export const validateAgentThreadData = (value: unknown) => {
     status: getEnum(value.status, agentThreadStatusValues, "status"),
     title: getOptionalString(value.title) ?? undefined,
     user: getOptionalNumber(value.user),
-  } satisfies Partial<AgentThread>;
+  };
+
+  if ("summary" in value) {
+    data.summary = getOptionalString(value.summary);
+  }
+
+  if ("summaryMessageCount" in value) {
+    data.summaryMessageCount = getOptionalNumber(value.summaryMessageCount) ?? null;
+  }
+
+  if ("summaryUpdatedAt" in value) {
+    data.summaryUpdatedAt = getOptionalDateString(value.summaryUpdatedAt);
+  }
+
+  return data satisfies Partial<AgentThread>;
 };
 
 export const validateAgentMemoryData = (value: unknown) => {

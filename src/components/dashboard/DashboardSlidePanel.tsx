@@ -1,30 +1,105 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import type { PendingAction } from "@/lib/agent/schemas";
+import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import type { AgentChatMessage, PendingAction } from "@/lib/agent/schemas";
 import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
-import { AgentTaskRow } from "@/components/dashboard/agent/AgentTaskRow";
 import { riskLevelLabelMap } from "@/components/dashboard/agent/constants";
+import { SectionGroup } from "@/components/dashboard/agent/SectionGroup";
+import { TaskItem } from "@/components/dashboard/agent/TaskItem";
+import { ThreadItem } from "@/components/dashboard/agent/ThreadItem";
 import type { AgentRunSummary, AgentThreadSummary } from "@/components/dashboard/agent/types";
+import {
+  buildUnifiedAgentTasks,
+  getPendingActionTone,
+  getRiskTone,
+  getRunTaskMeta,
+  getRunTaskTone,
+} from "@/components/dashboard/agent/task-row-display";
 import { getPendingActionLabel } from "@/components/dashboard/agent/utils";
 
-type UnifiedTask = {
-  id: string;
-  label: string;
-  prompt: string;
-  reason: string;
-  riskLevel?: "high" | "low" | "medium";
-  source?: string;
-  suggestion?: AgentInboxSuggestion;
+const normalizeSummaryText = (value: string) => value.trim().replace(/\s+/g, " ");
+
+const truncateSummaryText = (value: string, maxLength = 86) => {
+  const normalized = normalizeSummaryText(value);
+
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength).trimEnd()}...` : normalized;
 };
 
-type DashboardSlidePanelProps = {
+const getLatestMessageByRole = (messages: AgentChatMessage[], role: AgentChatMessage["role"]) => {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+
+    if (message.role === role && normalizeSummaryText(message.content).length > 0) {
+      return message;
+    }
+  }
+
+  return null;
+};
+
+const summarizePendingAction = (pendingAction: PendingAction) => {
+  if (pendingAction.type === "await_confirmation") {
+    return `等待确认：${truncateSummaryText(pendingAction.action.summary)}`;
+  }
+
+  if (pendingAction.type === "await_batch_confirmation") {
+    return `等待确认 ${pendingAction.actions.length} 项操作：${truncateSummaryText(
+      pendingAction.actions.map((action) => action.summary).join("；"),
+    )}`;
+  }
+
+  if (pendingAction.type === "await_queue_resume") {
+    return `等待继续：还有 ${pendingAction.deferredTaskIds.length} 个延后任务。`;
+  }
+
+  if (pendingAction.type === "await_strategy_resume") {
+    return `等待策略恢复：${truncateSummaryText(pendingAction.reason)}`;
+  }
+
+  if (pendingAction.type === "await_learning_followup") {
+    return `学习咨询进行中：${truncateSummaryText(pendingAction.subject)}。`;
+  }
+
+  if (pendingAction.type === "await_clarification") {
+    return `等待补充信息：${truncateSummaryText(pendingAction.question)}`;
+  }
+
+  return `等待补充完成备注：${truncateSummaryText(
+    [pendingAction.checklistTitle, pendingAction.groupTitle, pendingAction.itemTitle].filter(Boolean).join(" / "),
+  )}`;
+};
+
+function buildConversationSummary(messages: AgentChatMessage[], pendingAction: null | PendingAction) {
+  if (pendingAction) {
+    return summarizePendingAction(pendingAction);
+  }
+
+  const latestUserMessage = getLatestMessageByRole(messages, "user");
+  const latestAssistantMessage = getLatestMessageByRole(messages, "assistant");
+
+  if (latestUserMessage && latestAssistantMessage) {
+    return `最近你在推进「${truncateSummaryText(latestUserMessage.content, 42)}」，Agent 已回应「${truncateSummaryText(
+      latestAssistantMessage.content,
+      54,
+    )}」。`;
+  }
+
+  if (latestUserMessage) {
+    return `最近你在推进「${truncateSummaryText(latestUserMessage.content, 72)}」。`;
+  }
+
+  return "还没有新的对话内容。输入目标后，这里会沉淀当前会话摘要。";
+}
+
+export type DashboardSlidePanelProps = {
   disabled?: boolean;
   isThinking: boolean;
+  messages: AgentChatMessage[];
   onArchiveThread?: (threadId: number, archived: boolean) => void;
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
+  onResizeStart?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onRunPrompt: (prompt: string) => void;
   onSearchThreads?: (query: string) => void;
   onSelectRun?: (runId: number) => void;
@@ -41,10 +116,11 @@ type DashboardSlidePanelProps = {
 
 export function DashboardSlidePanel({
   disabled,
-  isThinking,
+  messages,
   onArchiveThread,
   onLoadThread,
   onNewThread,
+  onResizeStart,
   onRunPrompt,
   onSearchThreads,
   onSelectRun,
@@ -53,7 +129,6 @@ export function DashboardSlidePanel({
   quickPrompts,
   recentRuns,
   selectedRunId,
-  statusLabel,
   suggestions,
   threadId,
   threads,
@@ -73,54 +148,28 @@ export function DashboardSlidePanel({
     [onSearchThreads],
   );
 
-  // Convert suggestions + quick prompts into unified "建议" list
-  const suggestionTasks = suggestions.slice(0, 3).map((s) => ({
-    id: `inbox-${s.id}`,
-    label: s.title,
-    prompt: s.suggestedPrompt,
-    reason: s.reason,
-    riskLevel: s.riskLevel,
-    source: s.source,
-    suggestion: s,
-  }));
-  const quickTasks = quickPrompts.slice(0, 2).map((p) => ({
-    id: `quick-${p.prompt}`,
-    label: p.label,
-    prompt: p.prompt,
-    reason: p.prompt,
-  }));
-  const allTasks: UnifiedTask[] = [...suggestionTasks, ...quickTasks];
-
+  const allTasks = buildUnifiedAgentTasks(suggestions, quickPrompts, { quick: 2, suggestions: 3 });
+  const conversationSummary = buildConversationSummary(messages, pendingAction);
+  const riskTasks = allTasks.filter((task) => task.riskLevel === "high" || task.riskLevel === "medium");
   const visibleThreads = showAllThreads ? threads : threads.slice(0, 8);
 
-  // Helper: determine tone for pending action
-  function getPendingTone(pa: PendingAction) {
-    if (pa.type === "await_confirmation") {
-      return pa.action.riskLevel === "high" ? "danger" as const
-        : pa.action.riskLevel === "medium" ? "warning" as const
-        : "success" as const;
-    }
-    return "warning" as const;
-  }
-
-  // Helper: determine tone + meta for run
-  function getRunTone(run: AgentRunSummary) {
-    if (run.status === "failed") return "danger" as const;
-    if (run.runKind === "rollback") return "warning" as const;
-    return run.status === "succeeded" ? "success" as const : "info" as const;
-  }
-
-  function getRunMeta(run: AgentRunSummary) {
-    if (run.runKind === "rollback") return "回滚";
-    if (run.runKind === "review") return "复盘";
-    return run.status === "succeeded" ? "成功" : run.status === "failed" ? "失败" : run.status;
-  }
-
   return (
-    <aside className="sunny-dashboard-slide-panel" aria-label="Agent 面板">
-      {/* Header */}
+    <aside className="sunny-dashboard-slide-panel sunny-right-context-panel" aria-label="右侧上下文面板">
+      {onResizeStart ? (
+        <button
+          type="button"
+          className="sunny-context-panel-resize-handle"
+          aria-label="调整右侧面板宽度"
+          onPointerDown={onResizeStart}
+        />
+      ) : null}
       <div className="sunny-dashboard-slide-panel-head">
-        <span>Agent 会话</span>
+        <div>
+          <p>环境信息</p>
+          <h3>当前对话</h3>
+          <span className="sunny-dashboard-context-summary-label">对话摘要</span>
+          <span className="sunny-dashboard-context-summary">{conversationSummary}</span>
+        </div>
         <button
           type="button"
           className="sunny-dashboard-slide-panel-new-btn"
@@ -143,23 +192,11 @@ export function DashboardSlidePanel({
         />
       </div>
 
-      {/* Body */}
       <div className="sunny-dashboard-slide-panel-body">
-
-        {/* Current task status */}
-        <div className="sunny-dashboard-slide-section-label">当前任务</div>
-        <AgentTaskRow
-          detail={isThinking ? "运行中" : "就绪"}
-          label={statusLabel}
-          meta={threadId ? `#${threadId}` : null}
-          tone={isThinking ? "info" : "success"}
-        />
-
-        {/* Pending action */}
         {pendingAction ? (
-          <>
-            <div className="sunny-dashboard-slide-section-label">待确认</div>
-            <AgentTaskRow
+          <SectionGroup title="待处理" count={1}>
+            <TaskItem
+              badge={threadId ? `#${threadId}` : "未绑定"}
               detail={getPendingActionLabel(pendingAction)}
               label={
                 pendingAction.type === "await_confirmation"
@@ -168,118 +205,103 @@ export function DashboardSlidePanel({
                     ? "延迟队列可继续"
                     : "需要继续输入"
               }
-              meta="待处理"
-              tone={getPendingTone(pendingAction)}
+              tone={getPendingActionTone(pendingAction)}
             />
-          </>
+          </SectionGroup>
         ) : null}
 
-        {/* Suggestions */}
-        <div className="sunny-dashboard-slide-section-label">建议</div>
-        {allTasks.length > 0 ? (
-          allTasks.map((task) => (
-            <AgentTaskRow
-              key={task.id}
-              disabled={disabled}
-              detail={task.reason}
-              label={task.label}
-              meta={task.riskLevel ? riskLevelLabelMap[task.riskLevel] : task.source ?? "建议"}
-              onClick={() => {
-                if (task.suggestion) {
-                  onRunSuggestion(task.suggestion);
-                  return;
-                }
-                onRunPrompt(task.prompt);
-              }}
-              tone={
-                task.riskLevel === "high" ? "danger"
-                  : task.riskLevel === "medium" ? "warning"
-                  : "accent"
-              }
-            />
-          ))
-        ) : (
-          <AgentTaskRow detail="输入目标即可开始" label="暂无建议" tone="muted" />
-        )}
-
-        {/* Thread list */}
-        <div className="sunny-dashboard-slide-section-label">会话</div>
-        {visibleThreads.map((thread) => (
-          <div key={thread.id} style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-            <div style={{ flex: 1, minWidth: 0 }} onClick={() => onLoadThread(thread.id)}>
-              <AgentTaskRow
-                detail={thread.pendingAction ? getPendingActionLabel(thread.pendingAction) : thread.title}
-                label={thread.title || `会话 #${thread.id}`}
-                meta={thread.archived ? "归档" : thread.tags?.length ? thread.tags[0] : `#${thread.id}`}
-                selected={thread.id === threadId}
-                tone={thread.archived ? "muted" : thread.pendingAction ? "warning" : "muted"}
+        <SectionGroup title="建议动作" count={allTasks.length}>
+          {allTasks.length > 0 ? (
+            allTasks.map((task) => (
+              <TaskItem
+                key={task.id}
+                badge={task.riskLevel ? riskLevelLabelMap[task.riskLevel] : task.source ?? "建议"}
+                detail={task.reason}
+                disabled={disabled}
+                label={task.label}
+                onClick={() => {
+                  if (task.suggestion) {
+                    onRunSuggestion(task.suggestion);
+                    return;
+                  }
+                  onRunPrompt(task.prompt);
+                }}
+                tone={getRiskTone(task.riskLevel)}
               />
-            </div>
-            {onArchiveThread ? (
-              <button
-                type="button"
-                style={{
-                  padding: "0.15rem 0.4rem",
-                  border: "1px solid var(--border)",
-                  borderRadius: "0.3rem",
-                  background: "transparent",
-                  color: "var(--muted)",
-                  fontSize: "0.65rem",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                }}
-                title={thread.archived ? "取消归档" : "归档"}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onArchiveThread(thread.id, !thread.archived);
-                }}
-              >
-                {thread.archived ? "恢复" : "归档"}
-              </button>
-            ) : null}
-          </div>
-        ))}
-        {!showAllThreads && threads.length > 8 ? (
-          <button
-            type="button"
-            style={{
-              width: "100%",
-              padding: "0.3rem",
-              border: "none",
-              background: "transparent",
-              color: "var(--muted)",
-              fontSize: "0.75rem",
-              cursor: "pointer",
-            }}
-            onClick={() => setShowAllThreads(true)}
-          >
-            显示全部 ({threads.length})
-          </button>
-        ) : null}
-        {threads.length === 0 ? (
-          <AgentTaskRow
-            detail={threadSearch ? "没有匹配的会话" : "还没有历史会话"}
-            label={threadSearch ? "未找到" : "暂无会话"}
-            tone="muted"
-          />
-        ) : null}
+            ))
+          ) : (
+            <TaskItem detail="输入目标即可开始" label="暂无建议" tone="muted" />
+          )}
+        </SectionGroup>
 
-        {/* Recent runs */}
-        <div className="sunny-dashboard-slide-section-label">最近</div>
-        {recentRuns.slice(0, 4).map((run) => (
-          <AgentTaskRow
-            key={run.id}
-            detail={run.impactSummary ?? run.summary ?? run.workflow}
-            label={run.title}
-            meta={getRunMeta(run)}
-            onClick={onSelectRun ? () => onSelectRun(run.id) : undefined}
-            selected={run.id === selectedRunId}
-            tone={getRunTone(run)}
-          />
-        ))}
-        {recentRuns.length === 0 ? (
-          <AgentTaskRow detail="还没有审计记录" label="暂无记录" tone="muted" />
-        ) : null}
+        <SectionGroup title="风险提醒" count={riskTasks.length}>
+          {riskTasks.length > 0 ? (
+            riskTasks.map((task) => (
+              <TaskItem
+                key={`risk-${task.id}`}
+                badge={task.riskLevel ? riskLevelLabelMap[task.riskLevel] : "建议"}
+                detail={task.reason}
+                disabled={disabled}
+                label={task.label}
+                onClick={() => {
+                  if (task.suggestion) {
+                    onRunSuggestion(task.suggestion);
+                    return;
+                  }
+                  onRunPrompt(task.prompt);
+                }}
+                tone={getRiskTone(task.riskLevel)}
+              />
+            ))
+          ) : (
+            <TaskItem detail="当前没有高优先级风险提醒" label="风险稳定" tone="success" />
+          )}
+        </SectionGroup>
+
+        <SectionGroup title="会话历史" count={threads.length}>
+          {visibleThreads.map((thread) => (
+            <ThreadItem
+              key={thread.id}
+              onArchive={onArchiveThread}
+              onLoad={onLoadThread}
+              selected={thread.id === threadId}
+              thread={thread}
+            />
+          ))}
+          {!showAllThreads && threads.length > 8 ? (
+            <button
+              type="button"
+              className="sunny-context-panel-show-all"
+              onClick={() => setShowAllThreads(true)}
+            >
+              显示全部 ({threads.length})
+            </button>
+          ) : null}
+          {threads.length === 0 ? (
+            <TaskItem
+              detail={threadSearch ? "没有匹配的会话" : "还没有历史会话"}
+              label={threadSearch ? "未找到" : "暂无会话"}
+              tone="muted"
+            />
+          ) : null}
+        </SectionGroup>
+
+        <SectionGroup title="执行记录" count={recentRuns.length} defaultCollapsed>
+          {recentRuns.slice(0, 4).map((run) => (
+            <TaskItem
+              key={run.id}
+              badge={getRunTaskMeta(run)}
+              detail={run.impactSummary ?? run.summary ?? run.workflow}
+              label={run.title}
+              onClick={onSelectRun ? () => onSelectRun(run.id) : undefined}
+              selected={run.id === selectedRunId}
+              tone={getRunTaskTone(run)}
+            />
+          ))}
+          {recentRuns.length === 0 ? (
+            <TaskItem detail="还没有审计记录" label="暂无记录" tone="muted" />
+          ) : null}
+        </SectionGroup>
       </div>
     </aside>
   );

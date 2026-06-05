@@ -6,8 +6,10 @@ export type RollbackPayload = {
     agentRunId?: null | number;
     collection: string;
     documentId?: null | number;
+    documentIds?: number[];
     planReviewId?: null | number;
     suggestionIds?: number[];
+    timelineEventId?: null | number;
   };
 };
 
@@ -36,11 +38,20 @@ export const parseRollbackPayload = (value: unknown): null | RollbackPayload => 
             : value.target.documentId === null
               ? null
               : undefined,
+        documentIds: Array.isArray(value.target.documentIds)
+          ? value.target.documentIds.filter((id): id is number => typeof id === "number")
+          : undefined,
         planReviewId:
           typeof value.target.planReviewId === "number" ? value.target.planReviewId : undefined,
         suggestionIds: Array.isArray(value.target.suggestionIds)
           ? value.target.suggestionIds.filter((id): id is number => typeof id === "number")
           : undefined,
+        timelineEventId:
+          typeof value.target.timelineEventId === "number"
+            ? value.target.timelineEventId
+            : value.target.timelineEventId === null
+              ? null
+              : undefined,
       }
     : undefined;
 
@@ -60,26 +71,44 @@ export const isRollbackPayloadExecutable = (value: unknown): boolean => {
     return false;
   }
 
-  const { collection, documentId } = parsed.target;
-
-  if (typeof documentId !== "number") {
-    return false;
-  }
+  const { collection, documentId, documentIds } = parsed.target;
 
   if (parsed.strategy === "delete_created_document") {
-    return collection === "plans" || collection === "schedule-items";
+    return typeof documentId === "number" && (collection === "plans" || collection === "schedule-items");
+  }
+
+  if (parsed.strategy === "delete_created_documents") {
+    return (
+      (collection === "plans" || collection === "schedule-items") &&
+      Array.isArray(documentIds) &&
+      documentIds.length > 0
+    );
   }
 
   if (parsed.strategy === "delete_created_timeline_event") {
-    return collection === "timeline-events";
+    return typeof documentId === "number" && collection === "timeline-events";
   }
 
   if (parsed.strategy === "archive_created_memory") {
-    return collection === "agent-memories";
+    return typeof documentId === "number" && collection === "agent-memories";
   }
 
   if (parsed.strategy === "restore_checklist_groups") {
-    return collection === "checklists" && parsed.beforeSnapshot != null;
+    return typeof documentId === "number" && collection === "checklists" && parsed.beforeSnapshot != null;
+  }
+
+  if (parsed.strategy === "restore_checklist_groups_and_timeline") {
+    const snapshot = parsed.beforeSnapshot as { groups?: unknown } | undefined;
+
+    return (
+      typeof documentId === "number" &&
+      collection === "checklists" &&
+      Array.isArray(snapshot?.groups)
+    );
+  }
+
+  if (parsed.strategy === "restore_schedule_item_snapshot" || parsed.strategy === "restore_schedule_item_status") {
+    return typeof documentId === "number" && collection === "schedule-items" && parsed.beforeSnapshot != null;
   }
 
   return false;

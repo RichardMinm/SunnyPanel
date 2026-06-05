@@ -1,7 +1,7 @@
 import type { PayloadRequest } from "payload";
 
 import { resolveSiteLocale, siteLocaleCookieName, type SiteLocale } from "@/lib/site-copy";
-import { readSitePaletteFromCookie, resolveSitePalette, sitePaletteCookieName, type SitePalette } from "@/lib/site-palette";
+import { readSitePaletteFromCookie, resolveSitePalette, type SitePalette } from "@/lib/site-palette";
 
 export function parseCookieValue(cookieHeader: string | null | undefined, name: string) {
   if (!cookieHeader) {

@@ -207,3 +207,111 @@ test("parseRollbackPayload reads beforeSnapshot and extended target fields", () 
   assert.ok(parsed.beforeSnapshot);
   assert.deepEqual((parsed.beforeSnapshot as Record<string, unknown>).groups, [{ title: "test" }]);
 });
+
+test("multi-document schedule rollback payload is executable", () => {
+  const parsed = parseRollbackPayload({
+    strategy: "delete_created_documents",
+    target: {
+      collection: "schedule-items",
+      documentIds: [11, "bad", 12, null],
+    },
+  });
+
+  assert.ok(parsed);
+  assert.deepEqual(parsed.target?.documentIds, [11, 12]);
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "delete_created_documents",
+      target: {
+        collection: "schedule-items",
+        documentIds: [11, 12],
+      },
+    }),
+    true,
+  );
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "delete_created_documents",
+      target: {
+        collection: "schedule-items",
+        documentIds: [],
+      },
+    }),
+    false,
+  );
+});
+
+test("schedule snapshot and status rollback payloads require beforeSnapshot", () => {
+  assert.equal(
+    isRollbackPayloadExecutable({
+      beforeSnapshot: {
+        date: "2026-06-01",
+        endTime: "10:30",
+        startTime: "09:00",
+        status: "planned",
+        title: "原日程",
+      },
+      strategy: "restore_schedule_item_snapshot",
+      target: {
+        collection: "schedule-items",
+        documentId: 42,
+      },
+    }),
+    true,
+  );
+  assert.equal(
+    isRollbackPayloadExecutable({
+      beforeSnapshot: {
+        status: "planned",
+      },
+      strategy: "restore_schedule_item_status",
+      target: {
+        collection: "schedule-items",
+        documentId: 42,
+      },
+    }),
+    true,
+  );
+  assert.equal(
+    isRollbackPayloadExecutable({
+      strategy: "restore_schedule_item_status",
+      target: {
+        collection: "schedule-items",
+        documentId: 42,
+      },
+    }),
+    false,
+  );
+});
+
+test("checklist timeline compound rollback payload is executable", () => {
+  assert.equal(
+    isRollbackPayloadExecutable({
+      beforeSnapshot: {
+        groups: [{ title: "原分组" }],
+        timelineEvent: null,
+      },
+      strategy: "restore_checklist_groups_and_timeline",
+      target: {
+        collection: "checklists",
+        documentId: 101,
+        timelineEventId: 501,
+      },
+    }),
+    true,
+  );
+  assert.equal(
+    isRollbackPayloadExecutable({
+      beforeSnapshot: {
+        timelineEvent: null,
+      },
+      strategy: "restore_checklist_groups_and_timeline",
+      target: {
+        collection: "checklists",
+        documentId: 101,
+        timelineEventId: 501,
+      },
+    }),
+    false,
+  );
+});

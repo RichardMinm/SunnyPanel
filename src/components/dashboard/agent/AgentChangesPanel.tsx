@@ -1,6 +1,12 @@
 import type { ProposedAgentAction, ProposedAgentActionChange } from "@/lib/agent/schemas";
 
-import { operationLabelMap, riskLevelLabelMap, visibilityLabelMap } from "./constants";
+import {
+  formatCollectionLabel,
+  formatIntentLabel,
+  operationLabelMap,
+  riskLevelLabelMap,
+  visibilityLabelMap,
+} from "./constants";
 
 type AgentChangeCardProps = {
   change: ProposedAgentActionChange;
@@ -11,7 +17,7 @@ function AgentChangeCard({ change }: AgentChangeCardProps) {
     <div className={`sunny-agent-change-row sunny-agent-change-row-${change.operation}`}>
       <div>
         <span>{operationLabelMap[change.operation]}</span>
-        <strong>{change.documentId ? `${change.collection} #${change.documentId}` : change.collection}</strong>
+        <strong>{change.documentId ? `${formatCollectionLabel(change.collection)} #${change.documentId}` : formatCollectionLabel(change.collection)}</strong>
       </div>
       <p>{change.preview}</p>
       {change.beforePreview || change.afterPreview ? (
@@ -47,7 +53,7 @@ export function AgentChangesPanel({ action }: AgentChangesPanelProps) {
       <div className="sunny-agent-inspector-summary">
         <span className={`sunny-agent-risk-pill-v2 sunny-agent-risk-${action.riskLevel}`}>{riskLevelLabelMap[action.riskLevel]}</span>
         <h3>{action.summary}</h3>
-        <p>{action.toolName ?? action.intent}</p>
+        <p>{formatIntentLabel(action.intent)}</p>
       </div>
       <div className="sunny-agent-change-list-v2">
         {action.changes.map((change, index) => (

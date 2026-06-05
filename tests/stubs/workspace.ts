@@ -22,11 +22,15 @@ const emptySnapshot: WorkspaceSnapshot = {
 
 export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => emptySnapshot;
 
-export const getAgentWorkspaceContextSource = async (_args?: unknown): Promise<AgentContextSource> => ({
-  agentRuns: [],
-  checklists: [],
-  contentItems: [],
-  planReviews: [],
-  plans: [],
-  timelineEvents: [],
-});
+export const getAgentWorkspaceContextSource = async (args?: unknown): Promise<AgentContextSource> => {
+  void args;
+
+  return {
+    agentRuns: [],
+    checklists: [],
+    contentItems: [],
+    planReviews: [],
+    plans: [],
+    timelineEvents: [],
+  };
+};

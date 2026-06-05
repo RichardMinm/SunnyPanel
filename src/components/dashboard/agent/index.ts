@@ -5,15 +5,8 @@ export { AgentChangesPanel } from "./AgentChangesPanel";
 export { AgentComposer } from "./AgentComposer";
 export { AgentContextPanel } from "./AgentContextPanel";
 export { AgentConversation } from "./AgentConversation";
-export { AgentDebugPanel } from "./AgentDebugPanel";
-export { AgentDock } from "./AgentDock";
 export { AgentInspector, AgentInspectorTabs } from "./AgentInspector";
-export { AgentLinkedPanel } from "./AgentLinkedPanel";
-export { AgentRunTabs } from "./AgentRunTabs";
-export { AgentRunTimeline } from "./AgentRunTimeline";
-export { AgentSidebar } from "./AgentSidebar";
 export { AgentTaskRow } from "./AgentTaskRow";
-export { AgentTokenMeter } from "./AgentTokenMeter";
 export { AgentTracePanel } from "./AgentTracePanel";
 export { AgentWorkbench } from "./AgentWorkbench";
 

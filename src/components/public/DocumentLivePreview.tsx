@@ -6,8 +6,7 @@ import { useLivePreview } from "@payloadcms/live-preview-react";
 
 import { ChecklistPreviewCard } from "@/components/public/ChecklistPreviewCard";
 import { RecordCoverImage } from "@/components/public/RecordCoverImage";
-import { ContentRenderer } from "@/components/public/ContentRenderer";
-import { MarkdownContent } from "@/components/editor/MarkdownContent";
+import { ContentRenderer, MarkdownField } from "@/components/public/ContentRenderer";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
 import type {
@@ -208,7 +207,7 @@ const renderPreviewDocument = ({
             {note.mood ? <span className="sunny-badge sunny-badge-muted">{note.mood}</span> : null}
           </div>
           <div className="mt-5">
-            <MarkdownContent markdown={note.content} />
+            <MarkdownField content={note.content} />
           </div>
           <RecordCoverImage
             containerClassName="mt-6 overflow-hidden rounded-lg border border-border/80"
@@ -230,7 +229,7 @@ const renderPreviewDocument = ({
             <span className="text-sm text-muted">{formatDateTime(update.updatedAt, locale)}</span>
           </div>
           <div className="mt-5">
-            <MarkdownContent markdown={update.content} />
+            <MarkdownField content={update.content} />
           </div>
           {update.link ? (
             <Link href={update.link} className="mt-4 inline-flex text-sm font-semibold text-accent-strong">

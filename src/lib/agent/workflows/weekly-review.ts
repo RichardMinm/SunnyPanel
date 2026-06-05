@@ -1,5 +1,7 @@
 import type { AgentSuggestionDraft, AgentSuggestionRelatedContent } from "../suggestions-core";
 import type { WeeklyReviewArgs } from "../schemas";
+import { getCurrentAgentUserId } from "../execution-context";
+import { buildAgentRunOwnerWhere } from "../run-access";
 
 type PayloadFindResult<TDoc> = {
   docs: TDoc[];
@@ -109,6 +111,7 @@ export type WeeklyReviewWorkflowDeps = {
   now?: Date | string;
   payload?: WeeklyReviewPayload;
   upsertSuggestion?: (uniqueKey: string, suggestion: AgentSuggestionDraft) => Promise<unknown>;
+  userId?: number;
   validateAgentRunData?: (value: unknown) => unknown;
   validatePlanReviewData?: (value: unknown) => unknown;
 };
@@ -231,7 +234,11 @@ const toContentSummary = (
   };
 };
 
-export const collectWeeklyReviewSnapshot = async (payload: WeeklyReviewPayload): Promise<WeeklyReviewSnapshot> => {
+export const collectWeeklyReviewSnapshot = async (
+  payload: WeeklyReviewPayload,
+  options: { userId?: number } = {},
+): Promise<WeeklyReviewSnapshot> => {
+  const userId = options.userId ?? getCurrentAgentUserId();
   const [
     plans,
     checklists,
@@ -269,6 +276,7 @@ export const collectWeeklyReviewSnapshot = async (payload: WeeklyReviewPayload):
       limit: 12,
       overrideAccess: true,
       sort: "-startedAt",
+      where: typeof userId === "number" ? buildAgentRunOwnerWhere(userId) : undefined,
     }),
     payload.find<Record<string, unknown>>({
       collection: "posts",
@@ -506,9 +514,10 @@ export const runWeeklyReviewWorkflow = async (
     throw new Error("Weekly review workflow requires either collectSnapshot or payload.");
   }
 
+  const userId = deps.userId ?? getCurrentAgentUserId();
   const snapshot = deps.collectSnapshot
     ? await deps.collectSnapshot()
-    : await collectWeeklyReviewSnapshot(payload as WeeklyReviewPayload);
+    : await collectWeeklyReviewSnapshot(payload as WeeklyReviewPayload, { userId });
   const review = buildWeeklyReviewFromSnapshot(snapshot, now);
 
   const { enhanceWeeklyReviewWithLLM } = await import("./weekly-review-llm");
@@ -617,6 +626,7 @@ export const runWeeklyReviewWorkflow = async (
     summary,
     title,
     trigger: "agent",
+    user: userId,
     workflow: "weekly-review",
   };
   const agentRunData = deps.validateAgentRunData ? deps.validateAgentRunData(rawAgentRunData) : rawAgentRunData;

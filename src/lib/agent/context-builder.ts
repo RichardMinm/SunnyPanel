@@ -714,6 +714,7 @@ export const buildAgentContext = ({
   pendingAction,
   resolvedIntent,
   source,
+  threadSummary,
   workbenchMode,
 }: {
   budget?: AgentContextBudget;
@@ -722,6 +723,7 @@ export const buildAgentContext = ({
   pendingAction: null | PendingAction;
   resolvedIntent?: AgentIntent | null;
   source: AgentContextSource;
+  threadSummary?: AgentPromptContext["threadSummary"];
   workbenchMode?: AgentWorkbenchMode | null;
 }): AgentPromptContext => {
   const inferredMode = resolveAgentContextMode({
@@ -830,6 +832,7 @@ export const buildAgentContext = ({
     pendingAction,
     planReviews: planReviews.map(toPromptPlanReview),
     plans: plans.map(toPromptPlan),
+    threadSummary: threadSummary ?? null,
     timelineCandidates: timelineCandidates.map(toPromptContentItem),
     timelineEvents: timelineEvents.map(toPromptTimelineEvent),
     workbenchMode: workbenchMode ?? undefined,

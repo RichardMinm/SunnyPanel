@@ -26,7 +26,7 @@ const intentToSuggestedMode: Partial<Record<AgentChatResponse["intent"], AgentWo
 };
 
 /**
- * SSE 契约（与 `AgentChatPanel` 中 `readStreamResponse` / `parseStreamBlock` 对齐）
+ * SSE 契约（与 `use-agent-chat-messaging` 中 `readStreamResponse` / `parseStreamBlock` 对齐）
  *
  * 每条消息：`event: <name>\ndata: <JSON>\n\n`
  *

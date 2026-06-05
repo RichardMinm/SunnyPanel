@@ -1,5 +1,4 @@
 import { completeStructuredStreaming } from "../llm/complete-structured";
-import type { StreamTokenCallback } from "../client";
 import { logAgentEvent } from "../logger";
 import type { AgentPromptContext } from "../prompts";
 import { buildOrchestratorSystemPrompt, buildOrchestratorUserPrompt } from "../prompts/orchestrator";
@@ -124,7 +123,6 @@ const heuristicToPlan = (message: string): OrchestratorPlan => {
 export const runOrchestrator = async (
   message: string,
   context: AgentPromptContext,
-  onToken?: StreamTokenCallback,
   signal?: AbortSignal,
 ): Promise<OrchestratorPlan> => {
   const result = await completeStructuredStreaming({
@@ -135,7 +133,6 @@ export const runOrchestrator = async (
     ],
     parse: parseOrchestratorPlan,
     temperature: 0.2,
-    onToken,
     signal,
   });
 

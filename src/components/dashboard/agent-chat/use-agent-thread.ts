@@ -2,20 +2,24 @@
 
 import { useCallback, useState } from "react";
 
-import type { AgentRunSummary, AgentThreadSummary } from "@/components/dashboard/agent/types";
+import type { AgentRunDetail, AgentRunSummary, AgentThreadSummary } from "@/components/dashboard/agent/types";
 import type { AgentChatMessage, PendingAction } from "@/lib/agent/schemas";
 
 export type LoadedThread = {
   id: number;
+  lastInteractionAt?: string;
   messages: AgentChatMessage[];
   pendingAction: null | PendingAction;
   title: string;
 };
 
 export function useAgentThreadList() {
+  const [lastInteractionAt, setLastInteractionAt] = useState<null | string>(null);
   const [threadId, setThreadId] = useState<null | number>(null);
   const [threads, setThreads] = useState<AgentThreadSummary[]>([]);
   const [recentRuns, setRecentRuns] = useState<AgentRunSummary[]>([]);
+  const [runDetailError, setRunDetailError] = useState<null | string>(null);
+  const [selectedRunDetail, setSelectedRunDetail] = useState<AgentRunDetail | null>(null);
 
   const fetchThread = useCallback(async (nextThreadId?: number) => {
     const response = await fetch(nextThreadId ? `/api/agent/thread?threadId=${nextThreadId}` : "/api/agent/thread", {
@@ -34,9 +38,12 @@ export function useAgentThreadList() {
 
     setThreads(data.threads ?? []);
     setRecentRuns(data.recentRuns ?? []);
+    setRunDetailError(null);
+    setSelectedRunDetail(null);
 
     if (data.selectedThread) {
       setThreadId(data.selectedThread.id);
+      setLastInteractionAt(data.selectedThread.lastInteractionAt ?? null);
     }
 
     return data.selectedThread ?? null;
@@ -78,12 +85,45 @@ export function useAgentThreadList() {
     return true;
   }, []);
 
+  const clearRunDetail = useCallback(() => {
+    setRunDetailError(null);
+    setSelectedRunDetail(null);
+  }, []);
+
+  const fetchRunDetail = useCallback(async (runId: number) => {
+    setRunDetailError(null);
+
+    const response = await fetch(`/api/agent/run?runId=${runId}`, {
+      method: "GET",
+    });
+
+    if (!response.ok) {
+      setSelectedRunDetail(null);
+      setRunDetailError("无法读取执行记录");
+
+      return null;
+    }
+
+    const data = (await response.json()) as { run?: AgentRunDetail };
+    const run = data.run ?? null;
+
+    setSelectedRunDetail(run);
+
+    return run;
+  }, []);
+
   return {
     archiveThread,
+    clearRunDetail,
     fetchThread,
+    fetchRunDetail,
+    lastInteractionAt,
     recentRuns,
+    runDetailError,
     searchThreads,
+    selectedRunDetail,
     setThreadId,
+    setThreads,
     threadId,
     threads,
   };

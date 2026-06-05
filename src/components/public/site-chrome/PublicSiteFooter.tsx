@@ -14,7 +14,6 @@ export function PublicSiteFooter({ locale }: { locale: SiteLocale }) {
         <div className="flex flex-wrap gap-3 text-sm text-muted">
           {footerItems.map((item) =>
             item.href === "/dashboard" ? (
-              // eslint-disable-next-line @next/next/no-html-link-for-pages
               <a key={item.href} href={item.href} className="sunny-nav-link px-0 py-0 hover:bg-transparent">
                 {item.label}
               </a>

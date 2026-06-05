@@ -15,10 +15,11 @@ import { AgentComposer } from "./AgentComposer";
 import { AgentConversation } from "./AgentConversation";
 import { AgentErrorBoundary } from "./AgentErrorBoundary";
 import { AgentInspector } from "./AgentInspector";
-import { AgentThinkingPanel } from "./AgentThinkingPanel";
+import { MemoryWorkspace } from "./MemoryWorkspace";
 import type { AgentRollbackExecutionResult } from "./rollback-display";
 import type { AgentInspectorTab, AgentRunDetail, ContextPreferences } from "./types";
 import { getLatestAssistantMessage } from "./utils";
+import { useDashboardMode } from "../DashboardModeContext";
 
 type AgentWorkbenchProps = {
   activeInspectorTab: AgentInspectorTab;
@@ -96,6 +97,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
   const batchActions = pendingAction?.type === "await_batch_confirmation" ? pendingAction.actions : null;
   const latestAssistantMessage = getLatestAssistantMessage(messages);
+  const dashboardMode = useDashboardMode();
 
   const inspectorPanel = (
     <AgentInspector
@@ -130,7 +132,6 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     <AgentErrorBoundary fallbackLabel="Agent 工作台出错了">
       <div className="sunny-agent-center-surface">
         <div className="sunny-agent-unified-body">
-          <AgentThinkingPanel isThinking={isThinking} statusLabel={statusLabel} steps={traceSteps} thinkingContent={thinkingContent} />
           <AnimatePresence mode="wait">
             {confirmationAction ? (
               <motion.div
@@ -189,13 +190,21 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
               </motion.div>
             ) : null}
           </AnimatePresence>
-          <AgentConversation
-            errorMessage={errorMessage}
-            isSubmitting={isSubmitting}
-            messages={messages}
-            statusLabel={statusLabel}
-            transcriptRef={transcriptRef}
-          />
+          {dashboardMode === "memory" ? (
+            <MemoryWorkspace messages={messages} statusLabel={statusLabel} threadId={threadId} />
+          ) : (
+            <AgentConversation
+              errorMessage={errorMessage}
+              isThinking={isThinking}
+              isSubmitting={isSubmitting}
+              messages={messages}
+              statusLabel={statusLabel}
+              thinkingContent={thinkingContent}
+              threadId={threadId}
+              traceSteps={traceSteps}
+              transcriptRef={transcriptRef}
+            />
+          )}
         </div>
         <AgentComposer
           disabled={isSubmitting}

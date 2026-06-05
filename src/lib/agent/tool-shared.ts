@@ -2,6 +2,7 @@ import type { AgentRun, Checklist } from "@/payload-types";
 
 import { getPayloadClient } from "@/lib/payload/client";
 
+import { getCurrentAgentUserId } from "./execution-context";
 import type {
   AgentTraceStep,
   ComposeTimelineEventArgs,
@@ -73,6 +74,7 @@ export const createAgentRun = async ({
   goal,
   nextAction,
   orchestrationId,
+  payload: payloadOverride,
   relatedContent,
   relatedPlan,
   rollbackAvailable,
@@ -81,6 +83,7 @@ export const createAgentRun = async ({
   steps,
   summary,
   title,
+  userId,
   workflow,
 }: {
   affectedDocuments?: unknown;
@@ -90,6 +93,7 @@ export const createAgentRun = async ({
   goal?: null | string;
   nextAction?: null | string;
   orchestrationId?: string;
+  payload?: Pick<Awaited<ReturnType<typeof getPayloadClient>>, "create">;
   relatedContent?: NonNullable<AgentRun["relatedContent"]>;
   relatedPlan?: number;
   rollbackAvailable?: boolean;
@@ -101,10 +105,12 @@ export const createAgentRun = async ({
   }>;
   summary: string;
   title: string;
+  userId?: number;
   workflow: NonNullable<AgentRun["workflow"]>;
 }) => {
-  const payload = await getPayloadClient();
+  const payload = payloadOverride ?? (await getPayloadClient());
   const startedAt = new Date().toISOString();
+  const runUserId = userId ?? getCurrentAgentUserId();
   const data = validateAgentRunData({
     affectedDocuments,
     afterSnapshot,
@@ -128,6 +134,7 @@ export const createAgentRun = async ({
     summary,
     title,
     trigger: "agent",
+    user: runUserId,
     workflow,
   });
 

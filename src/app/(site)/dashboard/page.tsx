@@ -9,11 +9,11 @@ type DashboardPageProps = {
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const params = await searchParams;
-  const { agentQuickPrompts, agentSuggestions, model } = await loadDashboardData(params);
+  const { agentQuickPrompts, agentSuggestions, initialThreadId } = await loadDashboardData(params);
 
   return (
     <DashboardPageClient
-      initialThreadId={model.initialThreadId}
+      initialThreadId={initialThreadId}
       quickPrompts={agentQuickPrompts}
       suggestions={agentSuggestions}
     />

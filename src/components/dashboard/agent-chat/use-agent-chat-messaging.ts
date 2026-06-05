@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 
 import { engineLabelMap, initialMessages } from "@/components/dashboard/agent-chat/constants";
-import type { AgentInspectorTab, AgentWorkbenchMode, ContextPreferences } from "@/components/dashboard/agent";
+import type { AgentInspectorTab, ContextPreferences } from "@/components/dashboard/agent";
+import {
+  formatRollbackResultStatus,
+  normalizeRollbackExecutionResult,
+  type AgentRollbackExecutionResult,
+} from "@/components/dashboard/agent/rollback-display";
 import { readAgentChatStream } from "@/lib/agent/read-agent-chat-stream";
 import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import type {
@@ -18,7 +23,6 @@ import {
   estimateMessagesTokenCount,
   estimateTokenCount,
 } from "@/lib/agent/token-usage";
-import { isValidWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 type UseAgentChatMessagingOptions = {
   contextPreferences: ContextPreferences;
@@ -34,17 +38,16 @@ type UseAgentChatMessagingOptions = {
   setInput: (value: string) => void;
   setIsSubmitting: (value: boolean) => void;
   setLastRollbackPayload: (payload: unknown | null) => void;
+  setLastRollbackResult: (result: AgentRollbackExecutionResult | null) => void;
   setMessages: Dispatch<SetStateAction<AgentChatMessage[]>>;
   setPendingAction: (action: PendingAction | null) => void;
   setStatusText: (text: string) => void;
   setStreamingState: (state: "idle" | "responding" | "thinking") => void;
-  setSuggestedMode: (mode: AgentWorkbenchMode | null) => void;
   setThinkingContent: Dispatch<SetStateAction<string>>;
   setThreadId: (id: number | null) => void;
   setTokenUsage: Dispatch<SetStateAction<AgentTokenUsage>>;
   setTraceSteps: Dispatch<SetStateAction<AgentTraceStep[]>>;
   threadId: number | null;
-  workbenchMode: AgentWorkbenchMode;
   lastRollbackPayload: unknown | null;
 };
 
@@ -63,17 +66,16 @@ export function useAgentChatMessaging({
   setInput,
   setIsSubmitting,
   setLastRollbackPayload,
+  setLastRollbackResult,
   setMessages,
   setPendingAction,
   setStatusText,
   setStreamingState,
-  setSuggestedMode,
   setThinkingContent,
   setThreadId,
   setTokenUsage,
   setTraceSteps,
   threadId,
-  workbenchMode,
 }: UseAgentChatMessagingOptions) {
   const abortRef = useRef<AbortController | null>(null);
 
@@ -172,13 +174,13 @@ export function useAgentChatMessaging({
       setInput("");
       setErrorMessage(null);
       setArtifactsRollbackError(null);
+      setLastRollbackResult(null);
       setMessages(nextHistory);
       setStatusText("正在让 Agent 解析并执行...");
       setStreamingState("thinking");
       setTraceSteps([]);
       setThinkingContent("");
       setActiveInspectorTab("context");
-      setSuggestedMode(null);
       setTokenUsage(
         createTokenUsageSnapshot({
           contextTokens: estimateMessagesTokenCount(messages),
@@ -197,7 +199,6 @@ export function useAgentChatMessaging({
             pendingAction,
             stream: true,
             threadId,
-            workbenchMode,
           }),
           headers: {
             "Content-Type": "application/json",
@@ -211,15 +212,7 @@ export function useAgentChatMessaging({
               appendAssistantToken: appendStreamingAssistantContent,
               onDone: () => {},
               onErrorMessage: replaceStreamingAssistantContent,
-              onMeta: (meta) => {
-                if (typeof meta === "object" && meta && "suggestedMode" in meta) {
-                  const suggestedMode = (meta as Record<string, unknown>).suggestedMode;
-
-                  if (isValidWorkbenchMode(suggestedMode)) {
-                    setSuggestedMode(suggestedMode);
-                  }
-                }
-              },
+              onMeta: () => undefined,
               onStatus: setStatusText,
               onStreamStart: () => {
                 setMessages([
@@ -322,18 +315,17 @@ export function useAgentChatMessaging({
       setInput,
       setIsSubmitting,
       setLastRollbackPayload,
+      setLastRollbackResult,
       setMessages,
       setPendingAction,
       setStatusText,
       setStreamingState,
-      setSuggestedMode,
       setThinkingContent,
       setThreadId,
       setTokenUsage,
       setTraceSteps,
       threadId,
       upsertTraceStep,
-      workbenchMode,
     ],
   );
 
@@ -412,11 +404,11 @@ export function useAgentChatMessaging({
     setStreamingState("idle");
     setTraceSteps([]);
     setLastRollbackPayload(null);
+    setLastRollbackResult(null);
     setArtifactsRollbackError(null);
     setInput("");
     setErrorMessage(null);
     setActiveInspectorTab("context");
-    setSuggestedMode(null);
     setTokenUsage(
       createTokenUsageSnapshot({
         contextTokens: estimateMessagesTokenCount(initialMessages),
@@ -428,11 +420,11 @@ export function useAgentChatMessaging({
     setErrorMessage,
     setInput,
     setLastRollbackPayload,
+    setLastRollbackResult,
     setMessages,
     setPendingAction,
     setStatusText,
     setStreamingState,
-    setSuggestedMode,
     setThreadId,
     setTokenUsage,
     setTraceSteps,
@@ -503,18 +495,23 @@ export function useAgentChatMessaging({
         },
         method: "POST",
       });
-      const data = (await res.json()) as { message?: string; result?: { auditWarning?: string } };
+      const data = (await res.json()) as { message?: string; result?: unknown };
 
       if (!res.ok) {
         throw new Error(typeof data.message === "string" ? data.message : "回滚失败");
       }
 
-      if (typeof data.result?.auditWarning === "string" && data.result.auditWarning.length > 0) {
-        setStatusText(`已撤销；审计提示：${data.result.auditWarning}`);
-      }
+      const rollbackResult = normalizeRollbackExecutionResult(data.result);
 
       setLastRollbackPayload(null);
       await loadThread(threadId ?? undefined, { preserveInspector: true });
+      setLastRollbackResult(rollbackResult);
+      setActiveInspectorTab("trace");
+      setStatusText(
+        rollbackResult
+          ? `${formatRollbackResultStatus(rollbackResult)}${rollbackResult.auditWarning ? `；审计提示：${rollbackResult.auditWarning}` : ""}`
+          : "已执行撤销",
+      );
     } catch (error) {
       setArtifactsRollbackError(error instanceof Error ? error.message : "回滚失败");
     } finally {
@@ -523,9 +520,11 @@ export function useAgentChatMessaging({
   }, [
     lastRollbackPayload,
     loadThread,
+    setActiveInspectorTab,
     setArtifactsRollbackBusy,
     setArtifactsRollbackError,
     setLastRollbackPayload,
+    setLastRollbackResult,
     setStatusText,
     threadId,
   ]);

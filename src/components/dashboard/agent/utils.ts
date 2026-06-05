@@ -35,6 +35,18 @@ export const getPendingActionLabel = (pendingAction: PendingAction) => {
     return `等待批量确认：${pendingAction.actions.length} 项`;
   }
 
+  if (pendingAction.type === "await_queue_resume") {
+    return `等待继续：${pendingAction.deferredTaskIds.length} 个子任务`;
+  }
+
+  if (pendingAction.type === "await_strategy_resume") {
+    return "等待策略重试";
+  }
+
+  if (pendingAction.type === "await_learning_followup") {
+    return `等待学习规划：${pendingAction.subject}`;
+  }
+
   return `等待澄清：${pendingAction.missingFields.join(" / ") || pendingAction.intent}`;
 };
 

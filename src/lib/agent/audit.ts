@@ -28,10 +28,12 @@ export const recordAgentFailure = async ({
   error,
   intent,
   message,
+  userId,
 }: {
   error: unknown;
   intent?: AgentIntent["intent"];
   message: string;
+  userId?: number;
 }) => {
   const payload = await getPayloadClient();
   const recordedAt = new Date().toISOString();
@@ -51,6 +53,7 @@ export const recordAgentFailure = async ({
     summary: errorMessage,
     title: intent ? `Agent failed · ${intent}` : "Agent failed",
     trigger: "agent",
+    user: userId,
     workflow: intent ? workflowByIntent[intent] : "readiness-audit",
   });
 
@@ -64,40 +67,53 @@ export const recordAgentFailure = async ({
 export const recordAgentRollbackExecuted = async ({
   result,
   rollbackPayload,
+  userId,
 }: {
   result: {
+    affectedDocuments?: Array<{
+      collection: string;
+      documentId: number;
+      operation: "delete" | "update";
+      visibility?: "unknown";
+    }>;
     collection: string;
     documentId: number;
+    summary?: string;
     strategy: string;
   };
   rollbackPayload: unknown;
+  userId?: number;
 }) => {
   const payload = await getPayloadClient();
   const recordedAt = new Date().toISOString();
+  const affectedDocuments = result.affectedDocuments ?? [
+    {
+      collection: result.collection,
+      documentId: result.documentId,
+      operation: result.strategy.startsWith("delete_") ? "delete" as const : "update" as const,
+      visibility: "unknown" as const,
+    },
+  ];
+  const affectedSummary = affectedDocuments
+    .map((document) => `${document.collection}#${document.documentId} ${document.operation}`)
+    .join("；");
   const workflow =
-    result.collection === "timeline-events"
+    affectedDocuments.some((document) => document.collection === "timeline-events")
       ? "sync"
-      : result.collection === "plans" || result.collection === "schedule-items"
+      : affectedDocuments.some((document) => document.collection === "plans" || document.collection === "schedule-items")
         ? "planning"
         : "readiness-audit";
 
   const data = validateAgentRunData({
-    affectedDocuments: [
-      {
-        collection: result.collection,
-        documentId: result.documentId,
-        operation: "delete",
-        visibility: "unknown",
-      },
-    ],
+    affectedDocuments,
     afterSnapshot: null,
     beforeSnapshot: {
-      note: "rollback_delete_executed",
+      note: "rollback_executed",
       rollbackPayload,
       target: result,
     },
     completedAt: recordedAt,
-    goal: `用户触发回滚：${result.strategy} · ${result.collection} #${result.documentId}`,
+    goal: `用户触发回滚：${result.strategy} · ${affectedSummary}`,
     rollbackAvailable: false,
     rollbackPayload,
     startedAt: recordedAt,
@@ -105,13 +121,14 @@ export const recordAgentRollbackExecuted = async ({
     steps: [
       {
         level: "warn",
-        message: `ROLLBACK_EXECUTED strategy=${result.strategy} collection=${result.collection} id=${result.documentId}`,
+        message: `ROLLBACK_EXECUTED strategy=${result.strategy} affected=${affectedSummary}`,
         recordedAt,
       },
     ],
-    summary: `已按 rollbackPayload 删除文档：${result.collection} #${result.documentId}`,
+    summary: result.summary ?? `已执行回滚 ${result.strategy}，影响 ${affectedDocuments.length} 个对象：${affectedSummary}`,
     title: `Agent rollback executed · ${result.strategy}`,
     trigger: "manual",
+    user: userId,
     workflow,
   });
 
@@ -130,11 +147,13 @@ export const recordBatchConfirmationDecision = async ({
   decision,
   message,
   orchestrationId,
+  userId,
 }: {
   actions: ProposedAgentAction[];
   decision: "canceled" | "confirmed";
   message: string;
   orchestrationId?: string;
+  userId?: number;
 }) => {
   const payload = await getPayloadClient();
   const recordedAt = new Date().toISOString();
@@ -156,6 +175,7 @@ export const recordBatchConfirmationDecision = async ({
     summary: `${confirmed ? "已批量确认" : "已批量取消"} ${actions.length} 项操作`,
     title: `Agent batch confirmation ${decision}`,
     trigger: "agent",
+    user: userId,
     workflow: "automation",
   });
 
@@ -173,10 +193,12 @@ export const recordAutoApproval = async ({
   action,
   reason,
   threadId,
+  userId,
 }: {
   action: ProposedAgentAction;
   reason: string;
   threadId: number;
+  userId?: number;
 }) => {
   const payload = await getPayloadClient();
   const recordedAt = new Date().toISOString();
@@ -200,6 +222,7 @@ export const recordAutoApproval = async ({
     summary: `自动批准并执行：${action.summary}`,
     title: `Agent auto-approved · ${action.intent}`,
     trigger: "agent",
+    user: userId,
     workflow: workflowByIntent[action.intent],
   });
 
@@ -214,10 +237,12 @@ export const recordAgentConfirmationDecision = async ({
   action,
   decision,
   message,
+  userId,
 }: {
   action: ProposedAgentAction;
   decision: "canceled" | "confirmed";
   message: string;
+  userId?: number;
 }) => {
   const payload = await getPayloadClient();
   const recordedAt = new Date().toISOString();
@@ -242,6 +267,7 @@ export const recordAgentConfirmationDecision = async ({
     summary: `${confirmed ? "已确认" : "已取消"}待执行动作：${action.summary}`,
     title: `Agent confirmation ${decision} · ${action.intent}`,
     trigger: "agent",
+    user: userId,
     workflow: workflowByIntent[action.intent],
   });
 

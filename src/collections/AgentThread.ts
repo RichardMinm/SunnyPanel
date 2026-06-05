@@ -103,6 +103,31 @@ export const AgentThread: CollectionConfig = {
       },
     },
     {
+      name: "summary",
+      type: "textarea",
+      label: "线程摘要",
+      admin: {
+        description: "自动压缩长会话，供 Agent 在不读取完整消息历史时继续承接目标、结果和待处理动作。",
+      },
+    },
+    {
+      name: "summaryUpdatedAt",
+      type: "date",
+      label: "摘要更新时间",
+      admin: {
+        position: "sidebar",
+      },
+    },
+    {
+      name: "summaryMessageCount",
+      type: "number",
+      label: "摘要覆盖消息数",
+      admin: {
+        position: "sidebar",
+      },
+      min: 0,
+    },
+    {
       name: "lastIntent",
       type: "select",
       label: "最近意图",
@@ -110,6 +135,10 @@ export const AgentThread: CollectionConfig = {
         position: "sidebar",
       },
       options: [
+        {
+          label: "回答问题",
+          value: "answer_question",
+        },
         {
           label: "创建计划",
           value: "create_plan",

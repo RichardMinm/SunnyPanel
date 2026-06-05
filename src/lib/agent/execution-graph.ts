@@ -1,5 +1,11 @@
 export {
+  buildExecutionDecisionTraceStep,
+  buildExecutionEvaluation,
+  buildExecutionLoopDirective,
   buildObservationTraceStep,
+  buildResumedOrchestratorPlan,
+  buildStrategyFeedbackMemoryDraft,
+  buildStrategyResumeOrchestratorPlan,
   buildTaskObservation,
   decideNextActionFromObservations,
   executeOrchestrationGraph,

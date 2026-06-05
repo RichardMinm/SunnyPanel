@@ -4,7 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ProposedAgentAction } from "@/lib/agent/schemas";
 
-import { operationLabelMap, riskLevelLabelMap, visibilityLabelMap } from "./constants";
+import {
+  formatCollectionLabel,
+  formatIntentLabel,
+  formatPriorityLabel,
+  operationLabelMap,
+  riskLevelLabelMap,
+  visibilityLabelMap,
+} from "./constants";
 import { getDecomposedFromAction, getPlanProposalFromAction, getScheduleProposalFromAction } from "./utils";
 
 export type AgentApprovalCardProps = {
@@ -109,9 +116,9 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
         <span>{riskLevelLabelMap[action.riskLevel]}</span>
       </div>
       <div className="sunny-agent-approval-banner-meta" aria-describedby="agent-pending-approval-title">
-        <span>{action.toolName ?? action.intent}</span>
+        <span>{formatIntentLabel(action.intent)}</span>
         <span>{firstChange ? operationLabelMap[firstChange.operation] : "待确认"}</span>
-        <span>{firstChange ? `${firstChange.collection}${firstChange.documentId ? ` #${firstChange.documentId}` : ""}` : "未解析"}</span>
+        <span>{firstChange ? `${formatCollectionLabel(firstChange.collection)}${firstChange.documentId ? ` #${firstChange.documentId}` : ""}` : "未解析"}</span>
         <span>{firstChange?.visibility ? visibilityLabelMap[firstChange.visibility] : "未知可见性"}</span>
       </div>
       {planProposal ? (
@@ -146,7 +153,7 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
             </div>
             <div>
               <span>优先级</span>
-              <p>{planProposal.suggestedPriority}</p>
+              <p>{formatPriorityLabel(planProposal.suggestedPriority)}</p>
             </div>
             <div>
               <span>截止</span>
@@ -206,7 +213,7 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
             </div>
             <div>
               <span>优先级</span>
-              <p>{scheduleProposal.priority}</p>
+              <p>{formatPriorityLabel(scheduleProposal.priority)}</p>
             </div>
           </div>
           <p>{scheduleProposal.reason}</p>

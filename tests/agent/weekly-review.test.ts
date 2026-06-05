@@ -108,6 +108,7 @@ test("weekly review workflow creates AgentRun", async () => {
         id: 45,
       }),
       upsertSuggestion: async () => null,
+      userId: 7,
     },
   );
 
@@ -116,6 +117,7 @@ test("weekly review workflow creates AgentRun", async () => {
   assert.equal(result.reviewId, 45);
   assert.equal(result.agentRunId, 88);
   assert.ok(agentRunData);
+  assert.equal(agentRunData["user"], 7);
   assert.equal(agentRunData["workflow"], "weekly-review");
   assert.equal(agentRunData["status"], "succeeded");
   assert.deepEqual(agentRunData["relatedContent"], [

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import type { Payload } from "payload";
 
 import { createRunAgentChatPipeline } from "@/lib/agent/chat-pipeline/run-agent-chat-pipeline";
 import { parseStructuredConfirmation } from "@/lib/agent/chat-pipeline/confirmation-step";
@@ -246,7 +247,7 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     generateIntentWithAgentModel,
     intentModelEngine,
     message,
-    payload,
+    payload: payload as unknown as Payload,
     pendingAction,
     resolvedHistory,
     structuredConfirmation,

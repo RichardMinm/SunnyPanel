@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   // Allow switching between localhost and 127.0.0.1 during local development
   // without breaking HMR or leaving the browser with stale Server Action IDs.
   allowedDevOrigins: ["localhost", "127.0.0.1"],
+  devIndicators: false,
 };
 
 export default withPayload(nextConfig);

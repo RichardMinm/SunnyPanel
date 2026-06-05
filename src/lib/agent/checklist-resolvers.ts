@@ -140,6 +140,7 @@ export const resolveChecklistGroupForAppend = async ({
 
   if (groups.length === 0) {
     return {
+      checklist,
       question: `「${checklist.title}」里还没有分组。请先告诉我要把条目放在哪个分组里。`,
       resolved: null,
     };
@@ -177,6 +178,7 @@ export const resolveChecklistGroupForAppend = async ({
 
   if (scoredMatches.length === 0) {
     return {
+      checklist,
       question: `我在「${checklist.title}」里没找到「${groupTitle}」这个分组。你可以告诉我更准确的分组名。`,
       resolved: null,
     };
@@ -293,4 +295,3 @@ export const upsertChecklistTimelineEvent = async ({
     overrideAccess: true,
   })) as TimelineEvent;
 };
-
