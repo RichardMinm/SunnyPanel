@@ -3,9 +3,10 @@
 import { type RefObject, useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
-import type { AgentChatMessage, AgentTraceStep } from "@/lib/agent/schemas";
+import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
 
 import { AgentThinkingPanel } from "./AgentThinkingPanel";
+import { ThreadHeader } from "./ThreadHeader";
 import { MessageCard } from "./MessageCard";
 
 const messageVariants = {
@@ -14,25 +15,35 @@ const messageVariants = {
 };
 
 type AgentConversationProps = {
+  displayTitle: string;
   errorMessage: null | string;
   isThinking: boolean;
   isSubmitting: boolean;
+  lastInteractionAt: null | string;
   messages: AgentChatMessage[];
+  onRenameThread: (title: string) => Promise<boolean>;
+  pendingAction: null | PendingAction;
   statusLabel: string;
   thinkingContent: string;
   threadId: null | number;
+  tokenUsage: AgentTokenUsage;
   traceSteps: AgentTraceStep[];
   transcriptRef: RefObject<HTMLDivElement | null>;
 };
 
 export function AgentConversation({
+  displayTitle,
   errorMessage,
   isThinking,
   isSubmitting,
+  lastInteractionAt,
   messages,
+  onRenameThread,
+  pendingAction,
   statusLabel,
   thinkingContent,
   threadId,
+  tokenUsage,
   traceSteps,
   transcriptRef,
 }: AgentConversationProps) {
@@ -63,13 +74,15 @@ export function AgentConversation({
 
   return (
     <section className="sunny-agent-conversation-surface">
-      <div className="sunny-agent-run-surface-head">
-        <div>
-          <p>Agent 会话</p>
-          <h2>{threadId ? `Thread #${threadId}` : "新会话"}</h2>
-        </div>
-        <span>{isSubmitting ? "运行中" : "已就绪"}</span>
-      </div>
+      <ThreadHeader
+        displayTitle={displayTitle}
+        isSubmitting={isSubmitting}
+        lastInteractionAt={lastInteractionAt}
+        onRenameThread={onRenameThread}
+        pendingAction={pendingAction}
+        threadId={threadId}
+        tokenUsage={tokenUsage}
+      />
       <div ref={transcriptRef} className="sunny-agent-conversation-scroll" aria-live="polite" aria-relevant="additions">
         {messages.length === 0 ? (
           <div className="sunny-agent-empty-state">
