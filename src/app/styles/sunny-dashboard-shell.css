@@ -36,6 +36,10 @@
   display: none;
 }
 
+.sunny-dashboard-shell.is-panel-collapsed .sunny-dashboard-right-panel {
+  grid-column: 3;
+}
+
 /* ── 图标栏 ── */
 .sunny-dashboard-icon-bar {
   position: relative;

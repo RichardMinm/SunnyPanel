@@ -21,7 +21,6 @@ type DashboardShellProps = {
   messages: AgentChatMessage[];
   traceSteps: AgentTraceStep[];
   tokenUsage: AgentTokenUsage;
-  onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
   onCancelApproval: () => void;
   onConfirmApproval: () => void;
   /* Slide panel data */
@@ -50,7 +49,6 @@ export function DashboardShell({
   messages,
   traceSteps,
   tokenUsage,
-  onEditApproval,
   onCancelApproval,
   onConfirmApproval,
   children,

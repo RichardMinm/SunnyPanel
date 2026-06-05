@@ -10,6 +10,9 @@ type ContextCardProps = {
   tokenUsage: AgentTokenUsage;
   threadTitle?: string;
   tokenCountStr?: string;
+  onViewDetail?: () => void;
+  onRefresh?: () => void;
+  onAddContext?: () => void;
 };
 
 export function ContextCard({
@@ -19,6 +22,9 @@ export function ContextCard({
   tokenUsage,
   threadTitle,
   tokenCountStr,
+  onViewDetail,
+  onRefresh,
+  onAddContext,
 }: ContextCardProps) {
   /* Summary: latest assistant message, first 3 lines */
   const summary = useMemo(() => {
@@ -81,13 +87,13 @@ export function ContextCard({
       </div>
 
       <div className="sunny-context-card-actions">
-        <button type="button" className="sunny-context-card-action-btn is-primary">
+        <button type="button" className="sunny-context-card-action-btn is-primary" onClick={onViewDetail}>
           查看详情
         </button>
-        <button type="button" className="sunny-context-card-action-btn">
+        <button type="button" className="sunny-context-card-action-btn" onClick={onRefresh}>
           刷新上下文
         </button>
-        <button type="button" className="sunny-context-card-action-btn" title="添加上下文">
+        <button type="button" className="sunny-context-card-action-btn" title="添加上下文" onClick={onAddContext}>
           +
         </button>
       </div>
