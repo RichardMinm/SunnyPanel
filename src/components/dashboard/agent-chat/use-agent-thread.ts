@@ -44,6 +44,8 @@ export function useAgentThreadList() {
     if (data.selectedThread) {
       setThreadId(data.selectedThread.id);
       setLastInteractionAt(data.selectedThread.lastInteractionAt ?? null);
+    } else {
+      setLastInteractionAt(null);
     }
 
     return data.selectedThread ?? null;
