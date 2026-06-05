@@ -23,6 +23,12 @@ export function DashboardPageClient({
     <DashboardShell
       isThinking={chat.isThinking}
       messages={chat.messages}
+      traceSteps={chat.traceSteps}
+      tokenUsage={chat.tokenUsage}
+      threadTitle={chat.threadTitle}
+      onEditApproval={chat.editApproval}
+      onCancelApproval={() => { chat.clearRunDetail(); chat.cancelApproval(); }}
+      onConfirmApproval={() => { chat.clearRunDetail(); chat.confirmApproval(); }}
       onArchiveThread={chat.archiveThread}
       onLoadThread={(nextThreadId) => { void chat.loadThread(nextThreadId); }}
       onNewThread={() => { chat.clearRunDetail(); chat.resetThread(); }}
