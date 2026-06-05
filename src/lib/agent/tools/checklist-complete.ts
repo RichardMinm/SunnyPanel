@@ -6,10 +6,15 @@ import type { AppendPlanItemArgs, CompletePlanItemArgs } from "../schemas";
 import { validateChecklistGroupsData } from "../write-schemas";
 import {
   cloneChecklistGroups,
+  findChecklistTimelineEvent,
   resolveChecklistGroupForAppend,
   resolveChecklistItem,
   upsertChecklistTimelineEvent,
 } from "../checklist-resolvers";
+import {
+  buildChecklistGroupsAndTimelineRollbackPayload,
+  buildChecklistGroupsRollbackPayload,
+} from "./checklist-rollback";
 import {
   buildChecklistItemLabel,
   createAgentRun,
@@ -33,6 +38,109 @@ export const appendPlanItemFromIntent = async (
   const target = await resolveChecklistGroupForAppend(args);
 
   if (!target.resolved) {
+    if (args.createGroupIfMissing && args.groupTitle && target.checklist) {
+      const checklist = target.checklist as Checklist;
+      const rollbackPayload = buildChecklistGroupsRollbackPayload(checklist.id, cloneChecklistGroups(checklist.groups));
+      const groups = cloneChecklistGroups(checklist.groups);
+      const groupIndex = groups.length;
+
+      groups.push({
+        items: [
+          {
+            description: args.description ?? null,
+            isCompleted: false,
+            title: args.itemTitle,
+          },
+        ],
+        title: args.groupTitle,
+      });
+
+      const payload = await getPayloadClient();
+      const validatedGroups = validateChecklistGroupsData(groups);
+      onTrace?.({
+        detail: `将新建分组「${args.groupTitle}」并新增条目「${args.itemTitle}」`,
+        id: "tool-append-item-create-group",
+        kind: "write",
+        status: "running",
+        title: "正在新建清单分组",
+      });
+      const updatedChecklist = (await payload.update({
+        collection: "checklists",
+        data: {
+          groups: validatedGroups,
+        },
+        id: checklist.id,
+        overrideAccess: true,
+      })) as Checklist;
+      const updatedGroup = updatedChecklist.groups?.[groupIndex];
+
+      if (!updatedGroup) {
+        throw new Error("Updated checklist group could not be resolved after creating the missing group.");
+      }
+
+      onTrace?.({
+        detail: `${updatedChecklist.title} / ${updatedGroup.title}`,
+        id: "tool-append-item-create-group-done",
+        kind: "write",
+        status: "done",
+        title: "清单分组与计划项已写入",
+      });
+
+      await createAgentRun({
+        affectedDocuments: [
+          {
+            collection: "checklists",
+            documentId: updatedChecklist.id,
+            operation: "update",
+            visibility: updatedChecklist.visibility,
+          },
+        ],
+        afterSnapshot: {
+          checklistId: updatedChecklist.id,
+          createdGroup: true,
+          groupTitle: updatedGroup.title,
+          itemTitle: args.itemTitle,
+          operation: "append_plan_item",
+        },
+        beforeSnapshot: {
+          checklistId: checklist.id,
+          groupCount: checklist.groups?.length ?? 0,
+          missingGroupTitle: args.groupTitle,
+        },
+        relatedContent: [
+          {
+            relationTo: "checklists",
+            value: updatedChecklist.id,
+          },
+        ],
+        rollbackAvailable: true,
+        rollbackPayload,
+        status: "succeeded",
+        steps: [
+          {
+            level: "info",
+            message: `已新建分组并追加计划项：${updatedChecklist.title} / ${updatedGroup.title} / ${args.itemTitle}`,
+          },
+        ],
+        summary: `Agent 已为 ${updatedChecklist.title} 新建分组并追加一条计划项。`,
+        title: `Agent created checklist group · ${args.groupTitle}`,
+        workflow: "planning",
+      });
+      onTrace?.({
+        detail: "本次新建分组动作已经进入 AgentRun。",
+        id: "tool-append-item-create-group-audit",
+        kind: "write",
+        status: "done",
+        title: "已记录审计日志",
+      });
+
+      return {
+        assistantMessage: `已新建分组「${updatedGroup.title}」，并把「${args.itemTitle}」追加到「${updatedChecklist.title} / ${updatedGroup.title}」。`,
+        pendingAction: null,
+        rollbackPayload,
+      };
+    }
+
     const assistantMessage = target.question ?? "我还没定位到要追加计划项的清单分组。";
 
     return {
@@ -50,6 +158,7 @@ export const appendPlanItemFromIntent = async (
   }
 
   const { checklist, group, groupIndex } = target.resolved;
+  const rollbackPayload = buildChecklistGroupsRollbackPayload(checklist.id, cloneChecklistGroups(checklist.groups));
   onTrace?.({
     detail: `${checklist.title} / ${group.title}`,
     id: "tool-append-item-group-found",
@@ -136,13 +245,7 @@ export const appendPlanItemFromIntent = async (
       },
     ],
     rollbackAvailable: true,
-    rollbackPayload: {
-      strategy: "restore_checklist_groups",
-      target: {
-        collection: "checklists",
-        documentId: updatedChecklist.id,
-      },
-    },
+    rollbackPayload,
     status: "succeeded",
     steps: [
       {
@@ -165,6 +268,7 @@ export const appendPlanItemFromIntent = async (
   return {
     assistantMessage: `已把「${args.itemTitle}」追加到「${updatedChecklist.title} / ${updatedGroup.title}」。`,
     pendingAction: null,
+    rollbackPayload,
   };
 };
 
@@ -199,6 +303,7 @@ export const completePlanItemFromIntent = async (
   }
 
   const { checklist, group, groupIndex, item, itemIndex } = target.resolved;
+  const beforeGroups = cloneChecklistGroups(checklist.groups);
   onTrace?.({
     detail: `${checklist.title} / ${group.title} / ${item.title}`,
     id: "tool-complete-item-found",
@@ -268,6 +373,10 @@ export const completePlanItemFromIntent = async (
     status: "running",
     title: "正在同步时间线节点",
   });
+  const previousTimelineEvent = await findChecklistTimelineEvent({
+    checklist,
+    item,
+  });
   const timelineEvent = await upsertChecklistTimelineEvent({
     checklist: updatedChecklist,
     group: updatedGroup,
@@ -280,6 +389,12 @@ export const completePlanItemFromIntent = async (
     status: "done",
     title: "时间线同步完成",
   });
+  const rollbackPayload = buildChecklistGroupsAndTimelineRollbackPayload(
+    updatedChecklist.id,
+    beforeGroups,
+    previousTimelineEvent as null | Record<string, unknown>,
+    timelineEvent?.id ?? previousTimelineEvent?.id ?? null,
+  );
 
   await createAgentRun({
     affectedDocuments: [
@@ -330,14 +445,7 @@ export const completePlanItemFromIntent = async (
         : []),
     ],
     rollbackAvailable: true,
-    rollbackPayload: {
-      strategy: "restore_checklist_item_and_timeline",
-      target: {
-        checklistId: updatedChecklist.id,
-        itemId: updatedItem.id ?? null,
-        timelineEventId: timelineEvent?.id ?? null,
-      },
-    },
+    rollbackPayload,
     status: "succeeded",
     steps: [
       {
@@ -361,6 +469,7 @@ export const completePlanItemFromIntent = async (
     return {
       assistantMessage: `已把 ${buildChecklistItemLabel(updatedChecklist.title, updatedGroup.title, updatedItem.title)} 标记完成，并把备注一起写进去了。对应 Timeline 节点也已经同步。`,
       pendingAction: null,
+      rollbackPayload,
     };
   }
 
@@ -372,6 +481,6 @@ export const completePlanItemFromIntent = async (
       itemTitle: updatedItem.title,
       type: "await_completion_note",
     },
+    rollbackPayload,
   };
 };
-

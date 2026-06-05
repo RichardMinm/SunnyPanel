@@ -4,10 +4,13 @@
  */
 export {
   cleanupText,
+  extractConsultationTopic,
   inferMemoryType,
   isBatchConfirmationReply,
   isCancellationReply,
   isConfirmationReply,
+  isGeneralConsultationQuestion,
+  isLearningAdviceQuestion,
   isMathTwoSyllabusQuestion,
   isNegativeReply,
   isNewCommand,

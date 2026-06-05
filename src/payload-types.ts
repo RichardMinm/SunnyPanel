@@ -538,6 +538,10 @@ export interface AgentRun {
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'canceled';
   trigger: 'manual' | 'scheduled' | 'webhook' | 'agent';
   /**
+   * 创建这条 AgentRun 的用户，用于自定义 API 与回滚执行的归属校验。
+   */
+  user?: (number | null) | User;
+  /**
    * 这次运行的目标、边界或验收标准。
    */
   goal?: string | null;
@@ -779,8 +783,15 @@ export interface AgentThread {
     | number
     | boolean
     | null;
+  /**
+   * 自动压缩长会话，供 Agent 在不读取完整消息历史时继续承接目标、结果和待处理动作。
+   */
+  summary?: string | null;
+  summaryUpdatedAt?: string | null;
+  summaryMessageCount?: number | null;
   lastIntent?:
     | (
+        | 'answer_question'
         | 'create_plan'
         | 'append_plan_item'
         | 'complete_plan_item'
@@ -1280,6 +1291,9 @@ export interface AgentThreadsSelect<T extends boolean = true> {
         id?: T;
       };
   pendingAction?: T;
+  summary?: T;
+  summaryUpdatedAt?: T;
+  summaryMessageCount?: T;
   lastIntent?: T;
   lastEngine?: T;
   lastConfidence?: T;
@@ -1298,6 +1312,7 @@ export interface AgentRunsSelect<T extends boolean = true> {
   workflow?: T;
   status?: T;
   trigger?: T;
+  user?: T;
   goal?: T;
   summary?: T;
   nextAction?: T;

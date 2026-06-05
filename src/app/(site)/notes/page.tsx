@@ -1,5 +1,5 @@
-import { MarkdownContent } from "@/components/editor/MarkdownContent";
-import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
+import { MarkdownField } from "@/components/public/ContentRenderer";
+import { PublicCollectionEmptySwitch } from "@/components/public/PublicCollectionEmptySwitch";
 import { PublicListPage } from "@/components/public/PublicListPage";
 import { RecordCoverImage } from "@/components/public/RecordCoverImage";
 import { SectionIntro } from "@/components/public/SectionIntro";
@@ -30,9 +30,11 @@ export default async function NotesPage() {
               title="Notes"
             />
 
-            {notes.length === 0 ? (
-              <CollectionEmptyState body={copy.notes.emptyBody} title={copy.notes.emptyTitle} />
-            ) : (
+            <PublicCollectionEmptySwitch
+              body={copy.notes.emptyBody}
+              isEmpty={notes.length === 0}
+              title={copy.notes.emptyTitle}
+            >
               <section className="grid gap-4 md:grid-cols-2">
                 {notes.map((note, index) => (
                   <article
@@ -51,19 +53,19 @@ export default async function NotesPage() {
                         {note.mood ? <span className="sunny-badge sunny-badge-accent">{note.mood}</span> : null}
                         <span>{formatDate(note.createdAt, locale)}</span>
                         {note.pinned ? (
-                          <span className="rounded-full bg-white/70 px-2 py-1 text-accent-strong">
+                          <span className="sunny-badge sunny-badge-accent">
                             {copy.common.pinned}
                           </span>
                         ) : null}
                       </div>
                       <div className="mt-5">
-                        <MarkdownContent markdown={note.content} />
+                        <MarkdownField content={note.content} />
                       </div>
                     </div>
                   </article>
                 ))}
               </section>
-            )}
+            </PublicCollectionEmptySwitch>
           </>
         );
       }}

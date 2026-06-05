@@ -1,4 +1,4 @@
-import { CollectionEmptyState } from "@/components/public/CollectionEmptyState";
+import { PublicCollectionEmptySwitch } from "@/components/public/PublicCollectionEmptySwitch";
 import { PublicListPage } from "@/components/public/PublicListPage";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { UpdateCard } from "@/components/public/UpdateCard";
@@ -28,9 +28,11 @@ export default async function UpdatesPage() {
               title="Updates"
             />
 
-            {updates.length === 0 ? (
-              <CollectionEmptyState body={copy.updates.emptyBody} title={copy.updates.emptyTitle} />
-            ) : (
+            <PublicCollectionEmptySwitch
+              body={copy.updates.emptyBody}
+              isEmpty={updates.length === 0}
+              title={copy.updates.emptyTitle}
+            >
               <section className="sunny-card rounded-[1.6rem] p-5 sm:p-6 md:rounded-[2.2rem] md:p-8">
                 <div className="relative">
                   <div className="absolute left-5 top-4 bottom-4 hidden w-px bg-[linear-gradient(180deg,rgba(24,34,44,0.14),rgba(24,34,44,0.02))] md:block" />
@@ -42,7 +44,7 @@ export default async function UpdatesPage() {
                   </div>
                 </div>
               </section>
-            )}
+            </PublicCollectionEmptySwitch>
           </>
         );
       }}

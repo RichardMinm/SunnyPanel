@@ -1,5 +1,6 @@
 import { getPayloadClient } from "@/lib/payload/client";
 
+import { getCurrentAgentUserId } from "../execution-context";
 import type { AgentTraceStep, WeeklyReviewArgs } from "../schemas";
 import { upsertSuggestion } from "../suggestions";
 import { validateAgentRunData, validatePlanReviewData } from "../write-schemas";
@@ -23,6 +24,7 @@ export const executeWeeklyReviewFromIntent = async (
   const result = await runWeeklyReviewWorkflow(args, {
     payload: payload as unknown as WeeklyReviewPayload,
     upsertSuggestion,
+    userId: getCurrentAgentUserId(),
     validateAgentRunData,
     validatePlanReviewData,
   });

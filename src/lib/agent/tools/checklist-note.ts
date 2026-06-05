@@ -4,7 +4,13 @@ import { getPayloadClient } from "@/lib/payload/client";
 
 import type { AddCompletionNoteArgs } from "../schemas";
 import { validateChecklistGroupsData } from "../write-schemas";
-import { cloneChecklistGroups, resolveChecklistItem, upsertChecklistTimelineEvent } from "../checklist-resolvers";
+import {
+  cloneChecklistGroups,
+  findChecklistTimelineEvent,
+  resolveChecklistItem,
+  upsertChecklistTimelineEvent,
+} from "../checklist-resolvers";
+import { buildChecklistGroupsAndTimelineRollbackPayload } from "./checklist-rollback";
 import {
   buildChecklistItemLabel,
   createAgentRun,
@@ -31,6 +37,7 @@ export const addCompletionNoteFromIntent = async (
   }
 
   const { checklist, group, groupIndex, item, itemIndex } = target.resolved;
+  const beforeGroups = cloneChecklistGroups(checklist.groups);
   onTrace?.({
     detail: `${checklist.title} / ${group.title} / ${item.title}`,
     id: "tool-note-found",
@@ -88,6 +95,10 @@ export const addCompletionNoteFromIntent = async (
     status: "running",
     title: "正在同步时间线说明",
   });
+  const previousTimelineEvent = await findChecklistTimelineEvent({
+    checklist,
+    item,
+  });
   const timelineEvent = await upsertChecklistTimelineEvent({
     checklist: updatedChecklist,
     group: updatedGroup,
@@ -100,6 +111,12 @@ export const addCompletionNoteFromIntent = async (
     status: "done",
     title: "时间线说明已同步",
   });
+  const rollbackPayload = buildChecklistGroupsAndTimelineRollbackPayload(
+    updatedChecklist.id,
+    beforeGroups,
+    previousTimelineEvent as null | Record<string, unknown>,
+    timelineEvent?.id ?? previousTimelineEvent?.id ?? null,
+  );
 
   await createAgentRun({
     affectedDocuments: [
@@ -146,14 +163,7 @@ export const addCompletionNoteFromIntent = async (
         : []),
     ],
     rollbackAvailable: true,
-    rollbackPayload: {
-      strategy: "restore_completion_note_and_timeline",
-      target: {
-        checklistId: updatedChecklist.id,
-        itemId: updatedItem.id ?? null,
-        timelineEventId: timelineEvent?.id ?? null,
-      },
-    },
+    rollbackPayload,
     status: "succeeded",
     steps: [
       {
@@ -176,6 +186,6 @@ export const addCompletionNoteFromIntent = async (
   return {
     assistantMessage: `已把备注补到 ${buildChecklistItemLabel(updatedChecklist.title, updatedGroup.title, updatedItem.title)} 上，并同步更新了 Timeline 说明。`,
     pendingAction: null,
+    rollbackPayload,
   };
 };
-

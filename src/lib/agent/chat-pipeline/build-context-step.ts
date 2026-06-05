@@ -6,6 +6,7 @@ import { buildSharedContextSnapshot } from "@/lib/agent/shared-context";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import type { AgentChatResponse, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
+import type { AgentPromptThreadSummary } from "@/lib/agent/thread-summary";
 import { createTokenUsageSnapshot, estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import { getAgentWorkspaceContextSource } from "@/lib/payload/workspace";
 
@@ -19,6 +20,7 @@ export type BuildContextStepParams = {
   payload: Payload;
   pendingAction: null | PendingAction;
   pushTrace: (step: AgentTraceStep) => void;
+  threadSummary?: AgentPromptThreadSummary | null;
   workbenchMode?: AgentWorkbenchMode | null;
 };
 
@@ -42,6 +44,7 @@ export const runBuildContextStep = async ({
   payload,
   pendingAction,
   pushTrace,
+  threadSummary,
   workbenchMode,
 }: BuildContextStepParams): Promise<BuildContextStepResult> => {
   emitStatus("正在加载工作区数据...");
@@ -65,6 +68,7 @@ export const runBuildContextStep = async ({
       ...contextSource,
       memories: [],
     },
+    threadSummary: threadSummary ?? null,
     workbenchMode: workbenchMode ?? undefined,
   });
   const shared = await buildSharedContextSnapshot({
@@ -81,8 +85,9 @@ export const runBuildContextStep = async ({
   emitUsage(tokenUsage);
   const memoryTitles = (context.memories ?? []).map((m) => m.title);
   const memoryNote = memoryTitles.length > 0 ? `\n命中记忆：${memoryTitles.join("、")}` : "";
+  const threadSummaryNote = threadSummary ? `，线程摘要覆盖 ${threadSummary.messageCount} 条消息` : "";
   pushTrace({
-    detail: `mode=${context.mode ?? "general"}，纳入 ${context.memories?.length ?? 0} 条长期记忆、${context.plans.length} 条计划、${context.checklists.length} 份清单、${context.contentItems?.length ?? 0} 条内容、${context.timelineEvents?.length ?? 0} 个时间线节点、${context.agentRuns?.length ?? 0} 条 AgentRun、${context.planReviews?.length ?? 0} 条 PlanReview。${memoryNote}`,
+    detail: `mode=${context.mode ?? "general"}，纳入 ${context.memories?.length ?? 0} 条长期记忆、${context.plans.length} 条计划、${context.checklists.length} 份清单、${context.contentItems?.length ?? 0} 条内容、${context.timelineEvents?.length ?? 0} 个时间线节点、${context.agentRuns?.length ?? 0} 条 AgentRun、${context.planReviews?.length ?? 0} 条 PlanReview${threadSummaryNote}。${memoryNote}`,
     id: "context-bootstrap",
     kind: "context",
     status: "done",

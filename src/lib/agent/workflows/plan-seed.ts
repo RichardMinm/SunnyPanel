@@ -104,15 +104,8 @@ export const parseDateFromText = (text: string, reference = new Date()): string 
   if (monthDayMatch) {
     const month = Number(monthDayMatch[1]);
     const day = Number(monthDayMatch[2]);
-    const refYear = reference.getFullYear();
-    let year = refYear;
-    const candidate = new Date(year, month - 1, day);
 
-    if (candidate.getTime() < reference.getTime() - 24 * 60 * 60 * 1000) {
-      year = refYear + 1;
-    }
-
-    return toIsoDate(year, month, day);
+    return toIsoDate(reference.getFullYear(), month, day);
   }
 
   const isoMatch = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);

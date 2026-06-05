@@ -210,7 +210,7 @@ test("vague compose_plan asks clarification", async () => {
   }
 });
 
-test("compose_schedule_item creates proposal and warns on conflicts", async () => {
+test("compose_schedule_item auto-adjusts to the next available slot on timed conflicts", async () => {
   const result = await dryRunAgentIntent(
     {
       args: {
@@ -235,9 +235,22 @@ test("compose_schedule_item creates proposal and warns on conflicts", async () =
 
   if (result.type === "proposed_action") {
     assert.equal(result.action.intent, "compose_schedule_item");
-    assert.equal(result.action.riskLevel, "high");
+    assert.equal(result.action.riskLevel, "medium");
     assert.equal(result.action.changes[0]?.collection, "schedule-items");
-    assert.match(result.action.changes[0]?.preview ?? "", /冲突/);
+    assert.match(result.action.changes[0]?.preview ?? "", /自动避让/);
+    assert.match(result.action.changes[0]?.beforePreview ?? "", /已有复习块/);
+    assert.equal(
+      typeof result.action.afterSnapshot === "object" && result.action.afterSnapshot !== null
+        ? (result.action.afterSnapshot as { startTime?: string }).startTime
+        : null,
+      "10:00",
+    );
+    assert.equal(
+      typeof result.action.afterSnapshot === "object" && result.action.afterSnapshot !== null
+        ? (result.action.afterSnapshot as { endTime?: string }).endTime
+        : null,
+      "11:30",
+    );
   }
 });
 
@@ -343,6 +356,39 @@ test("unrelated reply keeps awaiting confirmation", async () => {
   const nextPendingAction = isConfirmationReply(reply) || isCancellationReply(reply) ? null : pendingAction;
 
   assert.equal(nextPendingAction, pendingAction);
+});
+
+test("append plan item restore preserves semantic repair group creation flag", async () => {
+  const proposal = await createProposedAgentAction(
+    {
+      args: {
+        checklistTitle: "高等数学",
+        createGroupIfMissing: true,
+        description: "语义修复：先补建条目。",
+        groupTitle: "线性代数",
+        itemTitle: "矩阵习题",
+      },
+      intent: "append_plan_item",
+    },
+    {
+      createActionId: () => "append-missing-group-action",
+      resolveChecklistGroupForAppend: async () => ({
+        checklist: fakeChecklist as never,
+        question: "我在「高等数学」里没找到「线性代数」这个分组。",
+        resolved: null,
+      }),
+    },
+  );
+
+  assert.ok(proposal);
+
+  const restoredIntent = createIntentFromProposedAction(proposal);
+
+  assert.equal(restoredIntent?.intent, "append_plan_item");
+  assert.equal(
+    restoredIntent?.intent === "append_plan_item" ? restoredIntent.args.createGroupIfMissing : false,
+    true,
+  );
 });
 
 test("public timeline composer writes require confirmation", async () => {

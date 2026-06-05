@@ -1,0 +1,792 @@
+/**
+ * Dashboard Shell 布局：图标栏 + 滑动面板 + 主区域 + 状态栏。
+ * 所有类使用 .sunny-dashboard-* 前缀，与 .sunny-agent-* 无冲突。
+ */
+
+/* ── Dashboard Shell 变量 ── */
+:root {
+  --dashboard-sidebar-width: clamp(18rem, 18vw, 20.5rem);
+  --dashboard-icon-bar-width: var(--dashboard-sidebar-width);
+  --dashboard-panel-width: clamp(20rem, 24vw, 22.5rem);
+  --dashboard-status-height: 1.5rem;
+  --dashboard-app-bg: #ffffff;
+  --dashboard-card-shadow: 0 12px 32px rgba(15, 23, 42, 0.07);
+  --dashboard-card-border: color-mix(in srgb, var(--border) 82%, transparent);
+  --dashboard-blue-soft: #e8f1ff;
+}
+
+/* ── Shell 网格容器 ── */
+.sunny-dashboard-shell {
+  display: grid;
+  grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr) 340px;
+  grid-template-rows: 1fr var(--dashboard-status-height);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--dashboard-app-bg);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  transition: grid-template-columns 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sunny-dashboard-shell .sunny-dashboard-main {
+  grid-column: 2;
+}
+
+.sunny-dashboard-shell .sunny-dashboard-right-panel {
+  grid-column: 3;
+  transition: opacity 280ms ease, transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Collapsed: right panel hidden */
+.sunny-dashboard-shell:not(.is-panel-expanded) {
+  grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr) 0px;
+}
+
+.sunny-dashboard-shell:not(.is-panel-expanded) .sunny-dashboard-right-panel {
+  opacity: 0;
+  transform: translateX(12px);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ── 图标栏 ── */
+.sunny-dashboard-icon-bar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--dashboard-icon-bar-width);
+  grid-row: 1 / -1;
+  grid-column: 1;
+  background: rgba(255, 255, 255, 0.88);
+  border-right: 1px solid var(--dashboard-card-border);
+  padding: 0.75rem 0;
+  gap: 0.35rem;
+  z-index: 30;
+}
+
+.sunny-codex-sidebar {
+  align-items: stretch;
+  width: var(--dashboard-sidebar-width);
+  padding: 0.9rem 0.65rem;
+  background: color-mix(in srgb, #f7f9fc 88%, #fff);
+  border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  color: var(--foreground);
+}
+
+.sunny-codex-sidebar-top {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sunny-codex-sidebar-window-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 1.1rem;
+  padding: 0 0.2rem;
+}
+
+.sunny-codex-sidebar-window-controls span {
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 50%;
+}
+
+.sunny-codex-sidebar-window-controls span:nth-child(1) {
+  background: #ff5f57;
+}
+
+.sunny-codex-sidebar-window-controls span:nth-child(2) {
+  background: #ffbd2e;
+}
+
+.sunny-codex-sidebar-window-controls span:nth-child(3) {
+  background: #28c840;
+}
+
+.sunny-codex-project-row,
+.sunny-codex-sidebar-action,
+.sunny-codex-mode-row,
+.sunny-codex-thread-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--foreground) 84%, var(--muted));
+  font-family: var(--sunny-font-sans);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sunny-codex-project-row {
+  gap: 0.55rem;
+  min-height: 2rem;
+  padding: 0 0.45rem;
+  border-radius: 0.55rem;
+  font-size: var(--text-sm-compact);
+  font-weight: 650;
+}
+
+.sunny-codex-project-row:hover,
+.sunny-codex-sidebar-action:hover,
+.sunny-codex-mode-row:hover,
+.sunny-codex-thread-row:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.sunny-codex-project-row.is-static {
+  cursor: default;
+}
+
+.sunny-codex-project-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 0.42rem;
+  background: #fff;
+  color: #2563eb;
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.sunny-codex-sidebar-actions {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.sunny-codex-sidebar-action {
+  gap: 0.65rem;
+  min-height: 2rem;
+  padding: 0 0.5rem;
+  border-radius: 0.55rem;
+  font-size: var(--text-sm-compact);
+  font-weight: 500;
+}
+
+.sunny-codex-sidebar-action span,
+.sunny-codex-mode-row span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.sunny-codex-sidebar-section {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.sunny-codex-sidebar-section p {
+  margin: 0;
+  padding: 0 0.5rem 0.1rem;
+  color: color-mix(in srgb, var(--muted) 82%, transparent);
+  font-size: var(--text-2xs);
+  font-weight: 650;
+}
+
+.sunny-codex-mode-list {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.sunny-codex-mode-row {
+  gap: 0.5rem;
+  min-height: 1.9rem;
+  padding: 0 0.5rem;
+  border-radius: 0.55rem;
+  font-size: var(--text-xs);
+  font-weight: 560;
+}
+
+.sunny-codex-mode-row.is-active,
+.sunny-codex-thread-row.is-active {
+  background: color-mix(in srgb, #dbeafe 70%, transparent);
+  color: #1d4ed8;
+}
+
+.sunny-codex-thread-section {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sunny-codex-thread-row {
+  display: grid;
+  gap: 0.06rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.58rem;
+}
+
+.sunny-codex-thread-row span,
+.sunny-codex-thread-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunny-codex-thread-row span {
+  font-size: var(--text-xs);
+  font-weight: 560;
+}
+
+.sunny-codex-thread-row small,
+.sunny-codex-empty-label {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+}
+
+.sunny-codex-empty-label {
+  padding: 0.35rem 0.5rem;
+}
+
+.sunny-codex-sidebar-bottom {
+  align-items: stretch;
+  gap: 0.2rem;
+  width: 100%;
+  margin-top: 0.85rem;
+}
+
+.sunny-codex-sidebar .sunny-dashboard-settings-popover {
+  left: 0;
+  bottom: 2.35rem;
+  width: min(15rem, calc(var(--dashboard-sidebar-width) - 1.3rem));
+}
+
+html[data-theme="dark"] .sunny-dashboard-icon-bar {
+  background: var(--surface);
+}
+
+.sunny-dashboard-icon-bar-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.sunny-dashboard-icon-bar-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: auto;
+  flex-shrink: 0;
+}
+
+/* 品牌标识 */
+.sunny-dashboard-icon-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.75rem;
+  background: #1f5eff;
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-title);
+  font-family: var(--sunny-font-sans);
+  line-height: 1;
+  flex-shrink: 0;
+  cursor: default;
+  user-select: none;
+}
+
+html[data-theme="dark"] .sunny-dashboard-icon-brand {
+  color: color-mix(in srgb, var(--background) 88%, #050505);
+}
+
+/* 图标按钮 */
+.sunny-dashboard-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.sunny-dashboard-icon-btn:hover {
+  background: color-mix(in srgb, #eef4ff 88%, transparent);
+  color: var(--foreground);
+}
+
+html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
+  background: color-mix(in srgb, var(--surface-strong) 88%, var(--foreground) 4%);
+}
+
+.sunny-dashboard-icon-btn.is-active {
+  color: #1d4ed8;
+  background: var(--dashboard-blue-soft);
+}
+
+.sunny-dashboard-icon-btn.is-active::before {
+  position: absolute;
+  left: -0.57rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 1.45rem;
+  border-radius: 0 2px 2px 0;
+  background: #2563eb;
+  content: "";
+}
+
+.sunny-dashboard-icon-btn[data-tooltip]::after {
+  position: absolute;
+  left: calc(100% + 0.55rem);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  padding: 0.28rem 0.5rem;
+  border-radius: 0.45rem;
+  background: #111827;
+  color: #fff;
+  content: attr(data-tooltip);
+  font-size: var(--text-2xs);
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.sunny-dashboard-icon-btn[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translate(0.12rem, -50%);
+}
+
+.sunny-dashboard-settings {
+  position: relative;
+}
+
+.sunny-dashboard-settings-popover {
+  position: absolute;
+  left: calc(100% + 0.65rem);
+  bottom: 0;
+  z-index: 70;
+  width: 13rem;
+  padding: 0.75rem;
+  border: 1px solid var(--dashboard-card-border);
+  border-radius: 0.9rem;
+  background: #fff;
+  box-shadow: var(--dashboard-card-shadow);
+}
+
+.sunny-dashboard-settings-popover p {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+
+/* 分隔线 */
+.sunny-dashboard-icon-separator {
+  width: 1.5rem;
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+  margin: 0.15rem 0;
+}
+
+/* ── 滑动面板 ── */
+.sunny-dashboard-slide-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  width: auto;
+  max-height: calc(100dvh - 5.5rem);
+  grid-row: 1;
+  grid-column: 2;
+  margin: 4.25rem 1.25rem 0 0;
+  background: #fff;
+  border: 1px solid var(--dashboard-card-border);
+  border-radius: 1.15rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+  z-index: 5;
+  transition: width 180ms ease;
+}
+
+.sunny-context-panel-resize-handle {
+  position: absolute;
+  left: -0.4rem;
+  top: 1rem;
+  bottom: 1rem;
+  z-index: 2;
+  width: 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: col-resize;
+}
+
+.sunny-context-panel-resize-handle::after {
+  position: absolute;
+  left: 0.35rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #2563eb 42%, transparent);
+  content: "";
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.sunny-context-panel-resize-handle:hover::after,
+.sunny-context-panel-resize-handle:focus-visible::after,
+.sunny-dashboard-is-resizing .sunny-context-panel-resize-handle::after {
+  opacity: 1;
+}
+
+.sunny-dashboard-is-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+html[data-theme="dark"] .sunny-dashboard-slide-panel {
+  background: var(--surface);
+}
+
+/* 面板头部 */
+.sunny-dashboard-slide-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 0.95rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+.sunny-dashboard-slide-panel-head h3 {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-title);
+  font-family: var(--sunny-font-sans);
+  color: var(--foreground);
+  margin: 0;
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sunny-dashboard-slide-panel-head > div {
+  min-width: 0;
+}
+
+.sunny-dashboard-context-summary-label,
+.sunny-dashboard-context-summary {
+  display: block;
+}
+
+.sunny-dashboard-context-summary-label {
+  margin-top: 0.55rem;
+  color: color-mix(in srgb, var(--muted) 82%, transparent);
+  font-size: var(--text-3xs);
+  font-weight: 700;
+}
+
+.sunny-dashboard-context-summary {
+  display: -webkit-box;
+  margin-top: 0.2rem;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.sunny-dashboard-slide-panel-head p {
+  margin: 0 0 0.15rem;
+  color: var(--muted);
+  font-size: var(--text-3xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sunny-dashboard-slide-panel-head button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.sunny-dashboard-slide-panel-head button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* 搜索框 */
+.sunny-dashboard-slide-panel-search {
+  padding: 0.75rem 0.95rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sunny-dashboard-slide-panel-search input {
+  width: 100%;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--dashboard-card-border);
+  border-radius: 0.7rem;
+  background: #f8fafc;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-family: var(--sunny-font-sans);
+  outline: none;
+  transition: border-color 140ms ease;
+}
+
+.sunny-dashboard-slide-panel-search input::placeholder {
+  color: var(--muted);
+}
+
+.sunny-dashboard-slide-panel-search input:focus {
+  border-color: var(--accent);
+}
+
+html[data-theme="dark"] .sunny-dashboard-slide-panel-search input {
+  background: color-mix(in srgb, var(--surface-strong) 86%, var(--foreground) 4%);
+}
+
+/* 面板主体（可滚动列表区域） */
+.sunny-dashboard-slide-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.75rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 36%, transparent) transparent;
+}
+
+/* 分区标签 */
+.sunny-dashboard-slide-section-label {
+  padding: 0.5rem 0.75rem 0.3rem;
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-ui);
+  font-family: var(--sunny-font-sans);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  user-select: none;
+}
+
+/* ── 状态栏 ── */
+.sunny-dashboard-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  grid-row: 2;
+  grid-column: 3 / -1;
+  height: var(--dashboard-status-height);
+  padding: 0 0.65rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  background: color-mix(in srgb, var(--dashboard-app-bg) 92%, transparent);
+  font-size: var(--text-2xs);
+  font-family: var(--sunny-font-mono);
+  color: color-mix(in srgb, var(--muted) 74%, transparent);
+  line-height: 1;
+  z-index: 15;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+html[data-theme="dark"] .sunny-dashboard-status-bar {
+  background: var(--surface);
+}
+
+.sunny-dashboard-status-bar > * {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sunny-dashboard-status-dot {
+  width: 0.44rem;
+  height: 0.44rem;
+  border-radius: 50%;
+  background: var(--success, #3fb950);
+  flex-shrink: 0;
+}
+
+/* ── 主区域 ── */
+.sunny-dashboard-main {
+  grid-row: 1;
+  grid-column: 3;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+  padding: 0;
+  gap: 0;
+}
+
+.sunny-dashboard-shell.is-panel-collapsed .sunny-dashboard-main {
+  grid-column: 2;
+}
+
+/* ── Inspector 切换按钮 ── */
+.sunny-dashboard-inspector-toggle {
+  position: fixed;
+  z-index: 45;
+  bottom: calc(var(--dashboard-status-height) + 0.65rem);
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0 0.85rem;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-family: var(--sunny-font-sans);
+  font-weight: var(--font-weight-ui);
+  cursor: pointer;
+  box-shadow: var(--agent-shadow-shell, 0 4px 12px rgba(0,0,0,0.08));
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.sunny-dashboard-inspector-toggle:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.sunny-dashboard-inspector-toggle.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+html[data-theme="dark"] .sunny-dashboard-inspector-toggle.is-active {
+  color: color-mix(in srgb, var(--background) 88%, #050505);
+}
+
+/* ── Dark Mode 覆盖 ── */
+html[data-theme="dark"] .sunny-dashboard-shell {
+  background: var(--background);
+}
+
+html[data-theme="dark"] .sunny-dashboard-main {
+  background: var(--background);
+}
+
+/* ── 响应式：隐藏右面板 ── */
+@media (max-width: 1200px) {
+  .sunny-dashboard-shell {
+    grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr);
+  }
+  .sunny-dashboard-shell .sunny-dashboard-right-panel {
+    display: none;
+  }
+}
+
+/* ── 响应式：窄屏折叠面板 ── */
+@media (max-width: 900px) {
+  :root {
+    --dashboard-sidebar-width: 4rem;
+  }
+
+  .sunny-dashboard-shell {
+    grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr);
+  }
+
+  .sunny-codex-sidebar {
+    padding: 0.75rem 0.45rem;
+  }
+
+  .sunny-codex-sidebar-window-controls,
+  .sunny-codex-sidebar-section,
+  .sunny-codex-sidebar-action:not(.sunny-codex-panel-toggle) {
+    display: none;
+  }
+
+  .sunny-codex-project-row,
+  .sunny-codex-sidebar-bottom .sunny-codex-sidebar-action {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .sunny-codex-project-row > span:not(.sunny-codex-project-mark),
+  .sunny-codex-sidebar-bottom .sunny-codex-sidebar-action {
+    color: transparent;
+  }
+
+  .sunny-codex-project-row > span:not(.sunny-codex-project-mark) {
+    display: none;
+  }
+
+  .sunny-codex-sidebar-bottom .sunny-codex-sidebar-action span {
+    color: var(--muted);
+  }
+
+  .sunny-dashboard-right-panel {
+    display: none;
+  }
+
+  .sunny-dashboard-shell .sunny-dashboard-main {
+    grid-column: 2;
+  }
+
+  .sunny-dashboard-inspector-toggle,
+  .sunny-command-trigger {
+    display: none;
+  }
+}
+
+/* ── 减少动画 ── */
+@media (prefers-reduced-motion: reduce) {
+  .sunny-dashboard-slide-panel,
+  .sunny-dashboard-icon-btn,
+  .sunny-dashboard-inspector-toggle,
+  .sunny-dashboard-slide-panel-head button,
+  .sunny-dashboard-slide-panel-search input {
+    transition: none;
+  }
+}

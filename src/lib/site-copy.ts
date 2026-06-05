@@ -205,9 +205,9 @@ export const siteCopy = {
       workspace: "工作区",
       backToDashboard: "工作台",
       groups: {
-        content: "内容",
-        planning: "计划",
-        agent: "Agent",
+        content: "内容管理",
+        planning: "计划与日程",
+        agent: "AI Agent",
         settings: "设置",
         system: "系统",
       },

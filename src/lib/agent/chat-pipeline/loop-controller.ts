@@ -62,7 +62,7 @@ type LoopCallbacks = {
 const observeNextPhase = (
   lastAssistantMessage: string,
   lastPendingAction: null | PendingAction,
-  remainingTasks: number,
+  _remainingTasks: number,
 ): LoopPhase => {
   if (lastPendingAction) {
     if (
@@ -78,6 +78,10 @@ const observeNextPhase = (
     }
 
     if (lastPendingAction.type === "await_completion_note") {
+      return "done";
+    }
+
+    if (lastPendingAction.type === "await_learning_followup") {
       return "done";
     }
   }

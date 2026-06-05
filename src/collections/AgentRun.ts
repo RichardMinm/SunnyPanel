@@ -170,6 +170,16 @@ export const AgentRun: CollectionConfig = {
       required: true,
     },
     {
+      name: "user",
+      type: "relationship",
+      label: "关联用户",
+      admin: {
+        description: "创建这条 AgentRun 的用户，用于自定义 API 与回滚执行的归属校验。",
+        position: "sidebar",
+      },
+      relationTo: "users",
+    },
+    {
       name: "goal",
       type: "textarea",
       label: "目标",

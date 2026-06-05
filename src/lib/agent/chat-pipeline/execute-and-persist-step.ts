@@ -1,9 +1,10 @@
-import { executeAgentIntent, executeAgentIntentsParallel } from "@/lib/agent/executor";
+import { executeAgentIntent, executeAgentIntentsTransactional } from "@/lib/agent/executor";
 import type { IntentResolution } from "@/lib/agent/chat-pipeline/resolve-intent-step";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import { logAgentEvent } from "@/lib/agent/logger";
 import { isRollbackPayloadExecutable } from "@/lib/agent/rollback-parse";
 import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
+import { getAgentToolDefinition } from "@/lib/agent/tool-registry";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 
@@ -12,6 +13,7 @@ export type ExecuteAndPersistStepParams = {
   confirmedActionId: null | string;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
+  executionApproved?: boolean;
   isDirectAnswer: boolean;
   nextPendingAfterExecute?: null | PendingAction;
   persistAgentTurn: (args: {
@@ -28,12 +30,39 @@ export type ExecuteAndPersistStepParams = {
   user: { id: number };
 };
 
+const requiresConfirmationBeforeExecution = (intent: AgentIntent) =>
+  getAgentToolDefinition(intent.intent)?.requiresConfirmation === true;
+
+const buildUnconfirmedExecutionMessage = (intent: AgentIntent) =>
+  `这个动作「${intent.intent}」需要先完成 Dry-run 预览并得到确认，我不会直接写入数据库。请重新发送这条请求，Agent 会先生成可确认的变更卡片；确认后才会执行。`;
+
+const describePendingActionForExecution = (pendingAction: PendingAction) => {
+  if (pendingAction.type === "await_batch_confirmation") {
+    return `另有 ${pendingAction.actions.length} 项操作待批量确认，请回复「确认」执行。`;
+  }
+
+  if (pendingAction.type === "await_queue_resume") {
+    return `另有 ${pendingAction.deferredTaskIds.length} 个子任务已延后，请回复「继续」恢复执行。`;
+  }
+
+  if (pendingAction.type === "await_confirmation") {
+    return `另有 1 项操作待确认：${pendingAction.action.summary}。`;
+  }
+
+  if (pendingAction.type === "await_learning_followup") {
+    return `我保留了「${pendingAction.subject}」的学习咨询上下文，你可以继续说“拆成学习计划”。`;
+  }
+
+  return "还有一步需要你补充信息后才能继续。";
+};
+
 export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepParams): Promise<AgentChatResponse> => {
   const {
     batchExecuteIntents,
     confirmedActionId,
     emitStatus,
     emitToken,
+    executionApproved = false,
     isDirectAnswer,
     nextPendingAfterExecute,
     persistAgentTurn,
@@ -51,25 +80,33 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     let lastPending: PendingAction | null = null;
 
     pushTrace({
-      detail: `并行执行 ${batchExecuteIntents.length} 项无依赖写操作`,
-      id: "batch-execute-parallel",
+      detail: `按事务顺序执行 ${batchExecuteIntents.length} 项写操作；若中途失败，将自动补偿已完成动作。`,
+      id: "batch-execute-transactional",
       kind: "action",
       status: "running",
-      title: `批量并行执行 (${batchExecuteIntents.length})`,
+      title: `事务批量执行 (${batchExecuteIntents.length})`,
     });
-    const batchResult = await executeAgentIntentsParallel(batchExecuteIntents, pushTrace);
-    lastPending = batchResult.pendingAction;
-    const assistantMessage = batchResult.assistantMessage;
+    const batchResult = await executeAgentIntentsTransactional(batchExecuteIntents, pushTrace, {
+      userId: user.id,
+    });
+    const batchFailed = batchResult.status === "failed";
+    lastPending = batchResult.pendingAction ?? (batchFailed ? null : nextPendingAfterExecute ?? null);
+    const assistantMessage =
+      nextPendingAfterExecute && !batchResult.pendingAction && !batchFailed
+        ? `${batchResult.assistantMessage}\n\n${describePendingActionForExecution(nextPendingAfterExecute)}`
+        : batchResult.assistantMessage;
     for (const token of splitIntoWordTokens(assistantMessage)) {
       emitToken(token, 'response');
       await new Promise((r) => setTimeout(r, 6));
     }
     pushTrace({
       detail: assistantMessage.slice(0, 120),
-      id: "batch-execute-parallel",
-      kind: "complete",
-      status: "done",
-      title: `批量执行完成 (${batchExecuteIntents.length})`,
+      id: "batch-execute-transactional",
+      kind: batchFailed ? "error" : "complete",
+      status: batchFailed ? "error" : "done",
+      title: batchFailed
+        ? `批量执行已中止 (${batchExecuteIntents.length})`
+        : `批量执行完成 (${batchExecuteIntents.length})`,
     });
     const outputTokens = estimateTokenCount(assistantMessage);
     tokenUsage = {
@@ -96,7 +133,64 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
       confidence: resolution.intent.confidence,
       engine: resolution.engine,
       intent: resolution.intent.intent,
+      lastRollbackPayload:
+        "rollbackPayload" in batchResult &&
+        batchResult.rollbackPayload &&
+        isRollbackPayloadExecutable(batchResult.rollbackPayload)
+          ? batchResult.rollbackPayload
+          : undefined,
       pendingAction: lastPending,
+      trace,
+      threadId: updatedThread.id,
+      tokenUsage,
+    };
+  }
+
+  if (
+    !isDirectAnswer &&
+    !confirmedActionId &&
+    !executionApproved &&
+    requiresConfirmationBeforeExecution(resolution.intent)
+  ) {
+    emitStatus("写操作缺少确认，已阻止直接执行...");
+    const assistantMessage = buildUnconfirmedExecutionMessage(resolution.intent);
+    for (const token of splitIntoWordTokens(assistantMessage)) {
+      emitToken(token, 'response');
+      await new Promise((r) => setTimeout(r, 6));
+    }
+    const outputTokens = estimateTokenCount(assistantMessage);
+    tokenUsage = {
+      ...tokenUsage,
+      outputTokens,
+      totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+    };
+    pushTrace({
+      detail: `intent=${resolution.intent.intent}`,
+      id: "execution-confirmation-guard",
+      kind: "error",
+      status: "error",
+      title: "未确认写操作已被阻止",
+    });
+    const updatedThread = await persistAgentTurn({
+      assistantMessage,
+      confidence: resolution.intent.confidence,
+      engine: resolution.engine,
+      intent: resolution.intent.intent,
+      nextPendingAction: null,
+    });
+
+    logAgentEvent("warn", "chat.unconfirmed_write_blocked", {
+      intent: resolution.intent.intent,
+      threadId: updatedThread.id,
+      userId: user.id,
+    });
+
+    return {
+      assistantMessage,
+      confidence: resolution.intent.confidence,
+      engine: resolution.engine,
+      intent: resolution.intent.intent,
+      pendingAction: null,
       trace,
       threadId: updatedThread.id,
       tokenUsage,
@@ -116,11 +210,13 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     title: isDirectAnswer ? "准备生成回答" : "准备执行对应动作",
   });
 
-  const execution = await executeAgentIntent(resolution.intent, pushTrace);
+  const execution = await executeAgentIntent(resolution.intent, pushTrace, {
+    userId: user.id,
+  });
   const resolvedPending = execution.pendingAction ?? nextPendingAfterExecute ?? null;
   const assistantMessage =
     nextPendingAfterExecute && !execution.pendingAction
-      ? `${execution.assistantMessage}\n\n另有 ${nextPendingAfterExecute.type === "await_batch_confirmation" ? nextPendingAfterExecute.actions.length : 0} 项操作待批量确认，请回复「确认」执行。`
+      ? `${execution.assistantMessage}\n\n${describePendingActionForExecution(nextPendingAfterExecute)}`
       : execution.assistantMessage;
   if (!isDirectAnswer && assistantMessage) {
     for (const token of splitIntoWordTokens(assistantMessage)) {

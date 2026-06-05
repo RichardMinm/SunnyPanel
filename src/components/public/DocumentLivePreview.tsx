@@ -6,8 +6,7 @@ import { useLivePreview } from "@payloadcms/live-preview-react";
 
 import { ChecklistPreviewCard } from "@/components/public/ChecklistPreviewCard";
 import { RecordCoverImage } from "@/components/public/RecordCoverImage";
-import { ContentRenderer } from "@/components/public/ContentRenderer";
-import { MarkdownContent } from "@/components/editor/MarkdownContent";
+import { ContentRenderer, MarkdownField } from "@/components/public/ContentRenderer";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
 import type {
@@ -208,7 +207,7 @@ const renderPreviewDocument = ({
             {note.mood ? <span className="sunny-badge sunny-badge-muted">{note.mood}</span> : null}
           </div>
           <div className="mt-5">
-            <MarkdownContent markdown={note.content} />
+            <MarkdownField content={note.content} />
           </div>
           <RecordCoverImage
             containerClassName="mt-6 overflow-hidden rounded-lg border border-border/80"
@@ -230,7 +229,7 @@ const renderPreviewDocument = ({
             <span className="text-sm text-muted">{formatDateTime(update.updatedAt, locale)}</span>
           </div>
           <div className="mt-5">
-            <MarkdownContent markdown={update.content} />
+            <MarkdownField content={update.content} />
           </div>
           {update.link ? (
             <Link href={update.link} className="mt-4 inline-flex text-sm font-semibold text-accent-strong">
@@ -258,21 +257,21 @@ const renderPreviewDocument = ({
               {(checklist.groups ?? []).map((group, groupIndex) => (
                 <div
                   key={group.id ?? `${id}-${groupIndex}`}
-                  className="rounded-lg border border-border bg-white/60 p-5"
+                  className="rounded-lg border border-border bg-surface p-5"
                 >
                   <h3 className="text-lg font-semibold text-foreground">{group.title}</h3>
                   <div className="mt-4 space-y-3">
                     {(group.items ?? []).map((item, itemIndex) => (
                       <div
                         key={item.id ?? `${group.id ?? "group"}-${itemIndex}`}
-                        className="rounded-md border border-border/80 bg-background/60 px-4 py-3"
+                        className="rounded-md border border-border/80 bg-surface/50 px-4 py-3"
                       >
                         <div className="flex items-start gap-3">
                           <span
                             className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-icon-badge ${
                               item?.isCompleted
-                                ? "border-emerald-300 bg-emerald-100 text-emerald-700"
-                                : "border-border bg-white text-muted"
+                                ? "border-[var(--tone-success-border)] bg-[var(--tone-success-bg)] text-[var(--tone-success-text)]"
+                                : "border-border bg-surface text-muted"
                             }`}
                           >
                             {item?.isCompleted ? "✓" : ""}

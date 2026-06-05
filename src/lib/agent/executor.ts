@@ -1,7 +1,13 @@
 import { evaluatePlanFromIntent } from "./evaluation";
+import { runWithAgentExecutionContext } from "./execution-context";
 import { groupTasksIntoParallelLayers } from "./orchestration/parallel-layers";
 import type { TaskNode } from "./orchestration/types";
 import { queryProgressFromIntent } from "./progress";
+import {
+  executeRollbackFromPayload,
+  isRollbackPayloadExecutable,
+  type RollbackExecutionResult,
+} from "./rollback";
 import { parseAgentIntentResult, type AgentIntent, type AgentTraceStep } from "./schemas";
 import { executeAgentTool } from "./tool-registry";
 import { executeWeeklyReviewFromIntent } from "./workflows/weekly-review-server";
@@ -22,10 +28,30 @@ import {
 
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
 
+type AgentExecutionOptions = {
+  userId?: number;
+};
+
+export type AgentIntentExecutor = (
+  intent: AgentIntent,
+  onTrace?: AgentExecutionTraceReporter,
+  options?: AgentExecutionOptions,
+) => Promise<AgentIntentExecutionResult>;
+
+export type AgentRollbackExecutor = (rollbackPayload: unknown) => Promise<RollbackExecutionResult>;
+
+export type TransactionalExecutionOptions = {
+  executeIntent?: AgentIntentExecutor;
+  executeRollback?: AgentRollbackExecutor;
+  isRollbackExecutable?: (rollbackPayload: unknown) => boolean;
+  userId?: number;
+};
+
 export type AgentIntentExecutionResult = {
   assistantMessage: string;
   pendingAction: null | import("./schemas").PendingAction;
   rollbackPayload?: unknown;
+  status?: "completed" | "failed";
 };
 
 const toolExecutors = {
@@ -84,11 +110,12 @@ const groupIntentsForParallelExecution = (intents: AgentIntent[]) => {
 export const executeAgentIntentsParallel = async (
   intents: AgentIntent[],
   onTrace?: AgentExecutionTraceReporter,
+  options: AgentExecutionOptions = {},
 ): Promise<AgentIntentExecutionResult> => {
   if (intents.length <= 1) {
     const single = intents[0];
 
-    return single ? executeAgentIntent(single, onTrace) : { assistantMessage: "", pendingAction: null };
+    return single ? executeAgentIntent(single, onTrace, options) : { assistantMessage: "", pendingAction: null };
   }
 
   const groups = groupIntentsForParallelExecution(intents);
@@ -99,11 +126,14 @@ export const executeAgentIntentsParallel = async (
   for (const group of groups) {
     if (group.checklistKey) {
       for (const [index, intent] of group.intents.entries()) {
-        const result = await executeAgentIntent(intent, (step) =>
-          onTrace?.({
-            ...step,
-            id: `${step.id}-serial-${index}`,
-          }),
+        const result = await executeAgentIntent(
+          intent,
+          (step) =>
+            onTrace?.({
+              ...step,
+              id: `${step.id}-serial-${index}`,
+            }),
+          options,
         );
         messages.push(result.assistantMessage);
 
@@ -121,11 +151,14 @@ export const executeAgentIntentsParallel = async (
 
     const results = await Promise.all(
       group.intents.map((intent, index) =>
-        executeAgentIntent(intent, (step) =>
-          onTrace?.({
-            ...step,
-            id: `${step.id}-parallel-${index}`,
-          }),
+        executeAgentIntent(
+          intent,
+          (step) =>
+            onTrace?.({
+              ...step,
+              id: `${step.id}-parallel-${index}`,
+            }),
+          options,
         ),
       ),
     );
@@ -147,6 +180,157 @@ export const executeAgentIntentsParallel = async (
     assistantMessage: messages.filter(Boolean).join("\n\n"),
     pendingAction,
     rollbackPayload,
+  };
+};
+
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+const formatRollbackResult = (result: RollbackExecutionResult) =>
+  `${result.collection}#${result.documentIds?.join(",") ?? result.documentId} (${result.strategy})${result.auditWarning ? `，审计提示：${result.auditWarning}` : ""}`;
+
+export const executeAgentIntentsTransactional = async (
+  intents: AgentIntent[],
+  onTrace?: AgentExecutionTraceReporter,
+  options: TransactionalExecutionOptions = {},
+): Promise<AgentIntentExecutionResult> => {
+  if (intents.length <= 1) {
+    const single = intents[0];
+
+    return single
+      ? (options.executeIntent ?? executeAgentIntent)(single, onTrace, { userId: options.userId })
+      : { assistantMessage: "", pendingAction: null };
+  }
+
+  const executeIntent = options.executeIntent ?? executeAgentIntent;
+  const executeRollback = options.executeRollback ?? executeRollbackFromPayload;
+  const isExecutable = options.isRollbackExecutable ?? isRollbackPayloadExecutable;
+  const messages: string[] = [];
+  const rollbackPayloads: unknown[] = [];
+  let pendingAction: AgentIntentExecutionResult["pendingAction"] = null;
+  let rollbackPayload: unknown;
+
+  for (const [index, intent] of intents.entries()) {
+    const stepNumber = index + 1;
+
+    onTrace?.({
+      detail: `正在执行第 ${stepNumber}/${intents.length} 项批量操作。`,
+      id: `batch-transaction-step-${stepNumber}`,
+      kind: "action",
+      status: "running",
+      title: `事务批量执行 ${stepNumber}/${intents.length}`,
+    });
+
+    try {
+      const result = await executeIntent(
+        intent,
+        (step) =>
+          onTrace?.({
+            ...step,
+            id: `${step.id}-transaction-${index}`,
+          }),
+        { userId: options.userId },
+      );
+
+      if (result.assistantMessage) {
+        messages.push(result.assistantMessage);
+      }
+
+      if (result.pendingAction) {
+        pendingAction = result.pendingAction;
+      }
+
+      if ("rollbackPayload" in result && result.rollbackPayload) {
+        rollbackPayload = result.rollbackPayload;
+
+        if (isExecutable(result.rollbackPayload)) {
+          rollbackPayloads.push(result.rollbackPayload);
+        }
+      }
+
+      onTrace?.({
+        detail:
+          result.rollbackPayload && isExecutable(result.rollbackPayload)
+            ? "已记录可自动补偿的 rollbackPayload。"
+            : undefined,
+        id: `batch-transaction-step-${stepNumber}`,
+        kind: "complete",
+        status: "done",
+        title: `事务批量执行完成 ${stepNumber}/${intents.length}`,
+      });
+    } catch (error) {
+      const failureMessage = getErrorMessage(error);
+      const rollbackResults: RollbackExecutionResult[] = [];
+      const rollbackFailures: string[] = [];
+
+      onTrace?.({
+        detail: failureMessage,
+        id: `batch-transaction-step-${stepNumber}`,
+        kind: "error",
+        status: "error",
+        title: `批量执行在第 ${stepNumber} 项失败`,
+      });
+
+      for (const [rollbackIndex, payload] of rollbackPayloads.slice().reverse().entries()) {
+        const rollbackStep = rollbackIndex + 1;
+
+        onTrace?.({
+          detail: `正在回滚已完成操作 ${rollbackStep}/${rollbackPayloads.length}。`,
+          id: `batch-transaction-rollback-${rollbackStep}`,
+          kind: "action",
+          status: "running",
+          title: "自动补偿回滚",
+        });
+
+        try {
+          const rollbackResult = await executeRollback(payload);
+          rollbackResults.push(rollbackResult);
+          onTrace?.({
+            detail: formatRollbackResult(rollbackResult),
+            id: `batch-transaction-rollback-${rollbackStep}`,
+            kind: "complete",
+            status: "done",
+            title: "自动补偿回滚完成",
+          });
+        } catch (rollbackError) {
+          const rollbackMessage = getErrorMessage(rollbackError);
+          rollbackFailures.push(rollbackMessage);
+          onTrace?.({
+            detail: rollbackMessage,
+            id: `batch-transaction-rollback-${rollbackStep}`,
+            kind: "error",
+            status: "error",
+            title: "自动补偿回滚失败",
+          });
+        }
+      }
+
+      const rollbackSummary =
+        rollbackResults.length > 0
+          ? `已自动回滚 ${rollbackResults.length} 项：${rollbackResults.map(formatRollbackResult).join("；")}。`
+          : "没有可自动回滚的已执行动作。";
+      const rollbackFailureSummary =
+        rollbackFailures.length > 0 ? `自动回滚有 ${rollbackFailures.length} 项失败：${rollbackFailures.join("；")}` : "";
+
+      return {
+        assistantMessage: [
+          ...messages,
+          `❌ 批量执行在第 ${stepNumber}/${intents.length} 步失败：${failureMessage}`,
+          rollbackSummary,
+          rollbackFailureSummary,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+        pendingAction: null,
+        status: "failed",
+      };
+    }
+  }
+
+  return {
+    assistantMessage: messages.filter(Boolean).join("\n\n"),
+    pendingAction,
+    rollbackPayload,
+    status: "completed",
   };
 };
 
@@ -189,6 +373,7 @@ export const executeOrchestrationTaskGraph = async (
 export const executeAgentIntent = async (
   intent: AgentIntent,
   onTrace?: AgentExecutionTraceReporter,
+  options: AgentExecutionOptions = {},
 ): Promise<AgentIntentExecutionResult> => {
   switch (intent.intent) {
     case "answer_question":
@@ -202,7 +387,15 @@ export const executeAgentIntent = async (
 
       return {
         assistantMessage: intent.reply ?? intent.args.answer,
-        pendingAction: null,
+        pendingAction: intent.args.learningContext
+          ? {
+              originalMessage: intent.args.learningContext.originalMessage,
+              profile: intent.args.learningContext.profile,
+              requestedAction: intent.args.learningContext.requestedAction,
+              subject: intent.args.learningContext.subject,
+              type: "await_learning_followup",
+            }
+          : null,
       };
     case "create_plan":
     case "append_plan_item":
@@ -217,7 +410,9 @@ export const executeAgentIntent = async (
     case "save_memory":
     case "schedule_plan":
     case "weekly_review":
-      return executeAgentTool(intent, toolExecutors, onTrace);
+      return runWithAgentExecutionContext({ userId: options.userId }, () =>
+        executeAgentTool(intent, toolExecutors, onTrace),
+      );
     case "query_progress":
       onTrace?.({
         detail: intent.args.checklistTitle ? `目标清单：${intent.args.checklistTitle}` : "范围：整体进度",
@@ -235,7 +430,9 @@ export const executeAgentIntent = async (
         status: "done",
         title: "已切换到计划评估流程",
       });
-      return evaluatePlanFromIntent(intent.args);
+      return runWithAgentExecutionContext({ userId: options.userId }, () =>
+        evaluatePlanFromIntent(intent.args),
+      );
     case "clarify":
     default:
       return {

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 
 import { readSiteLocaleFromDocument, readSitePaletteFromDocument } from "@/lib/site-cookies";
 import type { SiteLocale } from "@/lib/site-copy";
@@ -29,29 +29,26 @@ export function SitePreferencesProvider({
   initialLocale,
   initialPalette,
 }: SitePreferencesProviderProps) {
-  const [locale, setLocale] = useState(initialLocale);
-  const [palette, setPalette] = useState(initialPalette);
+  const [localeOverride, setLocaleOverride] = useState<SiteLocale | null>(() =>
+    hydrateFromCookies && typeof document !== "undefined" ? readSiteLocaleFromDocument() : null,
+  );
+  const [paletteOverride, setPaletteOverride] = useState<SitePalette | null>(() =>
+    hydrateFromCookies && typeof document !== "undefined" ? readSitePaletteFromDocument() : null,
+  );
+  const locale = localeOverride ?? initialLocale;
+  const palette = paletteOverride ?? initialPalette;
 
   useLayoutEffect(() => {
-    if (!hydrateFromCookies) {
-      return;
-    }
+    applySitePalette(palette);
+  }, [palette]);
 
-    const nextLocale = readSiteLocaleFromDocument();
-    const nextPalette = readSitePaletteFromDocument();
+  const setLocale = useCallback((nextLocale: SiteLocale) => {
+    setLocaleOverride(nextLocale);
+  }, []);
 
-    applySitePalette(nextPalette);
-    setLocale(nextLocale);
-    setPalette(nextPalette);
-  }, [hydrateFromCookies]);
-
-  useEffect(() => {
-    setLocale(initialLocale);
-  }, [initialLocale]);
-
-  useEffect(() => {
-    setPalette(initialPalette);
-  }, [initialPalette]);
+  const setPalette = useCallback((nextPalette: SitePalette) => {
+    setPaletteOverride(nextPalette);
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -60,7 +57,7 @@ export function SitePreferencesProvider({
       setLocale,
       setPalette,
     }),
-    [locale, palette],
+    [locale, palette, setLocale, setPalette],
   );
 
   return <SitePreferencesContext.Provider value={value}>{children}</SitePreferencesContext.Provider>;

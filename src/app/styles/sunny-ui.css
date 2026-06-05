@@ -77,58 +77,7 @@ html[data-theme="dark"] .sunny-card-strong {
 
 /* .sunny-kicker / .sunny-display 见 sunny-typography.css */
 
-/* ── 三栏全高仪表盘布局 ── */
-.sunny-dashboard-shell {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-  font-size: var(--text-base);
-  line-height: var(--leading-normal);
-}
-
-.sunny-dashboard-triple {
-  flex: 1 1 0;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: var(--dashboard-left-width) minmax(0, 1fr) var(--dashboard-right-width);
-  gap: var(--agent-gap-lg);
-  padding: 0.65rem;
-  overflow: hidden;
-}
-
-.sunny-dashboard-col-left,
-.sunny-dashboard-col-center,
-.sunny-dashboard-col-right {
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.sunny-dashboard-col-center {
-  overflow-y: auto;
-}
-
-.sunny-dashboard-col-center > .sunny-agent-panel-loading,
-.sunny-dashboard-col-center .sunny-agent-workbench-layout {
-  flex: 1 1 auto;
-  min-height: 0;
-  height: 100%;
-}
-
-.sunny-dashboard-col-center .sunny-agent-workbench-layout {
-  min-height: min(var(--agent-min-height), 100%);
-}
-
-.sunny-dashboard-agent-host {
-  display: flex;
-  flex-direction: column;
-}
+/* Dashboard Shell 网格布局见 sunny-dashboard-shell.css；此处仅保留 Agent 加载态等共用样式。 */
 
 .sunny-agent-panel-loading {
   display: flex;
@@ -184,20 +133,6 @@ html[data-theme="dark"] .sunny-collapsible-card {
 
 .sunny-collapsible-card .sunny-collapsible-body {
   padding: 0 var(--chrome-panel-padding) var(--chrome-panel-padding);
-}
-
-/* ── 响应式 ── */
-@media (max-width: 1180px) {
-  .sunny-dashboard-triple {
-    grid-template-columns: minmax(0, 1fr);
-    overflow-y: auto;
-  }
-
-  .sunny-dashboard-col-left,
-  .sunny-dashboard-col-right {
-    overflow-y: visible;
-    max-height: none;
-  }
 }
 
 .sunny-dashboard-card {
@@ -1899,4 +1834,3 @@ html[data-theme="dark"] .sunny-panel {
   background: var(--surface);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
 }
-

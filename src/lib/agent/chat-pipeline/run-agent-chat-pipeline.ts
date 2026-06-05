@@ -24,6 +24,7 @@ import {
   type PendingAction,
 } from "@/lib/agent/schemas";
 import { appendAgentThreadTurn } from "@/lib/agent/thread";
+import { toPromptThreadSummary } from "@/lib/agent/thread-summary";
 import type { ContextPreferences } from "@/lib/agent/chat-pipeline/handle-agent-chat-post";
 import type { UserPreferences } from "@/lib/agent/user-preferences";
 
@@ -61,6 +62,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
   } = deps;
 
   const messages = (thread.messages as Array<{ role: string }> | null) ?? [];
+  const threadSummary = toPromptThreadSummary(thread);
   const hasMessageHistory = messages.length > 0;
   const hasPendingAction = thread.pendingAction != null;
   const isFirstActionInThread = !hasMessageHistory && !hasPendingAction;
@@ -160,6 +162,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       payload,
       pendingAction,
       pushTrace,
+      threadSummary,
       workbenchMode,
     });
     const { context: initialContext } = contextStep;
@@ -294,13 +297,14 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           break;
         }
 
-        const { isDirectAnswer, tokenUsage: tokenAfterDry } = dryResult.data;
+        const { executionApproved, isDirectAnswer, tokenUsage: tokenAfterDry } = dryResult.data;
         tokenUsage = tokenAfterDry;
 
         const execResult = await runExecuteAndPersistStep({
           confirmedActionId,
           emitStatus,
           emitToken,
+          executionApproved,
           isDirectAnswer,
           nextPendingAfterExecute,
           persistAgentTurn,
@@ -327,6 +331,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             payload,
             pendingAction: currentPendingAction,
             pushTrace,
+            threadSummary,
             workbenchMode,
           });
           currentContext = contextStep.context;
@@ -341,6 +346,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           error,
           intent: resolution.intent.intent,
           message,
+          userId: user.id,
         });
         logAgentEvent("error", "chat.intent_failed", {
           error: error instanceof Error ? error.message : "Unknown Agent failure",

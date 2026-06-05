@@ -8,6 +8,7 @@ import type {
   AgentContextContentItem,
   AgentContextSource,
 } from "@/lib/agent/context-builder";
+import { buildAgentRunOwnerWhere } from "@/lib/agent/run-access";
 import { publicContentConstraint } from "@/lib/payload/access";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
@@ -611,6 +612,7 @@ export const loadWorkspaceCore = async (): Promise<WorkspaceCoreData> => {
       limit: 6,
       overrideAccess: true,
       sort: "-startedAt",
+      where: buildAgentRunOwnerWhere(authResult.user.id),
     }),
     payload.find({
       collection: "plan-reviews",

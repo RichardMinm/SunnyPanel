@@ -43,8 +43,6 @@ import {
   formatTimelineProposal,
 } from "./workflows/timeline-composer";
 
-const normalizeText = (value: null | string | undefined) => value?.trim().replace(/\s+/g, " ") ?? "";
-
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
 type WritableAgentIntent = Extract<AgentIntent, { intent: AgentWriteIntentName }>;
 type ClarifiableAgentIntentName = Exclude<AgentWriteIntentName, "compose_timeline_event" | "weekly_review">;
@@ -108,6 +106,7 @@ type ResolveChecklistGroupForAppend = (args: {
   checklistTitle: string;
   groupTitle?: null | string;
 }) => Promise<{
+  checklist?: ChecklistDocument;
   question: null | string;
   resolved: null | {
     checklist: ChecklistDocument;
@@ -566,11 +565,103 @@ const scheduleConflictLabel = (conflicts: ScheduleConflict[]) =>
     ? `冲突：${conflicts.map((item) => item.title).join("；")}`
     : "没有检测到时间冲突。";
 
+const parseTimeToMinutes = (value: null | string | undefined) => {
+  const match = value?.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return Number(match[1]) * 60 + Number(match[2]);
+};
+
+const formatMinutesAsTime = (minutes: number) => {
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+
+const overlapsTimeRange = (start: number, end: number, conflict: ScheduleConflict) => {
+  const conflictStart = parseTimeToMinutes(conflict.startTime);
+  const conflictEnd = parseTimeToMinutes(conflict.endTime);
+
+  if (conflictStart === null || conflictEnd === null) {
+    return false;
+  }
+
+  return start < conflictEnd && conflictStart < end;
+};
+
+const buildScheduleConflictAdjustment = (
+  proposal: import("./schemas").ScheduleProposal,
+  conflicts: ScheduleConflict[],
+) => {
+  if (conflicts.length === 0 || proposal.isAllDay) {
+    return null;
+  }
+
+  const originalStart = parseTimeToMinutes(proposal.startTime);
+  const originalEnd = parseTimeToMinutes(proposal.endTime);
+
+  if (originalStart === null || originalEnd === null || originalEnd <= originalStart) {
+    return null;
+  }
+
+  let candidateStart = originalStart;
+  let candidateEnd = originalEnd;
+  const duration = originalEnd - originalStart;
+  const sortedConflicts = [...conflicts].sort(
+    (left, right) => (parseTimeToMinutes(left.startTime) ?? 0) - (parseTimeToMinutes(right.startTime) ?? 0),
+  );
+
+  for (let guard = 0; guard < sortedConflicts.length + 2; guard += 1) {
+    const conflict = sortedConflicts.find((item) => overlapsTimeRange(candidateStart, candidateEnd, item));
+
+    if (!conflict) {
+      break;
+    }
+
+    const conflictEnd = parseTimeToMinutes(conflict.endTime);
+
+    if (conflictEnd === null) {
+      return null;
+    }
+
+    candidateStart = conflictEnd;
+    candidateEnd = candidateStart + duration;
+
+    if (candidateEnd > 23 * 60 + 59) {
+      return null;
+    }
+  }
+
+  if (candidateStart === originalStart) {
+    return null;
+  }
+
+  const nextStartTime = formatMinutesAsTime(candidateStart);
+  const nextEndTime = formatMinutesAsTime(candidateEnd);
+  const conflictTitles = conflicts.map((item) => item.title).join("；");
+
+  return {
+    adjustedProposal: {
+      ...proposal,
+      conflicts: [],
+      endTime: nextEndTime,
+      reason: `${proposal.reason} 已自动避让冲突：${conflictTitles}。`,
+      startTime: nextStartTime,
+    },
+    message: `自动避让冲突：${conflictTitles}；从 ${proposal.startTime}-${proposal.endTime} 调整为 ${nextStartTime}-${nextEndTime}。`,
+    originalRange: `${proposal.startTime}-${proposal.endTime}`,
+  };
+};
+
 const composeScheduleItemDryRun = async (
   args: ComposeScheduleItemArgs,
   context: AgentToolDryRunContext,
 ): Promise<AgentToolDryRunResult> => {
-  let enrichedArgs = args;
+  const enrichedArgs = args;
 
   if (isScheduleComposerDateAmbiguous(enrichedArgs, context.now)) {
     return createClarifyResult({
@@ -593,16 +684,17 @@ const composeScheduleItemDryRun = async (
       })
     : [];
   const conflicts = toScheduleConflicts(conflictDocs);
+  const conflictAdjustment = buildScheduleConflictAdjustment(firstProposal, conflicts);
   const proposal = await composeScheduleProposalAsync(
     {
       ...enrichedArgs,
       proposal: {
-        ...firstProposal,
-        conflicts,
+        ...(conflictAdjustment?.adjustedProposal ?? firstProposal),
+        conflicts: conflictAdjustment ? [] : conflicts,
       },
     },
     {
-      conflicts,
+      conflicts: conflictAdjustment ? [] : conflicts,
       now: context.now,
       planCandidates: context.planCandidates,
     } satisfies ScheduleComposerContext,
@@ -621,7 +713,7 @@ const composeScheduleItemDryRun = async (
         args: nextArgs,
         context,
         intent: "compose_schedule_item",
-        riskLevel: conflicts.length > 0 ? "high" : "medium",
+        riskLevel: proposal.conflicts.length > 0 ? "high" : "medium",
         summary: `创建日程「${proposal.title}」`,
       }),
       affectedDocuments: [
@@ -636,10 +728,14 @@ const composeScheduleItemDryRun = async (
       changes: [
         {
           afterPreview: `${proposal.date} ${timePreview}\n${proposal.reason}\n${scheduleConflictLabel(conflicts)}`,
-          beforePreview: "当前不存在这条日程。",
+          beforePreview: conflictAdjustment
+            ? `原建议 ${proposal.date} ${conflictAdjustment.originalRange} 与 ${conflicts.map((item) => item.title).join("；")} 冲突。`
+            : "当前不存在这条日程。",
           collection: "schedule-items",
           operation: "create",
-          preview: `创建日程「${proposal.title}」：${proposal.date} ${timePreview}。${scheduleConflictLabel(conflicts)}`,
+          preview: conflictAdjustment
+            ? `创建日程「${proposal.title}」：${proposal.date} ${timePreview}。${conflictAdjustment.message}`
+            : `创建日程「${proposal.title}」：${proposal.date} ${timePreview}。${scheduleConflictLabel(conflicts)}`,
           timelineAffected: false,
           visibility: "private",
         },
@@ -942,7 +1038,6 @@ const rescheduleItemDryRun = async (
     });
   }
 
-  const hasTimeChange = args.newStartTime || args.newEndTime;
   const hasDateChange = Boolean(args.newDate);
   const riskLevel: ToolRiskLevel = hasDateChange ? "medium" : "low";
 
@@ -1150,6 +1245,70 @@ const appendPlanItemDryRun = async (
   const target = await resolver(args);
 
   if (!target.resolved) {
+    if (args.createGroupIfMissing && args.groupTitle && target.checklist) {
+      const checklist = target.checklist;
+      const nextItem = {
+        description: args.description ?? null,
+        isCompleted: false,
+        title: args.itemTitle,
+      };
+      const visibility = visibilityOf(checklist);
+
+      return {
+        action: {
+          ...actionBase({
+            args,
+            context,
+            intent: "append_plan_item",
+            riskLevel: "medium",
+            summary: `向清单新建分组「${args.groupTitle}」并追加计划项「${args.itemTitle}」`,
+          }),
+          affectedDocuments: [
+            {
+              collection: "checklists",
+              documentId: checklist.id,
+              operation: "update",
+              visibility,
+            },
+          ],
+          afterSnapshot: {
+            appendedItem: nextItem,
+            checklistId: checklist.id,
+            checklistTitle: checklist.title,
+            createdGroup: true,
+            groupTitle: args.groupTitle,
+          },
+          beforeSnapshot: {
+            checklistId: checklist.id,
+            checklistTitle: checklist.title,
+            groupCount: checklist.groups?.length ?? 0,
+            missingGroupTitle: args.groupTitle,
+          },
+          changes: [
+            {
+              afterPreview: `新建分组「${args.groupTitle}」，并新增未完成条目「${args.itemTitle}」${args.description ? `，说明：${args.description}` : ""}。`,
+              beforePreview: `「${checklist.title}」当前没有分组「${args.groupTitle}」。`,
+              collection: "checklists",
+              documentId: checklist.id,
+              operation: "update",
+              preview: `向「${checklist.title}」新建分组「${args.groupTitle}」并追加未完成条目「${args.itemTitle}」。`,
+              timelineAffected: false,
+              visibility,
+            },
+          ],
+          rollbackAvailable: true,
+          rollbackPayload: {
+            strategy: "restore_checklist_groups",
+            target: {
+              collection: "checklists",
+              documentId: checklist.id,
+            },
+          },
+        },
+        type: "proposed_action",
+      };
+    }
+
     return createClarifyResult({
       args,
       intent: "append_plan_item",

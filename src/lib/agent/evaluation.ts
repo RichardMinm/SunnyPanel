@@ -2,6 +2,7 @@ import type { AgentRun, Checklist, Plan } from "@/payload-types";
 
 import { getPayloadClient } from "@/lib/payload/client";
 
+import { getCurrentAgentUserId } from "./execution-context";
 import type { EvaluatePlanArgs } from "./schemas";
 import { getAgentProgressSnapshot } from "./progress";
 import { validateAgentRunData, validatePlanReviewData } from "./write-schemas";
@@ -186,6 +187,7 @@ const persistPlanReview = async (result: EvaluationResult) => {
     summary: result.assistantMessage,
     title,
     trigger: "agent",
+    user: getCurrentAgentUserId(),
     workflow: "readiness-audit",
   });
 

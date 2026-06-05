@@ -68,6 +68,11 @@ export const buildOrchestratorUserPrompt = (message: string, context: AgentPromp
 
   return [
     "## 当前工作区状态",
+    context.threadSummary
+      ? `### 当前线程摘要\ncoveredMessages=${context.threadSummary.messageCount}${
+          context.threadSummary.updatedAt ? ` | updatedAt=${context.threadSummary.updatedAt}` : ""
+        }\n${context.threadSummary.summary}`
+      : "",
     `### 计划 (${context.plans.length} 个，活跃 ${activePlans.length})`,
     planLines || "无",
     `### 清单 (${context.checklists.length} 个)`,

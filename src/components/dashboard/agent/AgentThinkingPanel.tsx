@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 
 import type { AgentTraceStep } from "@/lib/agent/schemas";
 
@@ -13,72 +12,51 @@ type AgentThinkingPanelProps = {
 };
 
 export function AgentThinkingPanel({ isThinking, statusLabel, steps, thinkingContent }: AgentThinkingPanelProps) {
-  const [expanded, setExpanded] = useState(true);
+  const visibleSteps = steps.slice(-4);
+  const thinkingLines = (thinkingContent ?? "").split("\n").map((line) => line.trim()).filter(Boolean).slice(-2);
 
-  if (!isThinking && steps.length === 0) {
+  if (!isThinking && visibleSteps.length === 0 && thinkingLines.length === 0) {
     return null;
   }
 
   return (
-    <div className="sunny-agent-thinking-panel">
-      {isThinking ? <div className="sunny-agent-shimmer-bar" /> : null}
-      <div
-        className="sunny-agent-thinking-panel-header"
-        onClick={() => setExpanded((v) => !v)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded((v) => !v); } }}
-      >
-        <span className="sunny-agent-thinking-chevron" data-open={expanded ? "true" : "false"}>
-          &#9654;
-        </span>
-        {isThinking ? (
-          <>
-            <span className="sunny-agent-thinking-dots">
+    <motion.div
+      className={`sunny-agent-thinking-panel${isThinking ? " is-running" : " is-complete"}`}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18 }}
+      role="status"
+      aria-label="Agent 任务流"
+    >
+      <span className="sunny-agent-thinking-dot" aria-hidden="true" />
+      <div className="sunny-agent-thinking-panel-content">
+        <div className="sunny-agent-thinking-panel-header">
+          <span>{isThinking ? statusLabel : `思考完成 (${steps.length} 步)`}</span>
+          {isThinking ? (
+            <span className="sunny-agent-thinking-dots" aria-hidden="true">
               <span /><span /><span />
             </span>
-            <span>{statusLabel}</span>
-          </>
+          ) : null}
+        </div>
+        {visibleSteps.length > 0 ? (
+          <ol className="sunny-agent-thinking-step-list">
+            {visibleSteps.map((step) => (
+              <li key={step.id} className={`sunny-agent-thinking-step is-${step.status}`}>
+                <strong>{step.title}</strong>
+                {step.detail ? <p>{step.detail}</p> : null}
+              </li>
+            ))}
+          </ol>
+        ) : thinkingLines.length > 0 ? (
+          <div className="sunny-agent-thinking-inline-content">
+            {thinkingLines.map((line, index) => (
+              <p key={`${line}-${index}`}>{line}</p>
+            ))}
+          </div>
         ) : (
-          <span>思考完成 ({steps.length} 步)</span>
+          <p className="sunny-agent-thinking-placeholder">等待 Agent 反馈...</p>
         )}
       </div>
-      <AnimatePresence initial={false}>
-        {expanded ? (
-          <motion.div
-            key="body"
-            className="sunny-agent-thinking-panel-body"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            {thinkingContent ? (
-              <div className="sunny-agent-thinking-inline-content">
-                {thinkingContent.split('\n').filter(Boolean).map((line, i) => (
-                  <p key={i}>{line}</p>
-                ))}
-              </div>
-            ) : null}
-            {steps.length > 0 ? (
-              steps.map((step, i) => (
-                <motion.div
-                  key={step.id}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05, duration: 0.2 }}
-                  style={{ padding: "4px 0", borderBottom: "1px solid color-mix(in srgb, var(--border, #e2e8f0) 50%, transparent)" }}
-                >
-                  <strong style={{ fontSize: "0.82rem" }}>{step.title}</strong>
-                  {step.detail ? <p style={{ margin: "2px 0 0", fontSize: "0.78rem", opacity: 0.7 }}>{step.detail}</p> : null}
-                </motion.div>
-              ))
-            ) : (
-              <p style={{ opacity: 0.5, fontSize: "0.82rem" }}>等待 Agent 反馈...</p>
-            )}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }

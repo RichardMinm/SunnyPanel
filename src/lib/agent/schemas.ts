@@ -115,6 +115,55 @@ export type AgentDryRunResult =
   | AgentDryRunClarifyResult
   | AgentDryRunProposedActionResult;
 
+export type AgentQueueResumeTask = {
+  agentRole: "content" | "memory" | "plan" | "query" | "review" | "schedule";
+  args: Record<string, unknown>;
+  dependsOn: string[];
+  id: string;
+  intent: AgentIntent["intent"];
+  label: string;
+};
+
+export type AgentQueueResumePendingAction = {
+  completedTaskIds: string[];
+  deferredTaskIds: string[];
+  mode: "compound" | "single";
+  orchestrationId?: string;
+  originalMessage: string;
+  reasoning: string;
+  tasks: AgentQueueResumeTask[];
+  type: "await_queue_resume";
+};
+
+export type AgentStrategyResumePendingAction = {
+  failedTaskId?: string;
+  failureReason: string;
+  mode: "compound" | "single";
+  orchestrationId?: string;
+  originalMessage: string;
+  reason: string;
+  reasoning: string;
+  recentRunIds: number[];
+  strategyMode: string;
+  tasks: AgentQueueResumeTask[];
+  type: "await_strategy_resume";
+};
+
+export type AgentLearningProfile = {
+  baseline?: string;
+  dailyTime?: string;
+  deadline?: string;
+  goal?: string;
+};
+
+export type AgentLearningFollowupPendingAction = {
+  originalMessage: string;
+  profile?: AgentLearningProfile;
+  requestedAction?: "compose_plan";
+  subject: string;
+  type: "await_learning_followup";
+};
+
 export type PendingAction = {
   checklistTitle: string;
   groupTitle?: null | string;
@@ -124,12 +173,14 @@ export type PendingAction = {
   action: ProposedAgentAction;
   deferredActions?: ProposedAgentAction[];
   orchestrationId?: string;
+  resumeQueue?: AgentQueueResumePendingAction;
   type: "await_confirmation";
 } | {
   actions: ProposedAgentAction[];
   orchestrationId?: string;
+  resumeQueue?: AgentQueueResumePendingAction;
   type: "await_batch_confirmation";
-} | {
+} | AgentQueueResumePendingAction | AgentStrategyResumePendingAction | AgentLearningFollowupPendingAction | {
   args: Partial<
     | AddCompletionNoteArgs
     | AppendPlanItemArgs
@@ -175,6 +226,7 @@ export type CreatePlanArgs = {
 
 export type AppendPlanItemArgs = {
   checklistTitle: string;
+  createGroupIfMissing?: boolean;
   description?: null | string;
   groupTitle?: null | string;
   itemTitle: string;
@@ -212,6 +264,12 @@ export type EvaluatePlanArgs = {
 
 export type AnswerQuestionArgs = {
   answer: string;
+  learningContext?: null | {
+    originalMessage: string;
+    profile?: AgentLearningProfile;
+    requestedAction?: "compose_plan";
+    subject: string;
+  };
   suggestAction?: null | string;
 };
 
@@ -455,6 +513,7 @@ const scheduleSourceTypeValues = ["agent", "checklist", "manual", "plan"] as con
 const timelineComposerSourceTypeValues = ["checklist_item", "free_text", "note", "plan", "post", "update"] as const;
 const timelineComposerEventTypeValues = ["life", "milestone", "project"] as const;
 const timelineComposerVisibilityValues = ["private", "public"] as const;
+const agentRoleValues = ["content", "memory", "plan", "query", "review", "schedule"] as const;
 const agentIntentValues = [
   "add_completion_note",
   "answer_question",
@@ -468,8 +527,10 @@ const agentIntentValues = [
   "create_plan",
   "evaluate_plan",
   "query_progress",
+  "query_plan_progress",
   "reschedule_item",
   "save_memory",
+  "schedule_plan",
   "weekly_review",
 ] as const;
 const proposedActionRiskValues = ["high", "low", "medium"] as const;
@@ -538,6 +599,29 @@ const getOptionalStringArray = (value: unknown) =>
         .slice(0, 12)
     : undefined;
 
+const getOptionalNumberArray = (value: unknown) =>
+  Array.isArray(value)
+    ? value
+        .map((item) => getOptionalNumber(item))
+        .filter((item): item is number => typeof item === "number")
+        .slice(0, 12)
+    : undefined;
+
+const parseLearningProfile = (value: unknown): AgentLearningProfile | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const profile: AgentLearningProfile = {
+    baseline: getOptionalString(value.baseline),
+    dailyTime: getOptionalString(value.dailyTime),
+    deadline: getOptionalString(value.deadline),
+    goal: getOptionalString(value.goal),
+  };
+
+  return Object.values(profile).some(Boolean) ? profile : undefined;
+};
+
 const getConfidence = (value: unknown) => {
   if (typeof value !== "number" || Number.isNaN(value)) {
     return undefined;
@@ -573,9 +657,124 @@ export const sanitizeChatMessages = (value: unknown): AgentChatMessage[] => {
     .slice(-12);
 };
 
+const parseQueueResumeTask = (value: unknown): null | AgentQueueResumeTask => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const agentRole = getOptionalEnum(value.agentRole, agentRoleValues);
+  const id = getRequiredString(value.id);
+  const intent = getOptionalEnum(value.intent, agentIntentValues);
+  const label = getRequiredString(value.label);
+
+  if (!agentRole || !id || !intent || !label) {
+    return null;
+  }
+
+  return {
+    agentRole,
+    args: isRecord(value.args) ? value.args : {},
+    dependsOn: Array.isArray(value.dependsOn)
+      ? value.dependsOn.filter((item): item is string => typeof item === "string" && item.length > 0)
+      : [],
+    id,
+    intent,
+    label,
+  };
+};
+
+const parseQueueResumePendingAction = (value: unknown): null | AgentQueueResumePendingAction => {
+  if (!isRecord(value) || value.type !== "await_queue_resume") {
+    return null;
+  }
+
+  const originalMessage = getRequiredString(value.originalMessage);
+  const mode = getOptionalEnum(value.mode, ["compound", "single"] as const) ?? "compound";
+  const tasks = Array.isArray(value.tasks)
+    ? value.tasks.map((item) => parseQueueResumeTask(item)).filter((item): item is AgentQueueResumeTask => item !== null)
+    : [];
+  const deferredTaskIds = Array.isArray(value.deferredTaskIds)
+    ? value.deferredTaskIds.filter((item): item is string => typeof item === "string" && item.length > 0)
+    : [];
+
+  if (!originalMessage || tasks.length === 0 || deferredTaskIds.length === 0) {
+    return null;
+  }
+
+  return {
+    completedTaskIds: Array.isArray(value.completedTaskIds)
+      ? value.completedTaskIds.filter((item): item is string => typeof item === "string" && item.length > 0)
+      : [],
+    deferredTaskIds,
+    mode,
+    orchestrationId: getOptionalString(value.orchestrationId) ?? undefined,
+    originalMessage,
+    reasoning: getOptionalString(value.reasoning) ?? "",
+    tasks,
+    type: "await_queue_resume",
+  };
+};
+
+const parseStrategyResumePendingAction = (value: unknown): null | AgentStrategyResumePendingAction => {
+  if (!isRecord(value) || value.type !== "await_strategy_resume") {
+    return null;
+  }
+
+  const originalMessage = getRequiredString(value.originalMessage);
+  const failureReason = getRequiredString(value.failureReason);
+  const reason = getRequiredString(value.reason);
+  const mode = getOptionalEnum(value.mode, ["compound", "single"] as const) ?? "compound";
+  const tasks = Array.isArray(value.tasks)
+    ? value.tasks.map((item) => parseQueueResumeTask(item)).filter((item): item is AgentQueueResumeTask => item !== null)
+    : [];
+
+  if (!originalMessage || !failureReason || !reason || tasks.length === 0) {
+    return null;
+  }
+
+  return {
+    failedTaskId: getOptionalString(value.failedTaskId) ?? undefined,
+    failureReason,
+    mode,
+    orchestrationId: getOptionalString(value.orchestrationId) ?? undefined,
+    originalMessage,
+    reason,
+    reasoning: getOptionalString(value.reasoning) ?? "",
+    recentRunIds: getOptionalNumberArray(value.recentRunIds) ?? [],
+    strategyMode: getOptionalString(value.strategyMode) ?? "neutral",
+    tasks,
+    type: "await_strategy_resume",
+  };
+};
+
 export const parsePendingAction = (value: unknown): null | PendingAction => {
   if (!isRecord(value)) {
     return null;
+  }
+
+  if (value.type === "await_queue_resume") {
+    return parseQueueResumePendingAction(value);
+  }
+
+  if (value.type === "await_strategy_resume") {
+    return parseStrategyResumePendingAction(value);
+  }
+
+  if (value.type === "await_learning_followup") {
+    const subject = getRequiredString(value.subject);
+    const originalMessage = getRequiredString(value.originalMessage);
+
+    if (!subject || !originalMessage) {
+      return null;
+    }
+
+    return {
+      originalMessage,
+      profile: parseLearningProfile(value.profile),
+      requestedAction: value.requestedAction === "compose_plan" ? "compose_plan" : undefined,
+      subject,
+      type: "await_learning_followup",
+    };
   }
 
   if (value.type === "await_completion_note") {
@@ -611,6 +810,7 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
       action,
       deferredActions: deferredActions && deferredActions.length > 0 ? deferredActions : undefined,
       orchestrationId: getOptionalString(value.orchestrationId) ?? undefined,
+      resumeQueue: parseQueueResumePendingAction(value.resumeQueue) ?? undefined,
       type: "await_confirmation",
     };
   }
@@ -631,6 +831,7 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
     return {
       actions,
       orchestrationId: getOptionalString(value.orchestrationId) ?? undefined,
+      resumeQueue: parseQueueResumePendingAction(value.resumeQueue) ?? undefined,
       type: "await_batch_confirmation",
     };
   }
@@ -879,6 +1080,15 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
   switch (value.intent) {
     case "answer_question": {
       const answer = getRequiredString(value.args.answer) ?? reply;
+      const learningContext = isRecord(value.args.learningContext)
+        ? {
+            originalMessage: getRequiredString(value.args.learningContext.originalMessage) ?? "",
+            profile: parseLearningProfile(value.args.learningContext.profile),
+            requestedAction:
+              value.args.learningContext.requestedAction === "compose_plan" ? "compose_plan" as const : undefined,
+            subject: getRequiredString(value.args.learningContext.subject) ?? "",
+          }
+        : null;
 
       if (!answer) {
         return null;
@@ -887,6 +1097,10 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
       return {
         args: {
           answer,
+          learningContext:
+            learningContext?.originalMessage && learningContext.subject
+              ? learningContext
+              : null,
           suggestAction: getOptionalString(value.args.suggestAction) ?? null,
         },
         confidence,
@@ -927,6 +1141,7 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
       return {
         args: {
           checklistTitle,
+          createGroupIfMissing: typeof value.args.createGroupIfMissing === "boolean" ? value.args.createGroupIfMissing : undefined,
           description: getOptionalString(value.args.description) ?? null,
           groupTitle: getOptionalString(value.args.groupTitle) ?? null,
           itemTitle,
@@ -1094,6 +1309,25 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         intent: "weekly_review",
         reply,
       };
+    case "schedule_plan": {
+      const planId = getOptionalNumber(value.args.planId);
+
+      if (!planId) {
+        return null;
+      }
+
+      return {
+        args: {
+          defaultDurationMinutes: getOptionalNumber(value.args.defaultDurationMinutes),
+          defaultStartTime: getOptionalString(value.args.defaultStartTime) ?? null,
+          planId,
+          startDate: getOptionalDateString(value.args.startDate) ?? null,
+        },
+        confidence,
+        intent: "schedule_plan",
+        reply,
+      };
+    }
     case "reschedule_item": {
       const rescheduleItemId = getOptionalNumber(value.args.itemId);
       if (!rescheduleItemId) return null;

@@ -101,6 +101,49 @@ test("ambiguous checklist returns clarify", async () => {
   }
 });
 
+test("semantic repair append can propose creating a missing checklist group", async () => {
+  const result = await dryRunAgentIntent(
+    {
+      args: {
+        checklistTitle: "高等数学",
+        createGroupIfMissing: true,
+        description: "语义修复：先补建条目。",
+        groupTitle: "线性代数",
+        itemTitle: "矩阵习题",
+      },
+      intent: "append_plan_item",
+    },
+    {
+      createActionId: () => "append-missing-group-action",
+      resolveChecklistGroupForAppend: async () => ({
+        checklist: fakeChecklist as never,
+        question: "我在「高等数学」里没找到「线性代数」这个分组。",
+        resolved: null,
+      }),
+    },
+  );
+
+  assert.equal(result.type, "proposed_action");
+
+  if (result.type === "proposed_action") {
+    assert.equal(result.action.intent, "append_plan_item");
+    assert.equal(result.action.id, "append-missing-group-action");
+    assert.match(result.action.summary, /新建分组/);
+    assert.match(result.action.changes[0]?.preview ?? "", /新建分组「线性代数」/);
+    assert.deepEqual(result.action.afterSnapshot, {
+      appendedItem: {
+        description: "语义修复：先补建条目。",
+        isCompleted: false,
+        title: "矩阵习题",
+      },
+      checklistId: 101,
+      checklistTitle: "高等数学",
+      createdGroup: true,
+      groupTitle: "线性代数",
+    });
+  }
+});
+
 test("dry-run preview includes collection and operation", async () => {
   const result = await dryRunAgentIntent(
     {

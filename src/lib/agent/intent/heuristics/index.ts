@@ -7,7 +7,13 @@ export {
   isNegativeReply,
   shouldSkipPendingAction,
 } from "./replies";
-export { isMathTwoSyllabusQuestion, parseKnowledgeAnswerIntent } from "./knowledge";
+export {
+  extractConsultationTopic,
+  isGeneralConsultationQuestion,
+  isLearningAdviceQuestion,
+  isMathTwoSyllabusQuestion,
+  parseKnowledgeAnswerIntent,
+} from "./knowledge";
 export { collectHeuristicCandidates, parseHeuristicIntent } from "./parse-heuristic-intent";
 
 export type HeuristicCandidate = {
@@ -58,7 +64,7 @@ import {
   timelineComposerKeywords,
   weeklyReviewKeywords,
 } from "./keywords";
-import { isMathTwoSyllabusQuestion } from "./knowledge";
+import { isGeneralConsultationQuestion, isLearningAdviceQuestion, isMathTwoSyllabusQuestion } from "./knowledge";
 
 export const isNewCommand = (message: string) =>
   createPlanKeywords.some((keyword) => message.includes(keyword)) ||
@@ -73,4 +79,6 @@ export const isNewCommand = (message: string) =>
   weeklyReviewKeywords.some((keyword) => message.includes(keyword)) ||
   evaluationKeywords.some((keyword) => message.includes(keyword)) ||
   schedulePlanKeywords.some((keyword) => message.includes(keyword)) ||
-  isMathTwoSyllabusQuestion(message);
+  isMathTwoSyllabusQuestion(message) ||
+  isLearningAdviceQuestion(message) ||
+  isGeneralConsultationQuestion(message);

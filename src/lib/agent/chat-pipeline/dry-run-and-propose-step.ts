@@ -44,6 +44,7 @@ export type DryRunAndProposeStepParams = {
 };
 
 export type DryRunAndProposeStepNext = {
+  executionApproved: boolean;
   isDirectAnswer: boolean;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
 };
@@ -199,6 +200,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       userPreferences: prefs ?? {
         autoApproveIntents: new Set(),
         autoApproveLowRisk: false,
+        autonomyLevel: 0,
         deniedIntents: new Set(),
         maxConsecutiveAutoApprovals: 0,
       },
@@ -210,6 +212,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         action: proposedAction,
         reason: decision.reason,
         threadId: autoApproval.threadId,
+        userId: user.id,
       });
       pushTrace({
         detail: `自动批准「${proposedAction.summary}」：${decision.reason}`,
@@ -222,6 +225,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       return {
         outcome: "execute",
         data: {
+          executionApproved: true,
           isDirectAnswer: false,
           tokenUsage,
         },
@@ -287,6 +291,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   return {
     outcome: "execute",
     data: {
+      executionApproved: true,
       isDirectAnswer,
       tokenUsage,
     },

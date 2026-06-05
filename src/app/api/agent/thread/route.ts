@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import type { Where } from "payload";
 
+import { buildAgentRunOwnerWhere, getRelationId } from "@/lib/agent/run-access";
 import { parsePendingAction, sanitizeChatMessages } from "@/lib/agent/schemas";
+import { toAgentRunSummary } from "@/lib/agent/run-summary";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
 
@@ -13,18 +15,6 @@ const parseThreadId = (value: null | string) => {
   const parsed = Number(value);
 
   return Number.isFinite(parsed) ? parsed : null;
-};
-
-const getRelationId = (value: unknown) => {
-  if (typeof value === "number") {
-    return value;
-  }
-
-  if (value && typeof value === "object" && "id" in value && typeof value.id === "number") {
-    return value.id;
-  }
-
-  return null;
 };
 
 export async function GET(request: Request) {
@@ -79,6 +69,7 @@ export async function GET(request: Request) {
     limit: 6,
     overrideAccess: true,
     sort: "-startedAt",
+    where: buildAgentRunOwnerWhere(authResult.user.id),
   });
   const selectedThread =
     requestedThreadId !== null
@@ -99,6 +90,7 @@ export async function GET(request: Request) {
     selectedThread: ownedSelectedThread
       ? {
           id: ownedSelectedThread.id,
+          lastInteractionAt: ownedSelectedThread.lastInteractionAt,
           messages: sanitizeChatMessages(ownedSelectedThread.messages ?? []),
           pendingAction: parsePendingAction(ownedSelectedThread.pendingAction),
           title: ownedSelectedThread.title,
@@ -113,14 +105,7 @@ export async function GET(request: Request) {
       title: thread.title,
     })),
     totalThreads: threads.totalDocs,
-    recentRuns: recentRuns.docs.map((run) => ({
-      id: run.id,
-      startedAt: run.startedAt,
-      status: run.status,
-      summary: run.summary,
-      title: run.title,
-      workflow: run.workflow,
-    })),
+    recentRuns: recentRuns.docs.map((run) => toAgentRunSummary(run as unknown as Record<string, unknown>)),
   });
 }
 
@@ -135,6 +120,7 @@ export async function PATCH(request: NextRequest) {
     archived?: boolean;
     id?: number;
     tags?: string[];
+    title?: string;
   };
 
   if (!body.id || typeof body.id !== "number") {
@@ -162,6 +148,10 @@ export async function PATCH(request: NextRequest) {
 
   if (Array.isArray(body.tags)) {
     updateData.tags = body.tags.filter((t): t is string => typeof t === "string").slice(0, 10);
+  }
+
+  if (typeof body.title === "string" && body.title.trim().length > 0 && body.title.trim().length <= 200) {
+    updateData.title = body.title.trim();
   }
 
   if (Object.keys(updateData).length === 0) {

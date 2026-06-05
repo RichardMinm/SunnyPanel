@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { executeRollbackFromPayload } from "@/lib/agent/rollback";
+import { executeTrustedRollbackRequest } from "@/lib/agent/rollback-request";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
+import { getPayloadClient } from "@/lib/payload/client";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -15,16 +16,26 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
 
-  if (!isRecord(body) || body.rollbackPayload === undefined) {
-    return NextResponse.json({ message: "请求体需包含 rollbackPayload" }, { status: 400 });
+  if (!isRecord(body)) {
+    return NextResponse.json({ message: "请求体格式不正确" }, { status: 400 });
   }
 
   try {
-    const result = await executeRollbackFromPayload(body.rollbackPayload);
+    const sourceRunId = typeof body.sourceRunId === "number" && Number.isFinite(body.sourceRunId)
+      ? body.sourceRunId
+      : null;
+    const payload = await getPayloadClient();
+    const rollback = await executeTrustedRollbackRequest({
+      payload,
+      rollbackPayload: body.rollbackPayload,
+      sourceRunId,
+      userId: authResult.user.id,
+    });
 
     return NextResponse.json({
       ok: true,
-      result,
+      result: rollback.result,
+      sourceRunId: rollback.sourceRunId,
     });
   } catch (error) {
     return NextResponse.json(

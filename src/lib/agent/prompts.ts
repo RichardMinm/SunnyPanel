@@ -1,5 +1,6 @@
 import type { PendingAction } from "./schemas";
 import type { AgentContextBudget, AgentContextMode } from "./context-builder";
+import type { AgentPromptThreadSummary } from "./thread-summary";
 import type { AgentWorkbenchMode } from "./workbench-mode";
 
 export type AgentPromptContext = {
@@ -69,6 +70,7 @@ export type AgentPromptContext = {
   narrativeGaps?: string[];
   now: string;
   pendingAction: null | PendingAction;
+  threadSummary?: AgentPromptThreadSummary | null;
   planReviews?: Array<{
     health: string;
     id: number;
@@ -274,6 +276,16 @@ const formatContextStats = (context: AgentPromptContext) => {
   return `mode=${context.mode ?? "general"}，included plans=${included.plans}/${budget.maxPlans}, content=${included.contentItems}/${budget.maxContentItems}, timeline=${included.timelineEvents}/${budget.maxTimelineEvents}, agentRuns=${included.agentRuns}/${budget.maxAgentRuns}, planReviews=${included.planReviews}/${budget.maxPlanReviews}, memories=${included.memories}`;
 };
 
+const formatThreadSummary = (summary: AgentPromptContext["threadSummary"]) => {
+  if (!summary) {
+    return "- 暂无压缩线程摘要。";
+  }
+
+  const updatedAt = summary.updatedAt ? ` | updatedAt=${summary.updatedAt}` : "";
+
+  return `- coveredMessages=${summary.messageCount}${updatedAt}\n${summary.summary}`;
+};
+
 const formatPendingAction = (pendingAction: AgentPromptContext["pendingAction"]) => {
   if (!pendingAction) {
     return "当前没有待补充的 completion note。";
@@ -291,6 +303,18 @@ const formatPendingAction = (pendingAction: AgentPromptContext["pendingAction"])
 
   if (pendingAction.type === "await_batch_confirmation") {
     return `当前有 ${pendingAction.actions.length} 个等待批量确认的动作。用户回复「确认」则全部执行；「取消」则全部放弃。`;
+  }
+
+  if (pendingAction.type === "await_queue_resume") {
+    return `当前有 ${pendingAction.deferredTaskIds.length} 个延后子任务等待继续执行。用户回复「继续」则从保存的队列恢复；「取消」则放弃这条延后队列。`;
+  }
+
+  if (pendingAction.type === "await_strategy_resume") {
+    return `当前有一次策略暂停等待继续：strategy=${pendingAction.strategyMode}，failedTask=${pendingAction.failedTaskId ?? "unknown"}，reason=${pendingAction.reason}。用户回复「继续」则跳过同类失败保护并换一种重规划策略重试；「取消」则放弃。`;
+  }
+
+  if (pendingAction.type === "await_learning_followup") {
+    return `当前有一个学习咨询后续上下文：subject=${pendingAction.subject}，originalMessage=${pendingAction.originalMessage}。如果用户接着说“拆成计划/清单/规划一下”，优先转换为 compose_plan，并保留该学科主题。`;
   }
 
   const target = pendingAction.groupTitle
@@ -379,6 +403,9 @@ export const buildAgentSystemPrompt = (context: AgentPromptContext) => `你是 S
 
 长期记忆：
 ${formatMemories(context.memories ?? [])}
+
+线程摘要：
+${formatThreadSummary(context.threadSummary)}
 
 当前计划：
 ${formatPlans(context.plans)}

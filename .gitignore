@@ -18,6 +18,8 @@
 
 # local IDE / agent tooling
 /.claude
+/.superpowers
+/.worktrees
 
 # next.js
 /.next/

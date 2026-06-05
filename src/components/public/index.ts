@@ -1,7 +1,8 @@
 export { ChecklistPreviewCard } from "./ChecklistPreviewCard";
 export { CollectionEmptyState } from "./CollectionEmptyState";
 export { CommandPalette } from "./CommandPalette";
-export { ContentRenderer } from "./ContentRenderer";
+export { ContentRenderer, MarkdownField } from "./ContentRenderer";
+export { PublicCollectionEmptySwitch } from "./PublicCollectionEmptySwitch";
 export { DocumentLivePreview } from "./DocumentLivePreview";
 export { HomeHero } from "./HomeHero";
 export type { HomeHeroFocus, HomeHeroSignal } from "./HomeHero";

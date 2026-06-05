@@ -189,13 +189,3 @@ html[data-theme="dark"] .sunny-chrome-panel {
   line-height: var(--leading-tight);
   white-space: nowrap;
 }
-
-.sunny-dashboard-chrome {
-  flex-shrink: 0;
-  margin: var(--chrome-padding-y);
-  margin-bottom: 0;
-}
-
-.sunny-dashboard-chrome + .sunny-dashboard-triple {
-  padding-top: 0;
-}

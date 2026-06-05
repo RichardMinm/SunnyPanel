@@ -1,6 +1,5 @@
 import { getTokenUsageFromData, parseStreamBlock } from "@/lib/agent/chat-stream";
 import type { AgentChatResponse, AgentTokenUsage, AgentTraceStep } from "@/lib/agent/schemas";
-import { isValidWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 export type AgentChatStreamDone = Partial<AgentChatResponse> & {
   assistantMessage?: string;

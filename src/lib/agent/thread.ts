@@ -10,6 +10,11 @@ import {
   type AgentIntent,
   type PendingAction,
 } from "./schemas";
+import {
+  buildAgentThreadSummary,
+  shouldRefreshAgentThreadSummary,
+  toPromptThreadSummary,
+} from "./thread-summary";
 import { validateAgentThreadData } from "./write-schemas";
 
 const maxThreadMessages = 40;
@@ -46,6 +51,8 @@ export const getThreadMessages = (thread: AgentThread): AgentChatMessage[] =>
   sanitizeChatMessages(thread.messages ?? []);
 
 export const getThreadPendingAction = (thread: AgentThread) => parsePendingAction(thread.pendingAction);
+
+export const getThreadSummary = (thread: AgentThread) => toPromptThreadSummary(thread);
 
 export const removeCurrentMessageFromHistory = (history: AgentChatMessage[], message: string) => {
   const lastMessage = history[history.length - 1];
@@ -139,6 +146,17 @@ export const appendAgentThreadTurn = async ({
       role: "assistant" as const,
     },
   ].slice(-maxThreadMessages);
+  const previousSummary = getThreadSummary(thread);
+  const refreshedSummary = shouldRefreshAgentThreadSummary({
+    messageCount: messages.length,
+    previousMessageCount: previousSummary?.messageCount ?? null,
+  })
+    ? buildAgentThreadSummary({
+          messages,
+          pendingAction,
+          previousSummary: previousSummary?.summary ?? null,
+        })
+    : null;
 
   const data = validateAgentThreadData({
     lastConfidence: confidence ?? null,
@@ -148,6 +166,13 @@ export const appendAgentThreadTurn = async ({
     messages,
     pendingAction,
     status: "active",
+    ...(refreshedSummary
+      ? {
+          summary: refreshedSummary.summary,
+          summaryMessageCount: refreshedSummary.messageCount,
+          summaryUpdatedAt: recordedAt,
+        }
+      : {}),
   });
 
   return (await payload.update({
