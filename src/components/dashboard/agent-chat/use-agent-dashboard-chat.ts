@@ -41,11 +41,13 @@ export function useAgentDashboardChat({
     clearRunDetail,
     fetchThread,
     fetchRunDetail,
+    lastInteractionAt,
     recentRuns,
     runDetailError,
     searchThreads,
     selectedRunDetail,
     setThreadId,
+    setThreads,
     threadId,
     threads,
   } = useAgentThreadList();
@@ -68,6 +70,7 @@ export function useAgentDashboardChat({
   const [selectedRunRollbackError, setSelectedRunRollbackError] = useState<string | null>(null);
   const [contextPreferences, setContextPreferences] = useState<ContextPreferences>({ excluded: [], pinned: [] });
   const [thinkingContent, setThinkingContent] = useState("");
+  const [threadTitle, setThreadTitle] = useState("");
   const [threadHydrated, setThreadHydrated] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
@@ -85,6 +88,7 @@ export function useAgentDashboardChat({
 
         setErrorMessage(null);
         setPendingAction(null);
+        setThreadTitle("");
         setMessages(initialMessages);
         setTokenUsage(
           createTokenUsageSnapshot({
@@ -106,6 +110,7 @@ export function useAgentDashboardChat({
 
       setErrorMessage(null);
       setPendingAction(selectedThread.pendingAction);
+      setThreadTitle(selectedThread.title || "");
       setMessages(selectedThread.messages.length > 0 ? selectedThread.messages : initialMessages);
       setTokenUsage(
         createTokenUsageSnapshot({
@@ -249,6 +254,24 @@ export function useAgentDashboardChat({
     [archiveThreadRequest],
   );
 
+  const renameThread = useCallback(async (title: string) => {
+    if (!threadId) return false;
+
+    const response = await fetch("/api/agent/thread", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: threadId, title: title.trim().slice(0, 200) }),
+    });
+
+    if (!response.ok) return false;
+
+    setThreadTitle(title.trim().slice(0, 200));
+    setThreads((current) =>
+      current.map((t) => (t.id === threadId ? { ...t, title: title.trim().slice(0, 200) } : t)),
+    );
+    return true;
+  }, [threadId]);
+
   const selectRunDetail = useCallback(
     async (runId: number) => {
       const run = await fetchRunDetail(runId);
@@ -328,12 +351,14 @@ export function useAgentDashboardChat({
     inputTokenEstimate,
     isSubmitting,
     isThinking,
+    lastInteractionAt,
     lastRollbackPayload,
     lastRollbackResult,
     loadThread,
     messages,
     pendingAction,
     recentRuns,
+    renameThread,
     resetThread,
     rollbackSelectedRun,
     runArtifactsRollback,
@@ -350,6 +375,7 @@ export function useAgentDashboardChat({
     stopGeneration,
     thinkingContent,
     threadId,
+    threadTitle,
     threads,
     tokenCountStr,
     tokenUsage,
