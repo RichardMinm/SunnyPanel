@@ -3707,3 +3707,114 @@ button.sunny-task-item {
     max-width: 100%;
   }
 }
+
+/* ── Thread Header ── */
+
+.sunny-agent-thread-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 0.15rem 0 0.5rem;
+  margin: -0.15rem -0.85rem 0;
+  padding-left: 0.85rem;
+  padding-right: 0.85rem;
+  background: var(--agent-panel-bg);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.sunny-agent-thread-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sunny-agent-thread-header-top > p {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-kicker);
+  letter-spacing: var(--kicker-tracking);
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* ── Badge ── */
+
+.sunny-agent-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-ui);
+  line-height: 1.5;
+}
+
+.sunny-agent-badge-ready {
+  background: color-mix(in srgb, var(--color-green-500, #22c55e) 15%, transparent);
+  color: var(--color-green-600, #16a34a);
+}
+
+.sunny-agent-badge-running {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent-strong, var(--accent));
+}
+
+.sunny-agent-badge-waiting {
+  background: color-mix(in srgb, var(--color-amber-500, #f59e0b) 15%, transparent);
+  color: var(--color-amber-600, #d97706);
+}
+
+.sunny-agent-badge-risky {
+  background: color-mix(in srgb, var(--color-red-500, #ef4444) 15%, transparent);
+  color: var(--color-red-600, #dc2626);
+}
+
+/* ── Title ── */
+
+.sunny-agent-thread-header-title {
+  margin-top: 0.35rem;
+}
+
+.sunny-agent-thread-header-title-text {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-kicker);
+  color: var(--foreground);
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  line-height: 1.4;
+  border-radius: 0.25rem;
+  outline: none;
+}
+
+.sunny-agent-thread-header-title-text:hover {
+  background: var(--agent-control-bg);
+}
+
+.sunny-agent-thread-header-title-input {
+  width: 100%;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-kicker);
+  color: var(--foreground);
+  background: var(--agent-input-bg);
+  border: 1px solid var(--accent-ring-strong);
+  border-radius: 0.35rem;
+  padding: 0.15rem 0.35rem;
+  outline: none;
+  line-height: 1.4;
+}
+
+/* ── Metadata ── */
+
+.sunny-agent-thread-header-meta {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
