@@ -47,35 +47,20 @@ export function DashboardPageClient({
       tokenCount={chat.tokenCountStr}
     >
       <AgentWorkbench
-        activeInspectorTab={chat.activeInspectorTab}
-        artifactsRollbackBusy={chat.artifactsRollbackBusy}
-        artifactsRollbackError={chat.artifactsRollbackError}
-        contextPreferences={chat.contextPreferences}
         errorMessage={chat.errorMessage}
         input={chat.input}
-        inputTokenEstimate={chat.inputTokenEstimate}
         isSubmitting={chat.isSubmitting}
         lastInteractionAt={chat.lastInteractionAt}
         isThinking={chat.isThinking}
-        lastRollbackPayload={chat.lastRollbackPayload}
-        lastRollbackResult={chat.lastRollbackResult}
         messages={chat.messages}
-        onActiveInspectorTabChange={chat.setActiveInspectorTab}
-        onArtifactsRollback={() => { chat.clearRunDetail(); chat.runArtifactsRollback(); }}
         onCancelApproval={() => { chat.clearRunDetail(); chat.cancelApproval(); }}
         onEditApproval={chat.editApproval}
         onRenameThread={chat.renameThread}
         onConfirmApproval={() => { chat.clearRunDetail(); chat.confirmApproval(); }}
         onInputChange={chat.setInput}
-        onRollbackSelectedRun={() => { void chat.rollbackSelectedRun(); }}
         onStop={chat.stopGeneration}
         onSubmit={() => { chat.clearRunDetail(); void chat.sendMessage(chat.input); }}
-        onToggleContextExclude={chat.toggleContextExclude}
-        onToggleContextPin={chat.toggleContextPin}
         pendingAction={chat.pendingAction}
-        selectedRunDetail={chat.selectedRunDetail}
-        selectedRunRollbackBusy={chat.selectedRunRollbackBusy}
-        selectedRunRollbackError={chat.selectedRunRollbackError}
         statusLabel={chat.statusLabel}
         thinkingContent={chat.thinkingContent}
         threadId={chat.threadId}

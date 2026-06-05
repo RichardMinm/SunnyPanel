@@ -14,43 +14,24 @@ import { AgentApprovalCard } from "./AgentApprovalCard";
 import { AgentComposer } from "./AgentComposer";
 import { AgentConversation } from "./AgentConversation";
 import { AgentErrorBoundary } from "./AgentErrorBoundary";
-import { AgentInspector } from "./AgentInspector";
 import { MemoryWorkspace } from "./MemoryWorkspace";
-import type { AgentRollbackExecutionResult } from "./rollback-display";
-import type { AgentInspectorTab, AgentRunDetail, ContextPreferences } from "./types";
-import { getLatestAssistantMessage } from "./utils";
 import { useDashboardMode } from "../DashboardModeContext";
 
 type AgentWorkbenchProps = {
-  activeInspectorTab: AgentInspectorTab;
-  artifactsRollbackBusy?: boolean;
-  artifactsRollbackError?: null | string;
-  contextPreferences?: ContextPreferences;
   errorMessage: null | string;
   input: string;
-  inputTokenEstimate: number;
   lastInteractionAt: null | string;
   isSubmitting: boolean;
   isThinking: boolean;
-  lastRollbackPayload?: null | unknown;
-  lastRollbackResult?: AgentRollbackExecutionResult | null;
   messages: AgentChatMessage[];
-  onActiveInspectorTabChange: (tab: AgentInspectorTab) => void;
-  onArtifactsRollback?: () => void;
   onCancelApproval: () => void;
   onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
   onRenameThread: (title: string) => Promise<boolean>;
   onConfirmApproval: () => void;
   onInputChange: (value: string) => void;
-  onRollbackSelectedRun?: () => void;
   onStop?: () => void;
   onSubmit: () => void;
-  onToggleContextExclude?: (key: string) => void;
-  onToggleContextPin?: (key: string) => void;
   pendingAction: null | PendingAction;
-  selectedRunDetail?: AgentRunDetail | null;
-  selectedRunRollbackBusy?: boolean;
-  selectedRunRollbackError?: null | string;
   statusLabel: string;
   thinkingContent: string;
   threadId: null | number;
@@ -62,35 +43,20 @@ type AgentWorkbenchProps = {
 
 export function AgentWorkbench(props: AgentWorkbenchProps) {
   const {
-    activeInspectorTab,
-    artifactsRollbackBusy,
-    artifactsRollbackError,
-    contextPreferences,
     errorMessage,
     input,
-    inputTokenEstimate,
     lastInteractionAt,
     isSubmitting,
     isThinking,
-    lastRollbackPayload,
-    lastRollbackResult,
     messages,
-    onActiveInspectorTabChange,
-    onArtifactsRollback,
     onCancelApproval,
     onEditApproval,
     onRenameThread,
     onConfirmApproval,
     onInputChange,
-    onRollbackSelectedRun,
     onStop,
     onSubmit,
-    onToggleContextExclude,
-    onToggleContextPin,
     pendingAction,
-    selectedRunDetail,
-    selectedRunRollbackBusy,
-    selectedRunRollbackError,
     statusLabel,
     thinkingContent,
     threadId,
@@ -102,7 +68,6 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
 
   const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
   const batchActions = pendingAction?.type === "await_batch_confirmation" ? pendingAction.actions : null;
-  const latestAssistantMessage = getLatestAssistantMessage(messages);
   const dashboardMode = useDashboardMode();
 
   const displayTitle = useMemo(() => {
@@ -114,35 +79,6 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     }
     return "新会话";
   }, [threadTitle, messages]);
-
-  const inspectorPanel = (
-    <AgentInspector
-      drawer={true}
-      action={confirmationAction}
-      activeTab={activeInspectorTab}
-      artifactsRollbackBusy={artifactsRollbackBusy}
-      artifactsRollbackError={artifactsRollbackError}
-      contextPreferences={contextPreferences}
-      inputTokenEstimate={inputTokenEstimate}
-      latestAssistantMessage={latestAssistantMessage}
-      lastRollbackPayload={lastRollbackPayload}
-      lastRollbackResult={lastRollbackResult}
-      messages={messages}
-      onActiveTabChange={onActiveInspectorTabChange}
-      onArtifactsRollback={onArtifactsRollback}
-      onRollbackSelectedRun={onRollbackSelectedRun}
-      onToggleContextExclude={onToggleContextExclude}
-      onToggleContextPin={onToggleContextPin}
-      pendingAction={pendingAction}
-      selectedRunDetail={selectedRunDetail}
-      selectedRunRollbackBusy={selectedRunRollbackBusy}
-      selectedRunRollbackError={selectedRunRollbackError}
-      statusLabel={statusLabel}
-      threadId={threadId}
-      tokenUsage={tokenUsage}
-      traceSteps={traceSteps}
-    />
-  );
 
   return (
     <AgentErrorBoundary fallbackLabel="Agent 工作台出错了">
@@ -238,7 +174,6 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           statusLabel={statusLabel}
         />
       </div>
-      {inspectorPanel}
     </AgentErrorBoundary>
   );
 }
