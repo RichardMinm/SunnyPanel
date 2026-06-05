@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
-import type { AgentChatMessage, PendingAction } from "@/lib/agent/schemas";
+import type { AgentChatMessage, AgentTraceStep, AgentTokenUsage, PendingAction } from "@/lib/agent/schemas";
 import type { AgentRunSummary, AgentThreadSummary } from "@/components/dashboard/agent/types";
 import { AppShell } from "./AppShell";
 import type { DashboardIconMode } from "./DashboardIconBar";
 import { DashboardModeProvider } from "./DashboardModeContext";
+import { DashboardRightPanel } from "./DashboardRightPanel";
 import { DashboardStatusBar } from "./DashboardStatusBar";
 import { MainWorkspace } from "./MainWorkspace";
 import { RightContextPanel } from "./RightContextPanel";
@@ -15,9 +16,16 @@ import { SidebarNav } from "./SidebarNav";
 
 type DashboardShellProps = {
   children: ReactNode;
+  /* Right panel */
+  threadTitle?: string;
+  messages: AgentChatMessage[];
+  traceSteps: AgentTraceStep[];
+  tokenUsage: AgentTokenUsage;
+  onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
+  onCancelApproval: () => void;
+  onConfirmApproval: () => void;
   /* Slide panel data */
   isThinking: boolean;
-  messages: AgentChatMessage[];
   onArchiveThread?: (threadId: number, archived: boolean) => void;
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
@@ -38,9 +46,15 @@ type DashboardShellProps = {
 };
 
 export function DashboardShell({
+  threadTitle,
+  messages,
+  traceSteps,
+  tokenUsage,
+  onEditApproval,
+  onCancelApproval,
+  onConfirmApproval,
   children,
   isThinking,
-  messages,
   onArchiveThread,
   onLoadThread,
   onNewThread,
@@ -158,6 +172,26 @@ export function DashboardShell({
           {children}
         </DashboardModeProvider>
       </MainWorkspace>
+
+      <DashboardRightPanel
+        threadId={threadId}
+        threadTitle={threadTitle}
+        messages={messages}
+        traceSteps={traceSteps}
+        tokenUsage={tokenUsage}
+        tokenCountStr={tokenCount}
+        pendingAction={pendingAction}
+        suggestions={suggestions}
+        quickPrompts={quickPrompts}
+        onRunSuggestion={onRunSuggestion}
+        onRunPrompt={onRunPrompt}
+        onCancelApproval={onCancelApproval}
+        onConfirmApproval={onConfirmApproval}
+        threads={threads}
+        recentRuns={recentRuns}
+        onLoadThread={onLoadThread}
+        onSelectRun={onSelectRun}
+      />
 
       <DashboardStatusBar
         statusLabel={statusLabel}
