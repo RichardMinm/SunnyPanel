@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import { type RefObject, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 import type {
@@ -29,6 +29,7 @@ type AgentWorkbenchProps = {
   errorMessage: null | string;
   input: string;
   inputTokenEstimate: number;
+  lastInteractionAt: null | string;
   isSubmitting: boolean;
   isThinking: boolean;
   lastRollbackPayload?: null | unknown;
@@ -38,6 +39,7 @@ type AgentWorkbenchProps = {
   onArtifactsRollback?: () => void;
   onCancelApproval: () => void;
   onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
+  onRenameThread: (title: string) => Promise<boolean>;
   onConfirmApproval: () => void;
   onInputChange: (value: string) => void;
   onRollbackSelectedRun?: () => void;
@@ -52,6 +54,7 @@ type AgentWorkbenchProps = {
   statusLabel: string;
   thinkingContent: string;
   threadId: null | number;
+  threadTitle: string;
   tokenUsage: AgentTokenUsage;
   traceSteps: AgentTraceStep[];
   transcriptRef: RefObject<HTMLDivElement | null>;
@@ -66,6 +69,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     errorMessage,
     input,
     inputTokenEstimate,
+    lastInteractionAt,
     isSubmitting,
     isThinking,
     lastRollbackPayload,
@@ -75,6 +79,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     onArtifactsRollback,
     onCancelApproval,
     onEditApproval,
+    onRenameThread,
     onConfirmApproval,
     onInputChange,
     onRollbackSelectedRun,
@@ -89,6 +94,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     statusLabel,
     thinkingContent,
     threadId,
+    threadTitle,
     tokenUsage,
     traceSteps,
     transcriptRef,
@@ -98,6 +104,16 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   const batchActions = pendingAction?.type === "await_batch_confirmation" ? pendingAction.actions : null;
   const latestAssistantMessage = getLatestAssistantMessage(messages);
   const dashboardMode = useDashboardMode();
+
+  const displayTitle = useMemo(() => {
+    if (threadTitle && threadTitle !== "Agent Thread") return threadTitle;
+    const firstUserMsg = messages.find((m) => m.role === "user");
+    if (firstUserMsg?.content) {
+      const trimmed = firstUserMsg.content.trim().replace(/\s+/g, " ");
+      return trimmed.length > 30 ? `${trimmed.slice(0, 30).trimEnd()}...` : trimmed;
+    }
+    return "新会话";
+  }, [threadTitle, messages]);
 
   const inspectorPanel = (
     <AgentInspector
@@ -194,13 +210,18 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
             <MemoryWorkspace messages={messages} statusLabel={statusLabel} threadId={threadId} />
           ) : (
             <AgentConversation
+              displayTitle={displayTitle}
               errorMessage={errorMessage}
               isThinking={isThinking}
               isSubmitting={isSubmitting}
+              lastInteractionAt={lastInteractionAt}
               messages={messages}
+              onRenameThread={onRenameThread}
+              pendingAction={pendingAction}
               statusLabel={statusLabel}
               thinkingContent={thinkingContent}
               threadId={threadId}
+              tokenUsage={tokenUsage}
               traceSteps={traceSteps}
               transcriptRef={transcriptRef}
             />

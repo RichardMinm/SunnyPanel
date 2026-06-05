@@ -49,6 +49,7 @@ export function DashboardPageClient({
         input={chat.input}
         inputTokenEstimate={chat.inputTokenEstimate}
         isSubmitting={chat.isSubmitting}
+        lastInteractionAt={chat.lastInteractionAt}
         isThinking={chat.isThinking}
         lastRollbackPayload={chat.lastRollbackPayload}
         lastRollbackResult={chat.lastRollbackResult}
@@ -57,6 +58,7 @@ export function DashboardPageClient({
         onArtifactsRollback={() => { chat.clearRunDetail(); chat.runArtifactsRollback(); }}
         onCancelApproval={() => { chat.clearRunDetail(); chat.cancelApproval(); }}
         onEditApproval={chat.editApproval}
+        onRenameThread={chat.renameThread}
         onConfirmApproval={() => { chat.clearRunDetail(); chat.confirmApproval(); }}
         onInputChange={chat.setInput}
         onRollbackSelectedRun={() => { void chat.rollbackSelectedRun(); }}
@@ -71,6 +73,7 @@ export function DashboardPageClient({
         statusLabel={chat.statusLabel}
         thinkingContent={chat.thinkingContent}
         threadId={chat.threadId}
+        threadTitle={chat.threadTitle}
         tokenUsage={chat.tokenUsage}
         traceSteps={chat.traceSteps}
         transcriptRef={chat.transcriptRef}
