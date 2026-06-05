@@ -257,17 +257,24 @@ export function useAgentDashboardChat({
   const renameThread = useCallback(async (title: string) => {
     if (!threadId) return false;
 
-    const response = await fetch("/api/agent/thread", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: threadId, title: title.trim().slice(0, 200) }),
-    });
+    const sanitized = title.trim().slice(0, 200);
+    if (!sanitized) return false;
 
-    if (!response.ok) return false;
+    try {
+      const response = await fetch("/api/agent/thread", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: threadId, title: sanitized }),
+      });
 
-    setThreadTitle(title.trim().slice(0, 200));
+      if (!response.ok) return false;
+    } catch {
+      return false;
+    }
+
+    setThreadTitle(sanitized);
     setThreads((current) =>
-      current.map((t) => (t.id === threadId ? { ...t, title: title.trim().slice(0, 200) } : t)),
+      current.map((t) => (t.id === threadId ? { ...t, title: sanitized } : t)),
     );
     return true;
   }, [threadId]);
