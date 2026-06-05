@@ -11,7 +11,6 @@ import { DashboardModeProvider } from "./DashboardModeContext";
 import { DashboardRightPanel } from "./DashboardRightPanel";
 import { DashboardStatusBar } from "./DashboardStatusBar";
 import { MainWorkspace } from "./MainWorkspace";
-import { RightContextPanel } from "./RightContextPanel";
 import { SidebarNav } from "./SidebarNav";
 
 type DashboardShellProps = {
@@ -24,18 +23,13 @@ type DashboardShellProps = {
   onCancelApproval: () => void;
   onConfirmApproval: () => void;
   /* Slide panel data */
-  isThinking: boolean;
-  onArchiveThread?: (threadId: number, archived: boolean) => void;
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
-  onSearchThreads?: (query: string) => void;
-  onSelectRun?: (runId: number) => void;
   onRunPrompt: (prompt: string) => void;
   onRunSuggestion: (suggestion: AgentInboxSuggestion) => void;
   pendingAction: null | PendingAction;
   quickPrompts: AgentQuickPrompt[];
   recentRuns: AgentRunSummary[];
-  selectedRunId?: null | number;
   statusLabel: string;
   suggestions: AgentInboxSuggestion[];
   threadId: null | number;
@@ -52,18 +46,14 @@ export function DashboardShell({
   onCancelApproval,
   onConfirmApproval,
   children,
-  isThinking,
-  onArchiveThread,
   onLoadThread,
   onNewThread,
-  onSearchThreads,
   onSelectRun,
   onRunPrompt,
   onRunSuggestion,
   pendingAction,
   quickPrompts,
   recentRuns,
-  selectedRunId,
   statusLabel,
   suggestions,
   threadId,
@@ -72,8 +62,6 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const [activeMode, setActiveMode] = useState<DashboardIconMode>("agent");
   const [panelOpen, setPanelOpen] = useState(true);
-  const [panelWidth, setPanelWidth] = useState(344);
-  const [isPanelResizing, setIsPanelResizing] = useState(false);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 900px)");
@@ -103,35 +91,8 @@ export function DashboardShell({
     setPanelOpen((v) => !v);
   }, []);
 
-  const handlePanelResizeStart = useCallback(() => {
-    setIsPanelResizing(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isPanelResizing) return;
-
-    const handlePointerMove = (event: PointerEvent) => {
-      const nextWidth = window.innerWidth - event.clientX - 16;
-      setPanelWidth(Math.min(360, Math.max(320, nextWidth)));
-    };
-
-    const handlePointerUp = () => {
-      setIsPanelResizing(false);
-    };
-
-    document.body.classList.add("sunny-dashboard-is-resizing");
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp, { once: true });
-
-    return () => {
-      document.body.classList.remove("sunny-dashboard-is-resizing");
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-    };
-  }, [isPanelResizing]);
-
   return (
-    <AppShell panelOpen={panelOpen} panelWidth={panelWidth}>
+    <AppShell panelOpen={panelOpen}>
       <SidebarNav
         activeMode={activeMode}
         onLoadThread={onLoadThread}
@@ -143,28 +104,6 @@ export function DashboardShell({
         threads={threads}
       />
 
-      <RightContextPanel
-        disabled={isThinking}
-        isThinking={isThinking}
-        messages={messages}
-        onArchiveThread={onArchiveThread}
-        onLoadThread={onLoadThread}
-        onNewThread={onNewThread}
-        onRunPrompt={onRunPrompt}
-        onResizeStart={handlePanelResizeStart}
-        onSearchThreads={onSearchThreads}
-        onSelectRun={onSelectRun}
-        onRunSuggestion={onRunSuggestion}
-        pendingAction={pendingAction}
-        quickPrompts={quickPrompts}
-        recentRuns={recentRuns}
-        selectedRunId={selectedRunId}
-        statusLabel={statusLabel}
-        suggestions={suggestions}
-        threadId={threadId}
-        threads={threads}
-      />
-
       <MainWorkspace>
         <DashboardModeProvider value={activeMode}>
           {children}
@@ -172,6 +111,7 @@ export function DashboardShell({
       </MainWorkspace>
 
       <DashboardRightPanel
+        panelOpen={panelOpen}
         threadId={threadId}
         threadTitle={threadTitle}
         messages={messages}

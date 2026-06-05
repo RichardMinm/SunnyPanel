@@ -18,7 +18,7 @@
 /* ── Shell 网格容器 ── */
 .sunny-dashboard-shell {
   display: grid;
-  grid-template-columns: var(--dashboard-icon-bar-width) var(--dashboard-panel-width) minmax(0, 1fr) 340px;
+  grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr) 340px;
   grid-template-rows: 1fr var(--dashboard-status-height);
   height: 100vh;
   height: 100dvh;
@@ -26,18 +26,28 @@
   background: var(--dashboard-app-bg);
   font-size: var(--text-base);
   line-height: var(--leading-normal);
+  transition: grid-template-columns 320ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.sunny-dashboard-shell.is-panel-collapsed {
-  grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr) 340px;
+.sunny-dashboard-shell .sunny-dashboard-main {
+  grid-column: 2;
 }
 
-.sunny-dashboard-shell.is-panel-collapsed .sunny-dashboard-slide-panel {
-  display: none;
-}
-
-.sunny-dashboard-shell.is-panel-collapsed .sunny-dashboard-right-panel {
+.sunny-dashboard-shell .sunny-dashboard-right-panel {
   grid-column: 3;
+  transition: opacity 280ms ease, transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Collapsed: right panel hidden */
+.sunny-dashboard-shell:not(.is-panel-expanded) {
+  grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr) 0px;
+}
+
+.sunny-dashboard-shell:not(.is-panel-expanded) .sunny-dashboard-right-panel {
+  opacity: 0;
+  transform: translateX(12px);
+  pointer-events: none;
+  overflow: hidden;
 }
 
 /* ── 图标栏 ── */
@@ -710,10 +720,10 @@ html[data-theme="dark"] .sunny-dashboard-main {
 /* ── 响应式：隐藏右面板 ── */
 @media (max-width: 1200px) {
   .sunny-dashboard-shell {
-    grid-template-columns: var(--dashboard-icon-bar-width) var(--dashboard-panel-width) minmax(0, 1fr);
-  }
-  .sunny-dashboard-shell.is-panel-collapsed {
     grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr);
+  }
+  .sunny-dashboard-shell .sunny-dashboard-right-panel {
+    display: none;
   }
 }
 
@@ -756,23 +766,7 @@ html[data-theme="dark"] .sunny-dashboard-main {
     color: var(--muted);
   }
 
-  .sunny-dashboard-slide-panel {
-    position: fixed;
-    left: auto;
-    right: 0.75rem;
-    top: 0;
-    bottom: var(--dashboard-status-height);
-    width: min(calc(100vw - var(--dashboard-sidebar-width) - 1.25rem), 22rem);
-    margin: 0.75rem 0 0.75rem;
-    z-index: 20;
-    box-shadow: var(--agent-shadow-shell);
-  }
-
-  .sunny-dashboard-shell:not(.is-panel-open) .sunny-dashboard-slide-panel {
-    display: none;
-  }
-
-  .sunny-context-panel-resize-handle {
+  .sunny-dashboard-right-panel {
     display: none;
   }
 

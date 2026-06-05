@@ -21,24 +21,20 @@ export function DashboardPageClient({
 
   return (
     <DashboardShell
-      isThinking={chat.isThinking}
       messages={chat.messages}
       traceSteps={chat.traceSteps}
       tokenUsage={chat.tokenUsage}
       threadTitle={chat.threadTitle}
       onCancelApproval={() => { chat.clearRunDetail(); chat.cancelApproval(); }}
       onConfirmApproval={() => { chat.clearRunDetail(); chat.confirmApproval(); }}
-      onArchiveThread={chat.archiveThread}
       onLoadThread={(nextThreadId) => { void chat.loadThread(nextThreadId); }}
       onNewThread={() => { chat.clearRunDetail(); chat.resetThread(); }}
-      onSearchThreads={chat.searchThreads}
       onSelectRun={(runId) => { void chat.selectRunDetail(runId); }}
       onRunPrompt={(prompt) => { chat.clearRunDetail(); void chat.sendMessage(prompt); }}
       onRunSuggestion={(suggestion) => { chat.clearRunDetail(); void chat.runSuggestion(suggestion); }}
       pendingAction={chat.pendingAction}
       quickPrompts={quickPrompts}
       recentRuns={chat.recentRuns}
-      selectedRunId={chat.selectedRunDetail?.id ?? null}
       statusLabel={chat.statusLabel}
       suggestions={chat.inboxSuggestions}
       threadId={chat.threadId}
