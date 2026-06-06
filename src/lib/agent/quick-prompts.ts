@@ -1,5 +1,3 @@
-import type { Plan } from "@/payload-types";
-
 import type { WorkspaceSnapshot } from "@/lib/payload/workspace";
 
 export type AgentQuickPrompt = {
@@ -47,7 +45,7 @@ const timelineComposerSourceType = (kind: WorkspaceSnapshot["execution"]["timeli
   return sourceTypeMap[kind] ?? "free_text";
 };
 
-const isOverduePlan = (plan: Plan, now: Date) => {
+const isOverduePlan = (plan: WorkspaceSnapshot["plans"]["active"][number], now: Date) => {
   if (plan.state === "done" || !plan.dueDate) {
     return false;
   }
@@ -82,11 +80,9 @@ export const buildAgentQuickPrompts = (snapshot: WorkspaceSnapshot): AgentQuickP
   ].filter((plan) => isOverduePlan(plan, now));
   const activePlan = snapshot.plans.active[0];
   const overduePlan = overduePlans[0];
-  const recentDraft = snapshot.execution.recentDrafts[0];
+  const recentDraft = snapshot.execution.recentContentWithoutPlans.find((item) => item.status === "draft");
   const timelineCandidate = snapshot.execution.timelineCandidates[0];
   const privateReadyContent = snapshot.execution.recentPrivateReady[0];
-  const publicContent = snapshot.execution.recentPublicContent[0];
-  const pendingOnboardingTask = snapshot.onboarding.tasks.find((task) => !task.done);
 
   if (overduePlan) {
     pushUniquePrompt(prompts, {
@@ -123,20 +119,6 @@ export const buildAgentQuickPrompts = (snapshot: WorkspaceSnapshot): AgentQuickP
     });
   }
 
-  if (publicContent) {
-    pushUniquePrompt(prompts, {
-      label: "公开更新",
-      prompt: `把最近公开内容整理成一条 Update，重点参考${quote(publicContent.title)}`,
-    });
-  }
-
-  if (pendingOnboardingTask) {
-    pushUniquePrompt(prompts, {
-      label: "基础补齐",
-      prompt: `帮我完成${quote(pendingOnboardingTask.title)}的下一步`,
-    });
-  }
-
   if (snapshot.plans.active.length > 0 || snapshot.plans.backlog.length > 0) {
     pushUniquePrompt(prompts, {
       label: "安排今天",
@@ -148,7 +130,7 @@ export const buildAgentQuickPrompts = (snapshot: WorkspaceSnapshot): AgentQuickP
     });
   }
 
-  if (snapshot.counts.plans > 0) {
+  if (snapshot.plans.active.length > 0 || snapshot.plans.backlog.length > 0 || snapshot.agent.recentReviews.length > 0) {
     pushUniquePrompt(prompts, {
       label: "本周回顾",
       prompt: "生成本周计划回顾",

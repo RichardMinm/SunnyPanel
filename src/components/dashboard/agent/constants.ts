@@ -4,8 +4,10 @@ import type { AgentInspectorTab } from "./types";
 
 export const inspectorTabs: Array<{ key: AgentInspectorTab; label: string }> = [
   { key: "context", label: "上下文" },
-  { key: "approval", label: "确认" },
-  { key: "trace", label: "记录" },
+  { key: "approval", label: "审批" },
+  { key: "trace", label: "Trace" },
+  { key: "linked", label: "关联" },
+  { key: "memory", label: "记忆" },
 ];
 
 export const traceKindLabelMap: Record<AgentTraceStep["kind"], string> = {

@@ -457,6 +457,40 @@ test("learning consultation follow-up asks for learning profile before composing
   );
 });
 
+test("learning path requests are answered directly instead of treated as plan composition", async () => {
+  const result = await resolveWithMockedModel({
+    message: "请你为我规划一个信息安全学习的路径，偏向蓝队方向",
+  });
+
+  assert.equal(result.engine, "heuristic");
+  assert.equal(result.intent.intent, "answer_question");
+  const answer = result.intent.intent === "answer_question" ? result.intent.args.answer : "";
+  assert.match(answer, /信息安全|蓝队/);
+  assert.match(answer, /路径|阶段|路线/);
+  assert.doesNotMatch(answer, /最终产出什么|开始日期/);
+});
+
+test("learning follow-up can switch from plan composition to a direct learning path", async () => {
+  const pendingAction = {
+    originalMessage: "请你为我规划一个信息安全学习的路径，偏向蓝队方向",
+    requestedAction: "compose_plan",
+    subject: "信息安全",
+    type: "await_learning_followup",
+  } as unknown as PendingAction;
+  const result = await resolveWithMockedModel({
+    message: "给出路径即可，并不是计划",
+    pendingAction,
+  });
+
+  assert.equal(result.engine, "workflow");
+  assert.equal(result.intent.intent, "answer_question");
+  const answer = result.intent.intent === "answer_question" ? result.intent.args.answer : "";
+  assert.match(answer, /信息安全|蓝队/);
+  assert.match(answer, /路径|阶段|路线/);
+  assert.doesNotMatch(answer, /学习目标、当前基础、每天可投入时间和期望完成期限/);
+  assert.equal(result.intent.intent === "answer_question" ? result.intent.args.suggestAction : null, null);
+});
+
 test("learning profile answer composes a plan with the previous subject and constraints", async () => {
   const pendingAction = {
     originalMessage: "给我参谋一下线性代数的学习",

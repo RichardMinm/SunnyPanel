@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
-import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { AgentChatMessage, AgentTraceStep, AgentTokenUsage, PendingAction } from "@/lib/agent/schemas";
-import type { AgentRunSummary, AgentThreadSummary } from "@/components/dashboard/agent/types";
+import type { AgentInspectorTab, AgentRunDetail, AgentThreadSummary, ContextPreferences } from "@/components/dashboard/agent/types";
+import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
+import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
 import { AppShell } from "./AppShell";
 import type { DashboardIconMode } from "./DashboardIconBar";
+import { DashboardInspectorControlProvider } from "./DashboardInspectorControlContext";
 import { DashboardModeProvider } from "./DashboardModeContext";
 import { DashboardRightPanel } from "./DashboardRightPanel";
 import { DashboardStatusBar } from "./DashboardStatusBar";
@@ -15,65 +16,113 @@ import { SidebarNav } from "./SidebarNav";
 
 type DashboardShellProps = {
   children: ReactNode;
+  activeInspectorTab: AgentInspectorTab;
+  artifactsRollbackBusy?: boolean;
+  artifactsRollbackError?: null | string;
+  contextPreferences: ContextPreferences;
+  isSubmitting: boolean;
   /* Right panel */
-  threadTitle?: string;
+  inputTokenEstimate: number;
+  lastRollbackPayload?: null | unknown;
+  lastRollbackResult?: AgentRollbackExecutionResult | null;
   messages: AgentChatMessage[];
   traceSteps: AgentTraceStep[];
   tokenUsage: AgentTokenUsage;
-  onCancelApproval: () => void;
-  onConfirmApproval: () => void;
-  /* Slide panel data */
+  onInspectorTabChange: (tab: AgentInspectorTab) => void;
+  onArtifactsRollback?: () => void;
+  onRollbackSelectedRun?: () => void;
+  onToggleContextExclude: (key: string) => void;
+  onToggleContextPin: (key: string) => void;
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
   onRunPrompt: (prompt: string) => void;
-  onRunSuggestion: (suggestion: AgentInboxSuggestion) => void;
   pendingAction: null | PendingAction;
-  quickPrompts: AgentQuickPrompt[];
-  recentRuns: AgentRunSummary[];
+  selectedRunDetail?: AgentRunDetail | null;
+  selectedRunRollbackBusy?: boolean;
+  selectedRunRollbackError?: null | string;
   statusLabel: string;
-  suggestions: AgentInboxSuggestion[];
   threadId: null | number;
   threads: AgentThreadSummary[];
-  /* Status bar data */
-  tokenCount?: string;
+  workbenchMode: AgentWorkbenchMode;
 };
 
 export function DashboardShell({
-  threadTitle,
+  activeInspectorTab,
+  artifactsRollbackBusy,
+  artifactsRollbackError,
+  contextPreferences,
+  isSubmitting,
+  inputTokenEstimate,
+  lastRollbackPayload,
+  lastRollbackResult,
   messages,
-  traceSteps,
-  tokenUsage,
-  onCancelApproval,
-  onConfirmApproval,
   children,
   onLoadThread,
   onNewThread,
-  onSelectRun,
+  onInspectorTabChange,
+  onArtifactsRollback,
+  onRollbackSelectedRun,
   onRunPrompt,
-  onRunSuggestion,
+  onToggleContextExclude,
+  onToggleContextPin,
   pendingAction,
-  quickPrompts,
-  recentRuns,
+  selectedRunDetail,
+  selectedRunRollbackBusy,
+  selectedRunRollbackError,
   statusLabel,
-  suggestions,
   threadId,
   threads,
-  tokenCount,
+  tokenUsage,
+  traceSteps,
+  workbenchMode,
 }: DashboardShellProps) {
   const [activeMode, setActiveMode] = useState<DashboardIconMode>("agent");
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(340);
+  const [debugMode, setDebugMode] = useState(false);
+  const suppressAutoOpenRef = useRef(false);
+  const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
+  const latestAssistantMessage = useMemo(
+    () => [...messages].reverse().find((message) => message.role === "assistant"),
+    [messages],
+  );
+  const autoInspectorTab = useMemo<AgentInspectorTab | null>(() => {
+    if (pendingAction) {
+      return "approval";
+    }
+
+    if ((isSubmitting && workbenchMode === "execute") || selectedRunDetail || lastRollbackResult) {
+      return "trace";
+    }
+
+    if (debugMode) {
+      return activeInspectorTab;
+    }
+
+    return null;
+  }, [
+    activeInspectorTab,
+    debugMode,
+    isSubmitting,
+    lastRollbackResult,
+    pendingAction,
+    selectedRunDetail,
+    workbenchMode,
+  ]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 900px)");
-    const syncPanelForViewport = () => {
-      setPanelOpen(!mediaQuery.matches);
+    const closePanelForMobile = () => {
+      if (mediaQuery.matches) {
+        setPanelOpen(false);
+      }
     };
 
-    syncPanelForViewport();
-    mediaQuery.addEventListener("change", syncPanelForViewport);
+    closePanelForMobile();
+    mediaQuery.addEventListener("change", closePanelForMobile);
 
     return () => {
-      mediaQuery.removeEventListener("change", syncPanelForViewport);
+      mediaQuery.removeEventListener("change", closePanelForMobile);
     };
   }, []);
 
@@ -87,53 +136,130 @@ export function DashboardShell({
     [onRunPrompt],
   );
 
+  const handleNewThread = useCallback(() => {
+    suppressAutoOpenRef.current = true;
+    setPanelOpen(false);
+    onNewThread();
+    window.requestAnimationFrame(() => {
+      setPanelOpen(false);
+      suppressAutoOpenRef.current = false;
+    });
+  }, [onNewThread]);
+
   const handleTogglePanel = useCallback(() => {
     setPanelOpen((v) => !v);
   }, []);
 
+  const openInspector = useCallback(
+    (tab?: AgentInspectorTab) => {
+      if (tab) {
+        onInspectorTabChange(tab);
+      }
+      setPanelOpen(true);
+    },
+    [onInspectorTabChange],
+  );
+
+  useEffect(() => {
+    if (!autoInspectorTab || suppressAutoOpenRef.current) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      openInspector(autoInspectorTab);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [autoInspectorTab, openInspector]);
+
+  const inspectorControl = useMemo(
+    () => ({
+      debugMode,
+      openInspector,
+      setDebugMode,
+    }),
+    [debugMode, openInspector],
+  );
+
+  const handleResizeStart = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = panelWidth;
+
+      document.documentElement.classList.add("sunny-dashboard-is-resizing");
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const nextWidth = startWidth + (startX - moveEvent.clientX);
+        setPanelWidth(Math.min(420, Math.max(320, nextWidth)));
+      };
+
+      const handlePointerUp = () => {
+        document.documentElement.classList.remove("sunny-dashboard-is-resizing");
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+      };
+
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp, { once: true });
+    },
+    [panelWidth],
+  );
+
   return (
-    <AppShell panelOpen={panelOpen}>
+    <AppShell panelOpen={panelOpen} panelWidth={panelWidth}>
       <SidebarNav
         activeMode={activeMode}
         onLoadThread={onLoadThread}
         onModeChange={handleModeChange}
-        onNewThread={onNewThread}
-        onTogglePanel={handleTogglePanel}
-        panelOpen={panelOpen}
+        onNewThread={handleNewThread}
         threadId={threadId}
         threads={threads}
       />
 
       <MainWorkspace>
-        <DashboardModeProvider value={activeMode}>
-          {children}
-        </DashboardModeProvider>
+        <DashboardInspectorControlProvider value={inspectorControl}>
+          <DashboardModeProvider value={activeMode}>
+            {children}
+          </DashboardModeProvider>
+        </DashboardInspectorControlProvider>
       </MainWorkspace>
 
       <DashboardRightPanel
-        panelOpen={panelOpen}
-        threadId={threadId}
-        threadTitle={threadTitle}
+        action={confirmationAction}
+        activeInspectorTab={activeInspectorTab}
+        artifactsRollbackBusy={artifactsRollbackBusy}
+        artifactsRollbackError={artifactsRollbackError}
+        contextPreferences={contextPreferences}
+        debugMode={debugMode}
+        inputTokenEstimate={inputTokenEstimate}
+        latestAssistantMessage={latestAssistantMessage}
+        lastRollbackPayload={lastRollbackPayload}
+        lastRollbackResult={lastRollbackResult}
         messages={messages}
-        traceSteps={traceSteps}
-        tokenUsage={tokenUsage}
-        tokenCountStr={tokenCount}
+        onResizeStart={handleResizeStart}
+        onArtifactsRollback={onArtifactsRollback}
+        onInspectorTabChange={onInspectorTabChange}
+        onTogglePanel={handleTogglePanel}
+        onRollbackSelectedRun={onRollbackSelectedRun}
+        onToggleContextExclude={onToggleContextExclude}
+        onToggleContextPin={onToggleContextPin}
+        panelOpen={panelOpen}
         pendingAction={pendingAction}
-        suggestions={suggestions}
-        quickPrompts={quickPrompts}
-        onRunSuggestion={onRunSuggestion}
-        onRunPrompt={onRunPrompt}
-        onCancelApproval={onCancelApproval}
-        onConfirmApproval={onConfirmApproval}
-        threads={threads}
-        recentRuns={recentRuns}
-        onLoadThread={onLoadThread}
-        onSelectRun={onSelectRun}
+        selectedRunDetail={selectedRunDetail}
+        selectedRunRollbackBusy={selectedRunRollbackBusy}
+        selectedRunRollbackError={selectedRunRollbackError}
+        statusLabel={statusLabel}
+        threadId={threadId}
+        tokenUsage={tokenUsage}
+        traceSteps={traceSteps}
+        workbenchMode={workbenchMode}
       />
 
       <DashboardStatusBar
         statusLabel={statusLabel}
-        tokenCount={tokenCount}
       />
     </AppShell>
   );

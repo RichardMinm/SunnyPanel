@@ -44,6 +44,7 @@ function ContextItemRow({ contextPreferences, itemKey, label, onToggleExclude, o
 
 type AgentContextPanelProps = {
   contextPreferences: ContextPreferences;
+  debugMode: boolean;
   messages: AgentChatMessage[];
   onToggleExclude: (key: string) => void;
   onTogglePin: (key: string) => void;
@@ -55,6 +56,7 @@ type AgentContextPanelProps = {
 
 export function AgentContextPanel({
   contextPreferences,
+  debugMode,
   messages,
   onToggleExclude,
   onTogglePin,
@@ -102,14 +104,16 @@ export function AgentContextPanel({
 
   return (
     <div className="sunny-agent-inspector-panel">
-      <div className="sunny-agent-context-metric-strip">
-        {metricItems.map((item) => (
-          <div key={item.label}>
-            <strong>{item.value}</strong>
-            <span>{item.label}</span>
-          </div>
-        ))}
-      </div>
+      {debugMode ? (
+        <div className="sunny-agent-context-metric-strip sunny-agent-debug-only">
+          {metricItems.map((item) => (
+            <div key={item.label}>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="sunny-agent-context-grid-v2">
         <span>线程</span>
         <strong>{threadId ? `#${threadId}` : "新任务"}</strong>
@@ -120,8 +124,8 @@ export function AgentContextPanel({
         <span>待办</span>
         <strong>{pendingAction ? getPendingActionLabel(pendingAction) : "无"}</strong>
       </div>
-      {contextItems.length > 0 ? (
-        <div className="sunny-agent-context-items-list">
+      {debugMode && contextItems.length > 0 ? (
+        <div className="sunny-agent-context-items-list sunny-agent-debug-only">
           <p className="sunny-agent-context-items-hint">点击「置顶」或「排除」调整下一轮上下文偏好（仅当前会话有效）</p>
           {contextItems.map((item) => (
             <ContextItemRow
@@ -134,13 +138,17 @@ export function AgentContextPanel({
             />
           ))}
         </div>
-      ) : (
+      ) : debugMode ? (
         <div className="sunny-agent-context-notes-v2">
           {contextSteps.length > 0 ? (
             contextSteps.map((step) => <p key={step.id}>{step.detail ?? step.title}</p>)
           ) : (
-            <p>发送任务后，Agent 读取的计划、内容、Timeline 和 AgentRun 摘要会在这里出现。</p>
+            <p>发送任务后，Agent 读取的计划、内容、Timeline 和执行摘要会在这里出现。</p>
           )}
+        </div>
+      ) : (
+        <div className="sunny-agent-context-notes-v2">
+          <p>{contextSteps.length > 0 ? "已为本轮对话读取相关上下文。" : "发送任务后，这里会展示本轮对话的上下文摘要。"}</p>
         </div>
       )}
     </div>

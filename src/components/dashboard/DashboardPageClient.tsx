@@ -2,50 +2,51 @@
 
 import { AgentWorkbench } from "@/components/dashboard/agent";
 import { useAgentDashboardChat } from "@/components/dashboard/agent-chat/use-agent-dashboard-chat";
-import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
-import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { DashboardShell } from "./DashboardShell";
 
 export type DashboardPageClientProps = {
   initialThreadId?: number;
-  quickPrompts?: AgentQuickPrompt[];
-  suggestions?: AgentInboxSuggestion[];
 };
 
 export function DashboardPageClient({
   initialThreadId,
-  quickPrompts = [],
-  suggestions = [],
 }: DashboardPageClientProps) {
-  const chat = useAgentDashboardChat({ initialThreadId, suggestions });
+  const chat = useAgentDashboardChat({ initialThreadId });
 
   return (
     <DashboardShell
+      activeInspectorTab={chat.activeInspectorTab}
+      artifactsRollbackBusy={chat.artifactsRollbackBusy}
+      artifactsRollbackError={chat.artifactsRollbackError}
+      contextPreferences={chat.contextPreferences}
+      isSubmitting={chat.isSubmitting}
+      inputTokenEstimate={chat.inputTokenEstimate}
+      lastRollbackPayload={chat.lastRollbackPayload}
+      lastRollbackResult={chat.lastRollbackResult}
       messages={chat.messages}
       traceSteps={chat.traceSteps}
       tokenUsage={chat.tokenUsage}
-      threadTitle={chat.threadTitle}
-      onCancelApproval={() => { chat.clearRunDetail(); chat.cancelApproval(); }}
-      onConfirmApproval={() => { chat.clearRunDetail(); chat.confirmApproval(); }}
+      onArtifactsRollback={chat.runArtifactsRollback}
+      onInspectorTabChange={chat.setActiveInspectorTab}
       onLoadThread={(nextThreadId) => { void chat.loadThread(nextThreadId); }}
       onNewThread={() => { chat.clearRunDetail(); chat.resetThread(); }}
-      onSelectRun={(runId) => { void chat.selectRunDetail(runId); }}
+      onRollbackSelectedRun={chat.rollbackSelectedRun}
       onRunPrompt={(prompt) => { chat.clearRunDetail(); void chat.sendMessage(prompt); }}
-      onRunSuggestion={(suggestion) => { chat.clearRunDetail(); void chat.runSuggestion(suggestion); }}
+      onToggleContextExclude={chat.toggleContextExclude}
+      onToggleContextPin={chat.toggleContextPin}
       pendingAction={chat.pendingAction}
-      quickPrompts={quickPrompts}
-      recentRuns={chat.recentRuns}
+      selectedRunDetail={chat.selectedRunDetail}
+      selectedRunRollbackBusy={chat.selectedRunRollbackBusy}
+      selectedRunRollbackError={chat.selectedRunRollbackError}
       statusLabel={chat.statusLabel}
-      suggestions={chat.inboxSuggestions}
       threadId={chat.threadId}
       threads={chat.threads}
-      tokenCount={chat.tokenCountStr}
+      workbenchMode={chat.workbenchMode}
     >
       <AgentWorkbench
         errorMessage={chat.errorMessage}
         input={chat.input}
         isSubmitting={chat.isSubmitting}
-        lastInteractionAt={chat.lastInteractionAt}
         isThinking={chat.isThinking}
         messages={chat.messages}
         onCancelApproval={() => { chat.clearRunDetail(); chat.cancelApproval(); }}
@@ -55,14 +56,18 @@ export function DashboardPageClient({
         onInputChange={chat.setInput}
         onStop={chat.stopGeneration}
         onSubmit={() => { chat.clearRunDetail(); void chat.sendMessage(chat.input); }}
+        onWorkbenchModeChange={chat.setWorkbenchMode}
         pendingAction={chat.pendingAction}
         statusLabel={chat.statusLabel}
+        streamChanges={chat.streamChanges}
+        streamProgress={chat.streamProgress}
+        streamStages={chat.streamStages}
         thinkingContent={chat.thinkingContent}
         threadId={chat.threadId}
         threadTitle={chat.threadTitle}
-        tokenUsage={chat.tokenUsage}
         traceSteps={chat.traceSteps}
         transcriptRef={chat.transcriptRef}
+        workbenchMode={chat.workbenchMode}
       />
     </DashboardShell>
   );

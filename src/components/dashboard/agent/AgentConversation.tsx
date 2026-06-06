@@ -3,32 +3,112 @@
 import { type RefObject, useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
-import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
+import type { AgentChatMessage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
+import type {
+  AgentStreamChangeEvent,
+  AgentStreamProgressEvent,
+  AgentStreamStageEvent,
+} from "@/lib/agent/stream-events";
+import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 import { AgentThinkingPanel } from "./AgentThinkingPanel";
+import { AgentApprovalCard } from "./AgentApprovalCard";
 import { ThreadHeader } from "./ThreadHeader";
 import { MessageCard } from "./MessageCard";
+import { riskLevelLabelMap } from "./constants";
 
 const messageVariants = {
   assistant: { animate: { opacity: 1, x: 0 }, exit: { opacity: 0 }, initial: { opacity: 0, x: -12 } },
   user: { animate: { opacity: 1, x: 0 }, exit: { opacity: 0 }, initial: { opacity: 0, x: 12 } },
 };
 
+function summarizeBatchRisk(actions: ProposedAgentAction[]) {
+  if (actions.some((action) => action.riskLevel === "high")) return "高风险";
+  if (actions.some((action) => action.riskLevel === "medium")) return "中风险";
+  return "低风险";
+}
+
+function BatchConfirmationCard({
+  actions,
+  disabled,
+  onCancel,
+  onConfirm,
+}: {
+  actions: ProposedAgentAction[];
+  disabled: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <section className="sunny-agent-approval-banner sunny-agent-approval-banner-batch" aria-label="批量待确认操作">
+      <div className="sunny-agent-approval-banner-main">
+        <div>
+          <p>等待确认 · 批量操作</p>
+          <h3>确认 {actions.length} 项操作</h3>
+        </div>
+        <span>{summarizeBatchRisk(actions)}</span>
+      </div>
+      <div className="sunny-agent-confirmation-grid" aria-label="批量操作摘要">
+        <div>
+          <span>操作类型</span>
+          <strong>批量执行</strong>
+        </div>
+        <div>
+          <span>影响范围</span>
+          <strong>将影响 {actions.length} 项数据</strong>
+        </div>
+        <div>
+          <span>风险等级</span>
+          <strong>{summarizeBatchRisk(actions)}</strong>
+        </div>
+        <div>
+          <span>写入数据库</span>
+          <strong>确认后写入</strong>
+        </div>
+      </div>
+      <ul className="sunny-agent-confirmation-effects">
+        {actions.slice(0, 5).map((action, index) => (
+          <li key={action.id}>
+            <strong>{index + 1}. {riskLevelLabelMap[action.riskLevel]}</strong>
+            <span>{action.summary}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="sunny-agent-approval-banner-actions" role="toolbar" aria-label="确认或取消批量操作">
+        <button type="button" className="sunny-agent-confirm-button" disabled={disabled} onClick={onConfirm}>
+          全部确认
+        </button>
+        <button type="button" className="sunny-agent-cancel-button-v2" disabled={disabled} onClick={onCancel}>
+          全部取消
+        </button>
+      </div>
+    </section>
+  );
+}
+
 type AgentConversationProps = {
   displayTitle: string;
   errorMessage: null | string;
   isThinking: boolean;
   isSubmitting: boolean;
-  lastInteractionAt: null | string;
   messages: AgentChatMessage[];
+  onCancelApproval: () => void;
+  onConfirmApproval: () => void;
+  onDebugModeChange: (next: boolean) => void;
+  onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
+  onOpenDetails: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
+  debugMode: boolean;
   pendingAction: null | PendingAction;
   statusLabel: string;
+  streamChanges: AgentStreamChangeEvent[];
+  streamProgress: AgentStreamProgressEvent[];
+  streamStages: AgentStreamStageEvent[];
   thinkingContent: string;
   threadId: null | number;
-  tokenUsage: AgentTokenUsage;
   traceSteps: AgentTraceStep[];
   transcriptRef: RefObject<HTMLDivElement | null>;
+  workbenchMode: AgentWorkbenchMode;
 };
 
 export function AgentConversation({
@@ -36,17 +116,27 @@ export function AgentConversation({
   errorMessage,
   isThinking,
   isSubmitting,
-  lastInteractionAt,
   messages,
+  onCancelApproval,
+  onConfirmApproval,
+  onDebugModeChange,
+  onEditApproval,
+  onOpenDetails,
   onRenameThread,
+  debugMode,
   pendingAction,
   statusLabel,
+  streamChanges,
+  streamProgress,
+  streamStages,
   thinkingContent,
   threadId,
-  tokenUsage,
   traceSteps,
   transcriptRef,
+  workbenchMode,
 }: AgentConversationProps) {
+  const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
+  const batchActions = pendingAction?.type === "await_batch_confirmation" ? pendingAction.actions : null;
   const lastAssistantIndex = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === "assistant") return i;
@@ -70,19 +160,42 @@ export function AgentConversation({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [isThinking, messages.length, thinkingContent, traceSteps.length, transcriptRef]);
+  }, [isThinking, messages.length, thinkingContent, traceSteps.length, streamStages.length, streamProgress.length, streamChanges.length, transcriptRef]);
 
   return (
     <section className="sunny-agent-conversation-surface">
       <ThreadHeader
         displayTitle={displayTitle}
+        debugMode={debugMode}
         isSubmitting={isSubmitting}
-        lastInteractionAt={lastInteractionAt}
+        onDebugModeChange={onDebugModeChange}
+        onOpenDetails={onOpenDetails}
         onRenameThread={onRenameThread}
         pendingAction={pendingAction}
+        statusLabel={statusLabel}
         threadId={threadId}
-        tokenUsage={tokenUsage}
+        workbenchMode={workbenchMode}
       />
+      {confirmationAction || (batchActions && batchActions.length > 0) ? (
+        <div className="sunny-agent-thread-action-area">
+          {confirmationAction ? (
+            <AgentApprovalCard
+              action={confirmationAction}
+              disabled={isSubmitting}
+              onCancel={onCancelApproval}
+              onConfirm={onConfirmApproval}
+              onEdit={onEditApproval}
+            />
+          ) : batchActions && batchActions.length > 0 ? (
+            <BatchConfirmationCard
+              actions={batchActions}
+              disabled={isSubmitting}
+              onCancel={onCancelApproval}
+              onConfirm={onConfirmApproval}
+            />
+          ) : null}
+        </div>
+      ) : null}
       <div ref={transcriptRef} className="sunny-agent-conversation-scroll" aria-live="polite" aria-relevant="additions">
         {messages.length === 0 ? (
           <div className="sunny-agent-empty-state">
@@ -118,6 +231,9 @@ export function AgentConversation({
               isThinking={isThinking}
               statusLabel={statusLabel}
               steps={traceSteps}
+              streamChanges={streamChanges}
+              streamProgress={streamProgress}
+              streamStages={streamStages}
               thinkingContent={thinkingContent}
             />
           </>

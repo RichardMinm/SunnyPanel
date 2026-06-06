@@ -12,6 +12,8 @@ import {
   parseKnowledgeAnswerIntent,
   shouldSkipPendingAction,
 } from "./heuristic-intent-resolver";
+import { intentRequiresWrite } from "./intent/arbitration";
+import type { AgentArbitrationDecision } from "./intent/arbitration";
 import {
   createClarifyIntent,
   type AgentChatMessage,
@@ -27,9 +29,17 @@ export type AgentModelIntentResolver = (input: {
   history: AgentChatMessage[];
   message: string;
 }) => Promise<null | {
+  arbitration?: AgentArbitrationDecision;
   intent: AgentIntent;
   tokenUsage?: AgentTokenUsage;
 }>;
+
+export type AgentIntentResolutionResult = {
+  arbitration?: AgentArbitrationDecision;
+  engine: AgentEngine;
+  intent: AgentIntent;
+  tokenUsage?: AgentTokenUsage;
+};
 
 export {
   isBatchConfirmationReply,
@@ -228,6 +238,11 @@ const resolveClarificationIntent = (pendingAction: PendingAction, message: strin
 const isLearningPlanFollowup = (message: string) =>
   /(学习计划|复习计划|复习清单|学习清单|拆成|拆分|拆解|规划一下|制定|生成|做成)/.test(message) &&
   !/(日程|排期|排进|排入|安排到)/.test(message);
+
+const isDirectLearningPathFollowup = (message: string) =>
+  /((只要|仅要|直接|给出|给我|输出).{0,8}(路径|路线|路线图|学习顺序))|((路径|路线|路线图).{0,8}(即可|就行|就可以))|((不是|并不是|不要|不用|不需要).{0,8}计划)/.test(
+    message,
+  );
 
 const profileFieldLabels: Record<keyof AgentLearningProfile, string> = {
   baseline: "当前基础",
@@ -515,6 +530,28 @@ const resolveLearningFollowupIntent = (pendingAction: PendingAction, message: st
     return null;
   }
 
+  if (isDirectLearningPathFollowup(message)) {
+    const pathIntent =
+      parseKnowledgeAnswerIntent(pendingAction.originalMessage) ??
+      parseKnowledgeAnswerIntent(`${pendingAction.subject}学习路径`);
+
+    if (pathIntent?.intent === "answer_question") {
+      return {
+        ...pathIntent,
+        args: {
+          ...pathIntent.args,
+          answer: `可以，我按学习路径回答，不进入计划草稿。\n\n${pathIntent.args.answer}`,
+          learningContext: {
+            originalMessage: pendingAction.originalMessage,
+            subject: pendingAction.subject,
+          },
+          suggestAction: null,
+        },
+        confidence: 0.96,
+      };
+    }
+  }
+
   if (isNegativeReply(message) || isCancellationReply(message)) {
     return {
       args: {
@@ -628,31 +665,7 @@ export const resolveAgentIntent = async ({
   message: string;
   modelResolver?: AgentModelIntentResolver;
   pendingAction: null | PendingAction;
-}) => {
-  const preflightIntent = resolveOrchestrationPreflightIntent({
-    context,
-    message,
-    pendingAction,
-  });
-
-  if (preflightIntent) {
-    return {
-      engine: pendingAction?.type === "await_learning_followup" ? "workflow" as const : "heuristic" as const,
-      intent: preflightIntent,
-    };
-  }
-
-  if (pendingAction?.type === "await_clarification") {
-    const clarificationIntent = resolveClarificationIntent(pendingAction, message);
-
-    if (clarificationIntent) {
-      return {
-        engine: "workflow" as const,
-        intent: clarificationIntent,
-      };
-    }
-  }
-
+}): Promise<AgentIntentResolutionResult> => {
   if (pendingAction?.type === "await_completion_note" && !isNegativeReply(message) && !isNewCommand(message)) {
     return {
       engine: "workflow" as const,
@@ -670,12 +683,78 @@ export const resolveAgentIntent = async ({
   }
 
   const { resolveUnifiedIntent } = await import("./intent/llm-unified");
+  const deterministicIntent =
+    pendingAction?.type === "await_learning_followup"
+      ? null
+      : resolveOrchestrationPreflightIntent({
+          context,
+          message,
+          pendingAction,
+        });
 
-  return resolveUnifiedIntent({
+  const resolution = await resolveUnifiedIntent({
     context,
+    deterministicIntent,
     history,
     intentModelEngine,
     message,
     modelResolver,
+    pendingAction,
   });
+
+  if (
+    pendingAction &&
+    (resolution.arbitration.pendingPolicy === "correct_pending_intent" ||
+      resolution.arbitration.route === "cancel_pending")
+  ) {
+    return {
+      ...resolution,
+      engine: "workflow" as const,
+    };
+  }
+
+  if (pendingAction?.type === "await_clarification" && resolution.arbitration.route === "resume_pending") {
+    const clarificationIntent = resolveClarificationIntent(pendingAction, message);
+
+    if (clarificationIntent) {
+      return {
+        ...resolution,
+        arbitration: {
+          ...resolution.arbitration,
+          intent: clarificationIntent,
+          reason: "意图仲裁允许续接上一轮澄清，已把用户输入填入缺失字段。",
+          requiresWrite: intentRequiresWrite(clarificationIntent),
+          route: intentRequiresWrite(clarificationIntent) ? "write" as const : "answer" as const,
+        },
+        engine: "workflow" as const,
+        intent: clarificationIntent,
+      };
+    }
+  }
+
+  if (
+    pendingAction?.type === "await_learning_followup" &&
+    resolution.arbitration.pendingPolicy !== "correct_pending_intent" &&
+    resolution.arbitration.route !== "cancel_pending"
+  ) {
+    const learningFollowupIntent = resolveLearningFollowupIntent(pendingAction, message);
+
+    if (learningFollowupIntent) {
+      return {
+        ...resolution,
+        arbitration: {
+          ...resolution.arbitration,
+          intent: learningFollowupIntent,
+          pendingPolicy: "answer_pending_field" as const,
+          reason: "意图仲裁允许续接学习咨询上下文，进入学习画像或计划草稿流程。",
+          requiresWrite: intentRequiresWrite(learningFollowupIntent),
+          route: intentRequiresWrite(learningFollowupIntent) ? "write" as const : "answer" as const,
+        },
+        engine: "workflow" as const,
+        intent: learningFollowupIntent,
+      };
+    }
+  }
+
+  return resolution;
 };

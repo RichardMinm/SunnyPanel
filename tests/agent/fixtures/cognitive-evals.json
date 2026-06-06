@@ -1,0 +1,33 @@
+[
+  {
+    "expectedKind": "study_advice",
+    "message": "给我参谋一下线性代数的学习",
+    "name": "linear-algebra-study-advice"
+  },
+  {
+    "expectedKind": "learning_path",
+    "message": "请为我规划信息安全学习路径，偏蓝队",
+    "name": "blue-team-learning-path"
+  },
+  {
+    "expectedKind": "learning_path",
+    "message": "给出路径即可，并不是计划",
+    "name": "pending-learning-path-correction",
+    "pendingLearningSubject": "信息安全"
+  },
+  {
+    "expectedKind": "decision_support",
+    "message": "我该先做周报还是继续开发 Agent？",
+    "name": "work-priority-decision"
+  },
+  {
+    "expectedKind": "project_analysis",
+    "message": "SunnyPanel Agent 泛化问题怎么推进？",
+    "name": "agent-generalization-project-analysis"
+  },
+  {
+    "expectedKind": "decision_support",
+    "message": "我现在只有 30 分钟，Agent 核心开发该推哪一步？",
+    "name": "thirty-minute-agent-core-decision"
+  }
+]

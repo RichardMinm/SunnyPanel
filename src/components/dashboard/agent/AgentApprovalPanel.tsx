@@ -82,5 +82,17 @@ export function AgentApprovalPanel({ action, pendingAction }: AgentApprovalPanel
     );
   }
 
+  if (pendingAction?.type === "await_learning_followup") {
+    return (
+      <div className="sunny-agent-inspector-panel">
+        <div className="sunny-agent-inspector-summary">
+          <span className="sunny-agent-risk-pill-v2 sunny-agent-risk-low">需要确认</span>
+          <h3>是否保存为学习计划</h3>
+          <p>{pendingAction.subject}</p>
+        </div>
+      </div>
+    );
+  }
+
   return <AgentChangesPanel action={action} />;
 }

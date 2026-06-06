@@ -31,11 +31,13 @@ async function getDashboardShell(page: import("@playwright/test").Page) {
 
 async function startNewThread(shell: import("@playwright/test").Locator) {
   await shell.getByRole("button", { name: "新对话" }).click();
+  await expect(shell.locator(".sunny-agent-thread-header-title-text")).toHaveText("新会话");
   await expect(shell.getByLabel("输入要交给 Agent 的话")).toBeVisible();
 }
 
 test("Dashboard 默认展示 Agent Workspace，而不是旧统计卡片首页", async ({ page }) => {
   const shell = await getDashboardShell(page);
+  await startNewThread(shell);
 
   await expect(shell).toBeVisible();
   await expect(shell.locator(".sunny-agent-center-surface")).toBeVisible();
@@ -43,57 +45,76 @@ test("Dashboard 默认展示 Agent Workspace，而不是旧统计卡片首页", 
   await expect(page.getByText("计划跑道")).toHaveCount(0);
   await expect(page.getByText("阶段时间线")).toHaveCount(0);
   await expect(shell.getByRole("alert")).toHaveCount(0);
-  await expect(shell.getByRole("complementary", { name: "右侧上下文面板" })).not.toContainText("加载失败");
+  await expect(shell.getByRole("complementary", { name: "右侧检查器" })).toBeHidden();
+  await expect(page.getByText("加载失败")).toHaveCount(0);
 });
 
-test("Agent Workspace 左侧包含工作台导航、线程与待确认区域", async ({ page }) => {
+test("Agent Workspace 左侧只负责导航，右侧检查器默认隐藏", async ({ page }) => {
   const shell = await getDashboardShell(page);
+  await startNewThread(shell);
   const nav = shell.getByRole("navigation", { name: "工作台导航" });
-  const slidePanel = shell.getByRole("complementary", { name: "右侧上下文面板" });
+  const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
 
   await expect(nav).toBeVisible();
+  await expect(nav.locator(".sunny-codex-sidebar-window-controls")).toHaveCount(0);
+  await expect(nav.getByText("主操作")).toBeVisible();
   await expect(nav.getByRole("button", { name: "新对话" })).toBeVisible();
   await expect(nav.getByRole("button", { name: "搜索" })).toBeVisible();
-  await expect(nav.getByRole("button", { name: "插件" })).toBeVisible();
-  await expect(nav.getByRole("button", { name: "自动化" })).toBeVisible();
-  await expect(slidePanel).toBeVisible();
-  await expect(slidePanel.getByRole("heading", { name: "当前对话" })).toBeVisible();
-  await expect(slidePanel.getByText("对话摘要")).toBeVisible();
-  await expect(slidePanel.getByRole("button", { name: "建议动作" })).toBeVisible();
-  await expect(slidePanel.getByRole("button", { name: "风险提醒" })).toBeVisible();
-  await expect(slidePanel.getByRole("button", { name: "会话历史" })).toBeVisible();
-  await expect(slidePanel.getByRole("button", { name: "当前上下文" })).toHaveCount(0);
-  await expect(slidePanel.locator(".sunny-task-item").filter({ hasText: "Agent 正在理解上下文" })).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "命令中心" })).toBeVisible();
+  await expect(nav.getByRole("button", { name: "展开面板" })).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "收起面板" })).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "插件" })).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "自动化" })).toHaveCount(0);
+  await expect(nav.getByText("会话")).toBeVisible();
+  await expect(inspector).toBeHidden();
+  await expect(shell.getByRole("button", { name: "展开检查器" })).toBeVisible();
+  await expect(page.getByText("会话历史")).toHaveCount(0);
 });
 
-test("Agent Workspace 右侧以中文检查器页签作为主面板", async ({ page }) => {
+test("点击详情后右侧检查器展示五个中文页签", async ({ page }) => {
   const shell = await getDashboardShell(page);
+  await startNewThread(shell);
+  const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
 
-  await shell.getByRole("button", { name: "检查器" }).click();
-  const inspectorTabs = page.getByRole("dialog", { name: "检查器面板" }).getByRole("tablist", { name: "Agent 详情面板" });
-
-  await expect(inspectorTabs).toBeVisible();
-  await expect(inspectorTabs.getByRole("tab", { name: "上下文" })).toBeVisible();
-  await expect(inspectorTabs.getByRole("tab", { name: "确认" })).toBeVisible();
-  await expect(inspectorTabs.getByRole("tab", { name: "记录" })).toBeVisible();
-  await expect(inspectorTabs.getByRole("tab", { name: "Context" })).toHaveCount(0);
-  await expect(inspectorTabs.getByRole("tab", { name: "Approval" })).toHaveCount(0);
-  await expect(inspectorTabs.getByRole("tab", { name: "Trace" })).toHaveCount(0);
-  await expect(inspectorTabs.getByRole("tab", { name: "变更" })).toHaveCount(0);
-  await expect(inspectorTabs.getByRole("tab", { name: "产物" })).toHaveCount(0);
+  await expect(inspector).toBeHidden();
+  await shell.getByRole("button", { name: "详情" }).click();
+  await expect(inspector).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "收起检查器" })).toBeVisible();
+  await expect(inspector.getByRole("tab", { name: "上下文" })).toBeVisible();
+  await expect(inspector.getByRole("tab", { name: "审批" })).toBeVisible();
+  await expect(inspector.getByRole("tab", { name: "Trace" })).toBeVisible();
+  await expect(inspector.getByRole("tab", { name: "关联" })).toBeVisible();
+  await expect(inspector.getByRole("tab", { name: "记忆" })).toBeVisible();
+  await expect(inspector).not.toContainText("会话历史");
+  await expect(inspector.getByRole("tab", { name: "Context" })).toHaveCount(0);
+  await expect(inspector.getByRole("tab", { name: "Approval" })).toHaveCount(0);
+  await expect(inspector.getByRole("tab", { name: "变更" })).toHaveCount(0);
+  await expect(inspector.getByRole("tab", { name: "产物" })).toHaveCount(0);
 });
 
-test("Agent Composer 使用自动意图入口而不是五种模式选择器", async ({ page }) => {
+test("Agent Composer 默认收敛为模式下拉、输入框、加号和发送", async ({ page }) => {
   const shell = await getDashboardShell(page);
   await startNewThread(shell);
   const textarea = shell.getByLabel("输入要交给 Agent 的话");
 
   await expect(textarea).toBeVisible();
   await expect(shell.getByRole("tablist", { name: "Agent 工作台模式" })).toHaveCount(0);
-  await expect(shell.locator(".sunny-agent-composer-top")).toContainText("自动");
-  await expect(shell.locator(".sunny-agent-composer-top")).not.toContainText("只回答");
-  await expect(shell.locator(".sunny-agent-composer-top")).not.toContainText("生成建议");
+  await expect(shell.getByRole("button", { name: "选择工作模式" })).toBeVisible();
+  await expect(shell.getByRole("button", { name: "打开快捷操作" })).toBeVisible();
+  await expect(shell.locator(".sunny-agent-composer-mode-copy")).toHaveCount(0);
+  await expect(shell.getByRole("button", { name: "引用上下文" })).toHaveCount(0);
   await expect(shell.getByRole("button", { name: "发送" })).toBeVisible();
+
+  await shell.getByRole("button", { name: "选择工作模式" }).click();
+  await expect(shell.getByRole("menuitem", { name: /只回答/ })).toBeVisible();
+  await expect(shell.getByRole("menuitem", { name: /^规划 / })).toBeVisible();
+  await shell.getByRole("menuitem", { name: /只回答/ }).click();
+  await expect(shell.getByRole("button", { name: "选择工作模式" })).toContainText("只回答");
+
+  await shell.getByRole("button", { name: "打开快捷操作" }).click();
+  await expect(shell.getByRole("menuitem", { name: "引用上下文" })).toBeVisible();
+  await expect(shell.getByRole("menuitem", { name: "添加计划" })).toBeVisible();
+  await expect(shell.getByRole("menuitem", { name: "斜杠命令" })).toBeVisible();
 });
 
 test("Dashboard 使用成熟 SaaS Agent 工作台视觉层级", async ({ page }) => {
@@ -102,26 +123,27 @@ test("Dashboard 使用成熟 SaaS Agent 工作台视觉层级", async ({ page })
 
   await expect(shell).toHaveClass(/sunny-app-shell/);
   await expect(shell.locator(".sunny-main-workspace")).toBeVisible();
-  await expect(shell.locator(".sunny-right-context-panel")).toBeVisible();
+  await expect(shell.locator(".sunny-right-context-panel")).toBeHidden();
   await expect(shell.locator(".sunny-agent-composer")).toBeVisible();
 
   const sidebar = shell.getByRole("navigation", { name: "工作台导航" });
   await expect(sidebar).toHaveClass(/sunny-codex-sidebar/);
   await expect(sidebar.getByText("项目")).toBeVisible();
   await expect(sidebar.getByText("工作区")).toBeVisible();
+  await expect(sidebar.getByText("会话")).toBeVisible();
   await expect(sidebar.getByRole("button", { name: "工作台" })).toBeVisible();
   await expect(sidebar.getByRole("button", { name: "记忆库" })).toBeVisible();
 
-  const contextPanel = shell.getByRole("complementary", { name: "右侧上下文面板" });
-  await expect(contextPanel.getByRole("heading", { name: "当前对话" })).toBeVisible();
-  await expect(contextPanel.getByText("对话摘要")).toBeVisible();
-  await expect(contextPanel.getByRole("button", { name: "建议动作" })).toBeVisible();
-  await expect(contextPanel.getByRole("button", { name: "风险提醒" })).toBeVisible();
-  await expect(contextPanel.getByRole("button", { name: "会话历史" })).toBeVisible();
+  const contextPanel = shell.getByRole("complementary", { name: "右侧检查器" });
+  await shell.getByRole("button", { name: "详情" }).click();
+  await expect(contextPanel.getByRole("heading", { name: "上下文" })).toBeVisible();
+  await expect(contextPanel.getByRole("tab", { name: "审批" })).toBeVisible();
+  await expect(contextPanel.getByRole("tab", { name: "Trace" })).toBeVisible();
   await expect(contextPanel.getByRole("button", { name: "调整右侧面板宽度" })).toBeVisible();
+  await expect(contextPanel.getByRole("button", { name: "收起检查器" })).toBeVisible();
 
-  await expect(shell.getByRole("button", { name: "自动模式" })).toBeVisible();
-  await expect(shell.getByRole("button", { name: "引用上下文" })).toBeVisible();
+  await expect(shell.getByRole("button", { name: "选择工作模式" })).toBeVisible();
+  await expect(shell.getByRole("button", { name: "引用上下文" })).toHaveCount(0);
 
   await sidebar.getByRole("button", { name: "记忆库" }).click();
   await expect(shell.getByRole("heading", { name: "记忆库" })).toBeVisible();
@@ -132,16 +154,17 @@ test("移动端 Dashboard 优先展示主 Agent Workspace 且不横向溢出", a
   await page.setViewportSize({ width: 390, height: 844 });
 
   const shell = await getDashboardShell(page);
+  await startNewThread(shell);
   const composerInput = shell.getByRole("textbox", { name: /输入要交给 Agent 的话|学习咨询上下文/ });
 
   await expect(shell).toBeVisible();
   await expect(composerInput).toBeVisible();
-  await expect(shell.getByRole("complementary", { name: "右侧上下文面板" })).toBeHidden();
+  await expect(shell.getByRole("complementary", { name: "右侧检查器" })).toBeHidden();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   const layoutStyles = await shell.evaluate((element) => {
     const main = element.querySelector<HTMLElement>(".sunny-dashboard-main");
-    const slidePanel = element.querySelector<HTMLElement>(".sunny-dashboard-slide-panel");
+    const slidePanel = element.querySelector<HTMLElement>(".sunny-dashboard-right-panel");
 
     return {
       mainGridColumn: main ? window.getComputedStyle(main).gridColumnStart : "missing",
@@ -153,8 +176,27 @@ test("移动端 Dashboard 优先展示主 Agent Workspace 且不横向溢出", a
   expect(layoutStyles.mainGridColumn).not.toBe("missing");
   expect(layoutStyles.panelDisplay).toBe("none");
 
-  await shell.getByRole("button", { name: "展开面板" }).click();
-  await expect(shell.getByRole("complementary", { name: "右侧上下文面板" })).toBeVisible();
-  await shell.getByRole("button", { name: "收起面板" }).click();
-  await expect(shell.getByRole("complementary", { name: "右侧上下文面板" })).toBeHidden();
+  await shell.getByRole("button", { name: "展开检查器" }).click();
+  await expect(shell.getByRole("complementary", { name: "右侧检查器" })).toBeVisible();
+  await shell.getByRole("button", { name: "收起检查器" }).click();
+  await expect(shell.getByRole("complementary", { name: "右侧检查器" })).toBeHidden();
+});
+
+test("桌面端 Inspector 从右侧自身收起并从右边缘展开", async ({ page }) => {
+  const shell = await getDashboardShell(page);
+  await startNewThread(shell);
+  const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
+  const nav = shell.getByRole("navigation", { name: "工作台导航" });
+
+  await expect(inspector).toBeHidden();
+  await shell.getByRole("button", { name: "详情" }).click();
+  await expect(inspector).toBeVisible();
+  await expect(nav.getByRole("button", { name: "收起检查器" })).toHaveCount(0);
+  await inspector.getByRole("button", { name: "收起检查器" }).click();
+  await expect(inspector).toBeHidden();
+  await expect(shell.getByRole("button", { name: "展开检查器" })).toBeVisible();
+
+  await shell.getByRole("button", { name: "展开检查器" }).click();
+  await expect(inspector).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "收起检查器" })).toBeVisible();
 });

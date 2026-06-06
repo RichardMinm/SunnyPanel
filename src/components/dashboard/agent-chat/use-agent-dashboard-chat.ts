@@ -13,23 +13,25 @@ import {
 import { useAgentChatMessaging } from "@/components/dashboard/agent-chat/use-agent-chat-messaging";
 import { useDashboardUrlThreadSync } from "@/components/dashboard/agent-chat/use-dashboard-url-thread-sync";
 import { useAgentThreadList } from "@/components/dashboard/agent-chat/use-agent-thread";
-import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
 import { canRollbackAgentRunDetail } from "@/lib/agent/run-summary";
-import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
+import type {
+  AgentStreamChangeEvent,
+  AgentStreamProgressEvent,
+  AgentStreamStageEvent,
+} from "@/lib/agent/stream-events";
 import {
   createTokenUsageSnapshot,
   estimateMessagesTokenCount,
 } from "@/lib/agent/token-usage";
+import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 export type UseAgentDashboardChatOptions = {
   initialThreadId?: number;
-  suggestions?: AgentInboxSuggestion[];
 };
 
 export function useAgentDashboardChat({
   initialThreadId,
-  suggestions = [],
 }: UseAgentDashboardChatOptions) {
   const shouldReduceMotion = useReducedMotion();
   const [messages, setMessages] = useState<AgentChatMessage[]>(initialMessages);
@@ -37,21 +39,17 @@ export function useAgentDashboardChat({
   const [input, setInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const {
-    archiveThread: archiveThreadRequest,
     clearRunDetail,
     fetchThread,
     fetchRunDetail,
     lastInteractionAt,
-    recentRuns,
     runDetailError,
-    searchThreads,
     selectedRunDetail,
     setThreadId,
     setThreads,
     threadId,
     threads,
   } = useAgentThreadList();
-  const [inboxSuggestions, setInboxSuggestions] = useState<AgentInboxSuggestion[]>(suggestions);
   const [statusText, setStatusText] = useState("已就绪");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [streamingState, setStreamingState] = useState<"idle" | "responding" | "thinking">("idle");
@@ -70,8 +68,12 @@ export function useAgentDashboardChat({
   const [selectedRunRollbackError, setSelectedRunRollbackError] = useState<string | null>(null);
   const [contextPreferences, setContextPreferences] = useState<ContextPreferences>({ excluded: [], pinned: [] });
   const [thinkingContent, setThinkingContent] = useState("");
+  const [streamStages, setStreamStages] = useState<AgentStreamStageEvent[]>([]);
+  const [streamProgress, setStreamProgress] = useState<AgentStreamProgressEvent[]>([]);
+  const [streamChanges, setStreamChanges] = useState<AgentStreamChangeEvent[]>([]);
   const [threadTitle, setThreadTitle] = useState("");
   const [threadHydrated, setThreadHydrated] = useState(false);
+  const [workbenchMode, setWorkbenchMode] = useState<AgentWorkbenchMode>("ask");
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const loadThread = useCallback(
@@ -96,6 +98,9 @@ export function useAgentDashboardChat({
           }),
         );
         setTraceSteps([]);
+        setStreamStages([]);
+        setStreamProgress([]);
+        setStreamChanges([]);
         setLastRollbackPayload(null);
         setLastRollbackResult(null);
         setArtifactsRollbackError(null);
@@ -118,17 +123,15 @@ export function useAgentDashboardChat({
         }),
       );
       setTraceSteps([]);
+      setStreamStages([]);
+      setStreamProgress([]);
+      setStreamChanges([]);
       setLastRollbackPayload(null);
       setLastRollbackResult(null);
       setArtifactsRollbackError(null);
       setSelectedRunRollbackError(null);
       if (!options?.preserveInspector) {
-        setActiveInspectorTab(
-          selectedThread.pendingAction?.type === "await_confirmation" ||
-            selectedThread.pendingAction?.type === "await_batch_confirmation"
-            ? "approval"
-            : "context",
-        );
+        setActiveInspectorTab(selectedThread.pendingAction ? "approval" : "context");
       }
       setStatusText(`已恢复 Thread #${selectedThread.id}`);
       setThreadHydrated(true);
@@ -140,9 +143,8 @@ export function useAgentDashboardChat({
     cancelApproval,
     confirmApproval,
     editApproval,
-    resetThread,
+    resetThread: resetConversationThread,
     runArtifactsRollback,
-    runSuggestion,
     sendMessage,
     stopGeneration,
   } = useAgentChatMessaging({
@@ -156,7 +158,6 @@ export function useAgentDashboardChat({
     setArtifactsRollbackBusy,
     setArtifactsRollbackError,
     setErrorMessage,
-    setInboxSuggestions,
     setInput,
     setIsSubmitting,
     setLastRollbackPayload,
@@ -165,22 +166,25 @@ export function useAgentDashboardChat({
     setPendingAction,
     setStatusText,
     setStreamingState,
+    setStreamChanges,
+    setStreamProgress,
+    setStreamStages,
     setThinkingContent,
     setThreadId,
     setTokenUsage,
     setTraceSteps,
     threadId,
+    workbenchMode,
   });
 
   useDashboardUrlThreadSync(threadId, threadHydrated);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setInboxSuggestions(suggestions);
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [suggestions]);
+  const resetThread = useCallback(() => {
+    resetConversationThread();
+    clearRunDetail();
+    setThreadTitle("");
+    setThreadHydrated(true);
+  }, [clearRunDetail, resetConversationThread]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -205,7 +209,7 @@ export function useAgentDashboardChat({
     });
 
     return () => window.cancelAnimationFrame(nextFrame);
-  }, [messages, shouldReduceMotion, statusText, isSubmitting]);
+  }, [messages, shouldReduceMotion, statusText, isSubmitting, streamStages.length, streamProgress.length, streamChanges.length]);
 
   const inputTokenEstimate = useMemo(() => estimateMessagesTokenCount([{ content: input, role: "user" }]), [input]);
   const isThinking = isSubmitting && streamingState !== "responding";
@@ -243,17 +247,6 @@ export function useAgentDashboardChat({
     });
   }, []);
 
-  const archiveThread = useCallback(
-    async (archiveThreadId: number, archived: boolean) => {
-      const ok = await archiveThreadRequest(archiveThreadId, archived);
-
-      if (!ok) {
-        setErrorMessage("归档操作失败");
-      }
-    },
-    [archiveThreadRequest],
-  );
-
   const renameThread = useCallback(async (title: string) => {
     if (!threadId) return false;
 
@@ -277,7 +270,7 @@ export function useAgentDashboardChat({
       current.map((t) => (t.id === threadId ? { ...t, title: sanitized } : t)),
     );
     return true;
-  }, [threadId]);
+  }, [setThreads, threadId]);
 
   const selectRunDetail = useCallback(
     async (runId: number) => {
@@ -291,7 +284,7 @@ export function useAgentDashboardChat({
       setErrorMessage(null);
       setSelectedRunRollbackError(null);
       setActiveInspectorTab("trace");
-      setStatusText(`已载入 AgentRun #${runId}`);
+      setStatusText(`已载入执行记录 #${runId}`);
     },
     [fetchRunDetail, runDetailError],
   );
@@ -344,7 +337,6 @@ export function useAgentDashboardChat({
 
   return {
     activeInspectorTab,
-    archiveThread,
     artifactsRollbackBusy,
     artifactsRollbackError,
     cancelApproval,
@@ -353,7 +345,6 @@ export function useAgentDashboardChat({
     contextPreferences,
     editApproval,
     errorMessage,
-    inboxSuggestions,
     input,
     inputTokenEstimate,
     isSubmitting,
@@ -364,13 +355,10 @@ export function useAgentDashboardChat({
     loadThread,
     messages,
     pendingAction,
-    recentRuns,
     renameThread,
     resetThread,
     rollbackSelectedRun,
     runArtifactsRollback,
-    runSuggestion,
-    searchThreads,
     selectRunDetail,
     selectedRunDetail,
     selectedRunRollbackBusy,
@@ -380,6 +368,9 @@ export function useAgentDashboardChat({
     setActiveInspectorTab,
     statusLabel,
     stopGeneration,
+    streamChanges,
+    streamProgress,
+    streamStages,
     thinkingContent,
     threadId,
     threadTitle,
@@ -390,6 +381,8 @@ export function useAgentDashboardChat({
     toggleContextPin,
     traceSteps,
     transcriptRef,
+    workbenchMode,
+    setWorkbenchMode,
   };
 }
 

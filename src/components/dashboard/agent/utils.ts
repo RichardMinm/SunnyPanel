@@ -1,26 +1,11 @@
-import type { AgentQuickPrompt } from "@/lib/agent/quick-prompts";
 import type {
-  AgentChatMessage,
   PendingAction,
   PlanProposal,
   ProposedAgentAction,
   ScheduleProposal,
 } from "@/lib/agent/schemas";
-import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 
 import { riskLevelLabelMap } from "./constants";
-import type { SuggestionAction } from "./types";
-
-export const formatTokenCount = (value?: number) =>
-  new Intl.NumberFormat("zh-CN").format(Math.max(0, Math.round(value ?? 0)));
-
-export const getUsagePercent = (value: number, total: number) => {
-  if (total <= 0 || value <= 0) {
-    return 0;
-  }
-
-  return Math.max(4, Math.round((value / total) * 100));
-};
 
 export const getPendingActionLabel = (pendingAction: PendingAction) => {
   if (pendingAction.type === "await_completion_note") {
@@ -44,37 +29,11 @@ export const getPendingActionLabel = (pendingAction: PendingAction) => {
   }
 
   if (pendingAction.type === "await_learning_followup") {
-    return `等待学习规划：${pendingAction.subject}`;
+    return `需要确认：是否保存为学习计划：${pendingAction.subject}`;
   }
 
   return `等待澄清：${pendingAction.missingFields.join(" / ") || pendingAction.intent}`;
 };
-
-export const buildSuggestedTasks = (
-  suggestions: AgentInboxSuggestion[],
-  quickPrompts: AgentQuickPrompt[],
-): SuggestionAction[] => {
-  const inboxTasks = suggestions.map((suggestion) => ({
-    id: `inbox-${suggestion.id}`,
-    label: suggestion.title,
-    prompt: suggestion.suggestedPrompt,
-    reason: suggestion.reason,
-    riskLevel: suggestion.riskLevel,
-    source: suggestion.source,
-    suggestion,
-  }));
-  const quickTasks = quickPrompts.map((prompt) => ({
-    id: `quick-${prompt.prompt}`,
-    label: prompt.label,
-    prompt: prompt.prompt,
-    reason: prompt.prompt,
-  }));
-
-  return [...inboxTasks, ...quickTasks];
-};
-
-export const getLatestAssistantMessage = (messages: AgentChatMessage[]) =>
-  [...messages].reverse().find((message) => message.role === "assistant" && message.content.trim().length > 0);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

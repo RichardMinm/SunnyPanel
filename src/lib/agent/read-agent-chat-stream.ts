@@ -1,5 +1,13 @@
 import { getTokenUsageFromData, parseStreamBlock } from "@/lib/agent/chat-stream";
 import type { AgentChatResponse, AgentTokenUsage, AgentTraceStep } from "@/lib/agent/schemas";
+import {
+  isAgentStreamChangeEvent,
+  isAgentStreamProgressEvent,
+  isAgentStreamStageEvent,
+  type AgentStreamChangeEvent,
+  type AgentStreamProgressEvent,
+  type AgentStreamStageEvent,
+} from "@/lib/agent/stream-events";
 
 export type AgentChatStreamDone = Partial<AgentChatResponse> & {
   assistantMessage?: string;
@@ -7,9 +15,12 @@ export type AgentChatStreamDone = Partial<AgentChatResponse> & {
 
 export type AgentChatStreamHandlers = {
   appendAssistantToken: (content: string) => void;
+  onChange?: (event: AgentStreamChangeEvent) => void;
   onDone: (data: AgentChatStreamDone) => void;
   onErrorMessage: (assistantMessage: string) => void;
   onMeta: (data: unknown) => void;
+  onProgress?: (event: AgentStreamProgressEvent) => void;
+  onStage?: (event: AgentStreamStageEvent) => void;
   onStatus: (status: string) => void;
   onStreamStart: () => void;
   onThinkingToken: (content: string) => void;
@@ -55,6 +66,27 @@ export async function readAgentChatStream(
 
       if (!parsedBlock) {
         continue;
+      }
+
+      if (
+        parsedBlock.event === "stage" &&
+        isAgentStreamStageEvent(parsedBlock.data)
+      ) {
+        handlers.onStage?.(parsedBlock.data);
+      }
+
+      if (
+        parsedBlock.event === "progress" &&
+        isAgentStreamProgressEvent(parsedBlock.data)
+      ) {
+        handlers.onProgress?.(parsedBlock.data);
+      }
+
+      if (
+        parsedBlock.event === "change" &&
+        isAgentStreamChangeEvent(parsedBlock.data)
+      ) {
+        handlers.onChange?.(parsedBlock.data);
       }
 
       if (

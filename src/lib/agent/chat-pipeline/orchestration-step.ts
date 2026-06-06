@@ -30,6 +30,7 @@ import type { StreamTokenCallback } from "@/lib/agent/client";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 import { detectScheduleConflicts } from "@/lib/schedule/items";
+import type { AgentStreamController } from "@/lib/agent/stream-events";
 
 import {
   findChecklistTimelineEvent,
@@ -58,6 +59,7 @@ export type OrchestrationStepParams = {
   pushTrace: (step: AgentTraceStep) => void;
   replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
   runOrchestratorFn?: typeof runOrchestrator;
+  stream?: AgentStreamController;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { id: number };
@@ -87,6 +89,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     pushTrace,
     replanTaskFailure,
     runOrchestratorFn = runOrchestrator,
+    stream,
     tokenUsage: tokenUsageIn,
     trace,
     user,
@@ -172,6 +175,11 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     pendingAction?.type === "await_batch_confirmation" ||
     pendingAction?.type === "await_completion_note"
   ) {
+    stream?.progress({
+      detail: `pending=${pendingAction.type}，交由确认/补充链路处理。`,
+      message: "无需重新编排",
+      stageId: "stage-orchestration",
+    });
     return {
       outcome: "continue",
       data: { preResolvedIntent: null, tokenUsage: tokenUsageIn },
@@ -392,6 +400,11 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
   });
 
   if (preflightIntent) {
+    stream?.progress({
+      detail: `preResolved=${preflightIntent.intent}`,
+      message: "咨询保护命中",
+      stageId: "stage-orchestration",
+    });
     pushTrace({
       detail: "这轮输入先命中咨询/学习 follow-up 保护，不交给行动编排器执行写入型任务。",
       id: "orchestrator-readonly-preflight",
@@ -419,6 +432,11 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
   });
 
   const plan = await runOrchestratorFn(message, context);
+  stream?.progress({
+    detail: `${plan.mode === "compound" ? "复合" : "单一"}意图 · ${plan.tasks.length} 个子任务`,
+    message: "编排计划已生成",
+    stageId: "stage-orchestration",
+  });
 
   pushTrace({
     detail: `${plan.mode === "compound" ? "复合" : "单一"}意图 · ${plan.tasks.length} 个子任务 · ${plan.reasoning}`,
@@ -488,6 +506,19 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       },
     );
     pushGraphTraceSteps(graphResult);
+    for (const proposal of graphResult.proposals.slice(0, 4)) {
+      stream?.change({
+        collections: Array.from(new Set(proposal.changes.map((change) => change.collection))),
+        riskLevel: proposal.riskLevel,
+        stageId: "stage-orchestration",
+        summary: proposal.summary,
+      });
+    }
+    stream?.progress({
+      detail: `${graphResult.executedCount} 项已执行，${graphResult.proposals.length} 项待确认。`,
+      message: "编排执行图已评估",
+      stageId: "stage-orchestration",
+    });
 
     if (graphResult.pendingAction) {
       const assistantMessage = graphResult.assistantMessage;

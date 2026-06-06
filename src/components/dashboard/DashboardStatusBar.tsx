@@ -9,8 +9,6 @@ export type DashboardStatusBarProps = {
   searchAvailable?: boolean;
   /** 状态文本，如"就绪"、"运行中" */
   statusLabel: string;
-  /** 上下文 token 数（格式化后的字符串，如 "2.4k tokens"） */
-  tokenCount?: string;
 };
 
 export function DashboardStatusBar({
@@ -18,7 +16,6 @@ export function DashboardStatusBar({
   model = "DeepSeek V3",
   searchAvailable = true,
   statusLabel,
-  tokenCount,
 }: DashboardStatusBarProps) {
   return (
     <footer className="sunny-dashboard-status-bar" role="status" aria-label="工作台状态">
@@ -30,12 +27,6 @@ export function DashboardStatusBar({
       {searchAvailable ? (
         <>
           <span aria-hidden="true">⌘K</span>
-          <span aria-hidden="true">|</span>
-        </>
-      ) : null}
-      {tokenCount ? (
-        <>
-          <span>上下文 {tokenCount}</span>
           <span aria-hidden="true">|</span>
         </>
       ) : null}

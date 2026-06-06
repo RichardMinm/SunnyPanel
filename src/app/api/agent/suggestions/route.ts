@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   acceptSuggestion,
   dismissSuggestion,
+  getPendingAgentSuggestions,
   markSuggestionDone,
 } from "@/lib/agent/suggestions";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
@@ -23,6 +24,25 @@ const parseId = (value: unknown) => {
 
   return null;
 };
+
+export async function GET() {
+  const authResult = await getPayloadAuthResult();
+
+  if (!authResult.user) {
+    return NextResponse.json(
+      {
+        message: "当前会话没有登录，暂时不能读取 Agent 建议。",
+      },
+      { status: 401 },
+    );
+  }
+
+  const suggestions = await getPendingAgentSuggestions(6);
+
+  return NextResponse.json({
+    suggestions,
+  });
+}
 
 export async function PATCH(request: Request) {
   const authResult = await getPayloadAuthResult();

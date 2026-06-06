@@ -7,6 +7,7 @@ import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, Pendi
 import { getAgentToolDefinition } from "@/lib/agent/tool-registry";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
+import type { AgentStreamController } from "@/lib/agent/stream-events";
 
 export type ExecuteAndPersistStepParams = {
   batchExecuteIntents?: AgentIntent[];
@@ -25,6 +26,7 @@ export type ExecuteAndPersistStepParams = {
   }) => Promise<AgentThread>;
   pushTrace: (step: AgentTraceStep) => void;
   resolution: IntentResolution;
+  stream?: AgentStreamController;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { id: number };
@@ -68,6 +70,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     persistAgentTurn,
     pushTrace,
     resolution,
+    stream,
     tokenUsage: tokenUsageIn,
     trace,
     user,
@@ -77,6 +80,11 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
 
   if (batchExecuteIntents && batchExecuteIntents.length > 0) {
     emitStatus(`正在批量执行 ${batchExecuteIntents.length} 项操作...`);
+    stream?.progress({
+      detail: batchExecuteIntents.map((intent) => intent.intent).join(" → "),
+      message: `批量执行 ${batchExecuteIntents.length} 项操作`,
+      stageId: "stage-execution",
+    });
     let lastPending: PendingAction | null = null;
 
     pushTrace({
@@ -95,10 +103,16 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
       nextPendingAfterExecute && !batchResult.pendingAction && !batchFailed
         ? `${batchResult.assistantMessage}\n\n${describePendingActionForExecution(nextPendingAfterExecute)}`
         : batchResult.assistantMessage;
+    stream?.start({
+      id: "stage-response",
+      phase: "response",
+      title: "生成执行结果",
+    });
     for (const token of splitIntoWordTokens(assistantMessage)) {
       emitToken(token, 'response');
       await new Promise((r) => setTimeout(r, 6));
     }
+    stream?.complete("stage-response", batchFailed ? "执行失败说明已生成" : "执行结果已生成");
     pushTrace({
       detail: assistantMessage.slice(0, 120),
       id: "batch-execute-transactional",
@@ -153,11 +167,22 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     requiresConfirmationBeforeExecution(resolution.intent)
   ) {
     emitStatus("写操作缺少确认，已阻止直接执行...");
+    stream?.progress({
+      detail: resolution.intent.intent,
+      message: "确认边界阻止写入",
+      stageId: "stage-execution",
+    });
     const assistantMessage = buildUnconfirmedExecutionMessage(resolution.intent);
+    stream?.start({
+      id: "stage-response",
+      phase: "response",
+      title: "生成安全提示",
+    });
     for (const token of splitIntoWordTokens(assistantMessage)) {
       emitToken(token, 'response');
       await new Promise((r) => setTimeout(r, 6));
     }
+    stream?.complete("stage-response", "安全提示已生成");
     const outputTokens = estimateTokenCount(assistantMessage);
     tokenUsage = {
       ...tokenUsage,
@@ -198,6 +223,13 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   }
 
   emitStatus(isDirectAnswer ? "正在组织回复内容..." : "正在执行写入操作...");
+  stream?.progress({
+    detail: isDirectAnswer
+      ? "这轮回答已在仲裁阶段生成，当前只做执行与持久化收尾。"
+      : `intent=${resolution.intent.intent}`,
+    message: isDirectAnswer ? "保存回答上下文" : "执行工具动作",
+    stageId: isDirectAnswer ? "stage-response" : "stage-execution",
+  });
   pushTrace({
     detail: isDirectAnswer
       ? "这轮只生成回答，不会写入计划、清单或时间线。"
@@ -219,10 +251,16 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
       ? `${execution.assistantMessage}\n\n${describePendingActionForExecution(nextPendingAfterExecute)}`
       : execution.assistantMessage;
   if (!isDirectAnswer && assistantMessage) {
+    stream?.start({
+      id: "stage-response",
+      phase: "response",
+      title: "生成执行结果",
+    });
     for (const token of splitIntoWordTokens(assistantMessage)) {
       emitToken(token, 'response');
       await new Promise((r) => setTimeout(r, 6));
     }
+    stream?.complete("stage-response", "执行结果已生成");
   }
   const lastRollbackPayload =
     "rollbackPayload" in execution && execution.rollbackPayload && isRollbackPayloadExecutable(execution.rollbackPayload)

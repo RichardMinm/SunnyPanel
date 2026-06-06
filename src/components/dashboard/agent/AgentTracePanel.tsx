@@ -17,6 +17,7 @@ type AgentTracePanelProps = {
   lastRollbackResult?: AgentRollbackExecutionResult | null;
   latestAssistantMessage?: AgentChatMessage;
   lastRollbackPayload?: null | unknown;
+  debugMode: boolean;
   onArtifactsRollback?: () => void;
   onRollbackSelectedRun?: () => void;
   selectedRunDetail?: AgentRunDetail | null;
@@ -52,11 +53,13 @@ function RollbackResultCard({ result }: { result: AgentRollbackExecutionResult }
 }
 
 function AgentRunDetailCard({
+  debugMode,
   onRollback,
   rollbackBusy,
   rollbackError,
   run,
 }: {
+  debugMode: boolean;
   onRollback?: () => void;
   rollbackBusy?: boolean;
   rollbackError?: null | string;
@@ -82,7 +85,7 @@ function AgentRunDetailCard({
           {run.nextAction}
         </p>
       ) : null}
-      {run.steps.length > 0 ? (
+      {debugMode && run.steps.length > 0 ? (
         <ul className="mt-3 space-y-2">
           {run.steps.slice(0, 6).map((step, index) => (
             <li key={`${step.recordedAt ?? "step"}:${index}`} className="rounded-md border border-border/60 px-3 py-2 text-xs text-muted">
@@ -119,6 +122,7 @@ export function AgentTracePanel({
   lastRollbackResult = null,
   latestAssistantMessage,
   lastRollbackPayload = null,
+  debugMode,
   onArtifactsRollback,
   onRollbackSelectedRun,
   selectedRunDetail = null,
@@ -128,12 +132,13 @@ export function AgentTracePanel({
   traceSteps,
 }: AgentTracePanelProps) {
   const hasArtifacts = Boolean(action || latestAssistantMessage || lastRollbackPayload);
+  const showDebugTrace = debugMode;
 
   if (traceSteps.length === 0 && !hasArtifacts && !lastRollbackResult && !selectedRunDetail) {
     return (
       <div className="sunny-agent-inspector-empty">
-        <h3>等待执行记录</h3>
-        <p>{statusLabel || "发送消息后，这里会展示意图识别、上下文构建、确认和写入过程。"}</p>
+        <h3>等待执行详情</h3>
+        <p>{statusLabel || "发送消息后，这里会展示本轮执行结果和必要过程。"}</p>
       </div>
     );
   }
@@ -152,6 +157,7 @@ export function AgentTracePanel({
       ) : null}
       {selectedRunDetail ? (
         <AgentRunDetailCard
+          debugMode={debugMode}
           onRollback={onRollbackSelectedRun}
           rollbackBusy={selectedRunRollbackBusy}
           rollbackError={selectedRunRollbackError}
@@ -165,12 +171,14 @@ export function AgentTracePanel({
             <div key={step.id} className={`sunny-agent-run-step-v2 sunny-agent-run-step-v2-${step.status}`}>
               <span className="sunny-agent-run-step-marker" aria-hidden="true" />
               <div className="sunny-agent-run-step-content">
-                <div>
-                  <span className={`sunny-agent-kind-pill sunny-agent-kind-${step.kind}`}>{traceKindLabelMap[step.kind]}</span>
-                  <small>{traceStatusLabelMap[step.status]}</small>
-                </div>
+                {showDebugTrace ? (
+                  <div className="sunny-agent-debug-only">
+                    <span className={`sunny-agent-kind-pill sunny-agent-kind-${step.kind}`}>{traceKindLabelMap[step.kind]}</span>
+                    <small>{traceStatusLabelMap[step.status]}</small>
+                  </div>
+                ) : null}
                 <h3>{step.title}</h3>
-                {step.detail ? <p>{step.detail}</p> : null}
+                {showDebugTrace && step.detail ? <p className="sunny-agent-debug-only">{step.detail}</p> : null}
               </div>
             </div>
           ))}

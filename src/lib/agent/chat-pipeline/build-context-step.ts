@@ -9,6 +9,7 @@ import type { AgentChatResponse, AgentTraceStep, PendingAction } from "@/lib/age
 import type { AgentPromptThreadSummary } from "@/lib/agent/thread-summary";
 import { createTokenUsageSnapshot, estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import { getAgentWorkspaceContextSource } from "@/lib/payload/workspace";
+import type { AgentStreamController } from "@/lib/agent/stream-events";
 
 export type BuildContextStepParams = {
   baseTokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -20,6 +21,8 @@ export type BuildContextStepParams = {
   payload: Payload;
   pendingAction: null | PendingAction;
   pushTrace: (step: AgentTraceStep) => void;
+  stream?: AgentStreamController;
+  streamStageId?: string;
   threadSummary?: AgentPromptThreadSummary | null;
   workbenchMode?: AgentWorkbenchMode | null;
 };
@@ -44,10 +47,17 @@ export const runBuildContextStep = async ({
   payload,
   pendingAction,
   pushTrace,
+  stream,
+  streamStageId = "stage-context",
   threadSummary,
   workbenchMode,
 }: BuildContextStepParams): Promise<BuildContextStepResult> => {
   emitStatus("正在加载工作区数据...");
+  stream?.progress({
+    detail: "准备按预算读取工作台上下文源和共享记忆。",
+    message: "连接上下文源",
+    stageId: streamStageId,
+  });
   pushTrace({
     detail: "准备按消息意图读取计划、清单、内容、时间线、AgentRun 和 PlanReview。",
     id: "context-bootstrap",
@@ -86,6 +96,11 @@ export const runBuildContextStep = async ({
   const memoryTitles = (context.memories ?? []).map((m) => m.title);
   const memoryNote = memoryTitles.length > 0 ? `\n命中记忆：${memoryTitles.join("、")}` : "";
   const threadSummaryNote = threadSummary ? `，线程摘要覆盖 ${threadSummary.messageCount} 条消息` : "";
+  stream?.progress({
+    detail: `mode=${context.mode ?? "general"}，命中 ${context.memories?.length ?? 0} 条记忆。`,
+    message: "共享上下文已合成",
+    stageId: streamStageId,
+  });
   pushTrace({
     detail: `mode=${context.mode ?? "general"}，纳入 ${context.memories?.length ?? 0} 条长期记忆、${context.plans.length} 条计划、${context.checklists.length} 份清单、${context.contentItems?.length ?? 0} 条内容、${context.timelineEvents?.length ?? 0} 个时间线节点、${context.agentRuns?.length ?? 0} 条 AgentRun、${context.planReviews?.length ?? 0} 条 PlanReview${threadSummaryNote}。${memoryNote}`,
     id: "context-bootstrap",

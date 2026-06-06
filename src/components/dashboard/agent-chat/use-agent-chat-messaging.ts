@@ -10,7 +10,6 @@ import {
   type AgentRollbackExecutionResult,
 } from "@/components/dashboard/agent/rollback-display";
 import { readAgentChatStream } from "@/lib/agent/read-agent-chat-stream";
-import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import type {
   AgentChatMessage,
   AgentChatResponse,
@@ -18,11 +17,17 @@ import type {
   AgentTraceStep,
   PendingAction,
 } from "@/lib/agent/schemas";
+import type {
+  AgentStreamChangeEvent,
+  AgentStreamProgressEvent,
+  AgentStreamStageEvent,
+} from "@/lib/agent/stream-events";
 import {
   createTokenUsageSnapshot,
   estimateMessagesTokenCount,
   estimateTokenCount,
 } from "@/lib/agent/token-usage";
+import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 type UseAgentChatMessagingOptions = {
   contextPreferences: ContextPreferences;
@@ -34,7 +39,6 @@ type UseAgentChatMessagingOptions = {
   setArtifactsRollbackBusy: (busy: boolean) => void;
   setArtifactsRollbackError: (error: string | null) => void;
   setErrorMessage: (message: string | null) => void;
-  setInboxSuggestions: Dispatch<SetStateAction<AgentInboxSuggestion[]>>;
   setInput: (value: string) => void;
   setIsSubmitting: (value: boolean) => void;
   setLastRollbackPayload: (payload: unknown | null) => void;
@@ -43,12 +47,16 @@ type UseAgentChatMessagingOptions = {
   setPendingAction: (action: PendingAction | null) => void;
   setStatusText: (text: string) => void;
   setStreamingState: (state: "idle" | "responding" | "thinking") => void;
+  setStreamChanges: Dispatch<SetStateAction<AgentStreamChangeEvent[]>>;
+  setStreamProgress: Dispatch<SetStateAction<AgentStreamProgressEvent[]>>;
+  setStreamStages: Dispatch<SetStateAction<AgentStreamStageEvent[]>>;
   setThinkingContent: Dispatch<SetStateAction<string>>;
   setThreadId: (id: number | null) => void;
   setTokenUsage: Dispatch<SetStateAction<AgentTokenUsage>>;
   setTraceSteps: Dispatch<SetStateAction<AgentTraceStep[]>>;
   threadId: number | null;
   lastRollbackPayload: unknown | null;
+  workbenchMode: AgentWorkbenchMode;
 };
 
 export function useAgentChatMessaging({
@@ -62,7 +70,6 @@ export function useAgentChatMessaging({
   setArtifactsRollbackBusy,
   setArtifactsRollbackError,
   setErrorMessage,
-  setInboxSuggestions,
   setInput,
   setIsSubmitting,
   setLastRollbackPayload,
@@ -71,11 +78,15 @@ export function useAgentChatMessaging({
   setPendingAction,
   setStatusText,
   setStreamingState,
+  setStreamChanges,
+  setStreamProgress,
+  setStreamStages,
   setThinkingContent,
   setThreadId,
   setTokenUsage,
   setTraceSteps,
   threadId,
+  workbenchMode,
 }: UseAgentChatMessagingOptions) {
   const abortRef = useRef<AbortController | null>(null);
 
@@ -96,6 +107,24 @@ export function useAgentChatMessaging({
       return nextSteps;
     });
   }, [setTraceSteps]);
+
+  const upsertStreamStage = useCallback((nextStage: AgentStreamStageEvent) => {
+    setStreamStages((current) => {
+      const index = current.findIndex((stage) => stage.id === nextStage.id);
+
+      if (index === -1) {
+        return [...current, nextStage];
+      }
+
+      const nextStages = [...current];
+      nextStages[index] = {
+        ...nextStages[index],
+        ...nextStage,
+      };
+
+      return nextStages;
+    });
+  }, [setStreamStages]);
 
   const appendStreamingAssistantContent = useCallback(
     (content: string) => {
@@ -179,6 +208,9 @@ export function useAgentChatMessaging({
       setStatusText("正在让 Agent 解析并执行...");
       setStreamingState("thinking");
       setTraceSteps([]);
+      setStreamStages([]);
+      setStreamProgress([]);
+      setStreamChanges([]);
       setThinkingContent("");
       setActiveInspectorTab("context");
       setTokenUsage(
@@ -197,6 +229,7 @@ export function useAgentChatMessaging({
             message: nextMessage,
             messages: nextHistory,
             pendingAction,
+            workbenchMode,
             stream: true,
             threadId,
           }),
@@ -210,9 +243,17 @@ export function useAgentChatMessaging({
         const data = isStreamingResponse
           ? await readAgentChatStream(response, {
               appendAssistantToken: appendStreamingAssistantContent,
+              onChange: (event) => setStreamChanges((current) => [...current.slice(-11), event]),
               onDone: () => {},
               onErrorMessage: replaceStreamingAssistantContent,
               onMeta: () => undefined,
+              onProgress: (event) => setStreamProgress((current) => [...current.slice(-15), event]),
+              onStage: (event) => {
+                upsertStreamStage(event);
+                if (event.status === "running") {
+                  setStatusText(event.title);
+                }
+              },
               onStatus: setStatusText,
               onStreamStart: () => {
                 setMessages([
@@ -258,13 +299,8 @@ export function useAgentChatMessaging({
         );
         setTraceSteps(responseData.trace ?? []);
         setThreadId(typeof responseData.threadId === "number" ? responseData.threadId : threadId);
-        if (
-          responseData.pendingAction?.type === "await_confirmation" ||
-          responseData.pendingAction?.type === "await_batch_confirmation"
-        ) {
+        if (responseData.pendingAction) {
           setActiveInspectorTab("approval");
-        } else if (assistantMessage) {
-          setActiveInspectorTab("trace");
         }
         if (responseData.tokenUsage) {
           setTokenUsage(responseData.tokenUsage);
@@ -320,12 +356,17 @@ export function useAgentChatMessaging({
       setPendingAction,
       setStatusText,
       setStreamingState,
+      setStreamChanges,
+      setStreamProgress,
+      setStreamStages,
       setThinkingContent,
       setThreadId,
       setTokenUsage,
       setTraceSteps,
       threadId,
+      workbenchMode,
       upsertTraceStep,
+      upsertStreamStage,
     ],
   );
 
@@ -356,46 +397,6 @@ export function useAgentChatMessaging({
     };
   }, [pendingAction, sendMessage]);
 
-  const updateSuggestionStatus = useCallback(
-    async (id: number, action: "accept" | "dismiss" | "done") => {
-      let previous: AgentInboxSuggestion[] = [];
-
-      setInboxSuggestions((current) => {
-        previous = current;
-        return current.filter((suggestion) => suggestion.id !== id);
-      });
-
-      try {
-        const response = await fetch("/api/agent/suggestions", {
-          body: JSON.stringify({
-            action,
-            id,
-          }),
-          headers: {
-            "Content-Type": "application/json",
-          },
-          method: "PATCH",
-        });
-
-        if (!response.ok) {
-          throw new Error(`PATCH failed: ${response.status}`);
-        }
-      } catch {
-        setInboxSuggestions(previous);
-        setErrorMessage("操作建议更新失败，已恢复。");
-      }
-    },
-    [setErrorMessage, setInboxSuggestions],
-  );
-
-  const runSuggestion = useCallback(
-    async (suggestion: AgentInboxSuggestion) => {
-      await updateSuggestionStatus(suggestion.id, "accept");
-      await sendMessage(suggestion.suggestedPrompt);
-    },
-    [sendMessage, updateSuggestionStatus],
-  );
-
   const resetThread = useCallback(() => {
     setThreadId(null);
     setPendingAction(null);
@@ -403,6 +404,9 @@ export function useAgentChatMessaging({
     setStatusText("已开启新任务");
     setStreamingState("idle");
     setTraceSteps([]);
+    setStreamStages([]);
+    setStreamProgress([]);
+    setStreamChanges([]);
     setLastRollbackPayload(null);
     setLastRollbackResult(null);
     setArtifactsRollbackError(null);
@@ -425,6 +429,9 @@ export function useAgentChatMessaging({
     setPendingAction,
     setStatusText,
     setStreamingState,
+    setStreamChanges,
+    setStreamProgress,
+    setStreamStages,
     setThreadId,
     setTokenUsage,
     setTraceSteps,
@@ -535,7 +542,6 @@ export function useAgentChatMessaging({
     editApproval,
     resetThread,
     runArtifactsRollback,
-    runSuggestion,
     sendMessage,
     stopGeneration,
   };

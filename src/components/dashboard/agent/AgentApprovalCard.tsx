@@ -25,6 +25,7 @@ export type AgentApprovalCardProps = {
 export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdit }: AgentApprovalCardProps) {
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [rovingIndex, setRovingIndex] = useState(0);
+  const [confirmationDraft, setConfirmationDraft] = useState({ actionId: "", phrase: "" });
 
   const setButtonRef = useCallback((index: number) => {
     return (element: HTMLButtonElement | null) => {
@@ -96,8 +97,19 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
     planProposal.goal &&
     (planProposal.motivation === planProposal.goal ||
       planProposal.goal.includes(planProposal.motivation.slice(0, 24)));
-  const confirmLabel = planProposal ? "确认创建计划" : scheduleProposal ? "确认写入日程" : "确认执行";
-  const editLabel = scheduleProposal ? "改时间" : planProposal ? "改需求" : "调整请求";
+  const confirmLabel = "确认";
+  const editLabel = "修改";
+  const isHighRisk = action.riskLevel === "high";
+  const confirmPhrase = confirmationDraft.actionId === action.id ? confirmationDraft.phrase : "";
+  const confirmDisabled = Boolean(disabled || (isHighRisk && confirmPhrase.trim() !== "确认执行"));
+  const affectedCount = action.affectedDocuments?.length ?? action.changes.length;
+  const writesDatabase = action.changes.length > 0;
+  const operationType = formatIntentLabel(action.intent);
+  const nextEffects = planProposal
+    ? ["保存当前计划为草稿", "进入待办队列", "可继续拆分为学习阶段"]
+    : scheduleProposal
+      ? ["保存当前日程提案", "同步关联计划或清单", "保留执行摘要以便撤销或追踪"]
+      : action.changes.slice(0, 3).map((change) => change.preview);
 
   return (
     <section
@@ -110,144 +122,186 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
     >
       <div className="sunny-agent-approval-banner-main">
         <div>
-          <p>待你确认</p>
+          <p>等待确认 · {operationType}</p>
           <h3 id="agent-pending-approval-title">{action.summary}</h3>
         </div>
         <span>{riskLevelLabelMap[action.riskLevel]}</span>
       </div>
-      <div className="sunny-agent-approval-banner-meta" aria-describedby="agent-pending-approval-title">
-        <span>{formatIntentLabel(action.intent)}</span>
-        <span>{firstChange ? operationLabelMap[firstChange.operation] : "待确认"}</span>
-        <span>{firstChange ? `${formatCollectionLabel(firstChange.collection)}${firstChange.documentId ? ` #${firstChange.documentId}` : ""}` : "未解析"}</span>
-        <span>{firstChange?.visibility ? visibilityLabelMap[firstChange.visibility] : "未知可见性"}</span>
+      <div className="sunny-agent-confirmation-grid" aria-label="待确认操作摘要">
+        <div>
+          <span>操作类型</span>
+          <strong>{operationType}</strong>
+        </div>
+        <div>
+          <span>写入数据库</span>
+          <strong>{writesDatabase ? "确认后写入" : "不会写入"}</strong>
+        </div>
+        <div>
+          <span>影响范围</span>
+          <strong>{affectedCount > 0 ? `将影响 ${affectedCount} 项数据` : "未检测到数据变更"}</strong>
+        </div>
+        <div>
+          <span>风险等级</span>
+          <strong>{riskLevelLabelMap[action.riskLevel]}</strong>
+        </div>
       </div>
-      {planProposal ? (
-        <div className="sunny-agent-proposal-card sunny-agent-plan-proposal">
-          <div>
-            <span>计划标题</span>
-            <strong>{planProposal.title}</strong>
-          </div>
-          <p>{planProposal.goal}</p>
-          {planProposal.motivation && !motivationDuplicatesGoal ? <p>{planProposal.motivation}</p> : null}
-          {decomposedPlan ? (
+      <details className="sunny-agent-confirmation-details">
+        <summary>查看详情</summary>
+        <div className="sunny-agent-approval-banner-meta" aria-describedby="agent-pending-approval-title">
+          <span>{formatIntentLabel(action.intent)}</span>
+          <span>{firstChange ? operationLabelMap[firstChange.operation] : "待确认"}</span>
+          <span>{firstChange ? `${formatCollectionLabel(firstChange.collection)}${firstChange.documentId ? ` #${firstChange.documentId}` : ""}` : "未解析"}</span>
+          <span>{firstChange?.visibility ? visibilityLabelMap[firstChange.visibility] : "未知可见性"}</span>
+        </div>
+        {planProposal ? (
+          <div className="sunny-agent-proposal-card sunny-agent-plan-proposal">
+            <div>
+              <span>计划标题</span>
+              <strong>{planProposal.title}</strong>
+            </div>
+            <p>{planProposal.goal}</p>
+            {planProposal.motivation && !motivationDuplicatesGoal ? <p>{planProposal.motivation}</p> : null}
+            {decomposedPlan ? (
+              <div className="sunny-agent-proposal-columns">
+                <div>
+                  <span>学习阶段（{decomposedPlan.phases.length}）</span>
+                  <ul>
+                    {decomposedPlan.phases.map((phase) => (
+                      <li key={phase.title}>
+                        <strong>{phase.title}</strong>（{phase.estimatedDays} 天）
+                        {phase.milestones[0]?.tasks.length ? (
+                          <span> — {phase.milestones[0].tasks.slice(0, 3).join("、")}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
+            <div className="sunny-agent-proposal-grid">
+              <div>
+                <span>范围</span>
+                <p>{planProposal.scope || "未指定"}</p>
+              </div>
+              <div>
+                <span>优先级</span>
+                <p>{formatPriorityLabel(planProposal.suggestedPriority)}</p>
+              </div>
+              <div>
+                <span>截止</span>
+                <p>{planProposal.suggestedDueDate || "未设定"}</p>
+              </div>
+            </div>
             <div className="sunny-agent-proposal-columns">
               <div>
-                <span>学习阶段（{decomposedPlan.phases.length}）</span>
+                <span>关键步骤</span>
                 <ul>
-                  {decomposedPlan.phases.map((phase) => (
-                    <li key={phase.title}>
-                      <strong>{phase.title}</strong>（{phase.estimatedDays} 天）
-                      {phase.milestones[0]?.tasks.length ? (
-                        <span> — {phase.milestones[0].tasks.slice(0, 3).join("、")}</span>
-                      ) : null}
-                    </li>
+                  {planProposal.keySteps.slice(0, 5).map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <span>完成标准</span>
+                <ul>
+                  {planProposal.successCriteria.slice(0, 4).map((item) => (
+                    <li key={item}>{item}</li>
                   ))}
                 </ul>
               </div>
             </div>
-          ) : null}
-          <div className="sunny-agent-proposal-grid">
-            <div>
-              <span>范围</span>
-              <p>{planProposal.scope || "未指定"}</p>
-            </div>
-            <div>
-              <span>优先级</span>
-              <p>{formatPriorityLabel(planProposal.suggestedPriority)}</p>
-            </div>
-            <div>
-              <span>截止</span>
-              <p>{planProposal.suggestedDueDate || "未设定"}</p>
-            </div>
+            {planProposal.risks.length > 0 ? (
+              <div className="sunny-agent-proposal-warning">
+                <span>风险</span>
+                <p>{planProposal.risks.slice(0, 3).join("；")}</p>
+              </div>
+            ) : null}
+            {!decomposedPlan && planProposal.agentBrief ? (
+              <div className="sunny-agent-proposal-brief">
+                <span>协作说明</span>
+                <p>{planProposal.agentBrief}</p>
+              </div>
+            ) : decomposedPlan?.weeklyRhythm ? (
+              <div className="sunny-agent-proposal-brief">
+                <span>学习节奏</span>
+                <p>{decomposedPlan.weeklyRhythm}</p>
+              </div>
+            ) : null}
           </div>
-          <div className="sunny-agent-proposal-columns">
+        ) : scheduleProposal ? (
+          <div className="sunny-agent-proposal-card sunny-agent-schedule-proposal">
             <div>
-              <span>关键步骤</span>
-              <ul>
-                {planProposal.keySteps.slice(0, 5).map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
+              <span>日程标题</span>
+              <strong>{scheduleProposal.title}</strong>
             </div>
-            <div>
-              <span>完成标准</span>
-              <ul>
-                {planProposal.successCriteria.slice(0, 4).map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
+            <div className="sunny-agent-proposal-grid">
+              <div>
+                <span>日期</span>
+                <p>{scheduleProposal.date}</p>
+              </div>
+              <div>
+                <span>时间</span>
+                <p>{scheduleProposal.isAllDay ? "全天" : `${scheduleProposal.startTime ?? "未定"}-${scheduleProposal.endTime ?? "未定"}`}</p>
+              </div>
+              <div>
+                <span>优先级</span>
+                <p>{formatPriorityLabel(scheduleProposal.priority)}</p>
+              </div>
             </div>
+            <p>{scheduleProposal.reason}</p>
+            <div className="sunny-agent-proposal-grid">
+              <div>
+                <span>关联计划</span>
+                <p>{scheduleProposal.relatedPlanId ? `#${scheduleProposal.relatedPlanId}` : "未关联"}</p>
+              </div>
+              <div>
+                <span>关联清单</span>
+                <p>{scheduleProposal.relatedChecklistId ? `#${scheduleProposal.relatedChecklistId}` : "未关联"}</p>
+              </div>
+            </div>
+            {scheduleProposal.conflicts.length > 0 ? (
+              <div className="sunny-agent-proposal-warning">
+                <span>时间冲突</span>
+                <ul>
+                  {scheduleProposal.conflicts.map((conflict) => (
+                    <li key={conflict.scheduleItemId}>
+                      {conflict.title} {conflict.startTime && conflict.endTime ? `(${conflict.startTime}-${conflict.endTime})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="sunny-agent-proposal-brief">
+                <span>冲突检测</span>
+                <p>没有检测到同时间段冲突。</p>
+              </div>
+            )}
           </div>
-          {planProposal.risks.length > 0 ? (
-            <div className="sunny-agent-proposal-warning">
-              <span>风险</span>
-              <p>{planProposal.risks.slice(0, 3).join("；")}</p>
-            </div>
-          ) : null}
-          {!decomposedPlan && planProposal.agentBrief ? (
-            <div className="sunny-agent-proposal-brief">
-              <span>Agent 协作说明</span>
-              <p>{planProposal.agentBrief}</p>
-            </div>
-          ) : decomposedPlan?.weeklyRhythm ? (
-            <div className="sunny-agent-proposal-brief">
-              <span>学习节奏</span>
-              <p>{decomposedPlan.weeklyRhythm}</p>
-            </div>
-          ) : null}
-        </div>
-      ) : scheduleProposal ? (
-        <div className="sunny-agent-proposal-card sunny-agent-schedule-proposal">
-          <div>
-            <span>日程标题</span>
-            <strong>{scheduleProposal.title}</strong>
+        ) : (
+          <p className="sunny-agent-approval-banner-preview">{firstChange?.preview ?? "确认前可查看详情面板。"}</p>
+        )}
+        {nextEffects.length > 0 ? (
+          <div className="sunny-agent-confirmation-next">
+            <span>确认后将</span>
+            <ul>
+              {nextEffects.map((effect) => (
+                <li key={effect}>{effect}</li>
+              ))}
+            </ul>
           </div>
-          <div className="sunny-agent-proposal-grid">
-            <div>
-              <span>日期</span>
-              <p>{scheduleProposal.date}</p>
-            </div>
-            <div>
-              <span>时间</span>
-              <p>{scheduleProposal.isAllDay ? "全天" : `${scheduleProposal.startTime ?? "未定"}-${scheduleProposal.endTime ?? "未定"}`}</p>
-            </div>
-            <div>
-              <span>优先级</span>
-              <p>{formatPriorityLabel(scheduleProposal.priority)}</p>
-            </div>
-          </div>
-          <p>{scheduleProposal.reason}</p>
-          <div className="sunny-agent-proposal-grid">
-            <div>
-              <span>关联计划</span>
-              <p>{scheduleProposal.relatedPlanId ? `#${scheduleProposal.relatedPlanId}` : "未关联"}</p>
-            </div>
-            <div>
-              <span>关联清单</span>
-              <p>{scheduleProposal.relatedChecklistId ? `#${scheduleProposal.relatedChecklistId}` : "未关联"}</p>
-            </div>
-          </div>
-          {scheduleProposal.conflicts.length > 0 ? (
-            <div className="sunny-agent-proposal-warning">
-              <span>时间冲突</span>
-              <ul>
-                {scheduleProposal.conflicts.map((conflict) => (
-                  <li key={conflict.scheduleItemId}>
-                    {conflict.title} {conflict.startTime && conflict.endTime ? `(${conflict.startTime}-${conflict.endTime})` : ""}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <div className="sunny-agent-proposal-brief">
-              <span>冲突检测</span>
-              <p>没有检测到同时间段冲突。</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <p className="sunny-agent-approval-banner-preview">{firstChange?.preview ?? "确认前请检查右侧「变更」面板。"}</p>
-      )}
+        ) : null}
+      </details>
+      {isHighRisk ? (
+        <label className="sunny-agent-confirmation-phrase">
+          <span>高风险操作：请输入“确认执行”后才会执行。</span>
+          <input
+            value={confirmPhrase}
+            onChange={(event) => setConfirmationDraft({ actionId: action.id, phrase: event.target.value })}
+            placeholder="确认执行"
+            disabled={disabled}
+          />
+        </label>
+      ) : null}
       <div
         className="sunny-agent-approval-banner-actions"
         role="toolbar"
@@ -258,7 +312,7 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
         <button
           ref={setButtonRef(0)}
           type="button"
-          disabled={disabled}
+          disabled={confirmDisabled}
           tabIndex={rovingIndex === 0 ? 0 : -1}
           onFocus={() => setRovingIndex(0)}
           onClick={onConfirm}

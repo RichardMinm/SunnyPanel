@@ -25,8 +25,16 @@ import {
 } from "@/lib/agent/schemas";
 import { appendAgentThreadTurn } from "@/lib/agent/thread";
 import { toPromptThreadSummary } from "@/lib/agent/thread-summary";
+import { runAgentLearningLoop } from "@/lib/agent/learning-loop";
 import type { ContextPreferences } from "@/lib/agent/chat-pipeline/handle-agent-chat-post";
 import type { UserPreferences } from "@/lib/agent/user-preferences";
+import type { AgentPromptContext } from "@/lib/agent/prompts";
+import {
+  createAgentStreamController,
+  type AgentStreamChangeEvent,
+  type AgentStreamProgressEvent,
+  type AgentStreamStageEvent,
+} from "@/lib/agent/stream-events";
 
 export type RunAgentChatPipelineDeps = {
   baseTokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -87,8 +95,16 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     emitTrace: (step: AgentTraceStep) => void = () => undefined,
     emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void = () => undefined,
     emitToken: StreamTokenCallback = () => undefined,
+    emitStage: (event: AgentStreamStageEvent) => void = () => undefined,
+    emitProgress: (event: AgentStreamProgressEvent) => void = () => undefined,
+    emitChange: (event: AgentStreamChangeEvent) => void = () => undefined,
   ): Promise<AgentChatResponse> => {
     const trace: AgentTraceStep[] = [];
+    const stream = createAgentStreamController({
+      emitChange,
+      emitProgress,
+      emitStage,
+    });
     const pushTrace = (step: AgentTraceStep) => {
       const index = trace.findIndex((item) => item.id === step.id);
 
@@ -140,18 +156,42 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         status: "done",
         title: "会话上下文已保存",
       });
+      await runAgentLearningLoop({
+        assistantMessage,
+        existingMemories: currentContextMemories,
+        intent,
+        message,
+        pendingActionAfter: nextPendingAction,
+        pendingActionBefore: currentPendingAction,
+        pushTrace,
+        sourceThread: updatedThread.id,
+        tokenUsage,
+        user,
+      });
 
       return updatedThread;
     };
 
     const controller = createLoopController({ emitStatus, emitToken, emitTrace, emitUsage });
     let tokenUsage = baseTokenUsage;
+    let currentContextMemories: AgentPromptContext["memories"] = [];
+    let currentPendingAction = pendingAction;
     emitUsage(tokenUsage);
 
     // Emit placeholder immediately so the user sees content without waiting
     emitToken("正在分析你的请求...\n", 'thinking');
 
     // Build context once (refreshed per-loop iteration when needed)
+    stream.start({
+      id: "stage-context",
+      phase: "context",
+      title: "构建上下文",
+    });
+    stream.progress({
+      detail: "读取计划、清单、记忆、时间线和最近 AgentRun。",
+      message: "加载工作区数据",
+      stageId: "stage-context",
+    });
     let contextStep = await runBuildContextStep({
       baseTokenUsage,
       contextPreferences: contextPreferences ?? undefined,
@@ -162,10 +202,22 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       payload,
       pendingAction,
       pushTrace,
+      stream,
       threadSummary,
       workbenchMode,
     });
+    stream.progress({
+      detail: [
+        `${contextStep.context.plans.length} 个计划`,
+        `${contextStep.context.checklists.length} 份清单`,
+        `${contextStep.context.memories?.length ?? 0} 条记忆`,
+      ].join(" · "),
+      message: "上下文快照已生成",
+      stageId: "stage-context",
+    });
+    stream.complete("stage-context", "上下文已就绪");
     const { context: initialContext } = contextStep;
+    currentContextMemories = initialContext.memories ?? [];
     tokenUsage = contextStep.tokenUsage;
     controller.budget.consumeContext(contextStep.tokenUsage.contextTokens);
 
@@ -177,12 +229,21 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
 
     let lastResponse: AgentChatResponse | null = null;
     let currentContext = initialContext;
-    let currentPendingAction = pendingAction;
 
     // ── EOD Loop ──
     while (controller.shouldContinue()) {
       controller.advance("orchestrate");
 
+      stream.start({
+        id: "stage-orchestration",
+        phase: "orchestration",
+        title: "编排拆解",
+      });
+      stream.progress({
+        detail: "判断是否需要拆成多个子任务，或保持单轮回答。",
+        message: "检查复合意图",
+        stageId: "stage-orchestration",
+      });
       const orchestrationResult = await runOrchestrationStep({
         autoApproval,
         context: currentContext,
@@ -193,10 +254,15 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         pendingAction: currentPendingAction,
         persistAgentTurn,
         pushTrace,
+        stream,
         tokenUsage,
         trace,
         user,
       });
+      stream.complete(
+        "stage-orchestration",
+        orchestrationResult.outcome === "early_exit" ? "编排已生成结果" : "编排检查完成",
+      );
 
       if (orchestrationResult.outcome === "early_exit") {
         lastResponse = orchestrationResult.response;
@@ -216,6 +282,16 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
 
       tokenUsage = orchestrationResult.data.tokenUsage;
 
+      stream.start({
+        id: "stage-arbitration",
+        phase: "arbitration",
+        title: "意图仲裁",
+      });
+      stream.progress({
+        detail: "综合用户输入、pending 状态、模式和编排候选。",
+        message: "判断用户真实目标",
+        stageId: "stage-arbitration",
+      });
       const intentResult = await runResolveIntentStep({
         confirmationSignals,
         context: currentContext,
@@ -230,11 +306,16 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         persistAgentTurn,
         pushTrace,
         resolvedHistory,
+        stream,
         thread,
         tokenUsage,
         trace,
         user,
       });
+      stream.complete(
+        "stage-arbitration",
+        intentResult.outcome === "early_exit" ? "意图仲裁已完成" : "已决定下一步路线",
+      );
 
       if (intentResult.outcome === "early_exit") {
         lastResponse = intentResult.response;
@@ -252,6 +333,16 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       tokenUsage = tokenAfterIntent;
 
       if (batchExecuteIntents && batchExecuteIntents.length > 0) {
+        stream.start({
+          id: "stage-execution",
+          phase: "execution",
+          title: "执行写入",
+        });
+        stream.progress({
+          detail: `准备执行 ${batchExecuteIntents.length} 项已确认动作。`,
+          message: "批量执行队列",
+          stageId: "stage-execution",
+        });
         lastResponse = attachMeta(
           await runExecuteAndPersistStep({
             batchExecuteIntents,
@@ -262,11 +353,13 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             persistAgentTurn,
             pushTrace,
             resolution,
+            stream,
             tokenUsage,
             trace,
             user,
           }),
         );
+        stream.complete("stage-execution", "执行完成");
         controller.setLastResponse(lastResponse.assistantMessage, lastResponse.pendingAction);
         currentPendingAction = lastResponse.pendingAction ?? null;
 
@@ -276,6 +369,20 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       }
 
       try {
+        const isWriteLike = resolution.intent.intent !== "answer_question" && resolution.intent.intent !== "clarify";
+
+        if (isWriteLike || confirmedActionId) {
+          stream.start({
+            id: "stage-dry-run",
+            phase: "dry_run",
+            title: "写入预检",
+          });
+          stream.progress({
+            detail: "先生成变更预览和风险等级，确认后才会写入。",
+            message: "运行 DryRun 安全门",
+            stageId: "stage-dry-run",
+          });
+        }
         const dryResult = await runDryRunAndProposeStep({
           autoApproval,
           confirmedActionId,
@@ -286,10 +393,17 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           persistAgentTurn,
           pushTrace,
           resolution,
+          stream,
           tokenUsage,
           trace,
           user,
         });
+        if (isWriteLike || confirmedActionId) {
+          stream.complete(
+            "stage-dry-run",
+            dryResult.outcome === "early_exit" ? "预检已生成确认信息" : "预检通过",
+          );
+        }
 
         if (dryResult.outcome === "early_exit") {
           lastResponse = dryResult.response;
@@ -300,6 +414,18 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         const { executionApproved, isDirectAnswer, tokenUsage: tokenAfterDry } = dryResult.data;
         tokenUsage = tokenAfterDry;
 
+        if (!isDirectAnswer || confirmedActionId) {
+          stream.start({
+            id: isDirectAnswer ? "stage-response" : "stage-execution",
+            phase: isDirectAnswer ? "response" : "execution",
+            title: isDirectAnswer ? "组织回复" : "执行动作",
+          });
+          stream.progress({
+            detail: isDirectAnswer ? "根据仲裁结果生成最终回答。" : "执行已确认或低风险动作。",
+            message: isDirectAnswer ? "生成答案" : "写入或同步数据",
+            stageId: isDirectAnswer ? "stage-response" : "stage-execution",
+          });
+        }
         const execResult = await runExecuteAndPersistStep({
           confirmedActionId,
           emitStatus,
@@ -310,10 +436,14 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           persistAgentTurn,
           pushTrace,
           resolution,
+          stream,
           tokenUsage,
           trace,
           user,
         });
+        if (!isDirectAnswer || confirmedActionId) {
+          stream.complete(isDirectAnswer ? "stage-response" : "stage-execution", isDirectAnswer ? "回复已完成" : "执行完成");
+        }
 
         lastResponse = attachMeta(execResult);
         controller.setLastResponse(lastResponse.assistantMessage, lastResponse.pendingAction);
@@ -321,6 +451,11 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
 
         // Refresh context for next iteration if the loop continues
         if (lastResponse.pendingAction === null) {
+          stream.start({
+            id: "stage-context-refresh",
+            phase: "context",
+            title: "刷新上下文",
+          });
           contextStep = await runBuildContextStep({
             baseTokenUsage,
             contextPreferences: contextPreferences ?? undefined,
@@ -331,12 +466,16 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             payload,
             pendingAction: currentPendingAction,
             pushTrace,
+            stream,
+            streamStageId: "stage-context-refresh",
             threadSummary,
             workbenchMode,
           });
           currentContext = contextStep.context;
+          currentContextMemories = currentContext.memories ?? [];
           tokenUsage = { ...tokenUsage, contextTokens: contextStep.tokenUsage.contextTokens };
           controller.budget.consumeContext(contextStep.tokenUsage.contextTokens);
+          stream.complete("stage-context-refresh", "上下文已刷新");
         }
 
         const nextPhase = controller.observe();

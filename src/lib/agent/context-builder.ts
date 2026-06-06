@@ -737,7 +737,7 @@ export const buildAgentContext = ({
         ? "review"
         : workbenchMode === "timeline"
           ? "timeline"
-          : workbenchMode === "ask"
+          : workbenchMode === "ask" || workbenchMode === "answer"
             ? "general"
             : inferredMode;
 

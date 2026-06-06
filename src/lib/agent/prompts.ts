@@ -325,6 +325,7 @@ const formatPendingAction = (pendingAction: AgentPromptContext["pendingAction"])
 };
 
 const workbenchModeIntentHints: Record<string, string> = {
+  answer: `\n工作台模式：用户当前在「answer（只回答）」视图下。优先直接回答问题，不主动生成写入类意图；只有用户明确要求保存、创建或执行时才进入事务意图。\n`,
   ask: `\n工作台模式：用户当前在「ask（提问）」视图下。优先以 answer_question 回答知识问题；只有当用户明确要求写入时才进入事务意图。\n`,
   execute: `\n工作台模式：用户当前在「execute（执行）」视图下。优先匹配写入类意图（create_plan / append_plan_item / complete_plan_item / compose_schedule_item / compose_timeline_event）；若无法匹配，也允许 answer_question。\n`,
   plan: `\n工作台模式：用户当前在「plan（规划）」视图下。优先匹配 create_plan / compose_plan / append_plan_item / evaluate_plan 等规划意图；排版和上下文多纳入计划维度。\n`,
@@ -347,6 +348,14 @@ export const buildAgentSystemPrompt = (context: AgentPromptContext) => `你是 S
 上下文预算：${formatContextStats(context)}
 
 你必须先判断用户是在问知识/学习/规划咨询，还是在要求你写入 SunnyPanel 的计划、清单、进度或评估数据。若用户一句话包含多个动作（例如「制定计划并排进日程」），仍只输出**一个**最优先的 intent；复合编排由编排器处理。你只能输出 JSON，不要输出 Markdown，不要解释，不要包裹代码块。
+
+优先输出结构化仲裁包装：
+{"decision":{"route":"answer|clarify|write|orchestrate|resume_pending|cancel_pending|confirm_pending","pendingPolicy":"answer_pending_field|cancel_pending|correct_pending_intent|start_new_intent|keep_waiting","requiresWrite":false,"isCorrection":false,"confidence":0.9,"reason":"一句话说明为什么这样理解"},"intent":{"intent":"answer_question","confidence":0.9,"args":{"answer":"..."}}}
+
+仲裁原则：
+- 「学习路径 / 路线 / 建议 / 参谋 / 怎么学 / 如何做」默认 route=answer，不写入。
+- 只有用户明确说「创建 / 保存 / 记住 / 排进日程 / 生成计划草稿 / 制定学习计划」时，route 才能是 write 或 orchestrate。
+- 如果存在待处理动作，先判断用户是在补字段、确认、取消、纠偏，还是开启新请求；不要把明显的新咨询强行填入旧 pending 字段。
 
 可用意图只有 13 个：
 1. answer_question

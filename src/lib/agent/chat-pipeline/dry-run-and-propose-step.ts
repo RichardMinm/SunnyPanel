@@ -15,6 +15,7 @@ import { detectScheduleConflicts } from "@/lib/schedule/items";
 import { decomposePlanForCompose } from "@/lib/agent/workflows/plan-decomposer";
 import type { DecomposedPlan } from "@/lib/agent/workflows/plan-decomposer";
 import { inferTopicWithLLM, normalizeComposePlanArgs, parsePlanSeedFromText } from "@/lib/agent/workflows/plan-seed";
+import type { AgentStreamController } from "@/lib/agent/stream-events";
 
 import {
   findChecklistTimelineEvent,
@@ -38,6 +39,7 @@ export type DryRunAndProposeStepParams = {
   }) => Promise<AgentThread>;
   pushTrace: (step: AgentTraceStep) => void;
   resolution: IntentResolution;
+  stream?: AgentStreamController;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { id: number };
@@ -64,6 +66,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     persistAgentTurn,
     pushTrace,
     resolution,
+    stream,
     tokenUsage: tokenUsageIn,
     trace,
     user,
@@ -86,6 +89,11 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     }
 
     emitStatus("正在分析你的目标并拆解阶段计划...");
+    stream?.progress({
+      detail: "compose_plan 需要先拆解目标、周期和阶段，再生成可确认草稿。",
+      message: "拆解计划草稿",
+      stageId: "stage-dry-run",
+    });
     pushTrace({
       detail: "解析起止时间与学习节奏，并拆解为可执行阶段。",
       id: "plan-decompose-llm",
@@ -107,6 +115,11 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         title: `已拆解：${decomposed.phases.map((p) => p.title).join(" → ")}`,
       });
       emitToken(`• 已拆解为 ${decomposed.phases.length} 个阶段：${decomposed.phases.map((p) => p.title).join(" → ")}\n`, 'thinking');
+      stream?.progress({
+        detail: decomposed.phases.map((phase) => phase.title).join(" → "),
+        message: `已拆解为 ${decomposed.phases.length} 个阶段`,
+        stageId: "stage-dry-run",
+      });
     } else {
       pushTrace({
         detail: "未能从描述中拆出具体阶段，将在确认前请你补充主题、周期或章节范围。",
@@ -116,6 +129,11 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         title: "拆解信息不足，需补充后再生成计划",
       });
       emitToken("• 拆解信息不足，将在确认前请你补充细节\n", 'thinking');
+      stream?.progress({
+        detail: "缺少主题、周期或章节范围。",
+        message: "拆解信息不足",
+        stageId: "stage-dry-run",
+      });
     }
 
     resolution.intent.args = llmDecomposed
@@ -140,11 +158,22 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
 
   if (dryRunResult.type === "clarify") {
     emitStatus("Dry-run 发现信息不完整，需要补充...");
+    stream?.progress({
+      detail: "安全门没有得到足够字段，转为澄清回复。",
+      message: "预检需要补充信息",
+      stageId: "stage-dry-run",
+    });
     const assistantMessage = dryRunResult.assistantMessage;
+    stream?.start({
+      id: "stage-response",
+      phase: "response",
+      title: "组织澄清回复",
+    });
     for (const token of splitIntoWordTokens(assistantMessage)) {
       emitToken(token, 'response');
       await new Promise((r) => setTimeout(r, 6));
     }
+    stream?.complete("stage-response", "澄清回复已生成");
     const outputTokens = estimateTokenCount(assistantMessage);
     tokenUsage = {
       ...tokenUsage,
@@ -191,6 +220,12 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   const proposedAction = dryRunResult.type === "proposed_action" ? dryRunResult.action : null;
 
   if (proposedAction && autoApproval) {
+    stream?.change({
+      collections: Array.from(new Set(proposedAction.changes.map((change) => change.collection))),
+      riskLevel: proposedAction.riskLevel,
+      stageId: "stage-dry-run",
+      summary: proposedAction.summary,
+    });
     const prefs = autoApproval.userPreferences ?? null;
     const previouslyConfirmed = buildConfirmedIntentSet(autoApproval.pendingActionHistory, autoApproval.lastIntent);
     const decision = shouldAutoApprove(proposedAction, {
@@ -221,6 +256,11 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         status: "done",
         title: `自动批准：${proposedAction.summary}`,
       });
+      stream?.progress({
+        detail: decision.reason,
+        message: "低风险动作已自动批准",
+        stageId: "stage-dry-run",
+      });
 
       return {
         outcome: "execute",
@@ -235,11 +275,28 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
 
   if (proposedAction) {
     emitStatus("正在执行 dry-run 预检，等待用户确认...");
+    stream?.change({
+      collections: Array.from(new Set(proposedAction.changes.map((change) => change.collection))),
+      riskLevel: proposedAction.riskLevel,
+      stageId: "stage-dry-run",
+      summary: proposedAction.summary,
+    });
+    stream?.progress({
+      detail: `risk=${proposedAction.riskLevel}`,
+      message: "已生成待确认变更",
+      stageId: "stage-dry-run",
+    });
     const assistantMessage = buildProposedActionMessage(proposedAction);
+    stream?.start({
+      id: "stage-response",
+      phase: "response",
+      title: "生成确认说明",
+    });
     for (const token of splitIntoWordTokens(assistantMessage)) {
       emitToken(token, 'response');
       await new Promise((r) => setTimeout(r, 6));
     }
+    stream?.complete("stage-response", "确认说明已生成");
     const nextPendingAction: PendingAction = {
       action: proposedAction,
       type: "await_confirmation",
@@ -286,6 +343,14 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         tokenUsage,
       },
     };
+  }
+
+  if (!isDirectAnswer || confirmedActionId) {
+    stream?.progress({
+      detail: resolution.intent.intent,
+      message: "预检通过，可进入执行",
+      stageId: "stage-dry-run",
+    });
   }
 
   return {

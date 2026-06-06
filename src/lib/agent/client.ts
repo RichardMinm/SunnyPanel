@@ -1,4 +1,5 @@
 import { buildAgentSystemPrompt, type AgentPromptContext } from "./prompts";
+import { parseAgentArbitrationResult, type AgentArbitrationDecision } from "./intent/arbitration";
 import {
   extractJSONObject,
   parseAgentIntentResult,
@@ -154,6 +155,7 @@ export const generateIntentWithAgentModel = async ({
   history: AgentChatMessage[];
   message: string;
 }): Promise<null | {
+  arbitration?: AgentArbitrationDecision;
   intent: AgentIntent;
   tokenUsage: ReturnType<typeof createTokenUsageSnapshot>;
 }> => {
@@ -246,7 +248,9 @@ export const generateIntentWithAgentModel = async ({
   }
 
   try {
-    const intent = parseAgentIntentResult(JSON.parse(jsonString));
+    const parsed = JSON.parse(jsonString) as unknown;
+    const arbitration = parseAgentArbitrationResult(parsed);
+    const intent = arbitration?.intent ?? parseAgentIntentResult(parsed);
 
     if (!intent) {
       return null;
@@ -254,6 +258,7 @@ export const generateIntentWithAgentModel = async ({
 
     return {
       intent,
+      ...(arbitration ? { arbitration } : {}),
       tokenUsage: mergeProviderTokenUsage(
         {
           ...estimatedUsage,

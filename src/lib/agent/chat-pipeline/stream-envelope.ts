@@ -4,6 +4,11 @@ import { type AgentChatResponse, type AgentTraceStep } from "@/lib/agent/schemas
 import { createTokenUsageSnapshot, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
+import type {
+  AgentStreamChangeEvent,
+  AgentStreamProgressEvent,
+  AgentStreamStageEvent,
+} from "@/lib/agent/stream-events";
 
 const intentToSuggestedMode: Partial<Record<AgentChatResponse["intent"], AgentWorkbenchMode>> = {
   answer_question: "ask",
@@ -33,6 +38,9 @@ const intentToSuggestedMode: Partial<Record<AgentChatResponse["intent"], AgentWo
  * | event    | data 形状（摘要） |
  * |----------|---------------------|
  * | status   | `{ status: string }` 流水线状态文案 |
+ * | stage    | `AgentStreamStageEvent` 当前阶段状态 |
+ * | progress | `AgentStreamProgressEvent` 阶段内紧凑进度 |
+ * | change   | `AgentStreamChangeEvent` DryRun/执行预览摘要 |
  * | usage    | `AgentTokenUsage` 用量快照 |
  * | trace    | `AgentTraceStep` 单步追踪 |
  * | meta     | `{ confidence?, engine, intent, pendingAction?, threadId?, tokenUsage }` 终态元数据 |
@@ -126,6 +134,9 @@ export const createAgentChatStream = (
     emitTrace: (step: AgentTraceStep) => void,
     emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void,
     emitToken: StreamTokenCallback,
+    emitStage: (event: AgentStreamStageEvent) => void,
+    emitProgress: (event: AgentStreamProgressEvent) => void,
+    emitChange: (event: AgentStreamChangeEvent) => void,
   ) => Promise<AgentChatResponse>,
 ) => {
   const encoder = new TextEncoder();
@@ -164,6 +175,9 @@ export const createAgentChatStream = (
               ...(block ? { block } : {}),
             });
           },
+          (event) => enqueue("stage", event),
+          (event) => enqueue("progress", event),
+          (event) => enqueue("change", event),
         );
 
         // If the pipeline didn't stream any tokens (e.g. write intents with deterministic text),
