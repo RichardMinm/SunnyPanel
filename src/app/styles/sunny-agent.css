@@ -3741,6 +3741,14 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   color: var(--sunny-fg);
 }
 
+.sunny-thinking-icon {
+  width: 1rem;
+  height: 1rem;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .sunny-thinking-fold-arrow {
   font-size: 0.625rem;
   transition: transform 0.15s;

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AgentMarkdownBubble } from "./AgentMarkdownBubble";
 import { ScheduleResultCard } from "./ScheduleResultCard";
 import { parseScheduleResultMessage } from "./utils";
+import { DashboardIcon } from "../icons";
 
 type MessageCardProps = {
   content: string;
@@ -42,7 +43,7 @@ export function MessageCard({
             onClick={() => setThinkingOpen((v) => !v)}
           >
             <span className={`sunny-thinking-fold-arrow${thinkingOpen ? " is-open" : ""}`}>▸</span>
-            🧠 思考过程
+            <span className="sunny-thinking-icon"><DashboardIcon name="thinking" /></span> 思考过程
             {thinkingSteps.length > 1 ? ` (${thinkingSteps.length} 步)` : ""}
           </button>
           {thinkingOpen ? (

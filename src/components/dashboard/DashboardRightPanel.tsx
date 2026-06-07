@@ -6,6 +6,7 @@ import { AgentApprovalPanel } from "@/components/dashboard/agent/AgentApprovalPa
 import { AgentContextPanel } from "@/components/dashboard/agent/AgentContextPanel";
 import { AgentTracePanel } from "@/components/dashboard/agent/AgentTracePanel";
 import { inspectorTabs } from "@/components/dashboard/agent/constants";
+import { COLLECTION_ICON_MAP, DashboardIcon, DEFAULT_COLLECTION_ICON } from "./icons";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
 import type { AgentInspectorTab, AgentRunDetail, ContextPreferences } from "@/components/dashboard/agent/types";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
@@ -65,16 +66,6 @@ function DashboardInspectorToggleIcon({ open }: { open: boolean }) {
   );
 }
 
-const COLLECTION_ICON: Record<string, string> = {
-  "agent-memories": "🧠",
-  checklists: "✅",
-  notes: "📝",
-  plans: "📋",
-  posts: "📄",
-  "schedule-items": "📅",
-  "timeline-events": "⏱",
-};
-
 const COLLECTION_LABEL: Record<string, string> = {
   "agent-memories": "记忆",
   checklists: "清单",
@@ -124,7 +115,7 @@ function LinkedObjectsPanel({
     <div className="sunny-agent-inspector-panel sunny-agent-linked-panel">
       <ul className="sunny-linked-objects-list">
         {affected.map((doc, index) => {
-          const icon = COLLECTION_ICON[doc.collection] ?? "📌";
+          const iconName = COLLECTION_ICON_MAP[doc.collection] ?? DEFAULT_COLLECTION_ICON;
           const label = COLLECTION_LABEL[doc.collection] ?? doc.collection;
           const opLabel = OPERATION_LABEL[doc.operation] ?? doc.operation;
           const title = doc.title ?? `${label} #${doc.documentId ?? "?"}`;
@@ -140,7 +131,7 @@ function LinkedObjectsPanel({
                 }}
                 title={href ? `打开 ${title}` : undefined}
               >
-                <span className="sunny-linked-object-icon">{icon}</span>
+                <span className="sunny-linked-object-icon"><DashboardIcon name={iconName} /></span>
                 <span className="sunny-linked-object-body">
                   <span className="sunny-linked-object-title">{title}</span>
                   <span className="sunny-linked-object-meta">
