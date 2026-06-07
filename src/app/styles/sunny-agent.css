@@ -48,8 +48,8 @@ html[data-theme="dark"] .sunny-agent-conversation-surface {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-control);
-  font-size: var(--text-sm);
+  border-radius: var(--btn-radius);
+  font-size: var(--btn-md-font);
   font-weight: var(--font-weight-ui);
   line-height: 1.15;
   transition:
@@ -62,7 +62,8 @@ html[data-theme="dark"] .sunny-agent-conversation-surface {
 .sunny-agent-new-task-button,
 .sunny-agent-run-button,
 .sunny-agent-confirm-button {
-  min-height: 2.25rem;
+  min-height: var(--btn-md-height);
+  padding: var(--btn-md-padding);
   border: 1px solid color-mix(in srgb, var(--accent-strong) 18%, transparent);
   background: var(--accent);
   color: var(--agent-text-on-accent);
@@ -73,7 +74,10 @@ html[data-theme="dark"] .sunny-agent-conversation-surface {
 }
 
 .sunny-agent-run-button {
-  width: 4.4rem;
+  width: var(--btn-send-size);
+  height: var(--btn-send-size);
+  border-radius: 50%;
+  padding: 0;
   align-self: stretch;
 }
 
@@ -84,11 +88,12 @@ html[data-theme="dark"] .sunny-agent-conversation-surface {
 }
 
 .sunny-agent-cancel-button-v2 {
-  min-height: 2.1rem;
+  min-height: var(--btn-sm-height);
   border: 1px solid var(--border);
   background: var(--agent-control-bg);
   color: var(--foreground);
-  padding: 0.45rem 0.68rem;
+  padding: var(--btn-sm-padding);
+  font-size: var(--btn-sm-font);
 }
 
 html[data-theme="dark"] .sunny-agent-cancel-button-v2 {
@@ -220,7 +225,6 @@ html[data-theme="dark"] .sunny-agent-inspector-tabs .active {
 }
 
 .sunny-agent-composer-row,
-.sunny-agent-approval-banner-actions,
 .sunny-agent-approval-banner-meta,
 .sunny-agent-run-surface-head,
 .sunny-agent-inspector-head,
@@ -229,6 +233,13 @@ html[data-theme="dark"] .sunny-agent-inspector-tabs .active {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.sunny-agent-approval-banner-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .sunny-agent-composer-input,
@@ -241,8 +252,9 @@ html[data-theme="dark"] .sunny-agent-inspector-tabs .active {
   background: var(--agent-input-bg);
   padding: 0.65rem 0.72rem;
   color: var(--foreground);
-  font-size: var(--text-base);
-  line-height: 1.55;
+  font-size: var(--msg-body-size);
+  line-height: 1.65;
+  min-height: var(--composer-input-min-height);
   outline: none;
 }
 
@@ -281,14 +293,14 @@ html[data-theme="dark"] .sunny-agent-dock-v2-form textarea {
 
 .sunny-agent-approval-banner-main p {
   color: var(--muted);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: var(--font-weight-kicker);
   text-transform: uppercase;
 }
 
 .sunny-agent-approval-banner-main h3 {
   margin-top: 0.18rem;
-  font-size: var(--text-md);
+  font-size: 1.125rem;
   font-weight: var(--font-weight-kicker);
   line-height: 1.35;
 }
@@ -404,12 +416,19 @@ html[data-theme="dark"] .sunny-agent-proposal-card {
 
 .sunny-agent-edit-button {
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.42);
-  padding: 0.42rem 0.72rem;
+  border-radius: var(--btn-radius);
+  background: transparent;
+  padding: var(--btn-sm-padding);
+  min-height: var(--btn-sm-height);
   color: var(--accent-strong);
-  font-size: var(--text-sm-compact);
+  font-size: var(--btn-sm-font);
   font-weight: var(--font-weight-kicker);
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+.sunny-agent-edit-button:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent-strong);
 }
 
 .sunny-agent-run-tabs {
@@ -433,7 +452,7 @@ html[data-theme="dark"] .sunny-agent-proposal-card {
 .sunny-agent-inspector-head h2,
 .sunny-agent-dock-v2-head h2 {
   margin-top: 0.12rem;
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
   font-weight: var(--font-weight-kicker);
   color: var(--foreground);
 }
@@ -703,14 +722,15 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div {
   color: var(--foreground);
   padding: 0.62rem 0.68rem;
   white-space: pre-wrap;
-  font-size: var(--text-sm);
-  line-height: 1.62;
+  font-size: var(--msg-body-size);
+  line-height: var(--msg-body-leading);
 }
 
 .sunny-agent-message-row-user .sunny-agent-bubble-plain {
   border-color: var(--agent-bubble-user-border);
   background: var(--agent-bubble-user-bg);
   color: var(--foreground);
+  font-size: 0.9375rem;
 }
 
 .sunny-agent-bubble-markdown {
@@ -719,8 +739,8 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div {
   background: var(--agent-bubble-assistant-bg);
   color: var(--foreground);
   padding: 0.62rem 0.68rem;
-  font-size: var(--text-sm);
-  line-height: 1.62;
+  font-size: var(--msg-body-size);
+  line-height: var(--msg-body-leading);
   overflow-x: auto;
 }
 
@@ -3382,7 +3402,7 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   margin-top: 0.28rem;
   overflow: hidden;
   color: var(--foreground);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 750;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3478,12 +3498,12 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.65rem;
+  min-height: var(--btn-sm-height);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 0.9rem;
+  border-radius: var(--btn-radius);
   background: var(--surface);
   color: var(--foreground);
-  font-size: var(--text-xs);
+  font-size: var(--btn-sm-font);
   font-weight: 780;
   cursor: pointer;
 }
@@ -3491,13 +3511,15 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 .sunny-agent-composer-mode-trigger {
   gap: 0.35rem;
   min-width: 5.25rem;
-  padding: 0 0.75rem;
+  padding: var(--btn-sm-padding);
 }
 
 .sunny-agent-composer-plus-button {
-  width: 2.65rem;
+  width: var(--btn-icon-size);
+  height: var(--btn-icon-size);
+  min-height: var(--btn-icon-size);
   padding: 0;
-  font-size: var(--text-lg);
+  font-size: var(--btn-icon-font);
   line-height: 1;
 }
 
@@ -3587,15 +3609,17 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 
   .sunny-agent-composer-mode-trigger {
     min-width: 4.4rem;
-    padding: 0 0.5rem;
+    padding: var(--btn-sm-padding);
+    min-height: var(--btn-sm-height);
   }
 
   .sunny-agent-composer-plus-button,
   .sunny-agent-run-button {
-    width: 2.45rem;
-    min-width: 2.45rem;
-    min-height: 2.45rem;
-    border-radius: 0.82rem;
+    width: var(--btn-send-size);
+    min-width: var(--btn-send-size);
+    height: var(--btn-send-size);
+    min-height: var(--btn-send-size);
+    border-radius: 50%;
     padding: 0;
   }
 

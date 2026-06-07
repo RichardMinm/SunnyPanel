@@ -159,6 +159,22 @@ html[data-theme="dark"] {
   --text-xl: 1.375rem;
   --text-2xl: 1.5rem;
   --text-3xl: 2.375rem;
+  /* Button size tokens */
+  --btn-sm-height: 2rem;
+  --btn-sm-padding: 0 0.75rem;
+  --btn-sm-font: 0.8125rem;
+  --btn-md-height: 2.5rem;
+  --btn-md-padding: 0 1rem;
+  --btn-md-font: 0.875rem;
+  --btn-radius: 0.625rem;
+  --btn-icon-size: 2.5rem;
+  --btn-send-size: 2.625rem;
+  --btn-icon-font: 1.125rem;
+  /* Message */
+  --msg-body-size: 0.9375rem;
+  --msg-body-leading: 1.75;
+  /* Layout */
+  --composer-input-min-height: 3rem;
   --leading-normal: 1.6;
   --leading-relaxed: 1.8;
   --chrome-padding-y: 0.8rem;

@@ -37,7 +37,7 @@
 .sunny-dashboard-right-panel-head h2 {
   margin: 0;
   color: var(--foreground);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: 750;
   line-height: 1.2;
 }
