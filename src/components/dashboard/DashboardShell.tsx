@@ -13,6 +13,9 @@ import { DashboardRightPanel } from "./DashboardRightPanel";
 import { DashboardStatusBar } from "./DashboardStatusBar";
 import { MainWorkspace } from "./MainWorkspace";
 import { SidebarNav } from "./SidebarNav";
+import { ScheduleMonthView } from "./schedule/ScheduleMonthView";
+import { MemoryCardGrid } from "./memory/MemoryCardGrid";
+
 
 type DashboardShellProps = {
   children: ReactNode;
@@ -43,6 +46,7 @@ type DashboardShellProps = {
   statusLabel: string;
   threadId: null | number;
   threads: AgentThreadSummary[];
+  onWorkbenchModeChange?: (mode: AgentWorkbenchMode) => void;
   workbenchMode: AgentWorkbenchMode;
 };
 
@@ -74,8 +78,17 @@ export function DashboardShell({
   threads,
   tokenUsage,
   traceSteps,
+  onWorkbenchModeChange,
   workbenchMode,
 }: DashboardShellProps) {
+  const iconModeToWorkbenchMode: Partial<Record<DashboardIconMode, AgentWorkbenchMode>> = {
+    agent: "ask",
+    today: "today",
+    plans: "plan",
+    writing: "writing",
+    // schedule 和 memory 不走对话 pipeline，无需映射
+  };
+
   const [activeMode, setActiveMode] = useState<DashboardIconMode>("agent");
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelWidth, setPanelWidth] = useState(340);
@@ -129,11 +142,15 @@ export function DashboardShell({
   const handleModeChange = useCallback(
     (_mode: DashboardIconMode, prompt: string) => {
       setActiveMode(_mode);
+      const wm = iconModeToWorkbenchMode[_mode];
+      if (wm) {
+        onWorkbenchModeChange?.(wm);
+      }
       if (prompt) {
         onRunPrompt(prompt);
       }
     },
-    [onRunPrompt],
+    [onRunPrompt, onWorkbenchModeChange],
   );
 
   const handleNewThread = useCallback(() => {
@@ -220,11 +237,23 @@ export function DashboardShell({
       />
 
       <MainWorkspace>
-        <DashboardInspectorControlProvider value={inspectorControl}>
-          <DashboardModeProvider value={activeMode}>
-            {children}
-          </DashboardModeProvider>
-        </DashboardInspectorControlProvider>
+        {activeMode === "schedule" ? (
+          <ScheduleMonthView
+            onBackToWorkbench={() => setActiveMode("agent")}
+            threadId={threadId}
+          />
+        ) : activeMode === "memory" ? (
+          <MemoryCardGrid
+            onBackToWorkbench={() => setActiveMode("agent")}
+            threadId={threadId}
+          />
+        ) : (
+          <DashboardInspectorControlProvider value={inspectorControl}>
+            <DashboardModeProvider value={activeMode}>
+              {children}
+            </DashboardModeProvider>
+          </DashboardInspectorControlProvider>
+        )}
       </MainWorkspace>
 
       <DashboardRightPanel

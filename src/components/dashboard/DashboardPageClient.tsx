@@ -34,6 +34,7 @@ export function DashboardPageClient({
       onRunPrompt={(prompt) => { chat.clearRunDetail(); void chat.sendMessage(prompt); }}
       onToggleContextExclude={chat.toggleContextExclude}
       onToggleContextPin={chat.toggleContextPin}
+      onWorkbenchModeChange={chat.setWorkbenchMode}
       pendingAction={chat.pendingAction}
       selectedRunDetail={chat.selectedRunDetail}
       selectedRunRollbackBusy={chat.selectedRunRollbackBusy}
