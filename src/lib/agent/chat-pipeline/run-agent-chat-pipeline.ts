@@ -216,10 +216,12 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       stageId: "stage-context",
     });
     stream.complete("stage-context", "上下文已就绪");
-    const { context: initialContext } = contextStep;
+    const { context: initialContext, contextSummary } = contextStep;
     currentContextMemories = initialContext.memories ?? [];
     tokenUsage = contextStep.tokenUsage;
     controller.budget.consumeContext(contextStep.tokenUsage.contextTokens);
+
+    let lastContextSummary = contextSummary;
 
     const confirmationSignals = resolveConfirmationSignals({
       confirmation: structuredConfirmation,
@@ -475,6 +477,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           currentContextMemories = currentContext.memories ?? [];
           tokenUsage = { ...tokenUsage, contextTokens: contextStep.tokenUsage.contextTokens };
           controller.budget.consumeContext(contextStep.tokenUsage.contextTokens);
+          lastContextSummary = contextStep.contextSummary;
           stream.complete("stage-context-refresh", "上下文已刷新");
         }
 
@@ -516,6 +519,10 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         threadId: thread.id,
         tokenUsage,
       };
+    }
+
+    if (lastContextSummary && !lastResponse.contextSummary) {
+      lastResponse = { ...lastResponse, contextSummary: lastContextSummary };
     }
 
     return lastResponse;

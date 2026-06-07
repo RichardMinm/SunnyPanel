@@ -101,6 +101,7 @@ export const createAgentChatResponse = (payload: AgentChatResponse, stream: bool
 
       enqueue("meta", {
         confidence: payload.confidence,
+        contextSummary: payload.contextSummary,
         engine: payload.engine,
         intent: payload.intent,
         pendingAction: payload.pendingAction,
@@ -200,6 +201,7 @@ export const createAgentChatStream = (
 
         enqueue("meta", {
           confidence: payload.confidence,
+          contextSummary: payload.contextSummary,
           engine: payload.engine,
           intent: payload.intent,
           pendingAction: payload.pendingAction,

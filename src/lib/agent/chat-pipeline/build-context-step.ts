@@ -29,6 +29,7 @@ export type BuildContextStepParams = {
 
 export type BuildContextStepResult = {
   context: ReturnType<typeof buildAgentContext>;
+  contextSummary: string;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   workingMemory: import("@/lib/agent/shared-context").WorkingMemory;
 };
@@ -122,5 +123,26 @@ export const runBuildContextStep = async ({
     }
   }
 
-  return { context, tokenUsage, workingMemory };
+  const contextSummary = (() => {
+    const labels: string[] = [];
+    if (workbenchMode === "today") {
+      if (context.plans.length > 0) labels.push(`${context.plans.length} 项今日计划`);
+      if (context.checklists.length > 0) labels.push(`${context.checklists.length} 份清单`);
+      return `今日模式 · ${labels.length > 0 ? `已加载 ${labels.join("、")}` : "已就绪"}`;
+    }
+    if (workbenchMode === "writing") {
+      if ((context.contentItems?.length ?? 0) > 0) labels.push(`${context.contentItems!.length} 条内容`);
+      if ((context.memories?.length ?? 0) > 0) labels.push(`${context.memories!.length} 条写作记忆`);
+      return `写作模式 · ${labels.length > 0 ? `已加载 ${labels.join("、")}` : "已就绪"}`;
+    }
+    if (workbenchMode === "plan" || workbenchMode === "execute") {
+      if (context.plans.length > 0) labels.push(`${context.plans.length} 项计划`);
+      if ((context.planReviews?.length ?? 0) > 0) labels.push(`${context.planReviews!.length} 条复盘`);
+      return `计划模式 · ${labels.length > 0 ? `已加载 ${labels.join("、")}` : "已就绪"}`;
+    }
+    if (parts.length > 0) return `已加载：${parts.join("、")}`;
+    return "上下文已就绪";
+  })();
+
+  return { context, contextSummary, tokenUsage, workingMemory };
 };

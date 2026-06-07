@@ -246,7 +246,12 @@ export function useAgentChatMessaging({
               onChange: (event) => setStreamChanges((current) => [...current.slice(-11), event]),
               onDone: () => {},
               onErrorMessage: replaceStreamingAssistantContent,
-              onMeta: () => undefined,
+              onMeta: (data) => {
+                const meta = data as Record<string, unknown> | null | undefined;
+                if (meta && typeof meta.contextSummary === "string") {
+                  setStatusText(meta.contextSummary);
+                }
+              },
               onProgress: (event) => setStreamProgress((current) => [...current.slice(-15), event]),
               onStage: (event) => {
                 upsertStreamStage(event);

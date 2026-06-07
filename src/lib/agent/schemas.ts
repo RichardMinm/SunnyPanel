@@ -495,6 +495,8 @@ export type AgentChatResponse = {
   tokenUsage?: AgentTokenUsage;
   /** 服务端回传的工作台模式，供日志和 UI 可观测。 */
   workbenchMode?: string;
+  /** 本轮上下文摘要，供 StatusBar 展示。 */
+  contextSummary?: string;
 };
 
 export type AgentTraceStep = {
