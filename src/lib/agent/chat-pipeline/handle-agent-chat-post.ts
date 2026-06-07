@@ -43,7 +43,7 @@ const parseThreadId = (value: unknown) => {
   return null;
 };
 
-const WORKBENCH_MODES = ["answer", "ask", "execute", "plan", "review", "timeline"] as const satisfies readonly AgentWorkbenchMode[];
+const WORKBENCH_MODES = ["answer", "ask", "execute", "plan", "review", "timeline", "today", "writing"] as const satisfies readonly AgentWorkbenchMode[];
 
 const parseWorkbenchMode = (value: unknown): AgentWorkbenchMode | null => {
   if (typeof value !== "string") {

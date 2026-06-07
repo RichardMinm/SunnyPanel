@@ -27,6 +27,8 @@ const MODE_LABEL: Record<AgentWorkbenchMode, string> = {
   plan: "规划模式",
   review: "回顾模式",
   timeline: "时间线模式",
+  today: "今日模式",
+  writing: "写作模式",
 };
 
 function getSummaryStatus(isSubmitting: boolean, statusLabel: string, pendingAction: null | PendingAction): string {

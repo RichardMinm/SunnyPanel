@@ -49,6 +49,8 @@ const modeLabelMap: Record<AgentWorkbenchMode, string> = {
   plan: "规划模式",
   review: "回顾模式",
   timeline: "时间线模式",
+  today: "今日模式",
+  writing: "写作模式",
 };
 
 function DashboardInspectorToggleIcon({ open }: { open: boolean }) {

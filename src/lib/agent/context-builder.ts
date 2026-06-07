@@ -672,6 +672,17 @@ const applyWorkbenchModeBudget = (
         maxAgentRuns: Math.min(12, budget.maxAgentRuns + 4),
         maxPlanReviews: Math.min(12, budget.maxPlanReviews + 4),
       };
+    case "today":
+      return {
+        ...budget,
+        maxPlans: Math.min(24, budget.maxPlans + 4),
+        maxTimelineEvents: Math.min(16, budget.maxTimelineEvents + 4),
+      };
+    case "writing":
+      return {
+        ...budget,
+        maxContentItems: Math.min(24, budget.maxContentItems + 8),
+      };
     default:
       return budget;
   }
@@ -737,9 +748,13 @@ export const buildAgentContext = ({
         ? "review"
         : workbenchMode === "timeline"
           ? "timeline"
-          : workbenchMode === "ask" || workbenchMode === "answer"
-            ? "general"
-            : inferredMode;
+          : workbenchMode === "today"
+            ? "progress"
+            : workbenchMode === "writing"
+              ? "content"
+              : workbenchMode === "ask" || workbenchMode === "answer"
+                ? "general"
+                : inferredMode;
 
   const modeBudget = applyWorkbenchModeBudget(budget, workbenchMode ?? null);
   const effectiveBudget = applyIntentBudgetBoost(modeBudget, resolvedIntent?.intent);
