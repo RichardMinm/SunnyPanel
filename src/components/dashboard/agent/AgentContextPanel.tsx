@@ -1,3 +1,4 @@
+import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { AgentChatMessage, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
 
 import type { ContextPreferences } from "./types";
@@ -52,6 +53,7 @@ type AgentContextPanelProps = {
   statusLabel: string;
   threadId: null | number;
   traceSteps: AgentTraceStep[];
+  workbenchMode?: AgentWorkbenchMode | null;
 };
 
 export function AgentContextPanel({
@@ -64,6 +66,7 @@ export function AgentContextPanel({
   statusLabel,
   threadId,
   traceSteps,
+  workbenchMode,
 }: AgentContextPanelProps) {
   const contextSteps = traceSteps.filter((step) => step.kind === "context");
   const contextDetail = contextSteps.find((step) => step.id === "context-bootstrap" && step.status === "done")?.detail ?? "";
@@ -102,8 +105,20 @@ export function AgentContextPanel({
     contextItems.push({ key: `memory:${title}`, label: `记忆：${title}` });
   }
 
+  const modeLabel = workbenchMode === "today" ? "今日"
+    : workbenchMode === "writing" ? "写作"
+    : workbenchMode === "plan" || workbenchMode === "execute" ? "计划"
+    : workbenchMode === "review" ? "回顾"
+    : workbenchMode === "timeline" ? "时间线"
+    : null;
+
   return (
     <div className="sunny-agent-inspector-panel">
+      {modeLabel ? (
+        <span className="sunny-mode-badge" data-mode={workbenchMode ?? "agent"}>
+          {modeLabel}模式
+        </span>
+      ) : null}
       {debugMode ? (
         <div className="sunny-agent-context-metric-strip sunny-agent-debug-only">
           {metricItems.map((item) => (

@@ -688,39 +688,6 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div {
   padding-top: 0.75rem;
 }
 
-.sunny-agent-message-row {
-  display: grid;
-  gap: 0.2rem;
-  max-width: 88%;
-}
-
-.sunny-agent-message-row-user {
-  justify-self: end;
-}
-
-.sunny-agent-message-row span {
-  color: var(--agent-label-text);
-  font-size: var(--text-xs);
-  font-weight: var(--font-weight-title);
-}
-
-.sunny-agent-message-row p {
-  border: 1px solid var(--agent-bubble-assistant-border);
-  border-radius: 0.65rem;
-  background: var(--agent-bubble-assistant-bg);
-  color: var(--foreground);
-  padding: 0.62rem 0.68rem;
-  white-space: pre-wrap;
-  font-size: var(--text-sm);
-  line-height: 1.62;
-}
-
-.sunny-agent-message-row-user p {
-  border-color: var(--agent-bubble-user-border);
-  background: var(--agent-bubble-user-bg);
-  color: var(--foreground);
-}
-
 .sunny-agent-message-row .sunny-agent-bubble-plain,
 .sunny-agent-message-row .sunny-agent-bubble-markdown {
   min-width: 0;
@@ -2299,36 +2266,6 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   overflow: hidden;
 }
 
-/* ── Message width, alignment & reduced borders ── */
-.sunny-agent-conversation-surface {
-  border: none;
-  box-shadow: none;
-}
-
-.sunny-agent-conversation-scroll {
-  padding: 0.5rem 0;
-}
-
-.sunny-agent-message-row {
-  max-width: 860px;
-  margin-left: auto;
-  margin-right: auto;
-  width: 100%;
-  border: none;
-  padding: 0.5rem 1rem;
-  margin-bottom: 0.25rem;
-}
-
-.sunny-agent-message-row-user {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.sunny-agent-message-row-user p {
-  max-width: 80%;
-  text-align: right;
-}
-
 /* ── Slash command chips ── */
 .sunny-agent-slash-hints {
   display: flex;
@@ -2436,15 +2373,6 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   padding: 1rem 0.35rem 0.4rem;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--muted) 34%, transparent) transparent;
-}
-
-.sunny-agent-message-row {
-  max-width: 900px;
-  padding: 0.35rem 0;
-}
-
-.sunny-agent-message-row-user {
-  justify-content: flex-end;
 }
 
 .sunny-agent-empty-state {
@@ -2705,26 +2633,57 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 }
 
 .sunny-agent-message-row {
+  display: flex;
+  flex-direction: column;
   max-width: 860px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
   padding: 0.5rem 0;
 }
 
+.sunny-agent-message-row-user {
+  align-items: flex-end;
+}
+
 .sunny-message-card {
+  display: grid;
+  width: 100%;
   grid-template-columns: 1.75rem minmax(0, 1fr);
   gap: 0.75rem;
+  align-items: start;
 }
 
 .sunny-message-card-user {
+  width: fit-content;
+  max-width: min(38rem, 72%);
   grid-template-columns: minmax(0, 1fr) 1.75rem;
 }
 
 .sunny-message-card-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 1.75rem;
   height: 1.75rem;
+  border-radius: 0.45rem;
   background: #f6f7f9;
+  color: color-mix(in srgb, var(--foreground) 72%, var(--muted));
+  font-size: var(--text-2xs);
+  font-weight: 750;
+  line-height: 1;
+}
+
+.sunny-message-card-label {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-title);
 }
 
 .sunny-message-card-body {
+  min-width: 0;
   border: none;
   border-radius: 0.85rem;
   background: transparent;
@@ -2732,11 +2691,106 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   line-height: 1.72;
 }
 
+.sunny-message-card-assistant .sunny-message-card-body .sunny-agent-bubble-plain,
+.sunny-message-card-assistant .sunny-message-card-body .sunny-agent-bubble-markdown {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
 .sunny-message-card-user .sunny-message-card-body {
-  max-width: min(38rem, 86%);
   border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   background: #f4f5f7;
   padding: 0.65rem 0.8rem;
+}
+
+.sunny-message-card-user-text {
+  margin: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  line-height: 1.62;
+  white-space: pre-wrap;
+}
+
+.sunny-agent-result-card {
+  display: grid;
+  gap: 0.55rem;
+  border: 1px solid color-mix(in srgb, #22c55e 24%, var(--border));
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, #f0fdf4 72%, #fff);
+  padding: 0.8rem 0.9rem;
+}
+
+.sunny-agent-result-card-kicker {
+  margin: 0;
+  color: #15803d;
+  font-size: var(--text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.sunny-agent-result-card h3 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.sunny-agent-result-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.sunny-agent-result-card-grid > div {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: 0.7rem;
+  background: #fff;
+  padding: 0.5rem 0.6rem;
+}
+
+.sunny-agent-result-card-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 750;
+}
+
+.sunny-agent-result-card-grid strong {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.sunny-agent-result-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.sunny-agent-result-card-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  border: 1px solid color-mix(in srgb, #22c55e 30%, var(--border));
+  border-radius: 0.65rem;
+  background: #fff;
+  color: #15803d;
+  padding: 0 0.65rem;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sunny-agent-result-card-link:hover {
+  background: #f0fdf4;
 }
 
 .sunny-agent-empty-state {
@@ -2801,11 +2855,12 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   }
 
   .sunny-message-card-user {
+    max-width: min(100%, 18rem);
     grid-template-columns: minmax(0, 1fr) 1.65rem;
   }
 
-  .sunny-message-card-user .sunny-message-card-body {
-    max-width: min(100%, 16rem);
+  .sunny-agent-result-card-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sunny-agent-composer {
@@ -3122,13 +3177,12 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   position: sticky;
   top: 0;
   z-index: 10;
-  padding: 0.15rem 0 0.5rem;
-  margin: -0.15rem -0.85rem 0;
-  padding-left: 0.85rem;
-  padding-right: 0.85rem;
-  background: var(--agent-panel-bg);
+  width: min(100%, 860px);
+  margin: 0 auto;
+  padding: 1rem 1rem 0.65rem;
+  background: color-mix(in srgb, var(--agent-panel-bg, #fff) 92%, transparent);
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 54%, transparent);
 }
 
 .sunny-agent-thread-header-top {
@@ -3267,8 +3321,35 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 
 .sunny-agent-thread-action-area {
   width: min(100%, 860px);
-  margin: 0.9rem auto 0;
-  padding: 0 1rem;
+  margin: 0.35rem auto 0.15rem;
+  padding: 0;
+}
+
+.sunny-agent-conversation-scroll .sunny-agent-thread-action-area {
+  margin-top: 0.15rem;
+  margin-bottom: 0.35rem;
+}
+
+.sunny-agent-conversation-scroll .sunny-agent-approval-banner {
+  border: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+  padding: 0.9rem;
+}
+
+.sunny-agent-conversation-scroll .sunny-agent-approval-banner-high {
+  border-color: color-mix(in srgb, #ef4444 34%, var(--border));
+  background: color-mix(in srgb, #fef2f2 72%, #fff);
+}
+
+.sunny-agent-conversation-scroll .sunny-agent-approval-banner-medium,
+.sunny-agent-conversation-scroll .sunny-agent-approval-banner-batch {
+  border-color: color-mix(in srgb, #f59e0b 28%, var(--border));
+}
+
+.sunny-agent-conversation-scroll .sunny-agent-approval-banner-low {
+  border-color: color-mix(in srgb, #22c55e 24%, var(--border));
 }
 
 .sunny-agent-confirmation-grid {
@@ -3521,4 +3602,33 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   .sunny-agent-composer-mode-menu {
     width: min(18rem, calc(100vw - 1rem));
   }
+}
+
+/* 模式标签 */
+.sunny-mode-badge {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+.sunny-mode-badge[data-mode="today"] { background: #dbeafe; color: #1d4ed8; }
+.sunny-mode-badge[data-mode="writing"] { background: #fef3c7; color: #b45309; }
+.sunny-mode-badge[data-mode="plan"],
+.sunny-mode-badge[data-mode="execute"] { background: #dcfce7; color: #15803d; }
+.sunny-mode-badge[data-mode="review"] { background: #f3e8ff; color: #7c3aed; }
+.sunny-mode-badge[data-mode="timeline"] { background: #fce7f3; color: #be185d; }
+.sunny-mode-badge[data-mode="ask"],
+.sunny-mode-badge[data-mode="agent"] { background: var(--sunny-bg-subtle); color: var(--sunny-fg-secondary); }
+
+/* StatusBar 上下文摘要 */
+.sunny-dashboard-context-summary {
+  font-size: 0.75rem;
+  color: var(--sunny-fg-secondary);
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 }

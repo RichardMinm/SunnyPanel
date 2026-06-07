@@ -233,6 +233,7 @@ export function DashboardRightPanel({
               }
               threadId={threadId}
               traceSteps={traceSteps}
+              workbenchMode={workbenchMode}
             />
           ) : null}
           {activeInspectorTab === "approval" ? <AgentApprovalPanel action={action} pendingAction={pendingAction} /> : null}
