@@ -717,10 +717,3 @@ export const loadWorkspaceCore = async (): Promise<WorkspaceCoreData> => {
     user: authResult.user as User,
   };
 };
-
-export const getWorkspaceSnapshot = async (): Promise<WorkspaceSnapshot> => {
-  const { getCachedWorkspaceCore } = await import("./workspace-cache");
-  const core = await getCachedWorkspaceCore();
-
-  return assembleWorkspaceSnapshot(core);
-};

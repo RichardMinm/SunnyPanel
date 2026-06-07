@@ -20,31 +20,12 @@ export {
   type AgentMemoryWriteData,
 } from "./memory-schema";
 
-type AgentThreadDocument = {
-  id: number;
-  messages?:
-    | {
-        content: string;
-        role: "assistant" | "user";
-      }[]
-    | null;
-  title: string;
-};
-
 const normalizeWhitespace = (value: string) => value.trim().replace(/\s+/g, " ");
 
 const deriveMemoryTitle = (content: string) => {
   const normalized = normalizeWhitespace(content);
 
   return normalized.length <= 36 ? normalized : `${normalized.slice(0, 36).trimEnd()}...`;
-};
-
-const extractMemoryContentFromThread = (thread: AgentThreadDocument) => {
-  const messages = [...(thread.messages ?? [])].reverse();
-  const userMessage = messages.find((message) => message.role === "user" && message.content.trim().length > 0);
-  const content = userMessage?.content ?? thread.title;
-
-  return normalizeWhitespace(content.replace(/^(请|帮我)?(记住|记一下|以后记得)[:：，,\s]*/, ""));
 };
 
 export const getRelevantMemories = async (query: string, limit = 6, intentHint?: string) => {
@@ -181,19 +162,6 @@ export const upsertMemory = async (memory: AgentMemoryInput) => {
   }) as Promise<AgentMemoryDocument>;
 };
 
-export const archiveMemory = async (id: number) => {
-  const payload = await getPayloadClient();
-
-  return payload.update({
-    collection: "agent-memories",
-    data: {
-      status: "archived",
-    },
-    id,
-    overrideAccess: true,
-  }) as Promise<AgentMemoryDocument>;
-};
-
 type AutoArchiveInput = {
   message: string;
   plan: import("./orchestration/types").OrchestratorPlan;
@@ -242,23 +210,4 @@ export const autoArchiveMemoryFromExecution = async (input: AutoArchiveInput) =>
       type: "workflow_rule",
     });
   }
-};
-
-export const createAgentMemoryFromThread = async (threadId: number) => {
-  const payload = await getPayloadClient();
-  const thread = (await payload.findByID({
-    collection: "agent-threads",
-    depth: 0,
-    id: threadId,
-    overrideAccess: true,
-  })) as AgentThreadDocument;
-  const content = extractMemoryContentFromThread(thread);
-
-  return upsertMemory({
-    confidence: 0.65,
-    content,
-    sourceThread: thread.id,
-    title: deriveMemoryTitle(content),
-    type: inferAgentMemoryType(content),
-  });
 };

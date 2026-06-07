@@ -144,8 +144,6 @@ type OpenAICompatibleResponse = {
   };
 };
 
-export const isAgentModelConfigured = async () => Boolean(await getAgentModelConfig());
-
 export const generateIntentWithAgentModel = async ({
   context,
   history,

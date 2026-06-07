@@ -135,8 +135,3 @@ export const getUserPreferences = async (userId: number): Promise<UserPreference
 
   return cached;
 };
-
-export const clearPreferencesCache = () => {
-  cached = null;
-  cacheUserId = null;
-};

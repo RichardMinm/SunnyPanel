@@ -13,8 +13,6 @@ export type ScheduleItemPriority = "high" | "low" | "medium";
 export type ScheduleItemSourceType = "agent" | "checklist" | "manual" | "plan";
 export type ScheduleItemCreatedBy = "agent" | "manual";
 
-export type WeekSchedule = Record<string, ScheduleItemRecord[]>;
-
 export type ScheduleItemRecord = ScheduleConflictItem & {
   agentBrief?: null | string;
   conflictNote?: null | string;
@@ -91,34 +89,6 @@ export const getScheduleForDate = async (date: string | Date, payload?: Payload)
   return result.docs;
 };
 
-export const getWeekSchedule = async (fromDate: string, toDate: string, payload?: Payload): Promise<WeekSchedule> => {
-  const payloadClient = (await getPayload(payload)) as unknown as {
-    find: (args: unknown) => Promise<{ docs: ScheduleItemRecord[] }>;
-  };
-  const fromStart = startOfDate(fromDate).toISOString();
-  const toEnd = endOfDate(toDate).toISOString();
-  const result = await payloadClient.find({
-    collection: scheduleCollection,
-    depth: 1,
-    limit: 200,
-    overrideAccess: true,
-    sort: "startTime",
-    where: {
-      and: [
-        { date: { greater_than_equal: fromStart } },
-        { date: { less_than: toEnd } },
-      ],
-    },
-  });
-
-  const grouped: WeekSchedule = {};
-  for (const item of result.docs) {
-    const key = item.date.split("T")[0]!;
-    (grouped[key] ??= []).push(item);
-  }
-  return grouped;
-};
-
 export const getTodaySchedule = (payload?: Payload) => getScheduleForDate(new Date(), payload);
 
 export const getTomorrowSchedule = (payload?: Payload) =>
@@ -183,18 +153,6 @@ export const updateScheduleItemStatus = async (
     id,
     overrideAccess: true,
   });
-};
-
-export const formatScheduleTimeRange = (item: Pick<ScheduleItemRecord, "endTime" | "isAllDay" | "startTime">) => {
-  if (item.isAllDay) {
-    return "全天";
-  }
-
-  if (item.startTime && item.endTime) {
-    return `${item.startTime}-${item.endTime}`;
-  }
-
-  return item.startTime ?? "未定时间";
 };
 
 export { detectScheduleConflictsInList, isValidScheduleTime, toScheduleDateKey };

@@ -1,14 +1,12 @@
 import { evaluatePlanFromIntent } from "./evaluation";
 import { runWithAgentExecutionContext } from "./execution-context";
-import { groupTasksIntoParallelLayers } from "./orchestration/parallel-layers";
-import type { TaskNode } from "./orchestration/types";
 import { queryProgressFromIntent } from "./progress";
 import {
   executeRollbackFromPayload,
   isRollbackPayloadExecutable,
   type RollbackExecutionResult,
 } from "./rollback";
-import { parseAgentIntentResult, type AgentIntent, type AgentTraceStep } from "./schemas";
+import type { AgentIntent, AgentTraceStep } from "./schemas";
 import { executeAgentTool } from "./tool-registry";
 import { executeWeeklyReviewFromIntent } from "./workflows/weekly-review-server";
 import {
@@ -68,119 +66,6 @@ const toolExecutors = {
   saveMemory: saveMemoryFromIntent,
   schedulePlan: schedulePlanFromIntent,
   weeklyReview: executeWeeklyReviewFromIntent,
-};
-
-const checklistMutationIntents = new Set<AgentIntent["intent"]>([
-  "add_completion_note",
-  "append_plan_item",
-  "complete_plan_item",
-]);
-
-const getChecklistKey = (intent: AgentIntent): null | string => {
-  if (!checklistMutationIntents.has(intent.intent)) {
-    return null;
-  }
-
-  const args = intent.args as { checklistTitle?: string };
-
-  return typeof args.checklistTitle === "string" && args.checklistTitle.trim().length > 0
-    ? args.checklistTitle.trim().toLowerCase()
-    : null;
-};
-
-const groupIntentsForParallelExecution = (intents: AgentIntent[]) => {
-  const groups: Array<{ checklistKey: null | string; intents: AgentIntent[] }> = [];
-  const groupIndex = new Map<null | string, number>();
-
-  for (const intent of intents) {
-    const checklistKey = getChecklistKey(intent);
-    const existingIndex = groupIndex.get(checklistKey);
-
-    if (existingIndex === undefined) {
-      groupIndex.set(checklistKey, groups.length);
-      groups.push({ checklistKey, intents: [intent] });
-    } else {
-      groups[existingIndex]!.intents.push(intent);
-    }
-  }
-
-  return groups;
-};
-
-export const executeAgentIntentsParallel = async (
-  intents: AgentIntent[],
-  onTrace?: AgentExecutionTraceReporter,
-  options: AgentExecutionOptions = {},
-): Promise<AgentIntentExecutionResult> => {
-  if (intents.length <= 1) {
-    const single = intents[0];
-
-    return single ? executeAgentIntent(single, onTrace, options) : { assistantMessage: "", pendingAction: null };
-  }
-
-  const groups = groupIntentsForParallelExecution(intents);
-  const messages: string[] = [];
-  let pendingAction: AgentIntentExecutionResult["pendingAction"] = null;
-  let rollbackPayload: unknown;
-
-  for (const group of groups) {
-    if (group.checklistKey) {
-      for (const [index, intent] of group.intents.entries()) {
-        const result = await executeAgentIntent(
-          intent,
-          (step) =>
-            onTrace?.({
-              ...step,
-              id: `${step.id}-serial-${index}`,
-            }),
-          options,
-        );
-        messages.push(result.assistantMessage);
-
-        if (result.pendingAction) {
-          pendingAction = result.pendingAction;
-        }
-
-        if ("rollbackPayload" in result && result.rollbackPayload) {
-          rollbackPayload = result.rollbackPayload;
-        }
-      }
-
-      continue;
-    }
-
-    const results = await Promise.all(
-      group.intents.map((intent, index) =>
-        executeAgentIntent(
-          intent,
-          (step) =>
-            onTrace?.({
-              ...step,
-              id: `${step.id}-parallel-${index}`,
-            }),
-          options,
-        ),
-      ),
-    );
-
-    for (const result of results) {
-      messages.push(result.assistantMessage);
-
-      if (result.pendingAction) {
-        pendingAction = result.pendingAction;
-      }
-
-      if ("rollbackPayload" in result && result.rollbackPayload) {
-        rollbackPayload = result.rollbackPayload;
-      }
-    }
-  }
-
-  return {
-    assistantMessage: messages.filter(Boolean).join("\n\n"),
-    pendingAction,
-    rollbackPayload,
-  };
 };
 
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -331,42 +216,6 @@ export const executeAgentIntentsTransactional = async (
     pendingAction,
     rollbackPayload,
     status: "completed",
-  };
-};
-
-export const executeOrchestrationTaskGraph = async (
-  tasks: TaskNode[],
-  executeIntent: (intent: AgentIntent) => Promise<AgentIntentExecutionResult>,
-) => {
-  const { layers } = groupTasksIntoParallelLayers(tasks);
-  const messages: string[] = [];
-  let pendingAction: AgentIntentExecutionResult["pendingAction"] = null;
-
-  for (const layer of layers) {
-    const layerIntents = layer
-      .map((task) =>
-        parseAgentIntentResult({
-          args: task.args,
-          confidence: 0.9,
-          intent: task.intent,
-        }),
-      )
-      .filter((intent): intent is AgentIntent => intent !== null);
-
-    const layerResults = await Promise.all(layerIntents.map((intent) => executeIntent(intent)));
-
-    for (const result of layerResults) {
-      messages.push(result.assistantMessage);
-
-      if (result.pendingAction) {
-        pendingAction = result.pendingAction;
-      }
-    }
-  }
-
-  return {
-    assistantMessage: messages.filter(Boolean).join("\n\n"),
-    pendingAction,
   };
 };
 

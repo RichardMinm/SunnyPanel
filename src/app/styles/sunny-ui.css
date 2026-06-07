@@ -205,80 +205,6 @@ html[data-theme="dark"] .sunny-dashboard-panel-quiet {
   background: transparent;
 }
 
-.sunny-dashboard-metric-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.65rem;
-}
-
-.sunny-dashboard-metric-strip--compact {
-  gap: 0.45rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-@media (min-width: 640px) {
-  .sunny-dashboard-metric-strip--compact {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.sunny-dashboard-stat {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0.75rem;
-  min-height: 3.85rem;
-  border: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
-  padding: 0.68rem 0.78rem;
-  scroll-snap-align: start;
-}
-
-.sunny-dashboard-stat > p:last-child {
-  color: color-mix(in srgb, var(--foreground) 84%, var(--muted));
-}
-
-.sunny-dashboard-stat--compact {
-  min-height: auto;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.48rem 0.55rem;
-}
-
-.sunny-dashboard-stat-warning,
-.sunny-dashboard-stat-danger {
-  border-color: var(--tone-warning-border);
-  background: var(--tone-warning-bg);
-  border-left: 3px solid var(--tone-warning-border);
-}
-
-.sunny-dashboard-stat-danger {
-  border-color: var(--tone-danger-border);
-  background: var(--tone-danger-bg);
-  border-left: 3px solid var(--tone-danger-border);
-}
-
-.sunny-dashboard-stat-success,
-.sunny-dashboard-stat-info,
-.sunny-dashboard-stat-accent {
-  border-color: color-mix(in srgb, var(--border) 62%, transparent);
-  background: var(--surface);
-}
-
-html[data-theme="dark"] .sunny-dashboard-stat {
-  background: rgba(31, 38, 46, 0.5);
-}
-
-html[data-theme="dark"] .sunny-dashboard-stat-warning,
-html[data-theme="dark"] .sunny-dashboard-stat-danger {
-  background: var(--tone-warning-bg);
-}
-
-html[data-theme="dark"] .sunny-dashboard-stat-danger {
-  background: var(--tone-danger-bg);
-}
-
 .sunny-dashboard-list {
   display: grid;
   gap: 0;
@@ -518,38 +444,6 @@ html[data-theme="dark"] .sunny-focus-action-compact {
 
 html[data-theme="dark"] .sunny-focus-action-primary {
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-}
-
-.sunny-quick-create-card {
-  display: block;
-  min-height: 0;
-  border: 1px solid color-mix(in srgb, var(--border) 48%, transparent);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
-  padding: 0.58rem 0.68rem;
-  transition:
-    background 180ms ease,
-    border-color 180ms ease;
-}
-
-.sunny-quick-create-card-compact {
-  border-color: color-mix(in srgb, var(--border) 38%, transparent);
-  background: transparent;
-  padding: 0.48rem 0.58rem;
-}
-
-.sunny-quick-create-card-compact .sunny-kicker {
-  font-size: var(--text-3xs);
-}
-
-.sunny-quick-create-card-compact span:last-child {
-  margin-top: 0.04rem;
-  font-size: var(--text-sm);
-}
-
-.sunny-quick-create-card:hover {
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
-  background: var(--hover);
 }
 
 .sunny-dashboard-quick-card {
@@ -854,14 +748,6 @@ html[data-theme="dark"] .sunny-calendar-day.is-today {
 .sunny-gap-action-secondary:hover {
   background: rgba(255, 255, 255, 0.64);
   color: var(--accent-strong);
-}
-
-html[data-theme="dark"] .sunny-quick-create-card {
-  background: rgba(31, 38, 46, 0.48);
-}
-
-html[data-theme="dark"] .sunny-quick-create-card:hover {
-  background: var(--hover);
 }
 
 html[data-theme="dark"] .sunny-dashboard-quick-card {

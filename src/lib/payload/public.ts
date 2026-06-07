@@ -117,14 +117,6 @@ export const getPublicPageBySlug = async (slug: string) => {
   });
 };
 
-export const getPublicPages = async ({ limit = 20 }: QueryOptions = {}) => {
-  return findPublicCollection({
-    collection: "pages",
-    limit,
-    sort: "title",
-  });
-};
-
 export const getPublicNotes = async ({ limit = 30 }: QueryOptions = {}) => {
   return findPublicCollection({
     collection: "notes",

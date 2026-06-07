@@ -414,11 +414,3 @@ export const decomposePlanRuleBased = (args: ComposePlanArgs): DecomposedPlan | 
     weeklyRhythm: seed.dailyPace ?? "每天推进 1 个可验收小步",
   };
 };
-
-export const buildDecomposedPlanSummary = (decomposed: DecomposedPlan) =>
-  decomposed.phases
-    .map(
-      (phase, index) =>
-        `${index + 1}. ${phase.title}（${phase.estimatedDays} 天）— ${phase.milestones[0]?.tasks.slice(0, 3).join("、") ?? phase.goal}`,
-    )
-    .join("\n");

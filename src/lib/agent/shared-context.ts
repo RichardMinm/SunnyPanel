@@ -35,20 +35,6 @@ export const createWorkingMemory = (input: {
   sessionId: input.sessionId ?? createSessionId(),
 });
 
-export const appendActionTrace = (
-  memory: WorkingMemory,
-  trace: Omit<ActionTrace, "recordedAt"> & { recordedAt?: string },
-): WorkingMemory => ({
-  ...memory,
-  recentActions: [
-    ...memory.recentActions,
-    {
-      ...trace,
-      recordedAt: trace.recordedAt ?? new Date().toISOString(),
-    },
-  ].slice(-12),
-});
-
 export const buildSharedContextSnapshot = async (input: {
   message: string;
   pendingAction?: null | PendingAction;
@@ -76,17 +62,3 @@ export const buildSharedContextSnapshot = async (input: {
     }),
   };
 };
-
-export const mergeBusResultsIntoWorkingMemory = (
-  memory: WorkingMemory,
-  results: Array<{ agentRole: AgentRole; intent: string; summary: string }>,
-): WorkingMemory =>
-  results.reduce(
-    (current, result) =>
-      appendActionTrace(current, {
-        agentRole: result.agentRole,
-        intent: result.intent,
-        summary: result.summary,
-      }),
-    memory,
-  );

@@ -111,15 +111,6 @@ export const incrementAutoCount = (threadId: number) => {
   });
 };
 
-export const resetAutoCount = (threadId?: number) => {
-  if (threadId !== undefined && threadId !== lastThreadId) {
-    return;
-  }
-
-  consecutiveAutoCount = 0;
-  lastThreadId = null;
-};
-
 export const buildConfirmedIntentSet = (pendingActions: PendingAction[], lastIntent?: string | null): Set<string> => {
   const confirmed = new Set<string>();
 

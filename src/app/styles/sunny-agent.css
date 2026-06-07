@@ -1715,24 +1715,6 @@ html[data-theme="dark"] .sunny-agent-dock-v2-status {
     border-radius: 0.82rem;
   }
 
-  .sunny-dashboard-metric-strip {
-    grid-auto-columns: minmax(13.5rem, 78vw);
-    grid-auto-flow: column;
-    grid-template-columns: none;
-    overflow-x: auto;
-    padding-bottom: 0.1rem;
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
-  }
-
-  .sunny-dashboard-metric-strip::-webkit-scrollbar {
-    display: none;
-  }
-
-  .sunny-dashboard-stat {
-    min-height: 3.8rem;
-  }
-
   .sunny-dashboard-card-quiet {
     padding: 0.85rem;
   }

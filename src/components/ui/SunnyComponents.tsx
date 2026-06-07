@@ -121,32 +121,6 @@ export function EmptyState({
   );
 }
 
-export function QuickActionCard({
-  badge,
-  compact = false,
-  description,
-  href,
-  title,
-}: {
-  badge?: ReactNode;
-  compact?: boolean;
-  description: string;
-  href: string;
-  title: string;
-}) {
-  return (
-    <Link href={href} className={cx("sunny-quick-create-card", compact && "sunny-quick-create-card-compact")}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <span className="sunny-kicker-compact text-muted">{description}</span>
-          <span className="mt-1 block text-sm font-semibold text-foreground">{title}</span>
-        </div>
-        {badge ? <div className="shrink-0">{badge}</div> : null}
-      </div>
-    </Link>
-  );
-}
-
 export function TimelineMiniCard({
   className,
   date,
@@ -195,40 +169,4 @@ export function TimelineMiniCard({
       {description ? <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted">{description}</p> : null}
     </Link>
   );
-}
-
-export function DashboardMetricCard({
-  compact,
-  description,
-  label,
-  tone = "neutral",
-  value,
-}: {
-  compact?: boolean;
-  description: string;
-  label: string;
-  tone?: StatusBadgeTone;
-  value: number | string;
-}) {
-  return (
-    <div
-      className={cx(
-        "sunny-dashboard-stat",
-        compact && "sunny-dashboard-stat--compact",
-        tone !== "neutral" && `sunny-dashboard-stat-${tone}`,
-      )}
-    >
-      <div className="min-w-0">
-        <p className="text-xs font-semibold text-muted">{label}</p>
-        {compact ? null : (
-          <p className="sunny-dashboard-clamp mt-1 text-xs leading-5 text-muted">{description}</p>
-        )}
-      </div>
-      <p className={cx("font-semibold leading-none text-foreground", compact ? "text-xl" : "text-2xl")}>{value}</p>
-    </div>
-  );
-}
-
-export function StatCard(props: Parameters<typeof DashboardMetricCard>[0]) {
-  return <DashboardMetricCard {...props} />;
 }
