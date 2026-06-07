@@ -16,6 +16,7 @@ import { AgentApprovalCard } from "./AgentApprovalCard";
 import { ThreadHeader } from "./ThreadHeader";
 import { MessageCard } from "./MessageCard";
 import { riskLevelLabelMap } from "./constants";
+import { compactAssistantMessageForPendingAction } from "./utils";
 
 const messageVariants = {
   assistant: { animate: { opacity: 1, x: 0 }, exit: { opacity: 0 }, initial: { opacity: 0, x: -12 } },
@@ -40,7 +41,11 @@ function BatchConfirmationCard({
   onConfirm: () => void;
 }) {
   return (
-    <section className="sunny-agent-approval-banner sunny-agent-approval-banner-batch" aria-label="批量待确认操作">
+    <section
+      id="agent-pending-approval"
+      className="sunny-agent-approval-banner sunny-agent-approval-banner-batch"
+      aria-label="批量待确认操作"
+    >
       <div className="sunny-agent-approval-banner-main">
         <div>
           <p>等待确认 · 批量操作</p>
@@ -145,14 +150,22 @@ export function AgentConversation({
     return -1;
   }, [messages]);
 
+  const hasPendingConfirmation = Boolean(confirmationAction || (batchActions && batchActions.length > 0));
+
   useEffect(() => {
     const transcript = transcriptRef.current;
 
-    if (!transcript || !isThinking) {
+    if (!transcript || (!isThinking && !hasPendingConfirmation)) {
       return;
     }
 
     const frame = window.requestAnimationFrame(() => {
+      if (hasPendingConfirmation) {
+        const approvalArea = transcript.querySelector(".sunny-agent-thread-action-area");
+        approvalArea?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        return;
+      }
+
       transcript.scrollTo({
         behavior: "auto",
         top: transcript.scrollHeight,
@@ -160,7 +173,19 @@ export function AgentConversation({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [isThinking, messages.length, thinkingContent, traceSteps.length, streamStages.length, streamProgress.length, streamChanges.length, transcriptRef]);
+  }, [
+    batchActions,
+    confirmationAction?.id,
+    hasPendingConfirmation,
+    isThinking,
+    messages.length,
+    thinkingContent,
+    traceSteps.length,
+    streamStages.length,
+    streamProgress.length,
+    streamChanges.length,
+    transcriptRef,
+  ]);
 
   return (
     <section className="sunny-agent-conversation-surface">
@@ -176,26 +201,6 @@ export function AgentConversation({
         threadId={threadId}
         workbenchMode={workbenchMode}
       />
-      {confirmationAction || (batchActions && batchActions.length > 0) ? (
-        <div className="sunny-agent-thread-action-area">
-          {confirmationAction ? (
-            <AgentApprovalCard
-              action={confirmationAction}
-              disabled={isSubmitting}
-              onCancel={onCancelApproval}
-              onConfirm={onConfirmApproval}
-              onEdit={onEditApproval}
-            />
-          ) : batchActions && batchActions.length > 0 ? (
-            <BatchConfirmationCard
-              actions={batchActions}
-              disabled={isSubmitting}
-              onCancel={onCancelApproval}
-              onConfirm={onConfirmApproval}
-            />
-          ) : null}
-        </div>
-      ) : null}
       <div ref={transcriptRef} className="sunny-agent-conversation-scroll" aria-live="polite" aria-relevant="additions">
         {messages.length === 0 ? (
           <div className="sunny-agent-empty-state">
@@ -208,6 +213,18 @@ export function AgentConversation({
               {messages.map((message, index) => {
                 const variant = messageVariants[message.role === "assistant" ? "assistant" : "user"];
                 const isStreamingMsg = isSubmitting && message.role === "assistant" && index === lastAssistantIndex;
+                const shouldCompactAssistant =
+                  message.role === "assistant" &&
+                  index === lastAssistantIndex &&
+                  hasPendingConfirmation &&
+                  !isStreamingMsg;
+                const messageContent =
+                  message.role === "assistant"
+                    ? compactAssistantMessageForPendingAction(
+                        message.content,
+                        shouldCompactAssistant ? pendingAction : null,
+                      )
+                    : message.content;
 
                 return (
                   <motion.div
@@ -219,14 +236,42 @@ export function AgentConversation({
                     transition={{ duration: 0.25 }}
                   >
                     <MessageCard
-                      content={message.content || (isSubmitting && index === messages.length - 1 ? "正在生成回复..." : "")}
+                      content={
+                        messageContent || (isSubmitting && index === messages.length - 1 ? "正在生成回复..." : "")
+                      }
                       isStreaming={isStreamingMsg}
+                      isThinking={isStreamingMsg && isThinking}
                       role={message.role}
+                      thinkingContent={
+                        isStreamingMsg && thinkingContent.trim()
+                          ? thinkingContent
+                          : undefined
+                      }
                     />
                   </motion.div>
                 );
               })}
             </AnimatePresence>
+            {hasPendingConfirmation ? (
+              <div className="sunny-agent-thread-action-area">
+                {confirmationAction ? (
+                  <AgentApprovalCard
+                    action={confirmationAction}
+                    disabled={isSubmitting}
+                    onCancel={onCancelApproval}
+                    onConfirm={onConfirmApproval}
+                    onEdit={onEditApproval}
+                  />
+                ) : batchActions && batchActions.length > 0 ? (
+                  <BatchConfirmationCard
+                    actions={batchActions}
+                    disabled={isSubmitting}
+                    onCancel={onCancelApproval}
+                    onConfirm={onConfirmApproval}
+                  />
+                ) : null}
+              </div>
+            ) : null}
             <AgentThinkingPanel
               isThinking={isThinking}
               statusLabel={statusLabel}

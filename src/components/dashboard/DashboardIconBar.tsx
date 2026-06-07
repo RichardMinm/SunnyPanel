@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { AgentThreadSummary } from "@/components/dashboard/agent/types";
 import { getPendingActionLabel } from "@/components/dashboard/agent/utils";
@@ -132,7 +132,80 @@ export function DashboardIconBar({
 }: DashboardIconBarProps) {
   const { locale } = useSitePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const visibleThreads = threads.slice(0, 8);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveThreads, setArchiveThreads] = useState<AgentThreadSummary[]>([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveLoaded, setArchiveLoaded] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const filteredThreads = useMemo(() => {
+    if (!searchQuery.trim()) return threads;
+    const q = searchQuery.trim().toLowerCase();
+    return threads.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.tags?.some((tag) => tag.toLowerCase().includes(q)),
+    );
+  }, [threads, searchQuery]);
+
+  const visibleThreads = filteredThreads.slice(0, searchQuery.trim() ? filteredThreads.length : 8);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+  }, []);
+
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter" && searchQuery.trim()) {
+        // 本地过滤已生效，预留后端搜索
+      }
+    },
+    [searchQuery],
+  );
+
+  const loadArchivedThreads = useCallback(async () => {
+    if (archiveLoaded) {
+      setArchiveOpen((v) => !v);
+      return;
+    }
+    setArchiveOpen(true);
+    setArchiveLoading(true);
+    try {
+      const res = await fetch("/api/agent/thread?archived=true&limit=20");
+      if (res.ok) {
+        const data = (await res.json()) as { threads: AgentThreadSummary[] };
+        setArchiveThreads(data.threads ?? []);
+        setArchiveLoaded(true);
+      }
+    } catch {
+      // 静默失败
+    } finally {
+      setArchiveLoading(false);
+    }
+  }, [archiveLoaded]);
+
+  const restoreThread = useCallback(
+    async (id: number) => {
+      try {
+        const res = await fetch("/api/agent/thread", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, archived: false }),
+        });
+        if (res.ok) {
+          setArchiveThreads((prev) => prev.filter((t) => t.id !== id));
+        }
+      } catch {
+        // 静默失败
+      }
+    },
+    [],
+  );
 
   return (
     <nav className="sunny-dashboard-icon-bar sunny-sidebar-nav sunny-codex-sidebar" aria-label="工作台导航">
@@ -174,6 +247,30 @@ export function DashboardIconBar({
           </button>
         </div>
         </section>
+
+        <div className="sunny-codex-sidebar-search">
+          <div className="sunny-codex-search-wrapper">
+            <input
+              type="text"
+              className="sunny-codex-sidebar-search-input"
+              placeholder="搜索会话..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              aria-label="搜索会话"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                className="sunny-codex-sidebar-search-clear"
+                onClick={clearSearch}
+                aria-label="清除搜索"
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+        </div>
 
         <section className="sunny-codex-sidebar-section" aria-label="项目">
           <p>项目</p>
@@ -218,6 +315,39 @@ export function DashboardIconBar({
           ) : (
             <span className="sunny-codex-empty-label">暂无聊天</span>
           )}
+        </section>
+
+        <section className="sunny-codex-sidebar-section sunny-codex-archive-section" aria-label="已归档">
+          <button
+            type="button"
+            className="sunny-codex-archive-toggle"
+            onClick={loadArchivedThreads}
+            aria-expanded={archiveOpen}
+          >
+            <span>{archiveOpen ? "▾" : "▸"}</span>
+            📦 已归档
+            {archiveLoaded ? ` (${archiveThreads.length})` : ""}
+          </button>
+          {archiveOpen ? (
+            archiveLoading ? (
+              <span className="sunny-codex-empty-label">加载中...</span>
+            ) : archiveThreads.length > 0 ? (
+              archiveThreads.slice(0, 12).map((thread) => (
+                <div key={thread.id} className="sunny-codex-archive-thread">
+                  <span className="sunny-codex-sidebar-label">{thread.title || `会话 #${thread.id}`}</span>
+                  <button
+                    type="button"
+                    className="sunny-codex-archive-restore-btn"
+                    onClick={(e) => { e.stopPropagation(); void restoreThread(thread.id); }}
+                  >
+                    恢复
+                  </button>
+                </div>
+              ))
+            ) : (
+              <span className="sunny-codex-empty-label">没有已归档的会话</span>
+            )
+          ) : null}
         </section>
       </div>
 

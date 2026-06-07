@@ -65,6 +65,32 @@ function DashboardInspectorToggleIcon({ open }: { open: boolean }) {
   );
 }
 
+const COLLECTION_ICON: Record<string, string> = {
+  "agent-memories": "🧠",
+  checklists: "✅",
+  notes: "📝",
+  plans: "📋",
+  posts: "📄",
+  "schedule-items": "📅",
+  "timeline-events": "⏱",
+};
+
+const COLLECTION_LABEL: Record<string, string> = {
+  "agent-memories": "记忆",
+  checklists: "清单",
+  notes: "笔记",
+  plans: "计划",
+  posts: "文章",
+  "schedule-items": "日程",
+  "timeline-events": "时间线",
+};
+
+const OPERATION_LABEL: Record<string, string> = {
+  create: "新建",
+  delete: "删除",
+  update: "更新",
+};
+
 function LinkedObjectsPanel({
   action,
   debugMode,
@@ -74,32 +100,71 @@ function LinkedObjectsPanel({
   debugMode: boolean;
   selectedRunDetail?: AgentRunDetail | null;
 }) {
-  const affected = action?.affectedDocuments ?? action?.changes ?? [];
+  const affected = action?.affectedDocuments ?? [];
+
+  if (affected.length === 0) {
+    return (
+      <div className="sunny-agent-inspector-panel sunny-agent-linked-panel">
+        <div className="sunny-agent-inspector-empty">
+          <h3>暂无关联对象</h3>
+          <p>当本轮操作关联计划、日程、笔记或文章时，会在这里显示。</p>
+        </div>
+        {debugMode && selectedRunDetail ? (
+          <div className="sunny-agent-inspector-summary">
+            <span>当前执行记录</span>
+            <h3>{selectedRunDetail.title}</h3>
+            <p>{selectedRunDetail.impactSummary ?? selectedRunDetail.summary ?? "这条执行记录暂未提供关联摘要。"}</p>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="sunny-agent-inspector-panel sunny-agent-linked-panel">
-      <div className="sunny-agent-context-grid-v2">
-        <span>关联计划</span>
-        <strong>{affected.some((item) => item.collection === "plans") ? "已关联" : "暂无"}</strong>
-        <span>关联日程</span>
-        <strong>{affected.some((item) => item.collection === "schedule-items") ? "已关联" : "暂无"}</strong>
-        <span>关联笔记</span>
-        <strong>{affected.some((item) => item.collection === "notes") ? "已关联" : "暂无"}</strong>
-        <span>关联文章</span>
-        <strong>{affected.some((item) => item.collection === "posts") ? "已关联" : "暂无"}</strong>
-      </div>
+      <ul className="sunny-linked-objects-list">
+        {affected.map((doc, index) => {
+          const icon = COLLECTION_ICON[doc.collection] ?? "📌";
+          const label = COLLECTION_LABEL[doc.collection] ?? doc.collection;
+          const opLabel = OPERATION_LABEL[doc.operation] ?? doc.operation;
+          const title = doc.title ?? `${label} #${doc.documentId ?? "?"}`;
+          const href = doc.adminHref ?? doc.publicHref;
+
+          return (
+            <li key={`${doc.collection}-${doc.documentId ?? index}`}>
+              <button
+                type="button"
+                className="sunny-linked-object-card"
+                onClick={() => {
+                  if (href) window.open(href, "_blank");
+                }}
+                title={href ? `打开 ${title}` : undefined}
+              >
+                <span className="sunny-linked-object-icon">{icon}</span>
+                <span className="sunny-linked-object-body">
+                  <span className="sunny-linked-object-title">{title}</span>
+                  <span className="sunny-linked-object-meta">
+                    <span className={`sunny-linked-object-badge is-${doc.operation}`}>{opLabel}</span>
+                    <span className="sunny-linked-object-collection">{label}</span>
+                  </span>
+                </span>
+                {debugMode ? (
+                  <span className="sunny-linked-object-debug">
+                    <small>id={doc.documentId ?? "?"}</small>
+                  </span>
+                ) : null}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
       {debugMode && selectedRunDetail ? (
         <div className="sunny-agent-inspector-summary">
           <span>当前执行记录</span>
           <h3>{selectedRunDetail.title}</h3>
           <p>{selectedRunDetail.impactSummary ?? selectedRunDetail.summary ?? "这条执行记录暂未提供关联摘要。"}</p>
         </div>
-      ) : (
-        <div className="sunny-agent-inspector-empty">
-          <h3>暂无关联对象</h3>
-          <p>当本轮操作关联计划、日程、笔记或文章时，会在这里显示。</p>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }

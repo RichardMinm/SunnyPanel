@@ -65,6 +65,12 @@ export type ProposedAgentAction = {
     collection: string;
     documentId?: number;
     operation: "create" | "delete" | "update";
+    /** UI 展示用文档标题 */
+    title?: string;
+    /** Payload admin 跳转链接 */
+    adminHref?: string;
+    /** 公开页面跳转链接 */
+    publicHref?: string;
     visibility?: AgentActionVisibility;
   }>;
   afterSnapshot?: unknown;
@@ -941,6 +947,9 @@ export const parseProposedAgentAction = (value: unknown): null | ProposedAgentAc
           const operation = getOptionalEnum(item.operation, proposedActionOperationValues);
           const documentId = getOptionalNumber(item.documentId);
           const visibility = getOptionalEnum(item.visibility, proposedActionVisibilityValues);
+          const title = getOptionalString(item.title);
+          const adminHref = getOptionalString(item.adminHref);
+          const publicHref = getOptionalString(item.publicHref);
 
           if (!collection || !operation) {
             return null;
@@ -950,6 +959,9 @@ export const parseProposedAgentAction = (value: unknown): null | ProposedAgentAc
             collection,
             ...(documentId ? { documentId } : {}),
             operation,
+            ...(title ? { title } : {}),
+            ...(adminHref ? { adminHref } : {}),
+            ...(publicHref ? { publicHref } : {}),
             ...(visibility ? { visibility } : {}),
           };
         })

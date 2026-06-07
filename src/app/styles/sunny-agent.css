@@ -3632,3 +3632,221 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   white-space: nowrap;
 }
 }
+
+/* 关联对象卡片列表 */
+.sunny-linked-objects-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sunny-linked-object-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--sunny-border);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.8125rem;
+  transition: background 0.1s;
+}
+.sunny-linked-object-card:hover {
+  background: var(--sunny-bg-hover);
+}
+
+.sunny-linked-object-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.sunny-linked-object-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sunny-linked-object-title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sunny-linked-object-meta {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.sunny-linked-object-badge {
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+}
+.sunny-linked-object-badge.is-create {
+  background: #dcfce7;
+  color: #15803d;
+}
+.sunny-linked-object-badge.is-update {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.sunny-linked-object-badge.is-delete {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.sunny-linked-object-collection {
+  font-size: 0.6875rem;
+  color: var(--sunny-fg-secondary);
+}
+
+.sunny-linked-object-debug {
+  flex-shrink: 0;
+  color: var(--sunny-fg-secondary);
+  font-size: 0.625rem;
+}
+
+/* Thinking 折叠 */
+.sunny-thinking-fold {
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--sunny-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.sunny-thinking-fold-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.35rem 0.6rem;
+  background: var(--sunny-bg-subtle);
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--sunny-fg-secondary);
+  text-align: left;
+}
+.sunny-thinking-fold-header:hover {
+  color: var(--sunny-fg);
+}
+
+.sunny-thinking-fold-arrow {
+  font-size: 0.625rem;
+  transition: transform 0.15s;
+}
+.sunny-thinking-fold-arrow.is-open {
+  transform: rotate(90deg);
+}
+
+.sunny-thinking-fold-body {
+  padding: 0.5rem 0.6rem;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  color: var(--sunny-fg-secondary);
+  max-height: 16rem;
+  overflow-y: auto;
+  border-top: 1px solid var(--sunny-border);
+}
+
+/* 侧边栏搜索 */
+.sunny-codex-sidebar-search {
+  padding: 0 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.sunny-codex-sidebar-search-input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--sunny-border);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  background: var(--sunny-bg);
+  color: var(--sunny-fg);
+  outline: none;
+}
+.sunny-codex-sidebar-search-input:focus {
+  border-color: var(--sunny-accent, #2563eb);
+}
+
+.sunny-codex-sidebar-search-clear {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  cursor: pointer;
+  color: var(--sunny-fg-secondary);
+  padding: 0.15rem;
+}
+
+.sunny-codex-search-wrapper {
+  position: relative;
+}
+
+/* 归档折叠区 */
+.sunny-codex-archive-section {
+  margin-top: 0.25rem;
+}
+
+.sunny-codex-archive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.4rem 0.75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--sunny-fg-secondary);
+  text-align: left;
+}
+.sunny-codex-archive-toggle:hover {
+  color: var(--sunny-fg);
+  background: var(--sunny-bg-hover);
+}
+
+.sunny-codex-archive-thread {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+.sunny-codex-archive-thread:hover {
+  background: var(--sunny-bg-hover);
+}
+
+.sunny-codex-archive-restore-btn {
+  background: none;
+  border: 1px solid var(--sunny-border);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.625rem;
+  cursor: pointer;
+  color: var(--sunny-fg-secondary);
+}
+.sunny-codex-archive-restore-btn:hover {
+  color: var(--sunny-accent, #2563eb);
+  border-color: var(--sunny-accent, #2563eb);
+}
+
