@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback } from "react";
+
 import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { AgentWorkbench } from "@/components/dashboard/agent";
 import { useAgentDashboardChat } from "@/components/dashboard/agent-chat/use-agent-dashboard-chat";
@@ -16,6 +18,31 @@ export function DashboardPageClient({
 }: DashboardPageClientProps) {
   const chat = useAgentDashboardChat({ initialThreadId });
 
+  const handleArchiveThread = useCallback(
+    async (id: number) => {
+      return chat.archiveThread(id, true);
+    },
+    [chat],
+  );
+
+  const handleDeleteThread = useCallback(
+    async (id: number) => {
+      return chat.deleteThread(id);
+    },
+    [chat],
+  );
+
+  const handleArchiveCurrentThread = useCallback(() => {
+    const currentId = chat.threadId;
+    if (currentId === null) return;
+    void chat.archiveThread(currentId, true).then((ok) => {
+      if (ok) {
+        chat.clearRunDetail();
+        chat.resetThread();
+      }
+    });
+  }, [chat]);
+
   return (
     <DashboardShell
       activeInspectorTab={chat.activeInspectorTab}
@@ -30,6 +57,8 @@ export function DashboardPageClient({
       messages={chat.messages}
       traceSteps={chat.traceSteps}
       tokenUsage={chat.tokenUsage}
+      onArchiveThread={handleArchiveThread}
+      onDeleteThread={handleDeleteThread}
       onArtifactsRollback={chat.runArtifactsRollback}
       onInspectorTabChange={chat.setActiveInspectorTab}
       onLoadThread={(nextThreadId) => { void chat.loadThread(nextThreadId); }}
@@ -54,6 +83,7 @@ export function DashboardPageClient({
         isSubmitting={chat.isSubmitting}
         isThinking={chat.isThinking}
         messages={chat.messages}
+        onArchiveThread={handleArchiveCurrentThread}
         onCancelApproval={() => { chat.clearRunDetail(); chat.cancelApproval(); }}
         onEditApproval={chat.editApproval}
         onRenameThread={chat.renameThread}
