@@ -43,7 +43,7 @@ export async function DELETE(request: NextRequest) {
   const relatedRuns = await payload.find({
     collection: "agent-runs",
     depth: 0,
-    limit: 0,
+    limit: 500,
     overrideAccess: true,
     where: { thread: { equals: body.id } },
   });
