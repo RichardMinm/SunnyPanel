@@ -6,8 +6,9 @@ import { AgentApprovalPanel } from "@/components/dashboard/agent/AgentApprovalPa
 import { AgentContextPanel } from "@/components/dashboard/agent/AgentContextPanel";
 import { AgentReviewPanel } from "@/components/dashboard/agent/AgentReviewPanel";
 import { AgentTracePanel } from "@/components/dashboard/agent/AgentTracePanel";
+import { InspectorTabBar } from "@/components/dashboard/agent/InspectorTabBar";
 import { inspectorTabs } from "@/components/dashboard/agent/constants";
-import { COLLECTION_ICON_MAP, DashboardIcon, DEFAULT_COLLECTION_ICON } from "./icons";
+import { COLLECTION_ICON_MAP, DashboardIcon, DEFAULT_COLLECTION_ICON, InspectorPanelIcon } from "./icons";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
 import type { AgentInspectorTab, AgentRunDetail, ContextPreferences } from "@/components/dashboard/agent/types";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
@@ -21,6 +22,7 @@ type DashboardRightPanelProps = {
   contextPreferences: ContextPreferences;
   debugMode: boolean;
   inputTokenEstimate: number;
+  lastExecutedAction?: null | ProposedAgentAction;
   latestAssistantMessage?: AgentChatMessage;
   lastRollbackPayload?: null | unknown;
   lastRollbackResult?: AgentRollbackExecutionResult | null;
@@ -32,7 +34,6 @@ type DashboardRightPanelProps = {
   onRollbackSelectedRun?: () => void;
   onToggleContextExclude: (key: string) => void;
   onToggleContextPin: (key: string) => void;
-  panelOpen: boolean;
   pendingAction: null | PendingAction;
   selectedRunDetail?: AgentRunDetail | null;
   selectedRunRollbackBusy?: boolean;
@@ -54,18 +55,6 @@ const modeLabelMap: Record<AgentWorkbenchMode, string> = {
   today: "今日模式",
   writing: "写作模式",
 };
-
-function DashboardInspectorToggleIcon({ open }: { open: boolean }) {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
-      <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.55">
-        <path d="M4.75 5.25h10.5v9.5H4.75z" />
-        <path d="M11.25 5.25v9.5" />
-        {open ? <path d="m8.25 8 2 2-2 2" /> : <path d="m14 8-2 2 2 2" />}
-      </g>
-    </svg>
-  );
-}
 
 const COLLECTION_LABEL: Record<string, string> = {
   "agent-memories": "记忆",
@@ -231,6 +220,7 @@ export function DashboardRightPanel({
   contextPreferences,
   debugMode,
   inputTokenEstimate,
+  lastExecutedAction = null,
   latestAssistantMessage,
   lastRollbackPayload = null,
   lastRollbackResult = null,
@@ -242,7 +232,6 @@ export function DashboardRightPanel({
   onRollbackSelectedRun,
   onToggleContextExclude,
   onToggleContextPin,
-  panelOpen,
   pendingAction,
   selectedRunDetail = null,
   selectedRunRollbackBusy = false,
@@ -253,6 +242,10 @@ export function DashboardRightPanel({
   traceSteps,
   workbenchMode,
 }: DashboardRightPanelProps) {
+  // When there's no pending action, fall back to last executed action so
+  // the LinkedObjectsPanel continues to show the created item after confirmation.
+  const displayAction = action ?? lastExecutedAction;
+
   const [inspectorSearch, setInspectorSearch] = useState("");
   const [inspectorSearchResults, setInspectorSearchResults] = useState<
     Array<{ collection: string; id: number; title: string; href?: string }>
@@ -284,8 +277,7 @@ export function DashboardRightPanel({
   }, []);
 
   return (
-    <>
-      <aside className="sunny-dashboard-right-panel sunny-right-context-panel" aria-label="右侧检查器">
+    <aside className="sunny-dashboard-right-panel sunny-right-context-panel" aria-label="右侧检查器">
         {onResizeStart ? (
           <button
             type="button"
@@ -307,7 +299,7 @@ export function DashboardRightPanel({
               title="收起检查器"
               onClick={onTogglePanel}
             >
-              <DashboardInspectorToggleIcon open />
+              <InspectorPanelIcon open />
             </button>
           </div>
         </div>
@@ -341,20 +333,11 @@ export function DashboardRightPanel({
             <p className="sunny-agent-inspector-search-empty">未找到匹配结果</p>
           ) : null}
         </div>
-        <div className="sunny-agent-inspector-tabs sunny-dashboard-right-tabs" role="tablist" aria-label="Agent 详情面板">
-          {inspectorTabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={activeInspectorTab === tab.key}
-              className={activeInspectorTab === tab.key ? "active" : ""}
-              onClick={() => onInspectorTabChange(tab.key)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <InspectorTabBar
+          activeTab={activeInspectorTab}
+          onTabChange={onInspectorTabChange}
+          pendingAction={pendingAction}
+        />
         <div className="sunny-dashboard-right-panel-body">
           {activeInspectorTab === "context" ? (
             <AgentContextPanel
@@ -393,7 +376,7 @@ export function DashboardRightPanel({
               traceSteps={traceSteps}
             />
           ) : null}
-          {activeInspectorTab === "linked" ? <LinkedObjectsPanel action={action} debugMode={debugMode} selectedRunDetail={selectedRunDetail} /> : null}
+          {activeInspectorTab === "linked" ? <LinkedObjectsPanel action={displayAction} debugMode={debugMode} selectedRunDetail={selectedRunDetail} /> : null}
           {activeInspectorTab === "memory" ? <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} /> : null}
           {activeInspectorTab === "review" ? (
             <AgentReviewPanel
@@ -407,15 +390,5 @@ export function DashboardRightPanel({
           ) : null}
         </div>
       </aside>
-      <button
-        type="button"
-        className={`sunny-dashboard-inspector-toggle${panelOpen ? " is-active" : ""}`}
-        aria-label={panelOpen ? "收起检查器" : "展开检查器"}
-        title={panelOpen ? "收起检查器" : "展开检查器"}
-        onClick={onTogglePanel}
-      >
-        <DashboardInspectorToggleIcon open={panelOpen} />
-      </button>
-    </>
   );
 }

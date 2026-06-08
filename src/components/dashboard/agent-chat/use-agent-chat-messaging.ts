@@ -306,6 +306,10 @@ export function useAgentChatMessaging({
         setThreadId(typeof responseData.threadId === "number" ? responseData.threadId : threadId);
         if (responseData.pendingAction) {
           setActiveInspectorTab("approval");
+        } else if (pendingAction?.type === "await_confirmation") {
+          // Confirmation was just executed — switch to linked tab
+          // so the user can see the created item immediately.
+          setActiveInspectorTab("linked");
         }
         if (responseData.tokenUsage) {
           setTokenUsage(responseData.tokenUsage);
@@ -403,10 +407,13 @@ export function useAgentChatMessaging({
   }, [pendingAction, sendMessage]);
 
   const resetThread = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
     setThreadId(null);
     setPendingAction(null);
     setMessages(initialMessages);
     setStatusText("已开启新任务");
+    setIsSubmitting(false);
     setStreamingState("idle");
     setTraceSteps([]);
     setStreamStages([]);
@@ -428,6 +435,7 @@ export function useAgentChatMessaging({
     setArtifactsRollbackError,
     setErrorMessage,
     setInput,
+    setIsSubmitting,
     setLastRollbackPayload,
     setLastRollbackResult,
     setMessages,

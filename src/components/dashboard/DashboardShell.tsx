@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import type { AgentChatMessage, AgentTraceStep, AgentTokenUsage, PendingAction } from "@/lib/agent/schemas";
+import type { AgentChatMessage, AgentTraceStep, AgentTokenUsage, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
 import type { AgentInspectorTab, AgentRunDetail, AgentThreadSummary, ContextPreferences } from "@/components/dashboard/agent/types";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
@@ -102,8 +102,29 @@ export function DashboardShell({
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelWidth, setPanelWidth] = useState(340);
   const [debugMode, setDebugMode] = useState(false);
+  const [lastExecutedAction, setLastExecutedAction] = useState<ProposedAgentAction | null>(null);
   const suppressAutoOpenRef = useRef(false);
   const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
+
+  // When a write action enters await_confirmation, snapshot it so the right panel
+  // can keep showing linked objects after the user confirms and pendingAction clears.
+  useEffect(() => {
+    if (pendingAction?.type === "await_confirmation") {
+      setLastExecutedAction(pendingAction.action);
+    }
+  }, [pendingAction]);
+
+  // Wrap the inspector tab change to clear the persisted action when the user
+  // navigates away from the linked tab.
+  const handleInspectorTabChange = useCallback(
+    (tab: AgentInspectorTab) => {
+      if (tab !== "linked") {
+        setLastExecutedAction(null);
+      }
+      onInspectorTabChange(tab);
+    },
+    [onInspectorTabChange],
+  );
   const latestAssistantMessage = useMemo(
     () => [...messages].reverse().find((message) => message.role === "assistant"),
     [messages],
@@ -165,6 +186,7 @@ export function DashboardShell({
   const handleNewThread = useCallback(() => {
     suppressAutoOpenRef.current = true;
     setPanelOpen(false);
+    setLastExecutedAction(null);
     onNewThread();
     window.requestAnimationFrame(() => {
       setPanelOpen(false);
@@ -278,6 +300,7 @@ export function DashboardShell({
 
       <DashboardRightPanel
         action={confirmationAction}
+        lastExecutedAction={lastExecutedAction}
         activeInspectorTab={activeInspectorTab}
         artifactsRollbackBusy={artifactsRollbackBusy}
         artifactsRollbackError={artifactsRollbackError}
@@ -290,12 +313,11 @@ export function DashboardShell({
         messages={messages}
         onResizeStart={handleResizeStart}
         onArtifactsRollback={onArtifactsRollback}
-        onInspectorTabChange={onInspectorTabChange}
+        onInspectorTabChange={handleInspectorTabChange}
         onTogglePanel={handleTogglePanel}
         onRollbackSelectedRun={onRollbackSelectedRun}
         onToggleContextExclude={onToggleContextExclude}
         onToggleContextPin={onToggleContextPin}
-        panelOpen={panelOpen}
         pendingAction={pendingAction}
         selectedRunDetail={selectedRunDetail}
         selectedRunRollbackBusy={selectedRunRollbackBusy}
