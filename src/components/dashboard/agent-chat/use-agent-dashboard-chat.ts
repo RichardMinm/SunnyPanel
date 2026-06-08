@@ -39,7 +39,9 @@ export function useAgentDashboardChat({
   const [input, setInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const {
+    archiveThread,
     clearRunDetail,
+    deleteThread,
     fetchThread,
     fetchRunDetail,
     lastInteractionAt,
@@ -75,10 +77,11 @@ export function useAgentDashboardChat({
   const [threadHydrated, setThreadHydrated] = useState(false);
   const [workbenchMode, setWorkbenchMode] = useState<AgentWorkbenchMode>("ask");
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const skipInitialThreadLoadRef = useRef(false);
 
   const loadThread = useCallback(
-    async (nextThreadId?: number, options?: { preserveInspector?: boolean }) => {
-      const selectedThread = await fetchThread(nextThreadId);
+    async (nextThreadId?: number, options?: { preserveInspector?: boolean; listOnly?: boolean }) => {
+      const selectedThread = await fetchThread(nextThreadId, { listOnly: options?.listOnly });
 
       if (!selectedThread) {
         if (typeof nextThreadId === "number") {
@@ -180,13 +183,21 @@ export function useAgentDashboardChat({
   useDashboardUrlThreadSync(threadId, threadHydrated);
 
   const resetThread = useCallback(() => {
+    skipInitialThreadLoadRef.current = true;
+    stopGeneration();
     resetConversationThread();
     clearRunDetail();
     setThreadTitle("");
     setThreadHydrated(true);
-  }, [clearRunDetail, resetConversationThread]);
+    void fetchThread(undefined, { listOnly: true });
+  }, [clearRunDetail, fetchThread, resetConversationThread, stopGeneration]);
 
   useEffect(() => {
+    if (skipInitialThreadLoadRef.current && initialThreadId === undefined) {
+      skipInitialThreadLoadRef.current = false;
+      return;
+    }
+
     const timer = window.setTimeout(() => {
       void loadThread(initialThreadId);
     }, 0);
@@ -337,12 +348,14 @@ export function useAgentDashboardChat({
 
   return {
     activeInspectorTab,
+    archiveThread,
     artifactsRollbackBusy,
     artifactsRollbackError,
     cancelApproval,
     clearRunDetail,
     confirmApproval,
     contextPreferences,
+    deleteThread,
     editApproval,
     errorMessage,
     input,
