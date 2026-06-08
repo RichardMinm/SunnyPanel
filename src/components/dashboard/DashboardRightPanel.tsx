@@ -4,6 +4,7 @@ import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent }
 
 import { AgentApprovalPanel } from "@/components/dashboard/agent/AgentApprovalPanel";
 import { AgentContextPanel } from "@/components/dashboard/agent/AgentContextPanel";
+import { AgentReviewPanel } from "@/components/dashboard/agent/AgentReviewPanel";
 import { AgentTracePanel } from "@/components/dashboard/agent/AgentTracePanel";
 import { inspectorTabs } from "@/components/dashboard/agent/constants";
 import { COLLECTION_ICON_MAP, DashboardIcon, DEFAULT_COLLECTION_ICON } from "./icons";
@@ -374,12 +375,14 @@ export function DashboardRightPanel({
           {activeInspectorTab === "linked" ? <LinkedObjectsPanel action={action} debugMode={debugMode} selectedRunDetail={selectedRunDetail} /> : null}
           {activeInspectorTab === "memory" ? <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} /> : null}
           {activeInspectorTab === "review" ? (
-            <div className="sunny-agent-inspector-panel sunny-agent-review-panel">
-              <div className="sunny-agent-inspector-empty">
-                <h3>复盘</h3>
-                <p>选择对话中的复盘卡片可在此查看完整复盘详情。</p>
-              </div>
-            </div>
+            <AgentReviewPanel
+              onGenerateReview={() => {
+                // trigger review mode in composer
+              }}
+              onOpenPlan={(id) => {
+                window.open(`/admin/collections/plans/${id}`, "_blank");
+              }}
+            />
           ) : null}
         </div>
       </aside>
