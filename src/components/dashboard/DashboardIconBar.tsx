@@ -10,7 +10,7 @@ import { ThemeToggle } from "@/components/public/ThemeToggle";
 import { useSitePreferences } from "@/components/shared/SitePreferencesProvider";
 import { DashboardIcon, type DashboardIconName } from "./icons";
 
-export type DashboardIconMode = "agent" | "today" | "plans" | "schedule" | "writing" | "memory";
+export type DashboardIconMode = "agent" | "checklist" | "memory" | "plans" | "schedule" | "timeline" | "today" | "writing";
 
 export const DASHBOARD_MODES: Array<{
   key: DashboardIconMode;
@@ -24,6 +24,8 @@ export const DASHBOARD_MODES: Array<{
   { key: "schedule", label: "日程", icon: "schedule", prompt: "帮我查看最近的日程安排" },
   { key: "writing", label: "写作", icon: "pencil", prompt: "帮我整理最近的写作素材" },
   { key: "memory", label: "记忆库", icon: "memory", prompt: "" },
+  { key: "checklist", label: "清单", icon: "checklist", prompt: "" },
+  { key: "timeline", label: "时间线", icon: "timeline", prompt: "" },
 ];
 
 function formatThreadMeta(thread: AgentThreadSummary) {

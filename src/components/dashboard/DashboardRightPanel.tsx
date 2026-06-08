@@ -1,6 +1,6 @@
 "use client";
 
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { AgentApprovalPanel } from "@/components/dashboard/agent/AgentApprovalPanel";
 import { AgentContextPanel } from "@/components/dashboard/agent/AgentContextPanel";
@@ -231,6 +231,36 @@ export function DashboardRightPanel({
   traceSteps,
   workbenchMode,
 }: DashboardRightPanelProps) {
+  const [inspectorSearch, setInspectorSearch] = useState("");
+  const [inspectorSearchResults, setInspectorSearchResults] = useState<
+    Array<{ collection: string; id: number; title: string; href?: string }>
+  >([]);
+  const [inspectorSearching, setInspectorSearching] = useState(false);
+  const inspectorSearchDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleInspectorSearch = useCallback((query: string) => {
+    setInspectorSearch(query);
+    if (inspectorSearchDebounce.current) clearTimeout(inspectorSearchDebounce.current);
+    if (!query.trim()) {
+      setInspectorSearchResults([]);
+      return;
+    }
+    inspectorSearchDebounce.current = setTimeout(async () => {
+      setInspectorSearching(true);
+      try {
+        const res = await fetch(`/api/command/search?q=${encodeURIComponent(query.trim())}&limit=10`);
+        if (res.ok) {
+          const data = (await res.json()) as { results: typeof inspectorSearchResults };
+          setInspectorSearchResults(data.results ?? []);
+        }
+      } catch {
+        // silent
+      } finally {
+        setInspectorSearching(false);
+      }
+    }, 300);
+  }, []);
+
   return (
     <>
       <aside className="sunny-dashboard-right-panel sunny-right-context-panel" aria-label="右侧检查器">
@@ -258,6 +288,36 @@ export function DashboardRightPanel({
               <DashboardInspectorToggleIcon open />
             </button>
           </div>
+        </div>
+        {/* Inspector search */}
+        <div className="sunny-agent-inspector-search">
+          <input
+            type="text"
+            placeholder="搜索关联的计划、日程、笔记..."
+            value={inspectorSearch}
+            onChange={(e) => handleInspectorSearch(e.target.value)}
+            aria-label="搜索关联对象"
+          />
+          {inspectorSearch.trim() && inspectorSearchResults.length > 0 ? (
+            <ul className="sunny-agent-inspector-search-results">
+              {inspectorSearchResults.map((r, i) => (
+                <li key={`${r.collection}-${r.id}-${i}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (r.href) window.open(r.href, "_blank");
+                    }}
+                  >
+                    <span>{r.title}</span>
+                    <small>{r.collection}</small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {inspectorSearch.trim() && !inspectorSearching && inspectorSearchResults.length === 0 ? (
+            <p className="sunny-agent-inspector-search-empty">未找到匹配结果</p>
+          ) : null}
         </div>
         <div className="sunny-agent-inspector-tabs sunny-dashboard-right-tabs" role="tablist" aria-label="Agent 详情面板">
           {inspectorTabs.map((tab) => (
@@ -313,6 +373,14 @@ export function DashboardRightPanel({
           ) : null}
           {activeInspectorTab === "linked" ? <LinkedObjectsPanel action={action} debugMode={debugMode} selectedRunDetail={selectedRunDetail} /> : null}
           {activeInspectorTab === "memory" ? <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} /> : null}
+          {activeInspectorTab === "review" ? (
+            <div className="sunny-agent-inspector-panel sunny-agent-review-panel">
+              <div className="sunny-agent-inspector-empty">
+                <h3>复盘</h3>
+                <p>选择对话中的复盘卡片可在此查看完整复盘详情。</p>
+              </div>
+            </div>
+          ) : null}
         </div>
       </aside>
       <button
