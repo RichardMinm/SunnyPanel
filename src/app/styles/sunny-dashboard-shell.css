@@ -717,6 +717,11 @@ html[data-theme="dark"] .sunny-dashboard-main {
   box-shadow: 0 4px 12px rgb(0 0 0 / 10%);
 }
 
+.sunny-thread-row-menu-dropdown.is-drop-up {
+  top: auto;
+  bottom: 100%;
+}
+
 .sunny-thread-row-menu-item {
   display: flex;
   align-items: center;
@@ -835,6 +840,7 @@ html[data-theme="dark"] .sunny-dashboard-main {
   flex-shrink: 0;
 }
 
+.sunny-codex-archive-restore-btn,
 .sunny-codex-archive-delete-btn {
   padding: 0.15rem 0.45rem;
   border: none;
@@ -843,6 +849,11 @@ html[data-theme="dark"] .sunny-dashboard-main {
   color: var(--muted);
   font-size: var(--text-2xs);
   cursor: pointer;
+}
+
+.sunny-codex-archive-restore-btn:hover {
+  background: color-mix(in srgb, var(--sunny-accent, #2563eb) 15%, transparent);
+  color: var(--sunny-accent, #2563eb);
 }
 
 .sunny-codex-archive-delete-btn:hover {

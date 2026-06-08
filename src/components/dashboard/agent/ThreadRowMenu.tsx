@@ -11,6 +11,7 @@ export type ThreadRowMenuProps = {
 export function ThreadRowMenu({ threadId, threadTitle, onArchive }: ThreadRowMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -59,13 +60,18 @@ export function ThreadRowMenu({ threadId, threadTitle, onArchive }: ThreadRowMen
           aria-label={`会话「${threadTitle}」操作`}
           onClick={(e) => {
             e.stopPropagation();
-            setMenuOpen((v) => !v);
+            const nextOpen = !menuOpen;
+            setMenuOpen(nextOpen);
+            if (nextOpen) {
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              setDropUp(window.innerHeight - rect.bottom < 96);
+            }
           }}
         >
           ⋮
         </button>
         {menuOpen && (
-          <div className="sunny-thread-row-menu-dropdown" role="menu">
+          <div className={`sunny-thread-row-menu-dropdown${dropUp ? " is-drop-up" : ""}`} role="menu">
             <button
               type="button"
               className="sunny-thread-row-menu-item"
