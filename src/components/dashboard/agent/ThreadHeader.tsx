@@ -6,13 +6,14 @@ import type { PendingAction } from "@/lib/agent/schemas";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 import { getPendingActionLabel } from "./utils";
+import { DashboardIcon } from "../icons";
 
 type ThreadHeaderProps = {
   debugMode: boolean;
   displayTitle: string;
   isSubmitting: boolean;
+  onArchiveThread?: () => void;
   onDebugModeChange: (next: boolean) => void;
-  onOpenDetails: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
   pendingAction: null | PendingAction;
   statusLabel: string;
@@ -45,8 +46,8 @@ export function ThreadHeader({
   debugMode,
   displayTitle,
   isSubmitting,
+  onArchiveThread,
   onDebugModeChange,
-  onOpenDetails,
   onRenameThread,
   pendingAction,
   statusLabel,
@@ -56,6 +57,7 @@ export function ThreadHeader({
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(displayTitle);
   const [saving, setSaving] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const metaParts = [
@@ -95,19 +97,27 @@ export function ThreadHeader({
       <div className="sunny-agent-thread-header-top">
         <p>AGENT 会话</p>
         <div className="sunny-agent-thread-header-actions" aria-label="Thread 操作">
-          <button type="button" onClick={onOpenDetails} aria-label="详情" title="详情">
-            详情
-          </button>
           <button
             type="button"
-            className={debugMode ? "is-active" : ""}
+            className={`sunny-agent-thread-header-icon-button${debugMode ? " is-active" : ""}`}
             aria-pressed={debugMode}
             aria-label="调试"
             title={debugMode ? "关闭调试" : "开启调试"}
             onClick={() => onDebugModeChange(!debugMode)}
           >
-            调试
+            <DashboardIcon name="debug" />
           </button>
+          {onArchiveThread && threadId !== null ? (
+            <button
+              type="button"
+              className="sunny-agent-thread-header-icon-button"
+              aria-label="归档会话"
+              title="归档会话"
+              onClick={() => setArchiveConfirmOpen(true)}
+            >
+              <DashboardIcon name="archive" />
+            </button>
+          ) : null}
         </div>
       </div>
       <div className="sunny-agent-thread-header-title">
@@ -140,6 +150,44 @@ export function ThreadHeader({
           {metaParts.join(" · ")}
         </p>
       ) : null}
+      {archiveConfirmOpen && (
+        <div
+          className="sunny-confirm-overlay"
+          onClick={() => setArchiveConfirmOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="确认归档"
+        >
+          <div
+            className="sunny-confirm-dialog"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="sunny-confirm-title">确认归档</p>
+            <p className="sunny-confirm-message">
+              归档后可在「已归档」区找回。确定归档会话「{displayTitle}」？
+            </p>
+            <div className="sunny-confirm-actions">
+              <button
+                type="button"
+                className="sunny-confirm-btn-cancel"
+                onClick={() => setArchiveConfirmOpen(false)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="sunny-confirm-btn-warning"
+                onClick={() => {
+                  setArchiveConfirmOpen(false);
+                  onArchiveThread?.();
+                }}
+              >
+                确认归档
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
