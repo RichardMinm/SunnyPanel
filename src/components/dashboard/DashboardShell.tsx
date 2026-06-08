@@ -43,6 +43,8 @@ type DashboardShellProps = {
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
   onRunPrompt: (prompt: string) => void;
+  onArchiveThread: (id: number) => Promise<boolean>;
+  onDeleteThread: (id: number) => Promise<boolean>;
   pendingAction: null | PendingAction;
   selectedRunDetail?: AgentRunDetail | null;
   selectedRunRollbackBusy?: boolean;
@@ -68,6 +70,8 @@ export function DashboardShell({
   children,
   onLoadThread,
   onNewThread,
+  onArchiveThread,
+  onDeleteThread,
   onInspectorTabChange,
   onArtifactsRollback,
   onRollbackSelectedRun,
@@ -261,6 +265,8 @@ export function DashboardShell({
       <SidebarNav
         activeMode={activeMode}
         initialSuggestions={initialSuggestions}
+        onArchiveThread={onArchiveThread}
+        onDeleteThread={onDeleteThread}
         onLoadThread={onLoadThread}
         onModeChange={handleModeChange}
         onNewThread={handleNewThread}
