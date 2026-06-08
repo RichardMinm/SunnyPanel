@@ -279,6 +279,7 @@ export function DashboardShell({
           <ScheduleMonthView
             onBackToWorkbench={() => setActiveMode("agent")}
             threadId={threadId}
+            isSubmitting={isSubmitting}
           />
         ) : activeMode === "memory" ? (
           <MemoryCardGrid
@@ -335,9 +336,11 @@ export function DashboardShell({
         workbenchMode={workbenchMode}
       />
 
-      <DashboardStatusBar
-        statusLabel={statusLabel}
-      />
+      {activeMode !== "schedule" && (
+        <DashboardStatusBar
+          statusLabel={statusLabel}
+        />
+      )}
     </AppShell>
   );
 }
