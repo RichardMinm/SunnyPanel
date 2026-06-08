@@ -254,6 +254,10 @@
   font-weight: 700;
 }
 
+.sunny-schedule-day.is-today.is-selected .sunny-schedule-day-num {
+  color: #fff;
+}
+
 /* ── Event Chips ── */
 .sunny-schedule-day-chips {
   display: flex;
