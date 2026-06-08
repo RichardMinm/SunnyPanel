@@ -85,6 +85,18 @@ const MODE_OPTIONS: Array<{
     description: "记录或查询时间线事件，默认不会写入数据库。",
     placeholder: "描述要记录的时间线事件或查询条件",
   },
+  {
+    key: "today",
+    label: "今日",
+    description: "整理今天最应该推进的工作，默认不写入数据库。",
+    placeholder: "输入要关注的重点或日期范围",
+  },
+  {
+    key: "writing",
+    label: "写作",
+    description: "整理写作素材或起草内容，默认不写入数据库。",
+    placeholder: "描述写作主题或素材类型",
+  },
 ];
 
 type AgentComposerProps = {
@@ -217,7 +229,7 @@ export function AgentComposer({
             </div>
           ) : null}
         </div>
-        <div style={{ position: "relative", flex: 1 }}>
+        <div className="sunny-agent-composer-input-wrap">
           <textarea
             value={input}
             onChange={(event) => handleInputChange(event.target.value)}
