@@ -137,12 +137,8 @@ export function DashboardIconBar({
     [searchQuery],
   );
 
-  const loadArchivedThreads = useCallback(async () => {
-    if (archiveLoaded) {
-      setArchiveOpen((v) => !v);
-      return;
-    }
-    setArchiveOpen(true);
+  const fetchArchivedThreads = useCallback(async () => {
+    if (archiveLoaded) return;
     setArchiveLoading(true);
     try {
       const res = await fetch("/api/agent/thread?archived=true&limit=20");
@@ -157,6 +153,17 @@ export function DashboardIconBar({
       setArchiveLoading(false);
     }
   }, [archiveLoaded]);
+
+  // 页面加载时预取归档数量，确保 (N) 立即显示
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- data fetching on mount */
+    void fetchArchivedThreads();
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [fetchArchivedThreads]);
+
+  const loadArchivedThreads = useCallback(() => {
+    setArchiveOpen((v) => !v);
+  }, []);
 
   const restoreThread = useCallback(
     async (id: number) => {
