@@ -92,7 +92,7 @@ export function useAgentThreadList() {
   }, []);
 
   const deleteThread = useCallback(async (deleteThreadId: number) => {
-    const response = await fetch("/api/agent/thread", {
+    const response = await fetch("/api/agent/thread/delete", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: deleteThreadId }),
