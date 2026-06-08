@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentThreadSummary } from "@/components/dashboard/agent/types";
 import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { getPendingActionLabel } from "@/components/dashboard/agent/utils";
