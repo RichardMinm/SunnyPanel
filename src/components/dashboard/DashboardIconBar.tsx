@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { AgentThreadSummary } from "@/components/dashboard/agent/types";
 import { getPendingActionLabel } from "@/components/dashboard/agent/utils";
+import { filterDashboardThreads } from "@/lib/dashboard/filter-dashboard-threads";
 import { ThemeToggle } from "@/components/public/ThemeToggle";
 import { useSitePreferences } from "@/components/shared/SitePreferencesProvider";
 import { DashboardIcon, type DashboardIconName } from "./icons";
@@ -59,15 +60,10 @@ export function DashboardIconBar({
   const [archiveLoaded, setArchiveLoaded] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const filteredThreads = useMemo(() => {
-    if (!searchQuery.trim()) return threads;
-    const q = searchQuery.trim().toLowerCase();
-    return threads.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        t.tags?.some((tag) => tag.toLowerCase().includes(q)),
-    );
-  }, [threads, searchQuery]);
+  const filteredThreads = useMemo(
+    () => filterDashboardThreads(threads, searchQuery),
+    [threads, searchQuery],
+  );
 
   const visibleThreads = filteredThreads.slice(0, searchQuery.trim() ? filteredThreads.length : 8);
 

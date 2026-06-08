@@ -133,7 +133,7 @@ export function useAgentDashboardChat({
       if (!options?.preserveInspector) {
         setActiveInspectorTab(selectedThread.pendingAction ? "approval" : "context");
       }
-      setStatusText(`已恢复 Thread #${selectedThread.id}`);
+      setStatusText("已就绪");
       setThreadHydrated(true);
     },
     [fetchThread],

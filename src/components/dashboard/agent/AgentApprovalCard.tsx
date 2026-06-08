@@ -105,6 +105,21 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
   const affectedCount = action.affectedDocuments?.length ?? action.changes.length;
   const writesDatabase = action.changes.length > 0;
   const operationType = formatIntentLabel(action.intent);
+  const scheduleTimeRange = scheduleProposal
+    ? scheduleProposal.isAllDay
+      ? `${scheduleProposal.date} · 全天`
+      : `${scheduleProposal.date} ${scheduleProposal.startTime ?? "未定"}-${scheduleProposal.endTime ?? "未定"}`
+    : null;
+  const conflictStatus = scheduleProposal
+    ? scheduleProposal.conflicts.length > 0
+      ? `${scheduleProposal.conflicts.length} 个冲突`
+      : "无冲突"
+    : null;
+  const rollbackStatus = action.rollbackAvailable
+    ? "可回滚"
+    : action.rollbackPayload
+      ? "执行后可回滚"
+      : "暂不可回滚";
   const nextEffects = planProposal
     ? ["保存当前计划为草稿", "进入待办队列", "可继续拆分为学习阶段"]
     : scheduleProposal
@@ -125,25 +140,46 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
           <p>等待确认 · {operationType}</p>
           <h3 id="agent-pending-approval-title">{action.summary}</h3>
         </div>
-        <span>{riskLevelLabelMap[action.riskLevel]}</span>
+        <span className={`sunny-agent-risk-pill-v2 sunny-agent-risk-${action.riskLevel}`}>
+          {riskLevelLabelMap[action.riskLevel]}
+        </span>
       </div>
       <div className="sunny-agent-confirmation-grid" aria-label="待确认操作摘要">
         <div>
           <span>操作类型</span>
           <strong>{operationType}</strong>
         </div>
-        <div>
-          <span>写入数据库</span>
-          <strong>{writesDatabase ? "确认后写入" : "不会写入"}</strong>
-        </div>
-        <div>
-          <span>影响范围</span>
-          <strong>{affectedCount > 0 ? `将影响 ${affectedCount} 项数据` : "未检测到数据变更"}</strong>
-        </div>
-        <div>
-          <span>风险等级</span>
-          <strong>{riskLevelLabelMap[action.riskLevel]}</strong>
-        </div>
+        {scheduleProposal ? (
+          <>
+            <div>
+              <span>时间</span>
+              <strong>{scheduleTimeRange}</strong>
+            </div>
+            <div>
+              <span>冲突检测</span>
+              <strong>{conflictStatus}</strong>
+            </div>
+            <div>
+              <span>回滚状态</span>
+              <strong>{rollbackStatus}</strong>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <span>写入数据库</span>
+              <strong>{writesDatabase ? "确认后写入" : "不会写入"}</strong>
+            </div>
+            <div>
+              <span>影响范围</span>
+              <strong>{affectedCount > 0 ? `将影响 ${affectedCount} 项数据` : "未检测到数据变更"}</strong>
+            </div>
+            <div>
+              <span>回滚状态</span>
+              <strong>{rollbackStatus}</strong>
+            </div>
+          </>
+        )}
       </div>
       <details className="sunny-agent-confirmation-details">
         <summary>查看详情</summary>
