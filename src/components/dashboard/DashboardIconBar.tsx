@@ -390,7 +390,7 @@ export function DashboardIconBar({
           ) : null}
         </section>
 
-        <section className="sunny-codex-sidebar-section sunny-codex-archive-section" aria-label="已归档">
+        <section className="sunny-codex-sidebar-section sunny-codex-archive-section" aria-label="已归档" aria-expanded={archiveOpen}>
           <button
             type="button"
             className="sunny-codex-sidebar-collapse-toggle"

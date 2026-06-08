@@ -3871,6 +3871,10 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   margin-top: 0.25rem;
 }
 
+.sunny-codex-archive-section[aria-expanded="false"] {
+  flex: 0 0 auto;
+}
+
 .sunny-codex-archive-list {
   flex: 1 1 auto;
   min-height: 0;
