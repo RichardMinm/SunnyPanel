@@ -102,11 +102,16 @@ html[data-theme="dark"] .sunny-agent-cancel-button-v2 {
 
 .sunny-agent-composer {
   flex: 0 0 auto;
+  position: sticky;
+  bottom: 1rem;
+  z-index: 12;
+  width: min(100% - 2rem, 860px);
+  margin: 0 auto;
   padding: 0.7rem;
-  border: none;
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 1rem;
+  background: var(--surface);
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
 }
 
 .sunny-agent-composer-top {
@@ -2436,7 +2441,7 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 0.5rem;
-  align-items: end;
+  align-items: stretch;
 }
 
 /* Composer input — final merged definition */
@@ -2462,11 +2467,9 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 
 .sunny-agent-run-button {
   width: auto;
-  min-width: 4.4rem;
-  min-height: 2.4rem;
-  align-self: end;
-  padding: 0 0.9rem;
-  border-radius: 0.8rem;
+  min-width: 3rem;
+  padding: 0 1rem;
+  border-radius: 0.75rem;
   background: #1f5eff;
   color: #fff;
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.18);
@@ -3396,7 +3399,6 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--btn-sm-height);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: var(--btn-radius);
   background: var(--surface);
@@ -3409,13 +3411,11 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 .sunny-agent-composer-mode-trigger {
   gap: 0.35rem;
   min-width: 5.25rem;
-  padding: var(--btn-sm-padding);
+  padding: 0 0.6rem;
 }
 
 .sunny-agent-composer-plus-button {
   width: var(--btn-icon-size);
-  height: var(--btn-icon-size);
-  min-height: var(--btn-icon-size);
   padding: 0;
   font-size: var(--btn-icon-font);
   line-height: 1;
@@ -3574,18 +3574,13 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 
   .sunny-agent-composer-mode-trigger {
     min-width: 4.4rem;
-    padding: var(--btn-sm-padding);
-    min-height: var(--btn-sm-height);
+    padding: 0 0.5rem;
   }
 
   .sunny-agent-composer-plus-button,
   .sunny-agent-run-button {
-    width: var(--btn-send-size);
-    min-width: var(--btn-send-size);
-    height: var(--btn-send-size);
-    min-height: var(--btn-send-size);
-    border-radius: 50%;
-    padding: 0;
+    min-width: 2.5rem;
+    padding: 0 0.6rem;
   }
 
   .sunny-agent-composer-mode-menu {
