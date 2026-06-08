@@ -101,7 +101,7 @@ type AgentConversationProps = {
   onConfirmApproval: () => void;
   onDebugModeChange: (next: boolean) => void;
   onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
-  onOpenDetails: () => void;
+  onArchiveThread?: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
   debugMode: boolean;
   pendingAction: null | PendingAction;
@@ -126,7 +126,7 @@ export function AgentConversation({
   onConfirmApproval,
   onDebugModeChange,
   onEditApproval,
-  onOpenDetails,
+  onArchiveThread,
   onRenameThread,
   debugMode,
   pendingAction,
@@ -193,8 +193,8 @@ export function AgentConversation({
         displayTitle={displayTitle}
         debugMode={debugMode}
         isSubmitting={isSubmitting}
+        onArchiveThread={onArchiveThread}
         onDebugModeChange={onDebugModeChange}
-        onOpenDetails={onOpenDetails}
         onRenameThread={onRenameThread}
         pendingAction={pendingAction}
         statusLabel={statusLabel}

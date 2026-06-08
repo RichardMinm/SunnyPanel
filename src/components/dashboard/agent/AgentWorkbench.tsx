@@ -29,6 +29,7 @@ type AgentWorkbenchProps = {
   messages: AgentChatMessage[];
   onCancelApproval: () => void;
   onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
+  onArchiveThread?: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
   onConfirmApproval: () => void;
   onInputChange: (value: string) => void;
@@ -57,6 +58,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     messages,
     onCancelApproval,
     onEditApproval,
+    onArchiveThread,
     onRenameThread,
     onConfirmApproval,
     onInputChange,
@@ -77,7 +79,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   } = props;
 
   const dashboardMode = useDashboardMode();
-  const { debugMode, openInspector, setDebugMode } = useDashboardInspectorControl();
+  const { debugMode, setDebugMode } = useDashboardInspectorControl();
 
   const displayTitle = useMemo(() => {
     if (threadTitle && threadTitle !== "Agent Thread") return threadTitle;
@@ -102,10 +104,10 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
               isThinking={isThinking}
               isSubmitting={isSubmitting}
               messages={messages}
+              onArchiveThread={onArchiveThread}
               onCancelApproval={onCancelApproval}
               onConfirmApproval={onConfirmApproval}
               onEditApproval={onEditApproval}
-              onOpenDetails={() => openInspector("context")}
               onRenameThread={onRenameThread}
               debugMode={debugMode}
               pendingAction={pendingAction}
