@@ -14,6 +14,7 @@ export type DashboardIconName =
   | "plans"
   | "post"
   | "project"
+  | "review"
   | "schedule"
   | "search"
   | "settings"
@@ -100,6 +101,14 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
       <path d="M4.75 8.25h10.5" />
     </>
   ),
+  review: (
+    <>
+      <path d="M7.25 4.25h5.5a1 1 0 0 1 1 1v10.5a1 1 0 0 1-1 1H7.25a1 1 0 0 1-1-1V5.25a1 1 0 0 1 1-1Z" />
+      <path d="M8.5 4.25v-1a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1" />
+      <path d="m7.75 10.25 1.5 1.5 3-3" />
+      <path d="M10.75 4.25v1" />
+    </>
+  ),
   schedule: (
     <>
       <path d="M10 15.25a5.25 5.25 0 1 0 0-10.5 5.25 5.25 0 0 0 0 10.5Z" />
@@ -158,6 +167,7 @@ export const COLLECTION_ICON_MAP: Record<string, DashboardIconName> = {
   "agent-memories": "memory",
   checklists: "checklist",
   notes: "note",
+  "plan-reviews": "review",
   plans: "plans",
   posts: "post",
   "schedule-items": "schedule",
