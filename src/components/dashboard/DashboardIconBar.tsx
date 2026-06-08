@@ -9,6 +9,8 @@ import { filterDashboardThreads } from "@/lib/dashboard/filter-dashboard-threads
 import { ThemeToggle } from "@/components/public/ThemeToggle";
 import { useSitePreferences } from "@/components/shared/SitePreferencesProvider";
 import { DashboardIcon, type DashboardIconName } from "./icons";
+import { ThreadRowMenu } from "@/components/dashboard/agent/ThreadRowMenu";
+import { ConfirmDialog } from "@/components/dashboard/agent/ConfirmDialog";
 
 export type DashboardIconMode = "agent" | "checklist" | "memory" | "plans" | "schedule" | "timeline" | "today" | "writing";
 
@@ -38,10 +40,11 @@ function formatThreadMeta(thread: AgentThreadSummary) {
 export type DashboardIconBarProps = {
   activeMode: DashboardIconMode;
   initialSuggestions: AgentInboxSuggestion[];
+  onArchiveThread: (id: number) => Promise<boolean>;
+  onDeleteThread: (id: number) => Promise<boolean>;
   onModeChange: (mode: DashboardIconMode, prompt: string) => void;
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
-  onSearchClick?: () => void;
   threadId: null | number;
   threads: AgentThreadSummary[];
 };
@@ -49,21 +52,26 @@ export type DashboardIconBarProps = {
 export function DashboardIconBar({
   activeMode,
   initialSuggestions,
+  onArchiveThread,
+  onDeleteThread,
   onModeChange,
   onLoadThread,
   onNewThread,
-  onSearchClick,
   threadId,
   threads,
 }: DashboardIconBarProps) {
   const { locale } = useSitePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [threadsOpen, setThreadsOpen] = useState(true);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveThreads, setArchiveThreads] = useState<AgentThreadSummary[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveLoaded, setArchiveLoaded] = useState(false);
   const [suggestions, setSuggestions] = useState<AgentInboxSuggestion[]>(initialSuggestions);
+  const [deleteTarget, setDeleteTarget] = useState<AgentThreadSummary | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const refreshSuggestions = useCallback(async () => {
     try {
@@ -111,8 +119,6 @@ export function DashboardIconBar({
     () => filterDashboardThreads(threads, searchQuery),
     [threads, searchQuery],
   );
-
-  const visibleThreads = filteredThreads.slice(0, searchQuery.trim() ? filteredThreads.length : 8);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -170,6 +176,36 @@ export function DashboardIconBar({
     [],
   );
 
+  const handleArchive = useCallback(
+    async (id: number) => {
+      const ok = await onArchiveThread(id);
+      if (ok && id === threadId) {
+        onNewThread();
+      }
+    },
+    [onArchiveThread, onNewThread, threadId],
+  );
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+
+    try {
+      const ok = await onDeleteThread(deleteTarget.id);
+      if (ok) {
+        setArchiveThreads((prev) => prev.filter((t) => t.id !== deleteTarget.id));
+        setDeleteTarget(null);
+      } else {
+        setDeleteError("删除失败，请稍后重试");
+      }
+    } catch {
+      setDeleteError("网络错误，请重试");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }, [deleteTarget, onDeleteThread]);
+
   return (
     <nav className="sunny-dashboard-icon-bar sunny-sidebar-nav sunny-codex-sidebar" aria-label="工作台导航">
       <div className="sunny-codex-sidebar-top">
@@ -194,19 +230,6 @@ export function DashboardIconBar({
           >
             <span className="sunny-codex-sidebar-icon"><DashboardIcon name="new" /></span>
             <span className="sunny-codex-sidebar-label">新对话</span>
-          </button>
-          <button
-            type="button"
-            className="sunny-codex-sidebar-action"
-            aria-label="搜索"
-            onClick={onSearchClick}
-          >
-            <span className="sunny-codex-sidebar-icon"><DashboardIcon name="search" /></span>
-            <span className="sunny-codex-sidebar-label">搜索</span>
-          </button>
-          <button type="button" className="sunny-codex-sidebar-action" aria-label="命令中心">
-            <span className="sunny-codex-sidebar-icon"><DashboardIcon name="command" /></span>
-            <span className="sunny-codex-sidebar-label">命令中心</span>
           </button>
         </div>
         </section>
@@ -262,7 +285,7 @@ export function DashboardIconBar({
         </section>
 
         {/* Suggestions section */}
-        {suggestions.length > 0 ? (
+        {suggestions.length > 0 && (
           <section className="sunny-codex-sidebar-section" aria-label="建议">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <p>💡 建议 ({suggestions.length})</p>
@@ -317,61 +340,56 @@ export function DashboardIconBar({
               ))}
             </div>
           </section>
-        ) : (
-          <section className="sunny-codex-sidebar-section" aria-label="快捷入口">
-            <p>💡 快捷入口</p>
-            <div className="sunny-codex-mode-list">
-              <button
-                type="button"
-                className="sunny-codex-mode-row"
-                style={{ fontSize: "11px", color: "#888" }}
-                onClick={() => onModeChange("agent", "/plan 新建计划")}
-              >
-                /plan 新建计划
-              </button>
-              <button
-                type="button"
-                className="sunny-codex-mode-row"
-                style={{ fontSize: "11px", color: "#888" }}
-                onClick={() => onModeChange("agent", "/schedule 安排日程")}
-              >
-                /schedule 安排日程
-              </button>
-              <button
-                type="button"
-                className="sunny-codex-mode-row"
-                style={{ fontSize: "11px", color: "#888" }}
-                onClick={() => onModeChange("agent", "/review 生成复盘")}
-              >
-                /review 生成复盘
-              </button>
-            </div>
-          </section>
         )}
 
-        <section className="sunny-codex-sidebar-section sunny-codex-thread-section" aria-label="会话">
-          <p>会话</p>
-          {visibleThreads.length > 0 ? (
-            visibleThreads.map((thread) => (
-              <button
-                key={thread.id}
-                type="button"
-                className={`sunny-codex-thread-row${thread.id === threadId ? " is-active" : ""}`}
-                onClick={() => onLoadThread(thread.id)}
-              >
-                <span>{thread.title || `会话 #${thread.id}`}</span>
-                <small>{formatThreadMeta(thread)}</small>
-              </button>
-            ))
-          ) : (
-            <span className="sunny-codex-empty-label">暂无聊天</span>
-          )}
+        <section
+          className={`sunny-codex-sidebar-section sunny-codex-thread-section${threadsOpen ? "" : " is-collapsed"}`}
+          aria-label="会话"
+        >
+          <button
+            type="button"
+            className="sunny-codex-sidebar-collapse-toggle"
+            onClick={() => setThreadsOpen((v) => !v)}
+            aria-expanded={threadsOpen}
+          >
+            <span>{threadsOpen ? "▾" : "▸"}</span>
+            <span className="sunny-codex-sidebar-icon"><DashboardIcon name="agent" /></span>
+            会话 ({filteredThreads.length})
+          </button>
+          {threadsOpen ? (
+            <div className="sunny-codex-thread-list" role="list">
+              {filteredThreads.length > 0 ? (
+                filteredThreads.map((thread) => (
+                  <div
+                    key={thread.id}
+                    className={`sunny-codex-thread-row${thread.id === threadId ? " is-active" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      className="sunny-codex-thread-row-btn"
+                      onClick={() => onLoadThread(thread.id)}
+                    >
+                      <span>{thread.title || `会话 #${thread.id}`}</span>
+                      <small>{formatThreadMeta(thread)}</small>
+                    </button>
+                    <ThreadRowMenu
+                      threadId={thread.id}
+                      threadTitle={thread.title || `会话 #${thread.id}`}
+                      onArchive={handleArchive}
+                    />
+                  </div>
+                ))
+              ) : (
+                <span className="sunny-codex-empty-label">暂无聊天</span>
+              )}
+            </div>
+          ) : null}
         </section>
 
         <section className="sunny-codex-sidebar-section sunny-codex-archive-section" aria-label="已归档">
           <button
             type="button"
-            className="sunny-codex-archive-toggle"
+            className="sunny-codex-sidebar-collapse-toggle"
             onClick={loadArchivedThreads}
             aria-expanded={archiveOpen}
           >
@@ -383,18 +401,29 @@ export function DashboardIconBar({
             archiveLoading ? (
               <span className="sunny-codex-empty-label">加载中...</span>
             ) : archiveThreads.length > 0 ? (
-              archiveThreads.slice(0, 12).map((thread) => (
-                <div key={thread.id} className="sunny-codex-archive-thread">
-                  <span className="sunny-codex-sidebar-label">{thread.title || `会话 #${thread.id}`}</span>
-                  <button
-                    type="button"
-                    className="sunny-codex-archive-restore-btn"
-                    onClick={(e) => { e.stopPropagation(); void restoreThread(thread.id); }}
-                  >
-                    恢复
-                  </button>
-                </div>
-              ))
+              <div className="sunny-codex-archive-list" role="list">
+                {archiveThreads.map((thread) => (
+                  <div key={thread.id} className="sunny-codex-archive-thread" role="listitem">
+                    <span className="sunny-codex-sidebar-label">{thread.title || `会话 #${thread.id}`}</span>
+                    <div className="sunny-codex-archive-actions">
+                      <button
+                        type="button"
+                        className="sunny-codex-archive-restore-btn"
+                        onClick={(e) => { e.stopPropagation(); void restoreThread(thread.id); }}
+                      >
+                        恢复
+                      </button>
+                      <button
+                        type="button"
+                        className="sunny-codex-archive-delete-btn"
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(thread); }}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <span className="sunny-codex-empty-label">没有已归档的会话</span>
             )
@@ -423,6 +452,20 @@ export function DashboardIconBar({
           ) : null}
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="确认删除"
+        message={
+          deleteTarget
+            ? `确定永久删除会话「${deleteTarget.title || `#${deleteTarget.id}`}」？此操作不可撤销。`
+            : ""
+        }
+        confirmLabel="确认删除"
+        variant="danger"
+        busy={deleteBusy}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => { setDeleteTarget(null); setDeleteError(null); }}
+      />
     </nav>
   );
 }
