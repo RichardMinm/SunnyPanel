@@ -88,7 +88,7 @@
   padding-bottom: 0.35rem;
 }
 
-.sunny-codex-sidebar-top > :not(.sunny-codex-thread-section) {
+.sunny-codex-sidebar-top > :not(.sunny-codex-thread-section):not(.sunny-codex-archive-section) {
   flex-shrink: 0;
 }
 
