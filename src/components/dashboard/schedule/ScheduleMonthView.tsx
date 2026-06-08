@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { DashboardIcon } from "../icons";
 
@@ -123,7 +123,8 @@ function pickDefaultDateForMonth(days: Date[], todayKey: string, targetMonth: nu
 
 /* ── Component ── */
 
-export function ScheduleMonthView({ onBackToWorkbench, isSubmitting }: ScheduleMonthViewProps) {
+export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSubmitting }: ScheduleMonthViewProps) {
+  void _onBackToWorkbench; // kept for prop compatibility, not used in new design
   const now = new Date();
   const todayKey = formatDateKey(now);
   const [year, setYear] = useState(now.getFullYear());
@@ -139,6 +140,7 @@ export function ScheduleMonthView({ onBackToWorkbench, isSubmitting }: ScheduleM
   /* ── Data Fetching ── */
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- data fetching pattern consistent with dashboard views */
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -160,6 +162,7 @@ export function ScheduleMonthView({ onBackToWorkbench, isSubmitting }: ScheduleM
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     return () => { cancelled = true; };
   }, [monthKey]);
@@ -169,10 +172,12 @@ export function ScheduleMonthView({ onBackToWorkbench, isSubmitting }: ScheduleM
   const days = useMemo(() => getDaysInMonth(year, month), [year, month]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- sync selectedDate when month changes */
     const keys = new Set(days.map(formatDateKey));
     if (!keys.has(selectedDate)) {
       setSelectedDate(pickDefaultDateForMonth(days, todayKey, month));
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [days, month, selectedDate, todayKey]);
 
   const itemsByDate = useMemo(() => {
@@ -193,21 +198,21 @@ export function ScheduleMonthView({ onBackToWorkbench, isSubmitting }: ScheduleM
 
   /* ── Navigation ── */
 
-  const goToToday = useCallback(() => {
+  const goToToday = () => {
     const n = new Date();
     setYear(n.getFullYear());
     setMonth(n.getMonth() + 1);
     setSelectedDate(formatDateKey(n));
-  }, []);
+  };
 
-  const shiftMonth = useCallback((delta: number) => {
+  const shiftMonth = (delta: number) => {
     setMonth((currentMonth) => {
-      let nextMonth = currentMonth + delta;
+      const nextMonth = currentMonth + delta;
       if (nextMonth < 1) { setYear((y) => y - 1); return 12; }
       if (nextMonth > 12) { setYear((y) => y + 1); return 1; }
       return nextMonth;
     });
-  }, []);
+  };
 
   /* ── Calendar Helpers ── */
 
