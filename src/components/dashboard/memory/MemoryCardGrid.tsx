@@ -84,6 +84,7 @@ export function MemoryCardGrid({ onBackToWorkbench }: MemoryCardGridProps) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching pattern consistent with dashboard views
     fetchMemories("", "");
   }, [fetchMemories]);
 

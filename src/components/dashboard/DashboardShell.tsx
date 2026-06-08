@@ -86,14 +86,17 @@ export function DashboardShell({
   onWorkbenchModeChange,
   workbenchMode,
 }: DashboardShellProps) {
-  const iconModeToWorkbenchMode: Partial<Record<DashboardIconMode, AgentWorkbenchMode>> = {
-    agent: "ask",
-    today: "today",
-    plans: "plan",
-    timeline: "timeline",
-    writing: "writing",
-    // schedule 和 memory 不走对话 pipeline，无需映射
-  };
+  const iconModeToWorkbenchMode = useMemo<Partial<Record<DashboardIconMode, AgentWorkbenchMode>>>(
+    () => ({
+      agent: "ask",
+      today: "today",
+      plans: "plan",
+      timeline: "timeline",
+      writing: "writing",
+      // schedule 和 memory 不走对话 pipeline，无需映射
+    }),
+    [],
+  );
 
   const [activeMode, setActiveMode] = useState<DashboardIconMode>("agent");
   const [panelOpen, setPanelOpen] = useState(false);
@@ -156,7 +159,7 @@ export function DashboardShell({
         onRunPrompt(prompt);
       }
     },
-    [onRunPrompt, onWorkbenchModeChange],
+    [iconModeToWorkbenchMode, onRunPrompt, onWorkbenchModeChange],
   );
 
   const handleNewThread = useCallback(() => {

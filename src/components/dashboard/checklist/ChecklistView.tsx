@@ -57,6 +57,7 @@ export function ChecklistView({
   }, [filter]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching pattern consistent with existing dashboard views
     void fetchChecklists();
   }, [fetchChecklists]);
 

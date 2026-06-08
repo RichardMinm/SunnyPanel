@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ScheduleResultSummary } from "./utils";
 
 type ScheduleResultCardProps = {
@@ -20,9 +21,9 @@ export function ScheduleResultCard({ result }: ScheduleResultCardProps) {
         </div>
       </div>
       <div className="sunny-agent-result-card-actions">
-        <a className="sunny-agent-result-card-link" href="/dashboard">
+        <Link className="sunny-agent-result-card-link" href="/dashboard">
           查看日程
-        </a>
+        </Link>
       </div>
     </section>
   );

@@ -253,6 +253,7 @@ export function AgentComposer({
                 key={`${r.collection}-${r.id}-${i}`}
                 type="button"
                 role="option"
+                aria-selected={false}
                 onClick={() => {
                   const newValue = input.replace(/@[^\s@]*$/, `@${r.title} `);
                   onInputChange(newValue);

@@ -66,6 +66,7 @@ export function ScheduleMonthView({ onBackToWorkbench }: ScheduleMonthViewProps)
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- data fetching pattern consistent with dashboard views */
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -90,6 +91,7 @@ export function ScheduleMonthView({ onBackToWorkbench }: ScheduleMonthViewProps)
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     return () => {
       cancelled = true;

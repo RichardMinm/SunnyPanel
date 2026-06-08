@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { AgentThreadSummary } from "@/components/dashboard/agent/types";
 import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { getPendingActionLabel } from "@/components/dashboard/agent/utils";
@@ -64,7 +64,6 @@ export function DashboardIconBar({
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveLoaded, setArchiveLoaded] = useState(false);
   const [suggestions, setSuggestions] = useState<AgentInboxSuggestion[]>(initialSuggestions);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const refreshSuggestions = useCallback(async () => {
     try {
