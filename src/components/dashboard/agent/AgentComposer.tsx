@@ -233,6 +233,14 @@ export function AgentComposer({
           <textarea
             value={input}
             onChange={(event) => handleInputChange(event.target.value)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (!disabled && input.trim().length > 0) {
+                  onSubmit();
+                }
+              }
+            }}
             rows={1}
             aria-label={
             pendingAction?.type === "await_confirmation"
