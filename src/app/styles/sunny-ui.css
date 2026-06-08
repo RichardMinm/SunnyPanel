@@ -1764,8 +1764,6 @@ html[data-theme="dark"] .sunny-panel {
   color: #94a3b8;
   font-weight: 400;
 }
-  flex-shrink: 0;
-}
 
 /* Filter bar */
 .sunny-checklist-filter-bar {
