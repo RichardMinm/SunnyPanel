@@ -1734,7 +1734,7 @@ html[data-theme="dark"] .sunny-panel {
 .sunny-checklist-view {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
   height: 100%;
   padding: 24px 28px 20px;
   background: #f8fafc;
@@ -1743,32 +1743,28 @@ html[data-theme="dark"] .sunny-panel {
 
 .sunny-checklist-view-head {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
-.sunny-checklist-view-head h2 {
+.sunny-checklist-view-head h1 {
   margin: 0;
   font-size: 22px;
   font-weight: 700;
   color: #0f172a;
+  line-height: 1.25;
 }
 
-.sunny-checklist-back-btn {
-  padding: 6px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #fff;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease;
+.sunny-checklist-subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 400;
 }
-
-.sunny-checklist-back-btn:hover {
-  background: #f8fafc;
+  flex-shrink: 0;
 }
 
 /* Filter bar */
@@ -1779,7 +1775,10 @@ html[data-theme="dark"] .sunny-panel {
 }
 
 .sunny-checklist-filter-bar button {
-  padding: 5px 12px;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #fff;
@@ -1812,7 +1811,7 @@ html[data-theme="dark"] .sunny-panel {
 .sunny-checklist-card {
   background: #fff;
   border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border-radius: 20px;
   padding: 16px 18px;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
   transition: box-shadow 0.15s ease;
@@ -1946,4 +1945,205 @@ html[data-theme="dark"] .sunny-panel {
 .sunny-checklist-items-list li.is-done span:last-child {
   text-decoration: line-through;
   color: #94a3b8;
+}
+
+/* ── Timeline View ── */
+.sunny-timeline-view {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: 100%;
+  padding: 24px 28px 20px;
+  background: #f8fafc;
+  overflow: auto;
+}
+
+.sunny-timeline-view-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.sunny-timeline-view-head h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.sunny-timeline-subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.sunny-timeline-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sunny-timeline-month-label {
+  min-width: 110px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+  user-select: none;
+}
+
+/* Timeline track */
+.sunny-timeline-track {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 0 4px;
+}
+
+.sunny-timeline-date-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Date marker */
+.sunny-timeline-date-marker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0 10px;
+}
+
+.sunny-timeline-date-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+
+.sunny-timeline-date-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+/* Event rows */
+.sunny-timeline-date-events {
+  display: flex;
+  flex-direction: column;
+  margin-left: 5px;
+  padding-left: 16px;
+  border-left: 2px solid #f1f5f9;
+}
+
+.sunny-timeline-event-row {
+  display: flex;
+  gap: 0;
+}
+
+.sunny-timeline-event-line {
+  position: relative;
+  flex-shrink: 0;
+  width: 0;
+}
+
+.sunny-timeline-event-connector {
+  position: absolute;
+  left: -17px;
+  top: 24px;
+  width: 2px;
+  height: calc(100% + 8px);
+  background: #f1f5f9;
+}
+
+/* Event card */
+.sunny-timeline-event-card {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  margin-left: 8px;
+  border-radius: 16px;
+  border: 1px solid #f1f5f9;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.sunny-timeline-event-card:hover {
+  border-color: #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+
+.sunny-timeline-event-card.is-expanded {
+  border-color: #e2e8f0;
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+}
+
+.sunny-timeline-event-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.sunny-timeline-event-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sunny-timeline-event-dot.is-milestone {
+  background: #22c55e;
+}
+
+.sunny-timeline-event-dot.is-project {
+  background: #94a3b8;
+}
+
+.sunny-timeline-event-dot.is-life {
+  background: #f59e0b;
+}
+
+.sunny-timeline-event-type {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sunny-timeline-event-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.sunny-timeline-event-plan {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.sunny-timeline-event-desc {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
 }

@@ -27,8 +27,9 @@ const STATUS_FILTERS = [
 ];
 
 export function ChecklistView({
-  onBackToWorkbench,
+  onBackToWorkbench: _onBackToWorkbench,
 }: ChecklistViewProps) {
+  void _onBackToWorkbench; // kept for prop compatibility
   const [checklists, setChecklists] = useState<ChecklistSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
@@ -57,44 +58,43 @@ export function ChecklistView({
   }, [filter]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetching pattern consistent with existing dashboard views
+    /* eslint-disable react-hooks/set-state-in-effect -- data fetching pattern consistent with existing dashboard views */
     void fetchChecklists();
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [fetchChecklists]);
 
   return (
-    <div className="sunny-dashboard-main sunny-checklist-view">
+    <div className="sunny-checklist-view">
       {/* Header */}
-      <div className="sunny-checklist-view-head">
-        <button
-          type="button"
-          className="sunny-checklist-back-btn"
-          onClick={onBackToWorkbench}
-        >
-          ← 返回工作台
-        </button>
-        <h2>清单</h2>
-      </div>
-
-      {/* Filter bar */}
-      <div className="sunny-checklist-filter-bar">
-        {STATUS_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            className={filter === f.key ? "is-active" : ""}
-            onClick={() => setFilter(f.key)}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
+      <header className="sunny-checklist-view-head">
+        <div>
+          <h1>清单</h1>
+          <p className="sunny-checklist-subtitle">追踪你的学习进度、任务与知识点掌握情况</p>
+        </div>
+        <div className="sunny-checklist-filter-bar">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              className={filter === f.key ? "is-active" : ""}
+              onClick={() => setFilter(f.key)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </header>
 
       {/* Checklist cards */}
       <div className="sunny-checklist-card-list">
         {loading ? (
-          <p className="sunny-agent-inspector-empty">加载清单...</p>
+          <p className="sunny-schedule-empty-day">加载中…</p>
         ) : checklists.length === 0 ? (
-          <p className="sunny-agent-inspector-empty">暂无清单</p>
+          <p className="sunny-schedule-empty-day">
+            暂无清单。
+            <br />
+            可以从 Payload 管理后台创建新清单。
+          </p>
         ) : (
           checklists.map((cl) => (
             <div
