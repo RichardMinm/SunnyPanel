@@ -3868,7 +3868,7 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 }
 
 .sunny-codex-archive-list {
-  max-height: min(12rem, 28vh);
+  max-height: min(20rem, 50vh);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
