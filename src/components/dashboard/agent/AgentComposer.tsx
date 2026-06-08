@@ -131,6 +131,45 @@ export function AgentComposer({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [quickMenuOpen, handleMenuClose]);
+
+  // @mention state
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionResults, setMentionResults] = useState<
+    Array<{ collection: string; id: number; title: string }>
+  >([]);
+  const mentionDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleInputChange = useCallback(
+    (value: string) => {
+      onInputChange(value);
+
+      // Detect @mention trigger
+      const atMatch = value.match(/@([^\s@]*)$/);
+      if (atMatch) {
+        const query = atMatch[1] ?? "";
+        setMentionOpen(true);
+
+        if (mentionDebounce.current) clearTimeout(mentionDebounce.current);
+        mentionDebounce.current = setTimeout(async () => {
+          try {
+            const res = await fetch(
+              `/api/command/search?q=${encodeURIComponent(query)}&limit=8`,
+            );
+            if (res.ok) {
+              const data = (await res.json()) as { results: typeof mentionResults };
+              setMentionResults(data.results ?? []);
+            }
+          } catch {
+            // silent
+          }
+        }, 200);
+      } else {
+        setMentionOpen(false);
+        setMentionResults([]);
+      }
+    },
+    [onInputChange],
+  );
   const sendLabel = workbenchMode === "execute" ? "生成 DryRun" : "发送";
 
   return (
@@ -178,11 +217,12 @@ export function AgentComposer({
             </div>
           ) : null}
         </div>
-        <textarea
-          value={input}
-          onChange={(event) => onInputChange(event.target.value)}
-          rows={1}
-          aria-label={
+        <div style={{ position: "relative", flex: 1 }}>
+          <textarea
+            value={input}
+            onChange={(event) => handleInputChange(event.target.value)}
+            rows={1}
+            aria-label={
             pendingAction?.type === "await_confirmation"
               ? "待确认：可输入「确认」或「取消」，或使用上方按钮"
               : pendingAction?.type === "await_queue_resume"
@@ -202,6 +242,30 @@ export function AgentComposer({
           }
           className="sunny-agent-composer-input"
         />
+        {mentionOpen && mentionResults.length > 0 ? (
+          <div
+            className="sunny-agent-composer-mention-dropdown"
+            role="listbox"
+            aria-label="上下文引用建议"
+          >
+            {mentionResults.map((r, i) => (
+              <button
+                key={`${r.collection}-${r.id}-${i}`}
+                type="button"
+                role="option"
+                onClick={() => {
+                  const newValue = input.replace(/@[^\s@]*$/, `@${r.title} `);
+                  onInputChange(newValue);
+                  setMentionOpen(false);
+                }}
+              >
+                <span>{r.title}</span>
+                <small>{r.collection}</small>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        </div>
         <div className="sunny-agent-composer-plus-menu" ref={menuRef}>
           <button
             type="button"
