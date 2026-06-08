@@ -1,12 +1,16 @@
 import type { ReactNode } from "react";
 
+import type { AgentInspectorTab } from "@/components/dashboard/agent/types";
+
 export type DashboardIconName =
   | "agent"
   | "archive"
   | "calendar"
   | "checklist"
   | "command"
+  | "debug"
   | "document"
+  | "inspectorPanel"
   | "memory"
   | "new"
   | "note"
@@ -18,6 +22,11 @@ export type DashboardIconName =
   | "schedule"
   | "search"
   | "settings"
+  | "chevronLeft"
+  | "chevronRight"
+  | "clock"
+  | "layers"
+  | "plus"
   | "thinking"
   | "timeline";
 
@@ -53,10 +62,23 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
       <path d="M7.25 7.25H6a1.75 1.75 0 1 1 1.75-1.75v1.75M12.75 7.25V5.5a1.75 1.75 0 1 1 1.75 1.75h-1.75M12.75 12.75H14a1.75 1.75 0 1 1-1.75 1.75v-1.75M7.25 12.75v1.75A1.75 1.75 0 1 1 5.5 12.75h1.75" />
     </>
   ),
+  debug: (
+    <>
+      <path d="M6.5 6.5 4.75 4.75M13.5 6.5 15.25 4.75M6.5 13.5 4.75 15.25M13.5 13.5 15.25 15.25" />
+      <path d="M10 5.25v1.25M10 13.5v1.25M5.25 10h1.25M13.5 10h1.25" />
+      <path d="M8.25 8.25h3.5v3.5H8.25z" />
+    </>
+  ),
   document: (
     <>
       <path d="M6.25 4.25h4.5l3 3v8.5h-7.5z" />
       <path d="M10.75 4.25v3h3M7.5 9.75h5M7.5 12.25h3.5" />
+    </>
+  ),
+  inspectorPanel: (
+    <>
+      <path d="M4.75 5.25h10.5v9.5H4.75z" />
+      <path d="M11.25 5.25v9.5" />
     </>
   ),
   memory: (
@@ -139,6 +161,31 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
       <path d="M10 6.25v3.75l2.5 1.5" />
     </>
   ),
+  chevronLeft: <path d="M13.5 4.5 7.5 10l6 5.5" />,
+  chevronRight: <path d="M6.5 4.5 12.5 10l-6 5.5" />,
+  clock: (
+    <>
+      <circle cx="10" cy="10" r="7.5" />
+      <path d="M10 6.25V10l3 2" />
+    </>
+  ),
+  layers: (
+    <>
+      <path d="M3 7.4 10 4l7 3.4" />
+      <path d="M3 10.6 10 13l7-3.4" />
+      <path d="M3 13.8 10 16l7-3.8" />
+    </>
+  ),
+  plus: <path d="M10 4.5v11M4.5 10h11" />,
+};
+
+const INSPECTOR_TAB_ICONS: Record<AgentInspectorTab, DashboardIconName> = {
+  approval: "checklist",
+  context: "thinking",
+  linked: "project",
+  memory: "memory",
+  review: "review",
+  trace: "command",
 };
 
 /** 默认 viewBox 0-20, 1.45px stroke */
@@ -157,6 +204,32 @@ export function DashboardIcon({ name }: { name: DashboardIconName }) {
         strokeWidth="1.45"
       >
         {ICON_PATHS[name]}
+      </g>
+    </svg>
+  );
+}
+
+export function InspectorTabIcon({ tab }: { tab: AgentInspectorTab }) {
+  return <DashboardIcon name={INSPECTOR_TAB_ICONS[tab]} />;
+}
+
+export function InspectorPanelIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="sunny-dashboard-nav-icon"
+      viewBox="0 0 20 20"
+      fill="none"
+    >
+      <g
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.55"
+      >
+        <path d="M4.75 5.25h10.5v9.5H4.75z" />
+        <path d="M11.25 5.25v9.5" />
+        {open ? <path d="m8.25 8 2 2-2 2" /> : <path d="m14 8-2 2 2 2" />}
       </g>
     </svg>
   );
