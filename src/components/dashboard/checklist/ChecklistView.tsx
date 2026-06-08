@@ -72,7 +72,7 @@ export function ChecklistView({
         >
           ← 返回工作台
         </button>
-        <h2>📋 清单</h2>
+        <h2>清单</h2>
       </div>
 
       {/* Filter bar */}

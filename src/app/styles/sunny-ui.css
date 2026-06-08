@@ -1248,6 +1248,15 @@ html[data-theme="dark"] .sunny-command-trigger kbd {
   background: rgba(55, 62, 71, 0.96);
 }
 
+html.sunny-command-trigger-is-dragging {
+  user-select: none;
+}
+
+.sunny-command-trigger.is-dragging {
+  cursor: grabbing;
+  box-shadow: 0 18px 42px rgba(26, 35, 50, 0.2);
+}
+
 .sunny-command-overlay {
   position: fixed;
   inset: 0;
@@ -1719,4 +1728,222 @@ html[data-theme="dark"] .sunny-badge-muted {
 html[data-theme="dark"] .sunny-panel {
   background: var(--surface);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Checklist View ── */
+.sunny-checklist-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  padding: 24px 28px 20px;
+  background: #f8fafc;
+  overflow: auto;
+}
+
+.sunny-checklist-view-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.sunny-checklist-view-head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sunny-checklist-back-btn {
+  padding: 6px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.sunny-checklist-back-btn:hover {
+  background: #f8fafc;
+}
+
+/* Filter bar */
+.sunny-checklist-filter-bar {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sunny-checklist-filter-bar button {
+  padding: 5px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sunny-checklist-filter-bar button:hover {
+  background: #f8fafc;
+}
+
+.sunny-checklist-filter-bar button.is-active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+/* Card list */
+.sunny-checklist-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  overflow: auto;
+}
+
+.sunny-checklist-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  transition: box-shadow 0.15s ease;
+}
+
+.sunny-checklist-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+
+.sunny-checklist-card.is-expanded {
+  box-shadow: 0 2px 12px rgba(0,0,0,.08);
+}
+
+.sunny-checklist-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.sunny-checklist-card-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.sunny-checklist-card-header small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* Status badge */
+.sunny-checklist-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sunny-checklist-status-badge.is-active {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.sunny-checklist-status-badge.is-done {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.sunny-checklist-status-badge.is-archived {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+/* Progress bar */
+.sunny-checklist-progress-bar {
+  height: 4px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.sunny-checklist-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #22c55e;
+  transition: width 0.3s ease;
+}
+
+.sunny-checklist-progress-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* Items list */
+.sunny-checklist-items-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 12px;
+}
+
+.sunny-checklist-items-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #334155;
+  transition: background 0.1s ease;
+}
+
+.sunny-checklist-items-list li:hover {
+  background: #f8fafc;
+}
+
+.sunny-checklist-items-list li span:first-child {
+  flex-shrink: 0;
+  width: 18px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.sunny-checklist-items-list li.is-done span:first-child {
+  color: #22c55e;
+}
+
+.sunny-checklist-items-list li.is-done span:last-child {
+  text-decoration: line-through;
+  color: #94a3b8;
 }
