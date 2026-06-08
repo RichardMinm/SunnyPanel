@@ -457,7 +457,7 @@ export function DashboardIconBar({
         title="确认删除"
         message={
           deleteTarget
-            ? `确定永久删除会话「${deleteTarget.title || `#${deleteTarget.id}`}」？此操作不可撤销。`
+            ? `${deleteError ? `⚠️ ${deleteError} ` : ""}确定永久删除会话「${deleteTarget.title || `#${deleteTarget.id}`}」？此操作不可撤销。`
             : ""
         }
         confirmLabel="确认删除"
