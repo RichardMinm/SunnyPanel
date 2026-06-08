@@ -102,9 +102,11 @@ export function ScheduleMonthView({ onBackToWorkbench }: ScheduleMonthViewProps)
   const itemsByDate = useMemo(() => {
     const map = new Map<string, ScheduleItemSummary[]>();
     for (const item of items) {
-      const list = map.get(item.date) ?? [];
+      // Normalize to YYYY-MM-DD in case the API returns an ISO 8601 string.
+      const dateKey = typeof item.date === "string" ? item.date.slice(0, 10) : String(item.date ?? "").slice(0, 10);
+      const list = map.get(dateKey) ?? [];
       list.push(item);
-      map.set(item.date, list);
+      map.set(dateKey, list);
     }
     return map;
   }, [items]);

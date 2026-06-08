@@ -40,10 +40,22 @@ export async function GET(request: Request) {
     },
   });
 
+  const normalizeDate = (value: unknown) => {
+    if (value instanceof Date) {
+      return value.toISOString().slice(0, 10);
+    }
+    if (typeof value === "string") {
+      // Payload may return ISO 8601 strings like "2026-06-08T00:00:00.000Z"
+      // — strip the time portion so the calendar lookup key matches.
+      return value.slice(0, 10);
+    }
+    return String(value ?? "");
+  };
+
   const items = result.docs.map((doc) => ({
     id: doc.id,
     title: doc.title,
-    date: doc.date,
+    date: normalizeDate(doc.date),
     startTime: doc.startTime ?? null,
     endTime: doc.endTime ?? null,
     status: doc.status,
