@@ -14,8 +14,10 @@ import { DashboardRightPanel } from "./DashboardRightPanel";
 import { DashboardStatusBar } from "./DashboardStatusBar";
 import { MainWorkspace } from "./MainWorkspace";
 import { SidebarNav } from "./SidebarNav";
+import { ChecklistView } from "./checklist/ChecklistView";
 import { ScheduleMonthView } from "./schedule/ScheduleMonthView";
 import { MemoryCardGrid } from "./memory/MemoryCardGrid";
+import { TimelineView } from "./timeline/TimelineView";
 
 
 type DashboardShellProps = {
@@ -249,6 +251,16 @@ export function DashboardShell({
           />
         ) : activeMode === "memory" ? (
           <MemoryCardGrid
+            onBackToWorkbench={() => setActiveMode("agent")}
+            threadId={threadId}
+          />
+        ) : activeMode === "checklist" ? (
+          <ChecklistView
+            onBackToWorkbench={() => setActiveMode("agent")}
+            threadId={threadId}
+          />
+        ) : activeMode === "timeline" ? (
+          <TimelineView
             onBackToWorkbench={() => setActiveMode("agent")}
             threadId={threadId}
           />

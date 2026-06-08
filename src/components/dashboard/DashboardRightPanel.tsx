@@ -162,15 +162,6 @@ function LinkedObjectsPanel({
 }
 
 function MemoryInspectorPanel({ debugMode, traceSteps }: { debugMode: boolean; traceSteps: AgentTraceStep[] }) {
-  if (!debugMode) {
-    return (
-      <div className="sunny-agent-inspector-empty">
-        <h3>长期记忆</h3>
-        <p>调试开启后会显示本轮使用的长期记忆详情。</p>
-      </div>
-    );
-  }
-
   const memoryTitles = traceSteps
     .filter((step) => step.kind === "context" && step.detail)
     .flatMap((step) => {
@@ -178,6 +169,36 @@ function MemoryInspectorPanel({ debugMode, traceSteps }: { debugMode: boolean; t
       return match ? match[1].split("、").map((item) => item.trim()).filter(Boolean) : [];
     });
 
+  // Normal mode: show memory hits if any
+  if (!debugMode) {
+    if (memoryTitles.length === 0) {
+      return (
+        <div className="sunny-agent-inspector-empty">
+          <h3>本轮未使用长期记忆</h3>
+          <p>当 Agent 查询到相关记忆时，会在这里显示。</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="sunny-agent-inspector-panel sunny-agent-memory-inspector-panel">
+        <div className="sunny-agent-inspector-summary">
+          <span>本轮使用的记忆</span>
+          <h3>{memoryTitles.length} 条记忆</h3>
+        </div>
+        <ul className="sunny-agent-memory-inspector-list">
+          {memoryTitles.map((title) => (
+            <li key={title}>{title}</li>
+          ))}
+        </ul>
+        <p className="sunny-agent-inspector-hint" style={{ fontSize: "10px", color: "#555", marginTop: "8px" }}>
+          开启 debug 模式可查看详细匹配信息
+        </p>
+      </div>
+    );
+  }
+
+  // Debug mode: show detailed memory hits
   if (memoryTitles.length === 0) {
     return (
       <div className="sunny-agent-inspector-empty">
