@@ -103,7 +103,10 @@ html[data-theme="dark"] .sunny-agent-cancel-button-v2 {
 .sunny-agent-composer {
   flex: 0 0 auto;
   padding: 0.7rem;
+  border: none;
   border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .sunny-agent-composer-top {
@@ -240,34 +243,6 @@ html[data-theme="dark"] .sunny-agent-inspector-tabs .active {
   align-items: center;
   justify-content: flex-end;
   gap: 0.5rem;
-}
-
-.sunny-agent-composer-input,
-.sunny-agent-dock-v2-form textarea {
-  width: 100%;
-  max-height: 7.5rem;
-  resize: vertical;
-  border: 1px solid var(--border);
-  border-radius: 0.62rem;
-  background: var(--agent-input-bg);
-  padding: 0.65rem 0.72rem;
-  color: var(--foreground);
-  font-size: var(--msg-body-size);
-  line-height: 1.65;
-  min-height: var(--composer-input-min-height);
-  outline: none;
-}
-
-html[data-theme="dark"] .sunny-agent-composer-input,
-html[data-theme="dark"] .sunny-agent-dock-v2-form textarea {
-  background: var(--agent-input-bg);
-  color: var(--foreground);
-}
-
-.sunny-agent-composer-input:focus,
-.sunny-agent-dock-v2-form textarea:focus {
-  border-color: var(--accent-ring-strong);
-  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .sunny-agent-approval-banner {
@@ -2418,49 +2393,24 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   line-height: 1.6;
 }
 
-.sunny-agent-composer {
-  margin: 0.85rem;
-  padding: 0.8rem;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  border-radius: 1rem;
-  background: #fff;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
-}
-
-.sunny-agent-composer-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.55rem;
-}
-
-.sunny-agent-composer-top > span:last-child {
-  color: var(--muted);
-  font-size: var(--text-2xs);
-}
-
-.sunny-agent-composer-modes,
-.sunny-agent-composer-tools {
+/* .sunny-agent-composer-modes — 模式按钮行（当前 JSX 使用下拉模式，此 CSS 保留供后续对齐 mockup） */
+.sunny-agent-composer-modes {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.3rem;
-}
-
-.sunny-agent-composer-modes {
   padding: 0.2rem;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 0.75rem;
   background: #f8fafc;
 }
 
-.sunny-agent-composer-modes button,
-.sunny-agent-composer-tools button {
+.sunny-agent-composer-modes button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 1.55rem;
+  padding: 0 0.55rem;
   border: 1px solid transparent;
   border-radius: 0.58rem;
   background: transparent;
@@ -2470,67 +2420,44 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   cursor: pointer;
 }
 
-.sunny-agent-composer-modes button {
-  padding: 0 0.55rem;
-}
-
 .sunny-agent-composer-modes button.is-active {
   border-color: color-mix(in srgb, #93c5fd 40%, transparent);
   background: #e8f1ff;
   color: #1d4ed8;
 }
 
-.sunny-agent-composer-tools {
-  margin-bottom: 0.55rem;
-}
-
-.sunny-agent-composer-tools button {
-  min-height: 1.65rem;
-  padding: 0 0.55rem;
-  border-color: color-mix(in srgb, var(--border) 58%, transparent);
-  background: #fff;
-}
-
-.sunny-agent-composer-tools button:hover,
 .sunny-agent-composer-modes button:hover {
   color: var(--foreground);
   border-color: color-mix(in srgb, #93c5fd 45%, transparent);
 }
 
-.sunny-agent-auto-mode-pill {
-  margin-left: auto;
-  padding: 0.18rem 0.52rem;
-  border: 1px solid color-mix(in srgb, #a78bfa 34%, transparent);
-  border-radius: var(--radius-pill);
-  background: #f3efff;
-  color: #6d28d9;
-  font-size: var(--text-2xs);
-  font-weight: 700;
-}
-
+/* Composer row — 4-column grid: mode-selector | input | +button | send */
 .sunny-agent-composer-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.65rem;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 0.5rem;
   align-items: end;
 }
 
+/* Composer input — final merged definition */
 .sunny-agent-composer-input {
-  min-height: 5.6rem;
-  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
-  border-radius: 0.9rem;
-  background: #f8fafc;
-  padding: 0.75rem 0.85rem;
-  color: var(--foreground);
-  font-size: var(--text-sm-compact);
-  line-height: 1.55;
+  width: 100%;
+  min-height: 2.8rem;
+  max-height: 7.5rem;
   resize: none;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 0.62rem;
+  background: var(--agent-input-bg);
+  padding: 0.65rem 0.72rem;
+  color: var(--foreground);
+  font-size: var(--msg-body-size);
+  line-height: 1.65;
+  outline: none;
 }
 
 .sunny-agent-composer-input:focus {
-  border-color: color-mix(in srgb, #2563eb 54%, var(--border));
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+  border-color: var(--accent-ring-strong);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .sunny-agent-run-button {
@@ -2819,40 +2746,11 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   background: transparent;
 }
 
-.sunny-agent-composer {
-  position: sticky;
-  bottom: 1rem;
-  z-index: 12;
-  width: min(100% - 2rem, 860px);
-  margin: 0 auto 1rem;
-  padding: 0.55rem;
-  border-radius: 1.35rem;
-  box-shadow: 0 16px 44px rgba(15, 23, 42, 0.12);
-}
-
-.sunny-agent-composer-top {
-  margin-bottom: 0.42rem;
-}
-
-.sunny-agent-composer-tools {
-  margin-bottom: 0.42rem;
-}
-
-.sunny-agent-composer-input {
-  min-height: 3.2rem;
-  max-height: 9rem;
-  border-radius: 1rem;
-  background: #fff;
-}
-
+/* Run button refinements */
 .sunny-agent-run-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2.65rem;
-  min-height: 2.65rem;
-  border-radius: 50%;
-  padding: 0 0.75rem;
 }
 
 @media (max-width: 760px) {
@@ -3591,6 +3489,73 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   padding: 0.48rem 0.55rem;
   font-size: var(--text-xs);
   font-weight: 650;
+}
+
+/* Quick Actions 二级子菜单 */
+.sunny-agent-composer-quick-submenu {
+  margin-left: 0.6rem;
+  padding: 0.2rem 0 0.2rem 0.5rem;
+  border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.sunny-agent-composer-quick-submenu button {
+  display: block;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sunny-agent-composer-quick-submenu button:hover {
+  background: color-mix(in srgb, #2563eb 10%, var(--surface));
+  color: var(--foreground);
+}
+
+/* @mention 下拉 */
+.sunny-agent-composer-mention-dropdown {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 40;
+  min-width: 14rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  padding: 0.3rem;
+}
+
+.sunny-agent-composer-mention-dropdown button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  text-align: left;
+}
+
+.sunny-agent-composer-mention-dropdown button:hover,
+.sunny-agent-composer-mention-dropdown button:focus {
+  background: color-mix(in srgb, #2563eb 10%, var(--surface));
+}
+
+.sunny-agent-composer-mention-dropdown button small {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  margin-left: 0.5rem;
 }
 
 @media (max-width: 760px) {
