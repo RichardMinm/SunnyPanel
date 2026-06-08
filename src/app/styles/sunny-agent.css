@@ -3483,6 +3483,7 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   border-color: color-mix(in srgb, #93c5fd 54%, var(--border));
   background: color-mix(in srgb, #2563eb 10%, var(--surface));
   color: #1d4ed8;
+  border-radius: 9999px;
 }
 
 .sunny-agent-composer-mode-menu,

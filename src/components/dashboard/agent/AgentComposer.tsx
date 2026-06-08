@@ -129,12 +129,13 @@ export function AgentComposer({
   const activeMode = MODE_OPTIONS.find((mode) => mode.key === workbenchMode) ?? MODE_OPTIONS[0];
 
   const handleMenuClose = useCallback(() => {
+    setModeMenuOpen(false);
     setQuickMenuOpen(false);
     setExpandedMenuIndex(null);
   }, []);
 
   useEffect(() => {
-    if (!quickMenuOpen) return;
+    if (!modeMenuOpen && !quickMenuOpen) return;
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         handleMenuClose();
@@ -142,7 +143,7 @@ export function AgentComposer({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [quickMenuOpen, handleMenuClose]);
+  }, [modeMenuOpen, quickMenuOpen, handleMenuClose]);
 
   // @mention state
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -192,7 +193,7 @@ export function AgentComposer({
         onSubmit();
       }}
     >
-      <div className="sunny-agent-composer-row">
+      <div className="sunny-agent-composer-row" ref={menuRef}>
         <div className="sunny-agent-composer-mode-control">
           <button
             type="button"
@@ -287,7 +288,7 @@ export function AgentComposer({
           </div>
         ) : null}
         </div>
-        <div className="sunny-agent-composer-plus-menu" ref={menuRef}>
+        <div className="sunny-agent-composer-plus-menu">
           <button
             type="button"
             className="sunny-agent-composer-plus-button"
