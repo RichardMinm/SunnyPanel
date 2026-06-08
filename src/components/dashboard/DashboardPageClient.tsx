@@ -1,15 +1,18 @@
 "use client";
 
+import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { AgentWorkbench } from "@/components/dashboard/agent";
 import { useAgentDashboardChat } from "@/components/dashboard/agent-chat/use-agent-dashboard-chat";
 import { DashboardShell } from "./DashboardShell";
 
 export type DashboardPageClientProps = {
   initialThreadId?: number;
+  initialSuggestions: AgentInboxSuggestion[];
 };
 
 export function DashboardPageClient({
   initialThreadId,
+  initialSuggestions,
 }: DashboardPageClientProps) {
   const chat = useAgentDashboardChat({ initialThreadId });
 
@@ -19,6 +22,7 @@ export function DashboardPageClient({
       artifactsRollbackBusy={chat.artifactsRollbackBusy}
       artifactsRollbackError={chat.artifactsRollbackError}
       contextPreferences={chat.contextPreferences}
+      initialSuggestions={initialSuggestions}
       isSubmitting={chat.isSubmitting}
       inputTokenEstimate={chat.inputTokenEstimate}
       lastRollbackPayload={chat.lastRollbackPayload}

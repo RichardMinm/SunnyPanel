@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentThreadSummary } from "@/components/dashboard/agent/types";
+import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { getPendingActionLabel } from "@/components/dashboard/agent/utils";
 import { filterDashboardThreads } from "@/lib/dashboard/filter-dashboard-threads";
 import { ThemeToggle } from "@/components/public/ThemeToggle";
@@ -34,6 +35,7 @@ function formatThreadMeta(thread: AgentThreadSummary) {
 
 export type DashboardIconBarProps = {
   activeMode: DashboardIconMode;
+  initialSuggestions: AgentInboxSuggestion[];
   onModeChange: (mode: DashboardIconMode, prompt: string) => void;
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
@@ -44,6 +46,7 @@ export type DashboardIconBarProps = {
 
 export function DashboardIconBar({
   activeMode,
+  initialSuggestions,
   onModeChange,
   onLoadThread,
   onNewThread,
@@ -58,7 +61,50 @@ export function DashboardIconBar({
   const [archiveThreads, setArchiveThreads] = useState<AgentThreadSummary[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveLoaded, setArchiveLoaded] = useState(false);
+  const [suggestions, setSuggestions] = useState<AgentInboxSuggestion[]>(initialSuggestions);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const refreshSuggestions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/agent/suggestions");
+      if (res.ok) {
+        const data = (await res.json()) as { suggestions: AgentInboxSuggestion[] };
+        setSuggestions(data.suggestions ?? []);
+      }
+    } catch {
+      // silent
+    }
+  }, []);
+
+  const handleAcceptSuggestion = useCallback(
+    async (suggestion: AgentInboxSuggestion) => {
+      try {
+        await fetch("/api/agent/suggestions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: suggestion.id, action: "accept" }),
+        });
+      } catch {
+        // silent
+      }
+      onModeChange("agent", suggestion.suggestedPrompt ?? suggestion.title);
+      setSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id));
+    },
+    [onModeChange],
+  );
+
+  const handleDismissSuggestion = useCallback(async (id: number) => {
+    try {
+      await fetch("/api/agent/suggestions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "dismiss" }),
+      });
+    } catch {
+      // silent
+    }
+    setSuggestions((prev) => prev.filter((s) => s.id !== id));
+  }, []);
 
   const filteredThreads = useMemo(
     () => filterDashboardThreads(threads, searchQuery),
@@ -213,6 +259,94 @@ export function DashboardIconBar({
             ))}
           </div>
         </section>
+
+        {/* Suggestions section */}
+        {suggestions.length > 0 ? (
+          <section className="sunny-codex-sidebar-section" aria-label="建议">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p>💡 建议 ({suggestions.length})</p>
+              <button
+                type="button"
+                style={{ fontSize: "10px", padding: "1px 4px", background: "none", border: "none", color: "#888", cursor: "pointer" }}
+                onClick={refreshSuggestions}
+                aria-label="刷新建议"
+              >
+                刷新
+              </button>
+            </div>
+            <div className="sunny-codex-mode-list">
+              {suggestions.slice(0, 6).map((s) => (
+                <div
+                  key={s.id}
+                  className="sunny-codex-mode-row"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                >
+                  <button
+                    type="button"
+                    style={{
+                      background: "none", border: "none", color: "inherit",
+                      cursor: "pointer", textAlign: "left", flex: 1,
+                      fontSize: "11px", padding: "3px 6px",
+                    }}
+                    onClick={() => handleAcceptSuggestion(s)}
+                  >
+                    {s.title}
+                  </button>
+                  <span style={{ display: "flex", gap: "2px" }}>
+                    <button
+                      type="button"
+                      style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "10px", padding: "2px 4px" }}
+                      onClick={() => handleAcceptSuggestion(s)}
+                      title="接受建议"
+                      aria-label={`接受建议：${s.title}`}
+                    >
+                      ✓
+                    </button>
+                    <button
+                      type="button"
+                      style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "10px", padding: "2px 4px" }}
+                      onClick={() => handleDismissSuggestion(s.id)}
+                      title="忽略建议"
+                      aria-label={`忽略建议：${s.title}`}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <section className="sunny-codex-sidebar-section" aria-label="快捷入口">
+            <p>💡 快捷入口</p>
+            <div className="sunny-codex-mode-list">
+              <button
+                type="button"
+                className="sunny-codex-mode-row"
+                style={{ fontSize: "11px", color: "#888" }}
+                onClick={() => onModeChange("agent", "/plan 新建计划")}
+              >
+                /plan 新建计划
+              </button>
+              <button
+                type="button"
+                className="sunny-codex-mode-row"
+                style={{ fontSize: "11px", color: "#888" }}
+                onClick={() => onModeChange("agent", "/schedule 安排日程")}
+              >
+                /schedule 安排日程
+              </button>
+              <button
+                type="button"
+                className="sunny-codex-mode-row"
+                style={{ fontSize: "11px", color: "#888" }}
+                onClick={() => onModeChange("agent", "/review 生成复盘")}
+              >
+                /review 生成复盘
+              </button>
+            </div>
+          </section>
+        )}
 
         <section className="sunny-codex-sidebar-section sunny-codex-thread-section" aria-label="会话">
           <p>会话</p>

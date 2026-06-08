@@ -5,6 +5,7 @@ import type { AgentChatMessage, AgentTraceStep, AgentTokenUsage, PendingAction }
 import type { AgentInspectorTab, AgentRunDetail, AgentThreadSummary, ContextPreferences } from "@/components/dashboard/agent/types";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
+import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { AppShell } from "./AppShell";
 import type { DashboardIconMode } from "./DashboardIconBar";
 import { DashboardInspectorControlProvider } from "./DashboardInspectorControlContext";
@@ -23,6 +24,7 @@ type DashboardShellProps = {
   artifactsRollbackBusy?: boolean;
   artifactsRollbackError?: null | string;
   contextPreferences: ContextPreferences;
+  initialSuggestions: AgentInboxSuggestion[];
   isSubmitting: boolean;
   /* Right panel */
   inputTokenEstimate: number;
@@ -55,6 +57,7 @@ export function DashboardShell({
   artifactsRollbackBusy,
   artifactsRollbackError,
   contextPreferences,
+  initialSuggestions,
   isSubmitting,
   inputTokenEstimate,
   lastRollbackPayload,
@@ -229,6 +232,7 @@ export function DashboardShell({
     <AppShell panelOpen={panelOpen} panelWidth={panelWidth}>
       <SidebarNav
         activeMode={activeMode}
+        initialSuggestions={initialSuggestions}
         onLoadThread={onLoadThread}
         onModeChange={handleModeChange}
         onNewThread={handleNewThread}
