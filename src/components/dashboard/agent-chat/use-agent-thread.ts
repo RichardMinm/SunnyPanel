@@ -21,7 +21,7 @@ export function useAgentThreadList() {
   const [runDetailError, setRunDetailError] = useState<null | string>(null);
   const [selectedRunDetail, setSelectedRunDetail] = useState<AgentRunDetail | null>(null);
 
-  const fetchThread = useCallback(async (nextThreadId?: number) => {
+  const fetchThread = useCallback(async (nextThreadId?: number, options?: { listOnly?: boolean }) => {
     const response = await fetch(nextThreadId ? `/api/agent/thread?threadId=${nextThreadId}` : "/api/agent/thread", {
       method: "GET",
     });
@@ -40,6 +40,10 @@ export function useAgentThreadList() {
     setRecentRuns(data.recentRuns ?? []);
     setRunDetailError(null);
     setSelectedRunDetail(null);
+
+    if (options?.listOnly) {
+      return null;
+    }
 
     if (data.selectedThread) {
       setThreadId(data.selectedThread.id);
@@ -87,6 +91,22 @@ export function useAgentThreadList() {
     return true;
   }, []);
 
+  const deleteThread = useCallback(async (deleteThreadId: number) => {
+    const response = await fetch("/api/agent/thread", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: deleteThreadId }),
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    setThreads((current) => current.filter((t) => t.id !== deleteThreadId));
+
+    return true;
+  }, []);
+
   const clearRunDetail = useCallback(() => {
     setRunDetailError(null);
     setSelectedRunDetail(null);
@@ -117,6 +137,7 @@ export function useAgentThreadList() {
   return {
     archiveThread,
     clearRunDetail,
+    deleteThread,
     fetchThread,
     fetchRunDetail,
     lastInteractionAt,
