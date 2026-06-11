@@ -6,7 +6,16 @@ import { deriveRichContentFields } from "../../src/lib/rich-content/derive";
 import { ensureRichContentBlockIds } from "../../src/lib/rich-content/ids";
 import { markdownToRichContent } from "../../src/lib/rich-content/markdown-to-rich";
 import { normalizeRichContentDocument } from "../../src/lib/rich-content/validate";
-import type { RichContentDocument } from "../../src/lib/rich-content/types";
+import type { RichContentDocument, RichContentNode } from "../../src/lib/rich-content/types";
+
+const collectNodeIds = (node: RichContentNode): string[] => {
+  const ownId = typeof node.attrs?.id === "string" ? [node.attrs.id] : [];
+  const childIds = node.content?.flatMap(collectNodeIds) ?? [];
+
+  return [...ownId, ...childIds];
+};
+
+const collectDocumentIds = (document: RichContentDocument): string[] => document.content?.flatMap(collectNodeIds) ?? [];
 
 describe("rich content utilities", () => {
   test("createEmptyRichDocument returns a stable Tiptap doc", () => {
@@ -77,6 +86,39 @@ describe("rich content utilities", () => {
     assert.equal(withIds.content?.[1]?.attrs?.id, "paragraph-1");
   });
 
+  test("ensureRichContentBlockIds preserves the first nested duplicate id in preorder", () => {
+    const doc: RichContentDocument = {
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          attrs: { id: "dup" },
+          content: [
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  attrs: { id: "dup" },
+                  content: [{ type: "text", text: "Nested duplicate" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const withIds = ensureRichContentBlockIds(doc);
+    const outerList = withIds.content?.[0];
+    const nestedParagraph = outerList?.content?.[0]?.content?.[0];
+    const blockIds = collectDocumentIds(withIds);
+
+    assert.equal(outerList?.attrs?.id, "dup");
+    assert.notEqual(nestedParagraph?.attrs?.id, "dup");
+    assert.equal(new Set(blockIds).size, blockIds.length);
+  });
+
   test("ensureRichContentBlockIds reserves later existing ids", () => {
     const doc: RichContentDocument = {
       type: "doc",
@@ -135,6 +177,22 @@ describe("rich content utilities", () => {
 
     assert.equal(derived.contentText, "First\nSecond");
     assert.equal(derived.contentExcerpt, "First Second");
+  });
+
+  test("deriveRichContentFields preserves hard breaks in text and normalizes excerpt spacing", () => {
+    const derived = deriveRichContentFields({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          attrs: { id: "p1" },
+          content: [{ type: "text", text: "Hello" }, { type: "hardBreak" }, { type: "text", text: "World" }],
+        },
+      ],
+    });
+
+    assert.equal(derived.contentText, "Hello\nWorld");
+    assert.equal(derived.contentExcerpt, "Hello World");
   });
 
   test("normalizeRichContentDocument returns empty doc for invalid input", () => {

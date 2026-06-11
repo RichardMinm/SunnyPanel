@@ -13,6 +13,10 @@ const textFromNode = (node: RichContentNode): string => {
     return node.text ?? "";
   }
 
+  if (node.type === "hardBreak") {
+    return "\n";
+  }
+
   return node.content?.map(textFromNode).join("") ?? "";
 };
 

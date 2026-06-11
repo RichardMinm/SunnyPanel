@@ -47,26 +47,28 @@ export const ensureRichContentBlockIds = (document: RichContentDocument): RichCo
   document.content?.forEach(collectOriginalIds);
 
   const addIds = (node: RichContentNode): RichContentNode => {
-    const content = node.content?.map(addIds);
     const shouldHaveId = blockNodeTypes.has(node.type);
+    let attrs = node.attrs;
+    let attrsChanged = false;
 
-    if (!shouldHaveId) {
-      return content === node.content ? node : { ...node, content };
+    if (shouldHaveId) {
+      if (hasStringId(node.attrs) && !usedIds.has(node.attrs.id)) {
+        usedIds.add(node.attrs.id);
+      } else {
+        attrs = {
+          ...(isRecord(node.attrs) ? node.attrs : {}),
+          id: createId(node.type),
+        };
+        attrsChanged = true;
+      }
     }
 
-    if (hasStringId(node.attrs) && !usedIds.has(node.attrs.id)) {
-      usedIds.add(node.attrs.id);
-      return content === node.content ? node : { ...node, content };
-    }
+    const originalContent = node.content;
+    const content = originalContent?.map(addIds);
+    const contentChanged = content?.some((child, index) => child !== originalContent?.[index]) ?? false;
+    const nodeWithAttrs = attrsChanged ? { ...node, attrs } : node;
 
-    return {
-      ...node,
-      attrs: {
-        ...(isRecord(node.attrs) ? node.attrs : {}),
-        id: createId(node.type),
-      },
-      content,
-    };
+    return contentChanged ? { ...nodeWithAttrs, content } : nodeWithAttrs;
   };
 
   return {
