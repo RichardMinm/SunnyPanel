@@ -6,6 +6,8 @@ const excerptLength = 180;
 const isHeadingLevel = (value: unknown): value is 1 | 2 | 3 =>
   value === 1 || value === 2 || value === 3;
 
+const textBlockNodeTypes = new Set(["codeBlock", "heading", "paragraph"]);
+
 const textFromNode = (node: RichContentNode): string => {
   if (node.type === "text") {
     return node.text ?? "";
@@ -15,13 +17,22 @@ const textFromNode = (node: RichContentNode): string => {
 };
 
 const blockTextFromNode = (node: RichContentNode): string[] => {
+  if (node.type === "text") {
+    const text = node.text?.trim() ?? "";
+    return text.length > 0 ? [text] : [];
+  }
+
+  if (!textBlockNodeTypes.has(node.type)) {
+    return node.content?.flatMap(blockTextFromNode) ?? [];
+  }
+
   const text = textFromNode(node).trim();
 
   if (text.length > 0) {
     return [text];
   }
 
-  return node.content?.flatMap(blockTextFromNode) ?? [];
+  return [];
 };
 
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, " ").trim();

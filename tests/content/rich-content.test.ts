@@ -45,6 +45,22 @@ describe("rich content utilities", () => {
     assert.equal(withIds.content?.[1]?.attrs?.id, "paragraph-2");
   });
 
+  test("ensureRichContentBlockIds avoids generated id collisions", () => {
+    const doc: RichContentDocument = {
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { id: "heading-1", level: 2 }, content: [{ type: "text", text: "Hello" }] },
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Again" }] },
+      ],
+    };
+
+    const withIds = ensureRichContentBlockIds(doc);
+
+    assert.equal(withIds.content?.[0]?.attrs?.id, "heading-1");
+    assert.notEqual(withIds.content?.[1]?.attrs?.id, "heading-1");
+    assert.equal(withIds.content?.[1]?.attrs?.id, "heading-2");
+  });
+
   test("deriveRichContentFields generates text, excerpt, outline, and reading time", () => {
     const derived = deriveRichContentFields({
       type: "doc",
@@ -58,6 +74,33 @@ describe("rich content utilities", () => {
     assert.equal(derived.contentExcerpt, "Intro A clear opening paragraph.");
     assert.deepEqual(derived.contentOutline, [{ id: "intro", level: 1, order: 0, text: "Intro" }]);
     assert.equal(derived.readingMinutes, 1);
+  });
+
+  test("deriveRichContentFields keeps nested block text readable", () => {
+    const derived = deriveRichContentFields({
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          attrs: { id: "list-1" },
+          content: [
+            {
+              type: "listItem",
+              attrs: { id: "item-1" },
+              content: [{ type: "paragraph", attrs: { id: "p1" }, content: [{ type: "text", text: "First" }] }],
+            },
+            {
+              type: "listItem",
+              attrs: { id: "item-2" },
+              content: [{ type: "paragraph", attrs: { id: "p2" }, content: [{ type: "text", text: "Second" }] }],
+            },
+          ],
+        },
+      ],
+    });
+
+    assert.equal(derived.contentText, "First\nSecond");
+    assert.equal(derived.contentExcerpt, "First Second");
   });
 
   test("normalizeRichContentDocument returns empty doc for invalid input", () => {

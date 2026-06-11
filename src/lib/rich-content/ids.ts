@@ -22,6 +22,28 @@ const hasStringId = (attrs: unknown): attrs is Record<string, unknown> & { id: s
 
 export const ensureRichContentBlockIds = (document: RichContentDocument): RichContentDocument => {
   let nextId = 1;
+  const usedIds = new Set<string>();
+
+  const collectIds = (node: RichContentNode) => {
+    if (hasStringId(node.attrs)) {
+      usedIds.add(node.attrs.id);
+    }
+
+    node.content?.forEach(collectIds);
+  };
+
+  const createId = (type: string) => {
+    let id = `${type}-${nextId++}`;
+
+    while (usedIds.has(id)) {
+      id = `${type}-${nextId++}`;
+    }
+
+    usedIds.add(id);
+    return id;
+  };
+
+  document.content?.forEach(collectIds);
 
   const addIds = (node: RichContentNode): RichContentNode => {
     const content = node.content?.map(addIds);
@@ -35,7 +57,7 @@ export const ensureRichContentBlockIds = (document: RichContentDocument): RichCo
       ...node,
       attrs: {
         ...(isRecord(node.attrs) ? node.attrs : {}),
-        id: `${node.type}-${nextId++}`,
+        id: createId(node.type),
       },
       content,
     };
