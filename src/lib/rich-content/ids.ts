@@ -3,6 +3,7 @@ import type { RichContentDocument, RichContentNode } from "./types";
 const blockNodeTypes = new Set([
   "blockquote",
   "bulletList",
+  "callout",
   "codeBlock",
   "heading",
   "horizontalRule",
@@ -10,6 +11,7 @@ const blockNodeTypes = new Set([
   "listItem",
   "orderedList",
   "paragraph",
+  "table",
   "taskItem",
   "taskList",
 ]);

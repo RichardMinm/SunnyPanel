@@ -54,6 +54,21 @@ describe("rich content utilities", () => {
     assert.equal(withIds.content?.[1]?.attrs?.id, "paragraph-2");
   });
 
+  test("ensureRichContentBlockIds adds deterministic ids to callout and table blocks", () => {
+    const doc: RichContentDocument = {
+      type: "doc",
+      content: [
+        { type: "callout" },
+        { type: "table" },
+      ],
+    };
+
+    const withIds = ensureRichContentBlockIds(doc);
+
+    assert.equal(withIds.content?.[0]?.attrs?.id, "callout-1");
+    assert.equal(withIds.content?.[1]?.attrs?.id, "table-2");
+  });
+
   test("ensureRichContentBlockIds avoids generated id collisions", () => {
     const doc: RichContentDocument = {
       type: "doc",
@@ -201,6 +216,15 @@ describe("rich content utilities", () => {
       type: "doc",
       content: [],
     });
+  });
+
+  test("normalizeRichContentDocument assigns deterministic ids to valid block nodes", () => {
+    const normalized = normalizeRichContentDocument({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "Needs id" }] }],
+    });
+
+    assert.equal(normalized.content?.[0]?.attrs?.id, "paragraph-1");
   });
 
   test("markdownToRichContent converts common Markdown blocks", () => {

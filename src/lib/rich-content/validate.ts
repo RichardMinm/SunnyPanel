@@ -1,4 +1,5 @@
 import { createEmptyRichDocument } from "./defaults";
+import { ensureRichContentBlockIds } from "./ids";
 import type { RichContentDocument, RichContentNode } from "./types";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -48,8 +49,8 @@ export const normalizeRichContentDocument = (value: unknown): RichContentDocumen
     return createEmptyRichDocument();
   }
 
-  return {
+  return ensureRichContentBlockIds({
     type: "doc",
     content: value.content.map(normalizeNode).filter((node): node is RichContentNode => node !== null),
-  };
+  });
 };
