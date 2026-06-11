@@ -22,18 +22,29 @@ const hasStringId = (attrs: unknown): attrs is Record<string, unknown> & { id: s
 
 export const ensureRichContentBlockIds = (document: RichContentDocument): RichContentDocument => {
   let nextId = 1;
+  const originalIds = new Set<string>();
   const usedIds = new Set<string>();
+
+  const collectOriginalIds = (node: RichContentNode) => {
+    if (blockNodeTypes.has(node.type) && hasStringId(node.attrs)) {
+      originalIds.add(node.attrs.id);
+    }
+
+    node.content?.forEach(collectOriginalIds);
+  };
 
   const createId = (type: string) => {
     let id = `${type}-${nextId++}`;
 
-    while (usedIds.has(id)) {
+    while (originalIds.has(id) || usedIds.has(id)) {
       id = `${type}-${nextId++}`;
     }
 
     usedIds.add(id);
     return id;
   };
+
+  document.content?.forEach(collectOriginalIds);
 
   const addIds = (node: RichContentNode): RichContentNode => {
     const content = node.content?.map(addIds);
