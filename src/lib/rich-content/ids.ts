@@ -20,7 +20,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const hasStringId = (attrs: unknown): attrs is Record<string, unknown> & { id: string } =>
-  isRecord(attrs) && typeof attrs.id === "string" && attrs.id.length > 0;
+  isRecord(attrs) && typeof attrs.id === "string" && attrs.id.trim().length > 0;
 
 export const ensureRichContentBlockIds = (document: RichContentDocument): RichContentDocument => {
   let nextId = 1;

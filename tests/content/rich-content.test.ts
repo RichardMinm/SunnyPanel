@@ -5,7 +5,7 @@ import { createEmptyRichDocument, getDashboardContentProfile } from "../../src/l
 import { deriveRichContentFields } from "../../src/lib/rich-content/derive";
 import { ensureRichContentBlockIds } from "../../src/lib/rich-content/ids";
 import { markdownToRichContent } from "../../src/lib/rich-content/markdown-to-rich";
-import { normalizeRichContentDocument } from "../../src/lib/rich-content/validate";
+import { isRichContentDocument, normalizeRichContentDocument } from "../../src/lib/rich-content/validate";
 import type { RichContentDocument, RichContentNode } from "../../src/lib/rich-content/types";
 
 const collectNodeIds = (node: RichContentNode): string[] => {
@@ -99,6 +99,19 @@ describe("rich content utilities", () => {
     assert.equal(withIds.content?.[0]?.attrs?.id, "dup");
     assert.notEqual(withIds.content?.[1]?.attrs?.id, "dup");
     assert.equal(withIds.content?.[1]?.attrs?.id, "paragraph-1");
+  });
+
+  test("ensureRichContentBlockIds regenerates whitespace-only ids", () => {
+    const doc: RichContentDocument = {
+      type: "doc",
+      content: [
+        { type: "paragraph", attrs: { id: "   " }, content: [{ type: "text", text: "Needs id" }] },
+      ],
+    };
+
+    const withIds = ensureRichContentBlockIds(doc);
+
+    assert.equal(withIds.content?.[0]?.attrs?.id, "paragraph-1");
   });
 
   test("ensureRichContentBlockIds preserves the first nested duplicate id in preorder", () => {
@@ -210,6 +223,22 @@ describe("rich content utilities", () => {
     assert.equal(derived.contentExcerpt, "Hello World");
   });
 
+  test("deriveRichContentFields counts long CJK text beyond one minute", () => {
+    const chineseText = "中".repeat(1000);
+    const derived = deriveRichContentFields({
+      type: "doc",
+      content: [{ type: "paragraph", attrs: { id: "p1" }, content: [{ type: "text", text: chineseText }] }],
+    });
+
+    assert.equal(derived.readingMinutes, 2);
+  });
+
+  test("isRichContentDocument recognizes doc-shaped content", () => {
+    assert.equal(isRichContentDocument({ type: "doc", content: [] }), true);
+    assert.equal(isRichContentDocument(null), false);
+    assert.equal(isRichContentDocument({ type: "paragraph", content: [] }), false);
+  });
+
   test("normalizeRichContentDocument returns empty doc for invalid input", () => {
     assert.deepEqual(normalizeRichContentDocument(null), createEmptyRichDocument());
     assert.deepEqual(normalizeRichContentDocument({ type: "doc", content: [] }), {
@@ -236,5 +265,13 @@ describe("rich content utilities", () => {
     assert.equal(doc.content?.[1]?.type, "paragraph");
     assert.equal(doc.content?.[2]?.type, "bulletList");
     assert.equal(doc.content?.[3]?.type, "blockquote");
+  });
+
+  test("markdownToRichContent converts standalone Markdown images into image nodes", () => {
+    const doc = markdownToRichContent("![Diagram](https://example.com/diagram.png)");
+
+    assert.equal(doc.content?.[0]?.type, "image");
+    assert.equal(doc.content?.[0]?.attrs?.src, "https://example.com/diagram.png");
+    assert.equal(doc.content?.[0]?.attrs?.alt, "Diagram");
   });
 });

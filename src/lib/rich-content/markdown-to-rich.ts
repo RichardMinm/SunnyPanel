@@ -8,6 +8,11 @@ const paragraph = (text: string): RichContentBlock => ({
   content: [textNode(text)],
 });
 
+const image = (src: string, alt: string): RichContentBlock => ({
+  type: "image",
+  attrs: { src, alt },
+});
+
 const heading = (level: number, text: string): RichContentBlock => ({
   type: "heading",
   attrs: { level: Math.min(Math.max(level, 1), 3) },
@@ -79,6 +84,13 @@ export const markdownToRichContent = (markdown: string): RichContentDocument => 
 
     if (trimmed.length === 0) {
       flushParagraph(blocks, paragraphLines);
+      continue;
+    }
+
+    const imageMatch = trimmed.match(/^!\[([^\]]*)\]\(([^\s)]+)(?:\s+["'][^"']*["'])?\)$/);
+    if (imageMatch?.[2]) {
+      flushParagraph(blocks, paragraphLines);
+      blocks.push(image(imageMatch[2], imageMatch[1] ?? ""));
       continue;
     }
 

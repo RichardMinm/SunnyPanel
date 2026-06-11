@@ -5,6 +5,8 @@ import type { RichContentDocument, RichContentNode } from "./types";
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+type RichContentDocumentWithContent = RichContentDocument & { content: unknown[] };
+
 const normalizeAttrs = (attrs: unknown) => (isRecord(attrs) ? attrs : undefined);
 
 const normalizeMarks = (marks: unknown): RichContentNode["marks"] | undefined => {
@@ -21,6 +23,9 @@ const normalizeMarks = (marks: unknown): RichContentNode["marks"] | undefined =>
 
   return normalized.length > 0 ? normalized : undefined;
 };
+
+export const isRichContentDocument = (value: unknown): value is RichContentDocumentWithContent =>
+  isRecord(value) && value.type === "doc" && Array.isArray(value.content);
 
 const normalizeNode = (value: unknown): RichContentNode | null => {
   if (!isRecord(value) || typeof value.type !== "string") {
@@ -41,11 +46,7 @@ const normalizeNode = (value: unknown): RichContentNode | null => {
 };
 
 export const normalizeRichContentDocument = (value: unknown): RichContentDocument => {
-  if (!isRecord(value) || value.type !== "doc") {
-    return createEmptyRichDocument();
-  }
-
-  if (!Array.isArray(value.content)) {
+  if (!isRichContentDocument(value)) {
     return createEmptyRichDocument();
   }
 
