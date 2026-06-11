@@ -235,6 +235,7 @@ describe("rich content utilities", () => {
 
   test("isRichContentDocument recognizes doc-shaped content", () => {
     assert.equal(isRichContentDocument({ type: "doc", content: [] }), true);
+    assert.equal(isRichContentDocument({ type: "doc" }), true);
     assert.equal(isRichContentDocument(null), false);
     assert.equal(isRichContentDocument({ type: "paragraph", content: [] }), false);
   });
@@ -242,6 +243,10 @@ describe("rich content utilities", () => {
   test("normalizeRichContentDocument returns empty doc for invalid input", () => {
     assert.deepEqual(normalizeRichContentDocument(null), createEmptyRichDocument());
     assert.deepEqual(normalizeRichContentDocument({ type: "doc", content: [] }), {
+      type: "doc",
+      content: [],
+    });
+    assert.deepEqual(normalizeRichContentDocument({ type: "doc" }), {
       type: "doc",
       content: [],
     });
