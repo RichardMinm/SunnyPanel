@@ -24,14 +24,6 @@ export const ensureRichContentBlockIds = (document: RichContentDocument): RichCo
   let nextId = 1;
   const usedIds = new Set<string>();
 
-  const collectIds = (node: RichContentNode) => {
-    if (hasStringId(node.attrs)) {
-      usedIds.add(node.attrs.id);
-    }
-
-    node.content?.forEach(collectIds);
-  };
-
   const createId = (type: string) => {
     let id = `${type}-${nextId++}`;
 
@@ -43,13 +35,16 @@ export const ensureRichContentBlockIds = (document: RichContentDocument): RichCo
     return id;
   };
 
-  document.content?.forEach(collectIds);
-
   const addIds = (node: RichContentNode): RichContentNode => {
     const content = node.content?.map(addIds);
     const shouldHaveId = blockNodeTypes.has(node.type);
 
-    if (!shouldHaveId || hasStringId(node.attrs)) {
+    if (!shouldHaveId) {
+      return content === node.content ? node : { ...node, content };
+    }
+
+    if (hasStringId(node.attrs) && !usedIds.has(node.attrs.id)) {
+      usedIds.add(node.attrs.id);
       return content === node.content ? node : { ...node, content };
     }
 

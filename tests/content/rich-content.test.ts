@@ -61,6 +61,22 @@ describe("rich content utilities", () => {
     assert.equal(withIds.content?.[1]?.attrs?.id, "heading-2");
   });
 
+  test("ensureRichContentBlockIds regenerates duplicate existing ids", () => {
+    const doc: RichContentDocument = {
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { id: "dup", level: 2 }, content: [{ type: "text", text: "Hello" }] },
+        { type: "paragraph", attrs: { id: "dup" }, content: [{ type: "text", text: "Again" }] },
+      ],
+    };
+
+    const withIds = ensureRichContentBlockIds(doc);
+
+    assert.equal(withIds.content?.[0]?.attrs?.id, "dup");
+    assert.notEqual(withIds.content?.[1]?.attrs?.id, "dup");
+    assert.equal(withIds.content?.[1]?.attrs?.id, "paragraph-1");
+  });
+
   test("deriveRichContentFields generates text, excerpt, outline, and reading time", () => {
     const derived = deriveRichContentFields({
       type: "doc",
