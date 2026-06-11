@@ -180,8 +180,7 @@ Update `package.json` scripts to include:
 
 ```json
 {
-  "test:content": "node --import tsx --test tests/content/*.test.ts",
-  "migrate:markdown-to-rich": "node --import tsx scripts/migrate-markdown-to-rich-content.ts"
+  "test:content": "node --import tsx --test tests/content/*.test.ts"
 }
 ```
 
@@ -1927,6 +1926,14 @@ npm run test:content
 Expected: fail because migration script does not exist.
 
 - [ ] **Step 3: Implement migration script**
+
+Update `package.json` scripts to include:
+
+```json
+{
+  "migrate:markdown-to-rich": "node --import tsx scripts/migrate-markdown-to-rich-content.ts"
+}
+```
 
 Create `scripts/migrate-markdown-to-rich-content.ts`:
 

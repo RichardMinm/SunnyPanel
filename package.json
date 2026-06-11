@@ -18,8 +18,7 @@
     "payload": "payload",
     "generate:types": "payload generate:types",
     "generate:importmap": "payload generate:importmap",
-    "migrate:lexical-to-markdown": "node --import tsx scripts/migrate-lexical-to-markdown.ts",
-    "migrate:markdown-to-rich": "node --import tsx scripts/migrate-markdown-to-rich-content.ts"
+    "migrate:lexical-to-markdown": "node --import tsx scripts/migrate-lexical-to-markdown.ts"
   },
   "dependencies": {
     "@mdxeditor/editor": "^4.0.0",
