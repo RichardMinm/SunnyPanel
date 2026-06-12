@@ -110,6 +110,38 @@ const collectList = (lines: string[], start: number, pattern: RegExp) => {
   return { items, nextIndex: index };
 };
 
+type CodeFence = {
+  info: string;
+  length: number;
+  marker: "`" | "~";
+};
+
+const parseCodeFence = (line: string): CodeFence | null => {
+  const match = line.trim().match(/^(`{3,}|~{3,})(.*)$/);
+  const fence = match?.[1];
+
+  if (!fence) {
+    return null;
+  }
+
+  return {
+    info: match[2] ?? "",
+    length: fence.length,
+    marker: fence[0] as "`" | "~",
+  };
+};
+
+const isClosingCodeFence = (line: string, openingFence: CodeFence) => {
+  const closingFence = parseCodeFence(line);
+
+  return (
+    closingFence !== null &&
+    closingFence.marker === openingFence.marker &&
+    closingFence.length >= openingFence.length &&
+    closingFence.info.trim().length === 0
+  );
+};
+
 export const markdownToRichContent = (markdown: string): RichContentDocument => {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   const blocks: RichContentBlock[] = [];
@@ -169,14 +201,14 @@ export const markdownToRichContent = (markdown: string): RichContentDocument => 
       continue;
     }
 
-    const codeFenceMatch = trimmed.match(/^```(.*)$/);
-    if (codeFenceMatch) {
+    const codeFence = parseCodeFence(trimmed);
+    if (codeFence) {
       flushParagraph(blocks, paragraphLines);
-      const language = codeFenceMatch[1]?.trim().split(/\s+/)[0] || "text";
+      const language = codeFence.info.trim().split(/\s+/)[0] || "text";
       const codeLines: string[] = [];
       index += 1;
 
-      while (index < lines.length && !lines[index]?.trim().startsWith("```")) {
+      while (index < lines.length && !isClosingCodeFence(lines[index] ?? "", codeFence)) {
         codeLines.push(lines[index] ?? "");
         index += 1;
       }

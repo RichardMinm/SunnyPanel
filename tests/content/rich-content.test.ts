@@ -576,6 +576,80 @@ describe("rich content utilities", () => {
     );
   });
 
+  test("isRichContentDocument rejects empty containers that require child content", () => {
+    const invalidRootContainers = ["bulletList", "orderedList", "taskList", "table", "blockquote", "callout"];
+
+    for (const type of invalidRootContainers) {
+      assert.equal(isRichContentDocument({ type: "doc", content: [{ type }] }), false, `${type} missing content`);
+      assert.equal(isRichContentDocument({ type: "doc", content: [{ type, content: [] }] }), false, `${type} empty content`);
+    }
+
+    for (const tableRow of [{ type: "tableRow" }, { type: "tableRow", content: [] }]) {
+      assert.equal(
+        isRichContentDocument({ type: "doc", content: [{ type: "table", content: [tableRow] }] }),
+        false,
+        "tableRow must contain cells",
+      );
+    }
+
+    for (const tableCell of [{ type: "tableCell" }, { type: "tableCell", content: [] }]) {
+      assert.equal(
+        isRichContentDocument({
+          type: "doc",
+          content: [{ type: "table", content: [{ type: "tableRow", content: [tableCell] }] }],
+        }),
+        false,
+        "tableCell must contain blocks",
+      );
+    }
+
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "table",
+            content: [{ type: "tableRow", content: [{ type: "tableHeader", content: [] }] }],
+          },
+        ],
+      }),
+      false,
+      "tableHeader must contain blocks",
+    );
+  });
+
+  test("isRichContentDocument rejects list items that start with nested lists", () => {
+    const nestedBulletList = {
+      type: "bulletList",
+      content: [{ type: "listItem", content: [{ type: "paragraph" }] }],
+    };
+    const nestedTaskList = {
+      type: "taskList",
+      content: [{ type: "taskItem", content: [{ type: "paragraph" }] }],
+    };
+
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "bulletList", content: [{ type: "listItem", content: [nestedBulletList] }] }],
+      }),
+      false,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "taskList", content: [{ type: "taskItem", content: [nestedTaskList] }] }],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument accepts empty text-capable block content", () => {
+    assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "paragraph" }] }), true);
+    assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "heading", attrs: { level: 2 } }] }), true);
+    assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "codeBlock" }] }), true);
+  });
+
   test("isRichContentDocument accepts valid nested lists", () => {
     assert.equal(
       isRichContentDocument({
@@ -587,6 +661,38 @@ describe("rich content utilities", () => {
               {
                 type: "listItem",
                 content: [{ type: "paragraph", content: [{ type: "text", text: "Item" }] }],
+              },
+            ],
+          },
+        ],
+      }),
+      true,
+    );
+  });
+
+  test("isRichContentDocument accepts valid container structures", () => {
+    const paragraph = { type: "paragraph", content: [{ type: "text", text: "Text" }] };
+    const listItem = { type: "listItem", content: [paragraph] };
+    const taskItem = { type: "taskItem", content: [paragraph] };
+
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          { type: "bulletList", content: [listItem] },
+          { type: "orderedList", content: [listItem] },
+          { type: "taskList", content: [taskItem] },
+          { type: "blockquote", content: [paragraph] },
+          { type: "callout", content: [paragraph] },
+          {
+            type: "table",
+            content: [
+              {
+                type: "tableRow",
+                content: [
+                  { type: "tableHeader", content: [paragraph] },
+                  { type: "tableCell", content: [paragraph] },
+                ],
               },
             ],
           },
@@ -632,7 +738,17 @@ describe("rich content utilities", () => {
     assert.equal(
       isRichContentDocument({
         type: "doc",
-        content: [{ type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell" }] }] }],
+        content: [
+          {
+            type: "table",
+            content: [
+              {
+                type: "tableRow",
+                content: [{ type: "tableCell", content: [{ type: "paragraph" }] }],
+              },
+            ],
+          },
+        ],
       }),
       true,
     );
@@ -685,6 +801,22 @@ describe("rich content utilities", () => {
     assert.equal(doc.content?.[0]?.type, "codeBlock");
     assert.equal(doc.content?.[0]?.attrs?.language, "ts");
     assert.equal(doc.content?.[0]?.content?.[0]?.text, "const x = 1;");
+  });
+
+  test("markdownToRichContent converts tilde fenced code blocks", () => {
+    const doc = markdownToRichContent("~~~ts\nconst x = 1;\n~~~");
+
+    assert.equal(doc.content?.[0]?.type, "codeBlock");
+    assert.equal(doc.content?.[0]?.attrs?.language, "ts");
+    assert.equal(doc.content?.[0]?.content?.[0]?.text, "const x = 1;");
+  });
+
+  test("markdownToRichContent keeps shorter same-marker fences inside longer code blocks", () => {
+    const doc = markdownToRichContent("````ts\n```\nconst x = 1;\n````");
+
+    assert.equal(doc.content?.[0]?.type, "codeBlock");
+    assert.equal(doc.content?.[0]?.attrs?.language, "ts");
+    assert.equal(doc.content?.[0]?.content?.[0]?.text, "```\nconst x = 1;");
   });
 
   test("markdownToRichContent omits empty text nodes from empty fenced code blocks", () => {

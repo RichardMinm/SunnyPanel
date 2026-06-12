@@ -137,6 +137,48 @@ const isValidMark = (mark: unknown): mark is NonNullable<RichContentNode["marks"
 const isValidMarks = (marks: unknown): marks is RichContentNode["marks"] =>
   Array.isArray(marks) && marks.every(isValidMark);
 
+const hasNonEmptyContent = (node: Record<string, unknown>): node is Record<string, unknown> & { content: unknown[] } =>
+  Array.isArray(node.content) && node.content.length > 0;
+
+const hasOptionalNonEmptyContent = (
+  node: Record<string, unknown>,
+): node is Record<string, unknown> & { content?: unknown[] } =>
+  !("content" in node) || (Array.isArray(node.content) && node.content.length > 0);
+
+const isNodeType = (value: unknown, nodeType: string) =>
+  isRecord(value) && value.type === nodeType;
+
+const hasValidChildren = (node: { content: unknown[] }, nodeType: string) =>
+  node.content.every((child) => isValidRichContentNode(child, nodeType));
+
+const hasValidContentShape = (node: Record<string, unknown>, nodeType: string) => {
+  if (leafNodeTypes.has(nodeType)) {
+    return !("content" in node);
+  }
+
+  switch (nodeType) {
+    case "codeBlock":
+    case "heading":
+    case "paragraph":
+      return hasOptionalNonEmptyContent(node) && (!node.content || hasValidChildren({ content: node.content }, nodeType));
+    case "blockquote":
+    case "bulletList":
+    case "callout":
+    case "orderedList":
+    case "table":
+    case "tableCell":
+    case "tableHeader":
+    case "tableRow":
+    case "taskList":
+      return hasNonEmptyContent(node) && hasValidChildren(node, nodeType);
+    case "listItem":
+    case "taskItem":
+      return hasNonEmptyContent(node) && isNodeType(node.content[0], "paragraph") && hasValidChildren(node, nodeType);
+    default:
+      return false;
+  }
+};
+
 const isValidRichContentNode = (value: unknown, parentType: string): value is RichContentNode => {
   if (!isRecord(value) || !isNonEmptyString(value.type) || !supportedNodeTypes.has(value.type)) {
     return false;
@@ -184,18 +226,7 @@ const isValidRichContentNode = (value: unknown, parentType: string): value is Ri
     return false;
   }
 
-  if (leafNodeTypes.has(nodeType) && "content" in value) {
-    return false;
-  }
-
-  if ("content" in value) {
-    return (
-      Array.isArray(value.content) &&
-      value.content.every((child) => isValidRichContentNode(child, nodeType))
-    );
-  }
-
-  return true;
+  return hasValidContentShape(value, nodeType);
 };
 
 const isTopLevelRichContentNode = (value: unknown): value is RichContentNode =>
