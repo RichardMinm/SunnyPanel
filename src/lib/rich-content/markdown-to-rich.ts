@@ -32,17 +32,18 @@ const bulletList = (items: string[]): RichContentBlock => ({
   })),
 });
 
-const orderedList = (items: string[]): RichContentBlock => ({
+const orderedList = (items: string[], start: number): RichContentBlock => ({
   type: "orderedList",
-  attrs: { start: 1 },
+  attrs: { start },
   content: items.map((item) => ({
     type: "listItem",
     content: [paragraph(item)],
   })),
 });
 
-const codeBlock = (text: string): RichContentBlock => ({
+const codeBlock = (text: string, language: string): RichContentBlock => ({
   type: "codeBlock",
+  attrs: { language },
   content: [textNode(text)],
 });
 
@@ -109,10 +110,11 @@ export const markdownToRichContent = (markdown: string): RichContentDocument => 
       continue;
     }
 
-    if (/^\d+[.)]\s+/.test(trimmed)) {
+    const orderedListMatch = trimmed.match(/^(\d+)[.)]\s+/);
+    if (orderedListMatch?.[1]) {
       flushParagraph(blocks, paragraphLines);
       const { items, nextIndex } = collectList(lines, index, /^\s*\d+[.)]\s+(.+)$/);
-      blocks.push(orderedList(items));
+      blocks.push(orderedList(items, Number(orderedListMatch[1])));
       index = nextIndex - 1;
       continue;
     }
@@ -131,8 +133,10 @@ export const markdownToRichContent = (markdown: string): RichContentDocument => 
       continue;
     }
 
-    if (trimmed.startsWith("```")) {
+    const codeFenceMatch = trimmed.match(/^```(.*)$/);
+    if (codeFenceMatch) {
       flushParagraph(blocks, paragraphLines);
+      const language = codeFenceMatch[1]?.trim().split(/\s+/)[0] || "text";
       const codeLines: string[] = [];
       index += 1;
 
@@ -141,7 +145,7 @@ export const markdownToRichContent = (markdown: string): RichContentDocument => 
         index += 1;
       }
 
-      blocks.push(codeBlock(codeLines.join("\n")));
+      blocks.push(codeBlock(codeLines.join("\n"), language));
       continue;
     }
 

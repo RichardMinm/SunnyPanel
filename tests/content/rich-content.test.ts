@@ -272,6 +272,28 @@ describe("rich content utilities", () => {
     assert.equal(doc.content?.[3]?.type, "blockquote");
   });
 
+  test("markdownToRichContent preserves ordered list start number", () => {
+    const doc = markdownToRichContent("3. Third\n4. Fourth");
+
+    assert.equal(doc.content?.[0]?.type, "orderedList");
+    assert.equal(doc.content?.[0]?.attrs?.start, 3);
+  });
+
+  test("markdownToRichContent preserves fenced code language metadata", () => {
+    const doc = markdownToRichContent("```ts\nconst x = 1;\n```");
+
+    assert.equal(doc.content?.[0]?.type, "codeBlock");
+    assert.equal(doc.content?.[0]?.attrs?.language, "ts");
+    assert.equal(doc.content?.[0]?.content?.[0]?.text, "const x = 1;");
+  });
+
+  test("markdownToRichContent defaults fenced code language to text", () => {
+    const doc = markdownToRichContent("```\nplain text\n```");
+
+    assert.equal(doc.content?.[0]?.type, "codeBlock");
+    assert.equal(doc.content?.[0]?.attrs?.language, "text");
+  });
+
   test("markdownToRichContent converts standalone Markdown images into image nodes", () => {
     const doc = markdownToRichContent("![Diagram](https://example.com/diagram.png)");
 
