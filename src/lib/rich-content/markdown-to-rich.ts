@@ -196,7 +196,12 @@ export const markdownToRichContent = (markdown: string): RichContentDocument => 
         index += 1;
       }
 
-      blocks.push(blockquote(quoteLines.join(" ").trim()));
+      const quoteText = quoteLines.join(" ").trim();
+
+      if (quoteText.length > 0) {
+        blocks.push(blockquote(quoteText));
+      }
+
       index -= 1;
       continue;
     }

@@ -786,6 +786,9 @@ describe("rich content utilities", () => {
     assert.equal(doc.content?.[1]?.type, "paragraph");
     assert.equal(doc.content?.[2]?.type, "bulletList");
     assert.equal(doc.content?.[3]?.type, "blockquote");
+    assert.equal(doc.content?.[3]?.content?.[0]?.type, "paragraph");
+    assert.equal(doc.content?.[3]?.content?.[0]?.content?.[0]?.text, "Quote");
+    assert.equal(isRichContentDocument(doc), true);
   });
 
   test("markdownToRichContent preserves ordered list start number", () => {
@@ -834,11 +837,11 @@ describe("rich content utilities", () => {
     assert.equal(doc.content?.[0]?.attrs?.language, "text");
   });
 
-  test("markdownToRichContent omits empty text nodes from bare blockquotes", () => {
+  test("markdownToRichContent skips bare blockquotes with no meaningful content", () => {
     const doc = markdownToRichContent(">");
 
-    assert.equal(doc.content?.[0]?.type, "blockquote");
-    assert.deepEqual(doc.content?.[0]?.content ?? [], []);
+    assert.deepEqual(doc.content, []);
+    assert.equal(isRichContentDocument(doc), true);
   });
 
   test("markdownToRichContent converts standalone Markdown images into image nodes", () => {
