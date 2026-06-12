@@ -114,6 +114,10 @@ const isValidRichContentNode = (value: unknown, parentType: string): value is Ri
     return false;
   }
 
+  if (nodeType === "text" && !isNonEmptyString(value.text)) {
+    return false;
+  }
+
   if ("text" in value && typeof value.text !== "string") {
     return false;
   }

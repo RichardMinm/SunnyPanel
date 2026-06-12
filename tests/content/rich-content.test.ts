@@ -243,6 +243,26 @@ describe("rich content utilities", () => {
     assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "text", text: "inline" }] }), false);
   });
 
+  test("isRichContentDocument rejects text nodes with missing text", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text" }] }],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument rejects text nodes with empty text", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "" }] }],
+      }),
+      false,
+    );
+  });
+
   test("isRichContentDocument rejects unknown text marks", () => {
     assert.equal(
       isRichContentDocument({
@@ -440,11 +460,26 @@ describe("rich content utilities", () => {
     assert.equal(doc.content?.[0]?.content?.[0]?.text, "const x = 1;");
   });
 
+  test("markdownToRichContent omits empty text nodes from empty fenced code blocks", () => {
+    const doc = markdownToRichContent("```ts\n```");
+
+    assert.equal(doc.content?.[0]?.type, "codeBlock");
+    assert.equal(doc.content?.[0]?.attrs?.language, "ts");
+    assert.deepEqual(doc.content?.[0]?.content ?? [], []);
+  });
+
   test("markdownToRichContent defaults fenced code language to text", () => {
     const doc = markdownToRichContent("```\nplain text\n```");
 
     assert.equal(doc.content?.[0]?.type, "codeBlock");
     assert.equal(doc.content?.[0]?.attrs?.language, "text");
+  });
+
+  test("markdownToRichContent omits empty text nodes from bare blockquotes", () => {
+    const doc = markdownToRichContent(">");
+
+    assert.equal(doc.content?.[0]?.type, "blockquote");
+    assert.deepEqual(doc.content?.[0]?.content ?? [], []);
   });
 
   test("markdownToRichContent converts standalone Markdown images into image nodes", () => {
@@ -453,5 +488,13 @@ describe("rich content utilities", () => {
     assert.equal(doc.content?.[0]?.type, "image");
     assert.equal(doc.content?.[0]?.attrs?.src, "https://example.com/diagram.png");
     assert.equal(doc.content?.[0]?.attrs?.alt, "Diagram");
+  });
+
+  test("markdownToRichContent converts standalone Markdown images with parentheses in destinations", () => {
+    const doc = markdownToRichContent("![x](/uploads/image-(1).png)");
+
+    assert.equal(doc.content?.[0]?.type, "image");
+    assert.equal(doc.content?.[0]?.attrs?.src, "/uploads/image-(1).png");
+    assert.equal(doc.content?.[0]?.attrs?.alt, "x");
   });
 });

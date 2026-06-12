@@ -5,7 +5,7 @@ const textNode = (text: string): RichContentNode => ({ type: "text", text });
 
 const paragraph = (text: string): RichContentBlock => ({
   type: "paragraph",
-  content: [textNode(text)],
+  ...(text.length > 0 ? { content: [textNode(text)] } : {}),
 });
 
 const image = (src: string, alt: string): RichContentBlock => ({
@@ -21,7 +21,7 @@ const heading = (level: number, text: string): RichContentBlock => ({
 
 const blockquote = (text: string): RichContentBlock => ({
   type: "blockquote",
-  content: [paragraph(text)],
+  ...(text.length > 0 ? { content: [paragraph(text)] } : {}),
 });
 
 const bulletList = (items: string[]): RichContentBlock => ({
@@ -44,8 +44,44 @@ const orderedList = (items: string[], start: number): RichContentBlock => ({
 const codeBlock = (text: string, language: string): RichContentBlock => ({
   type: "codeBlock",
   attrs: { language },
-  content: [textNode(text)],
+  ...(text.length > 0 ? { content: [textNode(text)] } : {}),
 });
+
+const stripOptionalImageTitle = (value: string) => {
+  const trimmed = value.trim();
+  const quote = trimmed[trimmed.length - 1];
+
+  if (quote !== "\"" && quote !== "'") {
+    return trimmed;
+  }
+
+  const titleStart = trimmed.lastIndexOf(quote, trimmed.length - 2);
+
+  if (titleStart <= 0 || !/\s/.test(trimmed[titleStart - 1] ?? "")) {
+    return trimmed;
+  }
+
+  return trimmed.slice(0, titleStart).trimEnd();
+};
+
+const parseStandaloneImage = (line: string): { alt: string; src: string } | null => {
+  const match = line.match(/^!\[([^\]]*)\]\((.*)\)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const src = stripOptionalImageTitle(match[2] ?? "");
+
+  if (src.length === 0) {
+    return null;
+  }
+
+  return {
+    alt: match[1] ?? "",
+    src,
+  };
+};
 
 const flushParagraph = (blocks: RichContentBlock[], paragraphLines: string[]) => {
   if (paragraphLines.length === 0) {
@@ -88,10 +124,10 @@ export const markdownToRichContent = (markdown: string): RichContentDocument => 
       continue;
     }
 
-    const imageMatch = trimmed.match(/^!\[([^\]]*)\]\(([^\s)]+)(?:\s+["'][^"']*["'])?\)$/);
-    if (imageMatch?.[2]) {
+    const imageMatch = parseStandaloneImage(trimmed);
+    if (imageMatch) {
       flushParagraph(blocks, paragraphLines);
-      blocks.push(image(imageMatch[2], imageMatch[1] ?? ""));
+      blocks.push(image(imageMatch.src, imageMatch.alt));
       continue;
     }
 
