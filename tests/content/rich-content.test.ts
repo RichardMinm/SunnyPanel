@@ -180,6 +180,65 @@ describe("rich content utilities", () => {
     assert.equal(derived.readingMinutes, 1);
   });
 
+  test("deriveRichContentFields collects nested headings in document preorder", () => {
+    const derived = deriveRichContentFields({
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { id: "intro", level: 1 }, content: [{ type: "text", text: "Intro" }] },
+        {
+          type: "callout",
+          attrs: { id: "callout-1" },
+          content: [
+            {
+              type: "heading",
+              attrs: { id: "callout-heading", level: 2 },
+              content: [{ type: "text", text: "Callout Head" }],
+            },
+          ],
+        },
+        {
+          type: "blockquote",
+          attrs: { id: "quote-1" },
+          content: [
+            {
+              type: "heading",
+              attrs: { id: "quote-heading", level: 3 },
+              content: [{ type: "text", text: "Quote Head" }],
+            },
+          ],
+        },
+        {
+          type: "table",
+          attrs: { id: "table-1" },
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableCell",
+                  content: [
+                    {
+                      type: "heading",
+                      attrs: { id: "cell-heading", level: 2 },
+                      content: [{ type: "text", text: "Cell Head" }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    assert.deepEqual(derived.contentOutline, [
+      { id: "intro", level: 1, order: 0, text: "Intro" },
+      { id: "callout-heading", level: 2, order: 1, text: "Callout Head" },
+      { id: "quote-heading", level: 3, order: 2, text: "Quote Head" },
+      { id: "cell-heading", level: 2, order: 3, text: "Cell Head" },
+    ]);
+  });
+
   test("deriveRichContentFields keeps nested block text readable", () => {
     const derived = deriveRichContentFields({
       type: "doc",
@@ -243,6 +302,110 @@ describe("rich content utilities", () => {
     assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "text", text: "inline" }] }), false);
   });
 
+  test("isRichContentDocument rejects headings with unsupported levels", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "heading", attrs: { level: 99 }, content: [{ type: "text", text: "Bad" }] }],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument accepts heading levels one through three", () => {
+    for (const level of [1, 2, 3]) {
+      assert.equal(
+        isRichContentDocument({
+          type: "doc",
+          content: [{ type: "heading", attrs: { level }, content: [{ type: "text", text: `Heading ${level}` }] }],
+        }),
+        true,
+      );
+    }
+  });
+
+  test("isRichContentDocument validates image src and optional text attrs", () => {
+    assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "image" }] }), false);
+    assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "image", attrs: { src: "" } }] }), false);
+    assert.equal(
+      isRichContentDocument({ type: "doc", content: [{ type: "image", attrs: { src: "/cover.png", alt: 12 } }] }),
+      false,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "image", attrs: { src: "/cover.png", alt: "Cover", title: "Hero image" } }],
+      }),
+      true,
+    );
+  });
+
+  test("isRichContentDocument validates ordered list start attrs", () => {
+    const validListItem = { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Item" }] }] };
+
+    assert.equal(
+      isRichContentDocument({ type: "doc", content: [{ type: "orderedList", content: [validListItem] }] }),
+      true,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "orderedList", attrs: { start: 2 }, content: [validListItem] }],
+      }),
+      true,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "orderedList", attrs: { start: "2" }, content: [validListItem] }],
+      }),
+      false,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "orderedList", attrs: { start: 0 }, content: [validListItem] }],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument validates task item checked attrs", () => {
+    const validTask = { type: "paragraph", content: [{ type: "text", text: "Task" }] };
+
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "taskList", content: [{ type: "taskItem", content: [validTask] }] }],
+      }),
+      true,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "taskList", content: [{ type: "taskItem", attrs: { checked: true }, content: [validTask] }] }],
+      }),
+      true,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "taskList", content: [{ type: "taskItem", attrs: { checked: "true" }, content: [validTask] }] }],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument rejects stray text on non-text nodes", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "paragraph", text: "bad", content: [{ type: "text", text: "Good" }] }],
+      }),
+      false,
+    );
+  });
+
   test("isRichContentDocument rejects text nodes with missing text", () => {
     assert.equal(
       isRichContentDocument({
@@ -258,6 +421,16 @@ describe("rich content utilities", () => {
       isRichContentDocument({
         type: "doc",
         content: [{ type: "paragraph", content: [{ type: "text", text: "" }] }],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument rejects text nodes with attrs", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", attrs: { id: "text-1" }, text: "Bad attrs" }] }],
       }),
       false,
     );
@@ -296,6 +469,36 @@ describe("rich content utilities", () => {
         ],
       }),
       true,
+    );
+  });
+
+  test("isRichContentDocument validates link href protocols", () => {
+    for (const href of ["https://example.com", "http://example.com", "/docs/intro", "#section", "mailto:hi@example.com"]) {
+      assert.equal(
+        isRichContentDocument({
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "Link", marks: [{ type: "link", attrs: { href } }] }],
+            },
+          ],
+        }),
+        true,
+      );
+    }
+
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Bad", marks: [{ type: "link", attrs: { href: "javascript:alert(1)" } }] }],
+          },
+        ],
+      }),
+      false,
     );
   });
 

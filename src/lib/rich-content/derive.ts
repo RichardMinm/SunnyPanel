@@ -77,20 +77,23 @@ export const deriveRichContentFields = (document: RichContentDocument): DerivedR
   const plainText = normalizeWhitespace(contentText);
   const contentOutline: ContentOutlineItem[] = [];
 
-  blocks.forEach((node, order) => {
+  const collectOutline = (node: RichContentNode) => {
     const level = node.attrs?.level;
 
-    if (node.type !== "heading" || !isHeadingLevel(level)) {
-      return;
+    if (node.type === "heading" && isHeadingLevel(level)) {
+      const order = contentOutline.length;
+      const id = typeof node.attrs?.id === "string" ? node.attrs.id : `heading-${order + 1}`;
+      const text = normalizeWhitespace(textFromNode(node));
+
+      if (text.length > 0) {
+        contentOutline.push({ id, level, order, text });
+      }
     }
 
-    const id = typeof node.attrs?.id === "string" ? node.attrs.id : `heading-${order + 1}`;
-    const text = normalizeWhitespace(textFromNode(node));
+    node.content?.forEach(collectOutline);
+  };
 
-    if (text.length > 0) {
-      contentOutline.push({ id, level, order, text });
-    }
-  });
+  blocks.forEach(collectOutline);
 
   return {
     contentExcerpt: truncateExcerpt(plainText),

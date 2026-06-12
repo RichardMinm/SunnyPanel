@@ -69,8 +69,56 @@ const childNodeTypesByParent = new Map<string, Set<string>>([
 ]);
 
 const supportedMarkTypes = new Set(["bold", "code", "italic", "link", "strike"]);
+const safeHrefProtocols = new Set(["http:", "https:", "mailto:"]);
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+const isNonEmptyTrimmedString = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0;
+const isHeadingLevel = (value: unknown): value is 1 | 2 | 3 => value === 1 || value === 2 || value === 3;
+const isPositiveInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value > 0;
+
+const hasOptionalStringAttr = (attrs: Record<string, unknown>, key: string) =>
+  !(key in attrs) || typeof attrs[key] === "string";
+
+const isSafeHref = (href: unknown): href is string => {
+  if (!isNonEmptyTrimmedString(href)) {
+    return false;
+  }
+
+  const trimmedHref = href.trim();
+  if ((trimmedHref.startsWith("/") && !trimmedHref.startsWith("//")) || trimmedHref.startsWith("#")) {
+    return true;
+  }
+
+  try {
+    return safeHrefProtocols.has(new URL(trimmedHref).protocol);
+  } catch {
+    return false;
+  }
+};
+
+const isValidNodeAttrs = (nodeType: string, attrs: unknown) => {
+  switch (nodeType) {
+    case "heading":
+      return isRecord(attrs) && isHeadingLevel(attrs.level);
+    case "image":
+      return (
+        isRecord(attrs) &&
+        isNonEmptyTrimmedString(attrs.src) &&
+        hasOptionalStringAttr(attrs, "alt") &&
+        hasOptionalStringAttr(attrs, "title")
+      );
+    case "orderedList":
+      return attrs === undefined || (isRecord(attrs) && (!("start" in attrs) || isPositiveInteger(attrs.start)));
+    case "taskItem":
+      return attrs === undefined || (isRecord(attrs) && (!("checked" in attrs) || typeof attrs.checked === "boolean"));
+    case "text":
+      return attrs === undefined;
+    default:
+      return attrs === undefined || isRecord(attrs);
+  }
+};
 
 const isValidMark = (mark: unknown): mark is NonNullable<RichContentNode["marks"]>[number] => {
   if (!isRecord(mark) || !isNonEmptyString(mark.type) || !supportedMarkTypes.has(mark.type)) {
@@ -78,7 +126,7 @@ const isValidMark = (mark: unknown): mark is NonNullable<RichContentNode["marks"
   }
 
   if (mark.type === "link") {
-    return isRecord(mark.attrs) && isNonEmptyString(mark.attrs.href);
+    return isRecord(mark.attrs) && isSafeHref(mark.attrs.href);
   }
 
   return !("attrs" in mark) || isRecord(mark.attrs);
@@ -98,7 +146,19 @@ const isValidRichContentNode = (value: unknown, parentType: string): value is Ri
     return false;
   }
 
+  if (nodeType === "text" && "attrs" in value) {
+    return false;
+  }
+
+  if (nodeType !== "text" && "text" in value) {
+    return false;
+  }
+
   if ("attrs" in value && !isRecord(value.attrs)) {
+    return false;
+  }
+
+  if (!isValidNodeAttrs(nodeType, value.attrs)) {
     return false;
   }
 
