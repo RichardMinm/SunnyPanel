@@ -243,6 +243,137 @@ describe("rich content utilities", () => {
     assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "text", text: "inline" }] }), false);
   });
 
+  test("isRichContentDocument rejects unknown text marks", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Marked", marks: [{ type: "unknownMark" }] }],
+          },
+        ],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument accepts supported text marks", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "Bold", marks: [{ type: "bold" }] },
+              { type: "text", text: "Italic", marks: [{ type: "italic" }] },
+              { type: "text", text: "Strike", marks: [{ type: "strike" }] },
+              { type: "text", text: "Code", marks: [{ type: "code" }] },
+              { type: "text", text: "Link", marks: [{ type: "link", attrs: { href: "https://example.com" } }] },
+            ],
+          },
+        ],
+      }),
+      true,
+    );
+  });
+
+  test("isRichContentDocument rejects links without hrefs", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Link", marks: [{ type: "link", attrs: {} }] }],
+          },
+        ],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument rejects marks on non-text nodes", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "paragraph", marks: [{ type: "bold" }], content: [{ type: "text", text: "Marked" }] }],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument rejects invalid paragraph nesting", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph" }] }] }],
+          },
+        ],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument rejects invalid list nesting", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "bulletList", content: [{ type: "paragraph", content: [{ type: "text", text: "Nope" }] }] }],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument accepts valid nested lists", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "bulletList",
+            content: [
+              {
+                type: "listItem",
+                content: [{ type: "paragraph", content: [{ type: "text", text: "Item" }] }],
+              },
+            ],
+          },
+        ],
+      }),
+      true,
+    );
+  });
+
+  test("isRichContentDocument accepts valid table nesting", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "table",
+            content: [
+              {
+                type: "tableRow",
+                content: [
+                  {
+                    type: "tableCell",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "Cell" }] }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      true,
+    );
+  });
+
   test("isRichContentDocument rejects structural child nodes at the document root", () => {
     assert.equal(
       isRichContentDocument({
