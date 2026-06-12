@@ -340,6 +340,30 @@ describe("rich content utilities", () => {
     );
   });
 
+  test("isRichContentDocument validates code block language attrs", () => {
+    const codeBlockWithInvalidLanguage = {
+      type: "doc",
+      content: [{ type: "codeBlock", attrs: { language: 42 }, content: [{ type: "text", text: "bad" }] }],
+    };
+
+    assert.equal(isRichContentDocument(codeBlockWithInvalidLanguage), false);
+    assert.deepEqual(normalizeRichContentDocument(codeBlockWithInvalidLanguage), createEmptyRichDocument());
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "codeBlock", content: [{ type: "text", text: "valid" }] }],
+      }),
+      true,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "codeBlock", attrs: { language: "ts" }, content: [{ type: "text", text: "valid" }] }],
+      }),
+      true,
+    );
+  });
+
   test("isRichContentDocument validates ordered list start attrs", () => {
     const validListItem = { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Item" }] }] };
 

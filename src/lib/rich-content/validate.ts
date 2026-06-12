@@ -100,6 +100,8 @@ const isSafeHref = (href: unknown): href is string => {
 
 const isValidNodeAttrs = (nodeType: string, attrs: unknown) => {
   switch (nodeType) {
+    case "codeBlock":
+      return attrs === undefined || (isRecord(attrs) && hasOptionalStringAttr(attrs, "language"));
     case "heading":
       return isRecord(attrs) && isHeadingLevel(attrs.level);
     case "image":
