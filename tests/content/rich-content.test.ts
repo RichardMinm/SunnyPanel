@@ -243,6 +243,25 @@ describe("rich content utilities", () => {
     assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "text", text: "inline" }] }), false);
   });
 
+  test("isRichContentDocument rejects structural child nodes at the document root", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph" }] }] }],
+      }),
+      true,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell" }] }] }],
+      }),
+      true,
+    );
+    assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "listItem", content: [] }] }), false);
+    assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "tableRow", content: [] }] }), false);
+  });
+
   test("normalizeRichContentDocument returns empty doc for invalid input", () => {
     assert.deepEqual(normalizeRichContentDocument(null), createEmptyRichDocument());
     assert.deepEqual(normalizeRichContentDocument({ type: "doc", content: [] }), {

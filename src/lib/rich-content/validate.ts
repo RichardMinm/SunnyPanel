@@ -26,7 +26,19 @@ const supportedNodeTypes = new Set([
   "text",
 ]);
 
-const inlineNodeTypes = new Set(["hardBreak", "text"]);
+const topLevelNodeTypes = new Set([
+  "blockquote",
+  "bulletList",
+  "callout",
+  "codeBlock",
+  "heading",
+  "horizontalRule",
+  "image",
+  "orderedList",
+  "paragraph",
+  "table",
+  "taskList",
+]);
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
 
@@ -61,7 +73,7 @@ const isValidRichContentNode = (value: unknown): value is RichContentNode => {
 };
 
 const isTopLevelRichContentNode = (value: unknown): value is RichContentNode =>
-  isValidRichContentNode(value) && !inlineNodeTypes.has(value.type);
+  isValidRichContentNode(value) && topLevelNodeTypes.has(value.type);
 
 const normalizeAttrs = (attrs: unknown) => (isRecord(attrs) ? attrs : undefined);
 
