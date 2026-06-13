@@ -124,12 +124,14 @@ const isSafeImageSrc = (src: unknown): src is string => {
   }
 
   const trimmedSrc = src.trim();
-  if (trimmedSrc.startsWith("/") && !trimmedSrc.startsWith("//")) {
-    return true;
+  if (trimmedSrc.startsWith("//") || trimmedSrc.startsWith("#")) {
+    return false;
   }
 
   try {
-    return safeImageSrcProtocols.has(new URL(trimmedSrc).protocol);
+    const parsed = new URL(trimmedSrc, "https://sunny.local");
+
+    return parsed.origin === "https://sunny.local" || safeImageSrcProtocols.has(parsed.protocol);
   } catch {
     return false;
   }

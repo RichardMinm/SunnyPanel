@@ -428,6 +428,13 @@ describe("rich content utilities", () => {
       }),
       true,
     );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "image", attrs: { src: "images/cover.png", alt: "Cover" } }],
+      }),
+      true,
+    );
   });
 
   test("isRichContentDocument rejects unsafe image src values", () => {
