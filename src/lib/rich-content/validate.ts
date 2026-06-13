@@ -41,7 +41,7 @@ const topLevelNodeTypes = new Set([
 ]);
 
 const inlineNodeTypes = new Set(["hardBreak", "text"]);
-const listItemNodeTypes = new Set(["bulletList", "orderedList", "paragraph", "taskList"]);
+const listItemNodeTypes = topLevelNodeTypes;
 const listNodeTypes = new Set(["listItem"]);
 const leafNodeTypes = new Set(["hardBreak", "horizontalRule", "image", "text"]);
 const tableCellNodeTypes = topLevelNodeTypes;

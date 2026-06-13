@@ -11,6 +11,21 @@ const isHeadingLevel = (value: unknown): value is 1 | 2 | 3 =>
 
 const textBlockNodeTypes = new Set(["codeBlock", "heading", "paragraph"]);
 
+const imageTextFromNode = (node: RichContentNode) => {
+  const alt = node.attrs?.alt;
+  const title = node.attrs?.title;
+
+  if (typeof alt === "string" && alt.trim().length > 0) {
+    return alt;
+  }
+
+  if (typeof title === "string" && title.trim().length > 0) {
+    return title;
+  }
+
+  return "";
+};
+
 const textFromNode = (node: RichContentNode): string => {
   if (node.type === "text") {
     return node.text ?? "";
@@ -20,12 +35,21 @@ const textFromNode = (node: RichContentNode): string => {
     return "\n";
   }
 
+  if (node.type === "image") {
+    return imageTextFromNode(node);
+  }
+
   return node.content?.map(textFromNode).join("") ?? "";
 };
 
 const blockTextFromNode = (node: RichContentNode): string[] => {
   if (node.type === "text") {
     const text = node.text?.trim() ?? "";
+    return text.length > 0 ? [text] : [];
+  }
+
+  if (node.type === "image") {
+    const text = imageTextFromNode(node).trim();
     return text.length > 0 ? [text] : [];
   }
 

@@ -282,6 +282,41 @@ describe("rich content utilities", () => {
     assert.equal(derived.contentExcerpt, "Hello World");
   });
 
+  test("deriveRichContentFields includes image alt text in text, excerpt, and reading time", () => {
+    const derived = deriveRichContentFields({
+      type: "doc",
+      content: [
+        {
+          type: "image",
+          attrs: { src: "/architecture.png", alt: "Architecture diagram" },
+        },
+      ],
+    });
+
+    assert.equal(derived.contentText, "Architecture diagram");
+    assert.equal(derived.contentExcerpt, "Architecture diagram");
+    assert.equal(derived.readingMinutes, 1);
+  });
+
+  test("deriveRichContentFields prefers image alt text and falls back to title", () => {
+    const derived = deriveRichContentFields({
+      type: "doc",
+      content: [
+        {
+          type: "image",
+          attrs: { src: "/alt.png", alt: "Alt label", title: "Ignored title" },
+        },
+        {
+          type: "image",
+          attrs: { src: "/title.png", title: "Title only label" },
+        },
+      ],
+    });
+
+    assert.equal(derived.contentText, "Alt label\nTitle only label");
+    assert.equal(derived.contentExcerpt, "Alt label Title only label");
+  });
+
   test("deriveRichContentFields counts long CJK text beyond one minute", () => {
     const chineseText = "中".repeat(1000);
     const derived = deriveRichContentFields({
@@ -571,6 +606,103 @@ describe("rich content utilities", () => {
       isRichContentDocument({
         type: "doc",
         content: [{ type: "bulletList", content: [{ type: "paragraph", content: [{ type: "text", text: "Nope" }] }] }],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument accepts list items with paragraph followed by a code block", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "bulletList",
+            content: [
+              {
+                type: "listItem",
+                content: [
+                  { type: "paragraph", content: [{ type: "text", text: "Item intro" }] },
+                  { type: "codeBlock", content: [{ type: "text", text: "const value = true;" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      true,
+    );
+  });
+
+  test("isRichContentDocument accepts task items with paragraph followed by normal blocks", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "taskList",
+            content: [
+              {
+                type: "taskItem",
+                content: [
+                  { type: "paragraph", content: [{ type: "text", text: "Review details" }] },
+                  {
+                    type: "blockquote",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "Context" }] }],
+                  },
+                  { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Next section" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      true,
+    );
+  });
+
+  test("isRichContentDocument rejects list and task items whose first child is not a paragraph", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "bulletList",
+            content: [
+              {
+                type: "listItem",
+                content: [
+                  { type: "codeBlock", content: [{ type: "text", text: "not first" }] },
+                  { type: "paragraph", content: [{ type: "text", text: "Too late" }] },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+      false,
+    );
+
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "taskList",
+            content: [
+              {
+                type: "taskItem",
+                content: [
+                  {
+                    type: "blockquote",
+                    content: [{ type: "paragraph", content: [{ type: "text", text: "not first" }] }],
+                  },
+                  { type: "paragraph", content: [{ type: "text", text: "Too late" }] },
+                ],
+              },
+            ],
+          },
+        ],
       }),
       false,
     );
