@@ -69,6 +69,7 @@ const childNodeTypesByParent = new Map<string, Set<string>>([
 ]);
 
 const supportedMarkTypes = new Set(["bold", "code", "italic", "link", "strike"]);
+const safeImageSrcProtocols = new Set(["http:", "https:"]);
 const safeHrefProtocols = new Set(["http:", "https:", "mailto:"]);
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
@@ -80,6 +81,25 @@ const isPositiveInteger = (value: unknown): value is number =>
 
 const hasOptionalNullableStringAttr = (attrs: Record<string, unknown>, key: string) =>
   !(key in attrs) || attrs[key] === null || typeof attrs[key] === "string";
+
+const hasOnlyAttrs = (attrs: Record<string, unknown>, keys: string[]) =>
+  Object.keys(attrs).every((key) => keys.includes(key));
+
+const hasOptionalPositiveIntegerAttr = (attrs: Record<string, unknown>, key: string) =>
+  !(key in attrs) || isPositiveInteger(attrs[key]);
+
+const hasOptionalBooleanAttr = (attrs: Record<string, unknown>, key: string) =>
+  !(key in attrs) || typeof attrs[key] === "boolean";
+
+const hasOptionalColwidthAttr = (attrs: Record<string, unknown>) =>
+  !("colwidth" in attrs) ||
+  attrs.colwidth === null ||
+  (Array.isArray(attrs.colwidth) && attrs.colwidth.every(isPositiveInteger));
+
+const hasValidIdAttr = (attrs: Record<string, unknown>) => hasOptionalNullableStringAttr(attrs, "id");
+
+const hasIdOnlyAttrs = (attrs: unknown) =>
+  attrs === undefined || (isRecord(attrs) && hasOnlyAttrs(attrs, ["id"]) && hasValidIdAttr(attrs));
 
 const isSafeHref = (href: unknown): href is string => {
   if (!isNonEmptyTrimmedString(href)) {
@@ -98,16 +118,50 @@ const isSafeHref = (href: unknown): href is string => {
   }
 };
 
+const isSafeImageSrc = (src: unknown): src is string => {
+  if (!isNonEmptyTrimmedString(src)) {
+    return false;
+  }
+
+  const trimmedSrc = src.trim();
+  if (trimmedSrc.startsWith("/") && !trimmedSrc.startsWith("//")) {
+    return true;
+  }
+
+  try {
+    return safeImageSrcProtocols.has(new URL(trimmedSrc).protocol);
+  } catch {
+    return false;
+  }
+};
+
 const isValidNodeAttrs = (nodeType: string, attrs: unknown) => {
   switch (nodeType) {
+    case "blockquote":
+    case "bulletList":
+    case "callout":
+    case "horizontalRule":
+    case "listItem":
+    case "paragraph":
+    case "table":
+    case "taskList":
+      return hasIdOnlyAttrs(attrs);
     case "codeBlock":
-      return attrs === undefined || (isRecord(attrs) && hasOptionalNullableStringAttr(attrs, "language"));
+      return (
+        attrs === undefined ||
+        (isRecord(attrs) &&
+          hasOnlyAttrs(attrs, ["id", "language"]) &&
+          hasValidIdAttr(attrs) &&
+          hasOptionalNullableStringAttr(attrs, "language"))
+      );
     case "heading":
-      return isRecord(attrs) && isHeadingLevel(attrs.level);
+      return isRecord(attrs) && hasOnlyAttrs(attrs, ["id", "level"]) && hasValidIdAttr(attrs) && isHeadingLevel(attrs.level);
     case "image":
       return (
         isRecord(attrs) &&
-        isNonEmptyTrimmedString(attrs.src) &&
+        hasOnlyAttrs(attrs, ["id", "src", "alt", "title", "width", "height"]) &&
+        hasValidIdAttr(attrs) &&
+        isSafeImageSrc(attrs.src) &&
         hasOptionalNullableStringAttr(attrs, "alt") &&
         hasOptionalNullableStringAttr(attrs, "title") &&
         hasOptionalNullableStringAttr(attrs, "width") &&
@@ -117,15 +171,35 @@ const isValidNodeAttrs = (nodeType: string, attrs: unknown) => {
       return (
         attrs === undefined ||
         (isRecord(attrs) &&
-          (!("start" in attrs) || isPositiveInteger(attrs.start)) &&
+          hasOnlyAttrs(attrs, ["id", "start", "type"]) &&
+          hasValidIdAttr(attrs) &&
+          hasOptionalPositiveIntegerAttr(attrs, "start") &&
           hasOptionalNullableStringAttr(attrs, "type"))
       );
+    case "tableCell":
+    case "tableHeader":
+      return (
+        attrs === undefined ||
+        (isRecord(attrs) &&
+          hasOnlyAttrs(attrs, ["colspan", "rowspan", "colwidth"]) &&
+          hasOptionalPositiveIntegerAttr(attrs, "colspan") &&
+          hasOptionalPositiveIntegerAttr(attrs, "rowspan") &&
+          hasOptionalColwidthAttr(attrs))
+      );
+    case "tableRow":
+      return attrs === undefined;
     case "taskItem":
-      return attrs === undefined || (isRecord(attrs) && (!("checked" in attrs) || typeof attrs.checked === "boolean"));
+      return (
+        attrs === undefined ||
+        (isRecord(attrs) &&
+          hasOnlyAttrs(attrs, ["id", "checked"]) &&
+          hasValidIdAttr(attrs) &&
+          hasOptionalBooleanAttr(attrs, "checked"))
+      );
     case "text":
       return attrs === undefined;
     default:
-      return attrs === undefined || isRecord(attrs);
+      return attrs === undefined;
   }
 };
 
@@ -135,10 +209,17 @@ const isValidMark = (mark: unknown): mark is NonNullable<RichContentNode["marks"
   }
 
   if (mark.type === "link") {
-    return isRecord(mark.attrs) && isSafeHref(mark.attrs.href);
+    return (
+      isRecord(mark.attrs) &&
+      hasOnlyAttrs(mark.attrs, ["href", "target", "rel", "class"]) &&
+      isSafeHref(mark.attrs.href) &&
+      hasOptionalNullableStringAttr(mark.attrs, "target") &&
+      hasOptionalNullableStringAttr(mark.attrs, "rel") &&
+      hasOptionalNullableStringAttr(mark.attrs, "class")
+    );
   }
 
-  return !("attrs" in mark) || isRecord(mark.attrs);
+  return !("attrs" in mark);
 };
 
 const isValidMarks = (marks: unknown): marks is RichContentNode["marks"] =>

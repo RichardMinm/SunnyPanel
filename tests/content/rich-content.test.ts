@@ -359,6 +359,57 @@ describe("rich content utilities", () => {
     }
   });
 
+  test("isRichContentDocument accepts generated block id attrs", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          { type: "heading", attrs: { id: "intro", level: 2 }, content: [{ type: "text", text: "Intro" }] },
+          { type: "paragraph", attrs: { id: "paragraph-1" }, content: [{ type: "text", text: "Body" }] },
+          {
+            type: "bulletList",
+            attrs: { id: "list-1" },
+            content: [
+              {
+                type: "listItem",
+                attrs: { id: "item-1" },
+                content: [{ type: "paragraph", content: [{ type: "text", text: "Item" }] }],
+              },
+            ],
+          },
+          { type: "horizontalRule", attrs: { id: "rule-1" } },
+        ],
+      }),
+      true,
+    );
+  });
+
+  test("isRichContentDocument rejects unsupported node attrs", () => {
+    const paragraph = { type: "paragraph", content: [{ type: "text", text: "Text" }] };
+
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ ...paragraph, attrs: { id: "paragraph-1", dataUnsafe: "nope" } }],
+      }),
+      false,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "codeBlock", attrs: { language: "ts", meta: "nope" }, content: [{ type: "text", text: "code" }] }],
+      }),
+      false,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "orderedList", attrs: { start: 1, class: "nope" }, content: [{ type: "listItem", content: [paragraph] }] }],
+      }),
+      false,
+    );
+  });
+
   test("isRichContentDocument validates image src and optional text attrs", () => {
     assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "image" }] }), false);
     assert.equal(isRichContentDocument({ type: "doc", content: [{ type: "image", attrs: { src: "" } }] }), false);
@@ -377,6 +428,19 @@ describe("rich content utilities", () => {
       }),
       true,
     );
+  });
+
+  test("isRichContentDocument rejects unsafe image src values", () => {
+    for (const src of ["javascript:alert(1)", "data:image/svg+xml,<svg></svg>", "//cdn.example.com/image.png", "mailto:hi@example.com"]) {
+      assert.equal(
+        isRichContentDocument({
+          type: "doc",
+          content: [{ type: "image", attrs: { src, alt: "Unsafe" } }],
+        }),
+        false,
+        src,
+      );
+    }
   });
 
   test("isRichContentDocument accepts image nodes with nullable optional Tiptap attrs", () => {
@@ -617,6 +681,39 @@ describe("rich content utilities", () => {
           {
             type: "paragraph",
             content: [{ type: "text", text: "Link", marks: [{ type: "link", attrs: {} }] }],
+          },
+        ],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument rejects unsupported mark attrs", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Bold", marks: [{ type: "bold", attrs: { class: "nope" } }] }],
+          },
+        ],
+      }),
+      false,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "Link",
+                marks: [{ type: "link", attrs: { href: "https://example.com", onclick: "alert(1)" } }],
+              },
+            ],
           },
         ],
       }),
