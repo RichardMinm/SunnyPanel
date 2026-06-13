@@ -78,8 +78,8 @@ const isHeadingLevel = (value: unknown): value is 1 | 2 | 3 => value === 1 || va
 const isPositiveInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value > 0;
 
-const hasOptionalStringAttr = (attrs: Record<string, unknown>, key: string) =>
-  !(key in attrs) || typeof attrs[key] === "string";
+const hasOptionalNullableStringAttr = (attrs: Record<string, unknown>, key: string) =>
+  !(key in attrs) || attrs[key] === null || typeof attrs[key] === "string";
 
 const isSafeHref = (href: unknown): href is string => {
   if (!isNonEmptyTrimmedString(href)) {
@@ -101,18 +101,25 @@ const isSafeHref = (href: unknown): href is string => {
 const isValidNodeAttrs = (nodeType: string, attrs: unknown) => {
   switch (nodeType) {
     case "codeBlock":
-      return attrs === undefined || (isRecord(attrs) && hasOptionalStringAttr(attrs, "language"));
+      return attrs === undefined || (isRecord(attrs) && hasOptionalNullableStringAttr(attrs, "language"));
     case "heading":
       return isRecord(attrs) && isHeadingLevel(attrs.level);
     case "image":
       return (
         isRecord(attrs) &&
         isNonEmptyTrimmedString(attrs.src) &&
-        hasOptionalStringAttr(attrs, "alt") &&
-        hasOptionalStringAttr(attrs, "title")
+        hasOptionalNullableStringAttr(attrs, "alt") &&
+        hasOptionalNullableStringAttr(attrs, "title") &&
+        hasOptionalNullableStringAttr(attrs, "width") &&
+        hasOptionalNullableStringAttr(attrs, "height")
       );
     case "orderedList":
-      return attrs === undefined || (isRecord(attrs) && (!("start" in attrs) || isPositiveInteger(attrs.start)));
+      return (
+        attrs === undefined ||
+        (isRecord(attrs) &&
+          (!("start" in attrs) || isPositiveInteger(attrs.start)) &&
+          hasOptionalNullableStringAttr(attrs, "type"))
+      );
     case "taskItem":
       return attrs === undefined || (isRecord(attrs) && (!("checked" in attrs) || typeof attrs.checked === "boolean"));
     case "text":

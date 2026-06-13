@@ -367,9 +367,28 @@ describe("rich content utilities", () => {
       false,
     );
     assert.equal(
+      isRichContentDocument({ type: "doc", content: [{ type: "image", attrs: { src: "/cover.png", width: 320 } }] }),
+      false,
+    );
+    assert.equal(
       isRichContentDocument({
         type: "doc",
         content: [{ type: "image", attrs: { src: "/cover.png", alt: "Cover", title: "Hero image" } }],
+      }),
+      true,
+    );
+  });
+
+  test("isRichContentDocument accepts image nodes with nullable optional Tiptap attrs", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [
+          {
+            type: "image",
+            attrs: { src: "/image.png", alt: null, title: null, width: null, height: null },
+          },
+        ],
       }),
       true,
     );
@@ -394,6 +413,16 @@ describe("rich content utilities", () => {
       isRichContentDocument({
         type: "doc",
         content: [{ type: "codeBlock", attrs: { language: "ts" }, content: [{ type: "text", text: "valid" }] }],
+      }),
+      true,
+    );
+  });
+
+  test("isRichContentDocument accepts code block nodes with nullable language attrs", () => {
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "codeBlock", attrs: { language: null }, content: [{ type: "text", text: "valid" }] }],
       }),
       true,
     );
@@ -426,6 +455,25 @@ describe("rich content utilities", () => {
         content: [{ type: "orderedList", attrs: { start: 0 }, content: [validListItem] }],
       }),
       false,
+    );
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "orderedList", attrs: { start: 1, type: 1 }, content: [validListItem] }],
+      }),
+      false,
+    );
+  });
+
+  test("isRichContentDocument accepts ordered list nodes with nullable type attrs", () => {
+    const validListItem = { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Item" }] }] };
+
+    assert.equal(
+      isRichContentDocument({
+        type: "doc",
+        content: [{ type: "orderedList", attrs: { start: 1, type: null }, content: [validListItem] }],
+      }),
+      true,
     );
   });
 
@@ -907,6 +955,42 @@ describe("rich content utilities", () => {
     });
 
     assert.equal(normalized.content?.[0]?.attrs?.id, "paragraph-1");
+  });
+
+  test("normalizeRichContentDocument preserves valid editor docs with nullable optional attrs", () => {
+    const editorDocument = {
+      type: "doc",
+      content: [
+        {
+          type: "image",
+          attrs: { src: "/image.png", alt: null, title: null, width: null, height: null },
+        },
+        {
+          type: "codeBlock",
+          attrs: { language: null },
+          content: [{ type: "text", text: "const value = true;" }],
+        },
+        {
+          type: "orderedList",
+          attrs: { start: 1, type: null },
+          content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Item" }] }] }],
+        },
+      ],
+    };
+
+    const normalized = normalizeRichContentDocument(editorDocument);
+
+    assert.notDeepEqual(normalized, createEmptyRichDocument());
+    assert.deepEqual(normalized.content?.[0]?.attrs, {
+      id: "image-1",
+      src: "/image.png",
+      alt: null,
+      title: null,
+      width: null,
+      height: null,
+    });
+    assert.deepEqual(normalized.content?.[1]?.attrs, { id: "codeBlock-2", language: null });
+    assert.deepEqual(normalized.content?.[2]?.attrs, { id: "orderedList-3", start: 1, type: null });
   });
 
   test("markdownToRichContent converts common Markdown blocks", () => {
