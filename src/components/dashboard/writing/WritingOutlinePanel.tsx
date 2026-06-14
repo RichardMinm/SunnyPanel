@@ -19,7 +19,7 @@ export function WritingOutlinePanel({ outline }: WritingOutlinePanelProps) {
           ))}
         </ol>
       ) : (
-        <p className="sunny-writing-side-muted">使用 H2/H3 建立结构，Agent 会更容易整理。</p>
+        <p className="sunny-writing-side-muted">暂无标题层级</p>
       )}
     </section>
   );

@@ -95,7 +95,7 @@ export function WritingEditorPane({
       <section className="sunny-writing-editor-pane" aria-label="编辑器">
         <div className="sunny-writing-empty-state">
           <p>{headerLabel}</p>
-          <h2>从左侧选择一篇内容，或新建文章、短札、动态、页面。</h2>
+          <h2>暂无选中文档</h2>
         </div>
       </section>
     );
