@@ -4,7 +4,6 @@ import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent }
 
 import { AgentApprovalPanel } from "@/components/dashboard/agent/AgentApprovalPanel";
 import { AgentContextPanel } from "@/components/dashboard/agent/AgentContextPanel";
-import { AgentReviewPanel } from "@/components/dashboard/agent/AgentReviewPanel";
 import { AgentTracePanel } from "@/components/dashboard/agent/AgentTracePanel";
 import { InspectorTabBar } from "@/components/dashboard/agent/InspectorTabBar";
 import { inspectorTabs } from "@/components/dashboard/agent/constants";
@@ -31,6 +30,7 @@ type DashboardRightPanelProps = {
   onInspectorTabChange: (tab: AgentInspectorTab) => void;
   onResizeStart?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onTogglePanel: () => void;
+  panelOpen: boolean;
   onRollbackSelectedRun?: () => void;
   onToggleContextExclude: (key: string) => void;
   onToggleContextPin: (key: string) => void;
@@ -229,6 +229,7 @@ export function DashboardRightPanel({
   onInspectorTabChange,
   onResizeStart,
   onTogglePanel,
+  panelOpen,
   onRollbackSelectedRun,
   onToggleContextExclude,
   onToggleContextPin,
@@ -295,11 +296,11 @@ export function DashboardRightPanel({
             <button
               type="button"
               className="sunny-dashboard-right-panel-toggle"
-              aria-label="收起检查器"
-              title="收起检查器"
+              aria-label={panelOpen ? "收起检查器" : "展开检查器"}
+              title={panelOpen ? "收起检查器" : "展开检查器"}
               onClick={onTogglePanel}
             >
-              <InspectorPanelIcon open />
+              <InspectorPanelIcon open={panelOpen} />
             </button>
           </div>
         </div>
@@ -378,16 +379,6 @@ export function DashboardRightPanel({
           ) : null}
           {activeInspectorTab === "linked" ? <LinkedObjectsPanel action={displayAction} debugMode={debugMode} selectedRunDetail={selectedRunDetail} /> : null}
           {activeInspectorTab === "memory" ? <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} /> : null}
-          {activeInspectorTab === "review" ? (
-            <AgentReviewPanel
-              onGenerateReview={() => {
-                // trigger review mode in composer
-              }}
-              onOpenPlan={(id) => {
-                window.open(`/admin/collections/plans/${id}`, "_blank");
-              }}
-            />
-          ) : null}
         </div>
       </aside>
   );

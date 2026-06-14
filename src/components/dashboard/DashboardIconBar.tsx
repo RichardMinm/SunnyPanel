@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentThreadSummary } from "@/components/dashboard/agent/types";
-import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { getPendingActionLabel } from "@/components/dashboard/agent/utils";
 import { filterDashboardThreads } from "@/lib/dashboard/filter-dashboard-threads";
 import { ThemeToggle } from "@/components/public/ThemeToggle";
@@ -21,7 +20,7 @@ export const DASHBOARD_MODES: Array<{
   prompt: string;
 }> = [
   { key: "agent", label: "工作台", icon: "agent", prompt: "" },
-  { key: "schedule", label: "日程", icon: "schedule", prompt: "帮我查看最近的日程安排" },
+  { key: "schedule", label: "日程", icon: "calendar", prompt: "帮我查看最近的日程安排" },
   { key: "memory", label: "记忆库", icon: "memory", prompt: "" },
   { key: "writing", label: "写作", icon: "pencil", prompt: "" },
   { key: "checklist", label: "清单", icon: "checklist", prompt: "" },
@@ -37,7 +36,6 @@ function formatThreadMeta(thread: AgentThreadSummary) {
 
 export type DashboardIconBarProps = {
   activeMode: DashboardIconMode;
-  initialSuggestions: AgentInboxSuggestion[];
   onArchiveThread: (id: number) => Promise<boolean>;
   onDeleteThread: (id: number) => Promise<boolean>;
   onModeChange: (mode: DashboardIconMode, prompt: string) => void;
@@ -49,7 +47,6 @@ export type DashboardIconBarProps = {
 
 export function DashboardIconBar({
   activeMode,
-  initialSuggestions,
   onArchiveThread,
   onDeleteThread,
   onModeChange,
@@ -66,57 +63,15 @@ export function DashboardIconBar({
   const [archiveThreads, setArchiveThreads] = useState<AgentThreadSummary[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveLoaded, setArchiveLoaded] = useState(false);
-  const [suggestions, setSuggestions] = useState<AgentInboxSuggestion[]>(initialSuggestions);
   const [deleteTarget, setDeleteTarget] = useState<AgentThreadSummary | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const refreshSuggestions = useCallback(async () => {
-    try {
-      const res = await fetch("/api/agent/suggestions");
-      if (res.ok) {
-        const data = (await res.json()) as { suggestions: AgentInboxSuggestion[] };
-        setSuggestions(data.suggestions ?? []);
-      }
-    } catch {
-      // silent
-    }
-  }, []);
-
-  const handleAcceptSuggestion = useCallback(
-    async (suggestion: AgentInboxSuggestion) => {
-      try {
-        await fetch("/api/agent/suggestions", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: suggestion.id, action: "accept" }),
-        });
-      } catch {
-        // silent
-      }
-      onModeChange("agent", suggestion.suggestedPrompt ?? suggestion.title);
-      setSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id));
-    },
-    [onModeChange],
-  );
-
-  const handleDismissSuggestion = useCallback(async (id: number) => {
-    try {
-      await fetch("/api/agent/suggestions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action: "dismiss" }),
-      });
-    } catch {
-      // silent
-    }
-    setSuggestions((prev) => prev.filter((s) => s.id !== id));
-  }, []);
 
   const filteredThreads = useMemo(
     () => filterDashboardThreads(threads, searchQuery),
     [threads, searchQuery],
   );
+  const visibleThreads = useMemo(() => filteredThreads.slice(0, 40), [filteredThreads]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -236,6 +191,15 @@ export function DashboardIconBar({
             <span className="sunny-codex-sidebar-icon"><DashboardIcon name="new" /></span>
             <span className="sunny-codex-sidebar-label">新对话</span>
           </button>
+          <button
+            type="button"
+            className="sunny-codex-sidebar-action"
+            aria-label="命令中心"
+            onClick={() => onModeChange("agent", "打开命令中心")}
+          >
+            <span className="sunny-codex-sidebar-icon"><DashboardIcon name="command" /></span>
+            <span className="sunny-codex-sidebar-label">命令中心</span>
+          </button>
         </div>
         </section>
 
@@ -289,64 +253,6 @@ export function DashboardIconBar({
           </div>
         </section>
 
-        {/* Suggestions section */}
-        {suggestions.length > 0 && (
-          <section className="sunny-codex-sidebar-section" aria-label="建议">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p>💡 建议 ({suggestions.length})</p>
-              <button
-                type="button"
-                style={{ fontSize: "10px", padding: "1px 4px", background: "none", border: "none", color: "#888", cursor: "pointer" }}
-                onClick={refreshSuggestions}
-                aria-label="刷新建议"
-              >
-                刷新
-              </button>
-            </div>
-            <div className="sunny-codex-mode-list">
-              {suggestions.slice(0, 6).map((s) => (
-                <div
-                  key={s.id}
-                  className="sunny-codex-mode-row"
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-                >
-                  <button
-                    type="button"
-                    style={{
-                      background: "none", border: "none", color: "inherit",
-                      cursor: "pointer", textAlign: "left", flex: 1,
-                      fontSize: "11px", padding: "3px 6px",
-                    }}
-                    onClick={() => handleAcceptSuggestion(s)}
-                  >
-                    {s.title}
-                  </button>
-                  <span style={{ display: "flex", gap: "2px" }}>
-                    <button
-                      type="button"
-                      style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "10px", padding: "2px 4px" }}
-                      onClick={() => handleAcceptSuggestion(s)}
-                      title="接受建议"
-                      aria-label={`接受建议：${s.title}`}
-                    >
-                      ✓
-                    </button>
-                    <button
-                      type="button"
-                      style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "10px", padding: "2px 4px" }}
-                      onClick={() => handleDismissSuggestion(s.id)}
-                      title="忽略建议"
-                      aria-label={`忽略建议：${s.title}`}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
         <section
           className={`sunny-codex-sidebar-section sunny-codex-thread-section${threadsOpen ? "" : " is-collapsed"}`}
           aria-label="会话"
@@ -363,8 +269,8 @@ export function DashboardIconBar({
           </button>
           {threadsOpen ? (
             <div className="sunny-codex-thread-list" role="list">
-              {filteredThreads.length > 0 ? (
-                filteredThreads.map((thread) => (
+              {visibleThreads.length > 0 ? (
+                visibleThreads.map((thread) => (
                   <div
                     key={thread.id}
                     className={`sunny-codex-thread-row${thread.id === threadId ? " is-active" : ""}`}
@@ -391,7 +297,7 @@ export function DashboardIconBar({
           ) : null}
         </section>
 
-        <section className="sunny-codex-sidebar-section sunny-codex-archive-section" aria-label="已归档" aria-expanded={archiveOpen}>
+        <section className="sunny-codex-sidebar-section sunny-codex-archive-section" aria-label="已归档">
           <button
             type="button"
             className="sunny-codex-sidebar-collapse-toggle"

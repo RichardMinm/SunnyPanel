@@ -491,6 +491,36 @@ html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
   user-select: none;
 }
 
+.sunny-dashboard-inspector-toggle {
+  position: fixed;
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  top: 50%;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2.6rem;
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 0.75rem 0 0 0.75rem;
+  background: color-mix(in srgb, #ffffff 92%, var(--surface));
+  color: color-mix(in srgb, var(--foreground) 76%, var(--muted));
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: right 220ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.sunny-dashboard-inspector-toggle:hover,
+.sunny-dashboard-inspector-toggle:focus-visible {
+  border-color: color-mix(in srgb, #93c5fd 70%, var(--border));
+  color: #1d4ed8;
+}
+
+.sunny-dashboard-shell.is-panel-expanded .sunny-dashboard-inspector-toggle {
+  right: calc(var(--dashboard-panel-width) + max(0.75rem, env(safe-area-inset-right, 0px)));
+}
+
 /* ── 状态栏 ── */
 .sunny-dashboard-status-bar {
   display: flex;

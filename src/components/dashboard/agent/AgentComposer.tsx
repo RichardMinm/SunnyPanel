@@ -11,7 +11,7 @@ type QuickMenuItem = {
   action?: "context" | "plan" | "memory" | "file" | "slash";
 };
 
-const QUICK_MENU: QuickMenuItem[] = [
+const QUICK_ACTIONS: QuickMenuItem[] = [
   {
     label: "引用上下文",
     action: "context",
@@ -306,7 +306,7 @@ export function AgentComposer({
           </button>
           {quickMenuOpen ? (
             <div className="sunny-agent-composer-quick-menu" role="menu" aria-label="快捷操作">
-              {QUICK_MENU.map((item, index) => (
+              {QUICK_ACTIONS.map((item, index) => (
                 <div key={item.label}>
                   <button
                     type="button"

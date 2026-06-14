@@ -20,7 +20,7 @@
   border: 1px solid var(--sunny-border);
   border-radius: 6px;
   padding: 0.35rem 0.75rem;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm-compact);
   color: var(--sunny-fg-secondary);
   cursor: pointer;
 }
@@ -37,7 +37,7 @@
   border: 1px solid var(--sunny-border);
   border-radius: 6px;
   padding: 0.35rem 0.6rem;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm-compact);
   min-width: 12rem;
   background: var(--sunny-bg);
   color: var(--sunny-fg);
@@ -46,12 +46,12 @@
   border: 1px solid var(--sunny-border);
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm-compact);
   background: var(--sunny-bg);
   color: var(--sunny-fg);
 }
 .sunny-memory-count {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm-compact);
   color: var(--sunny-fg-secondary);
 }
 
@@ -84,7 +84,7 @@
   gap: 0.35rem;
 }
 .sunny-memory-type-badge {
-  font-size: 0.6875rem;
+  font-size: var(--text-2xs);
   font-weight: 600;
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
@@ -114,19 +114,19 @@
 
 .sunny-memory-star {
   color: #f59e0b;
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
 }
 .sunny-memory-card-title {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   margin: 0;
 }
 .sunny-memory-card-time {
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   color: var(--sunny-fg-secondary);
 }
 .sunny-memory-card-content {
-  font-size: 0.8125rem;
+  font-size: var(--text-sm-compact);
   color: var(--sunny-fg);
   line-height: 1.5;
   margin: 0.25rem 0 0;
@@ -135,7 +135,7 @@
 }
 .sunny-memory-empty {
   color: var(--sunny-fg-secondary);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm-compact);
   grid-column: 1 / -1;
   text-align: center;
   padding: 2rem 0;

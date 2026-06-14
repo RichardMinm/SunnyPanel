@@ -5,13 +5,13 @@ import type { AgentChatMessage, AgentTraceStep, AgentTokenUsage, PendingAction, 
 import type { AgentInspectorTab, AgentRunDetail, AgentThreadSummary, ContextPreferences } from "@/components/dashboard/agent/types";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
-import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { AppShell } from "./AppShell";
 import type { DashboardIconMode } from "./DashboardIconBar";
 import { DashboardInspectorControlProvider } from "./DashboardInspectorControlContext";
 import { DashboardModeProvider } from "./DashboardModeContext";
 import { DashboardRightPanel } from "./DashboardRightPanel";
 import { DashboardStatusBar } from "./DashboardStatusBar";
+import { InspectorPanelIcon } from "./icons";
 import { MainWorkspace } from "./MainWorkspace";
 import { SidebarNav } from "./SidebarNav";
 import { ChecklistView } from "./checklist/ChecklistView";
@@ -27,7 +27,6 @@ type DashboardShellProps = {
   artifactsRollbackBusy?: boolean;
   artifactsRollbackError?: null | string;
   contextPreferences: ContextPreferences;
-  initialSuggestions: AgentInboxSuggestion[];
   isSubmitting: boolean;
   /* Right panel */
   inputTokenEstimate: number;
@@ -74,7 +73,6 @@ export function DashboardShell({
   artifactsRollbackBusy,
   artifactsRollbackError,
   contextPreferences,
-  initialSuggestions,
   isSubmitting,
   inputTokenEstimate,
   lastRollbackPayload,
@@ -293,7 +291,6 @@ export function DashboardShell({
     <AppShell panelOpen={panelOpen} panelWidth={panelWidth}>
       <SidebarNav
         activeMode={activeMode}
-        initialSuggestions={initialSuggestions}
         onArchiveThread={onArchiveThread}
         onDeleteThread={onDeleteThread}
         onLoadThread={onLoadThread}
@@ -353,6 +350,7 @@ export function DashboardShell({
         onArtifactsRollback={onArtifactsRollback}
         onInspectorTabChange={handleInspectorTabChange}
         onTogglePanel={handleTogglePanel}
+        panelOpen={panelOpen}
         onRollbackSelectedRun={onRollbackSelectedRun}
         onToggleContextExclude={onToggleContextExclude}
         onToggleContextPin={onToggleContextPin}
@@ -366,6 +364,15 @@ export function DashboardShell({
         traceSteps={traceSteps}
         workbenchMode={workbenchMode}
       />
+      <button
+        type="button"
+        className="sunny-dashboard-inspector-toggle"
+        aria-label={panelOpen ? "收起检查器" : "展开检查器"}
+        title={panelOpen ? "收起检查器" : "展开检查器"}
+        onClick={handleTogglePanel}
+      >
+        <InspectorPanelIcon open={panelOpen} />
+      </button>
 
       {activeMode !== "schedule" && (
         <DashboardStatusBar

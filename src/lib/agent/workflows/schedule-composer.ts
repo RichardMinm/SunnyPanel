@@ -225,6 +225,10 @@ const inferStartMinutes = (text: string) => {
   return 9 * 60;
 };
 
+const hasSourceTime = (text: string) =>
+  /([01]?\d|2[0-3])[:：]([0-5]\d)/.test(text) ||
+  /(上午|早上|下午|晚上|今晚|中午)?\s*([零一二三四五六七八九十\d]{1,3})点/.test(text);
+
 const inferTimeRange = (args: ComposeScheduleItemArgs) => {
   const source = normalizeText(args.sourceText);
   const explicitStart = normalizeText(args.startTime);
@@ -236,6 +240,17 @@ const inferTimeRange = (args: ComposeScheduleItemArgs) => {
       endTime: null,
       isAllDay: true,
       startTime: null,
+    };
+  }
+
+  if (source && hasSourceTime(source)) {
+    const startMinutes = inferStartMinutes(source);
+    const duration = parseDurationMinutes(source);
+
+    return {
+      endTime: formatTime(startMinutes + duration),
+      isAllDay: false,
+      startTime: formatTime(startMinutes),
     };
   }
 
@@ -272,9 +287,14 @@ const inferTitle = (args: ComposeScheduleItemArgs, planCandidates: ScheduleCompo
     return compactText(`推进：${relatedPlan.title}`, 72);
   }
 
-  const cleaned = normalizeText(args.sourceText)
+  const source = normalizeText(args.sourceText);
+  const titleSource = source
+    .replace(/^.*?(?:创建|建立|新建|添加|加入)?日程[，,：:\s]*/, "")
+    .trim() || source;
+  const cleaned = titleSource
     .replace(/^(帮我|请|把|将|给)?/, "")
-    .replace(/(安排|排到|放到|日程|今天|明天|上午|下午|晚上|今晚|下周[一二三四五六日天]|[0-9零一二三四五六七八九十]+点|[0-9]+分钟)/g, "")
+    .replace(/(安排|排到|放到|日程|创建|建立|新建|添加|加入|今天|明天|上午|下午|晚上|今晚|下周[一二三四五六日天]|[0-9零一二三四五六七八九十]+点钟?|[0-9]+分钟)/g, "")
+    .replace(/^(上|去|做|参加)\s*/, "")
     .replace(/[：:，,。]/g, " ")
     .trim();
 
@@ -315,11 +335,16 @@ export const composeScheduleProposalAsync = async (
   context: ScheduleComposerContext = {},
 ): Promise<ScheduleProposal> => {
   let enrichedArgs = args;
+  const sourceText = normalizeText(args.sourceText);
 
-  if (normalizeText(args.sourceText)) {
+  if (sourceText && hasSourceTime(sourceText)) {
+    return composeScheduleProposal(args, context);
+  }
+
+  if (sourceText) {
     const { inferScheduleTimeWithLLM } = await import("./schedule-time-llm");
     const llmParsed = await inferScheduleTimeWithLLM(
-      normalizeText(args.sourceText),
+      sourceText,
       context.now ?? new Date().toISOString(),
     );
 

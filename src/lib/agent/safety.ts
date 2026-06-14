@@ -41,6 +41,9 @@ const writeIntentValues = new Set<AgentWriteIntentName>([
   "weekly_review",
 ]);
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 const isWritableIntent = (intent: AgentIntent): intent is Extract<AgentIntent, { intent: AgentWriteIntentName }> =>
   writeIntentValues.has(intent.intent as AgentWriteIntentName);
 
@@ -82,12 +85,26 @@ export const createProposedAgentAction = async (
   return result.type === "proposed_action" ? result.action : null;
 };
 
-export const createIntentFromProposedAction = (action: ProposedAgentAction): AgentIntent | null =>
-  parseAgentIntentResult({
-    args: action.args,
+export const createIntentFromProposedAction = (action: ProposedAgentAction): AgentIntent | null => {
+  const baseArgs = isRecord(action.args) ? action.args : {};
+  const snapshot = action.afterSnapshot;
+  const args =
+    (action.intent === "compose_plan" || action.intent === "compose_schedule_item") && snapshot
+      ? {
+          ...baseArgs,
+          proposal:
+            action.intent === "compose_plan" && isRecord(snapshot) && "proposal" in snapshot
+              ? snapshot.proposal
+              : snapshot,
+        }
+      : action.args;
+
+  return parseAgentIntentResult({
+    args,
     confidence: 1,
     intent: action.intent,
   });
+};
 
 export const buildProposedActionMessage = (action: ProposedAgentAction) => {
   const changes = action.changes

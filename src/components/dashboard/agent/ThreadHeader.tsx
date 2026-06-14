@@ -14,6 +14,7 @@ type ThreadHeaderProps = {
   isSubmitting: boolean;
   onArchiveThread?: () => void;
   onDebugModeChange: (next: boolean) => void;
+  onOpenDetails: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
   pendingAction: null | PendingAction;
   statusLabel: string;
@@ -48,6 +49,7 @@ export function ThreadHeader({
   isSubmitting,
   onArchiveThread,
   onDebugModeChange,
+  onOpenDetails,
   onRenameThread,
   pendingAction,
   statusLabel,
@@ -106,6 +108,15 @@ export function ThreadHeader({
             onClick={() => onDebugModeChange(!debugMode)}
           >
             <DashboardIcon name="debug" />
+          </button>
+          <button
+            type="button"
+            className="sunny-agent-thread-header-icon-button"
+            aria-label="查看详情"
+            title="查看详情"
+            onClick={onOpenDetails}
+          >
+            <DashboardIcon name="inspectorPanel" />
           </button>
           {onArchiveThread && threadId !== null ? (
             <button

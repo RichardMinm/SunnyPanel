@@ -79,7 +79,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
   } = props;
 
   const dashboardMode = useDashboardMode();
-  const { debugMode, setDebugMode } = useDashboardInspectorControl();
+  const { debugMode, openInspector, setDebugMode } = useDashboardInspectorControl();
 
   const displayTitle = useMemo(() => {
     if (threadTitle && threadTitle !== "Agent Thread") return threadTitle;
@@ -108,6 +108,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
               onCancelApproval={onCancelApproval}
               onConfirmApproval={onConfirmApproval}
               onEditApproval={onEditApproval}
+              onOpenDetails={() => openInspector("context")}
               onRenameThread={onRenameThread}
               debugMode={debugMode}
               pendingAction={pendingAction}

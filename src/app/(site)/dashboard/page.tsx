@@ -9,7 +9,7 @@ type DashboardPageProps = {
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const params = await searchParams;
-  const { initialThreadId, initialSuggestions } = await loadDashboardData(params);
+  const { initialThreadId } = await loadDashboardData(params);
 
-  return <DashboardPageClient initialThreadId={initialThreadId} initialSuggestions={initialSuggestions} />;
+  return <DashboardPageClient initialThreadId={initialThreadId} />;
 }

@@ -184,7 +184,6 @@ const INSPECTOR_TAB_ICONS: Record<AgentInspectorTab, DashboardIconName> = {
   context: "thinking",
   linked: "project",
   memory: "memory",
-  review: "review",
   trace: "command",
 };
 

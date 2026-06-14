@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- editor node views render user-uploaded media with dynamic dimensions */
+
 type ImageUploadNodeViewProps = {
   alt?: null | string;
   src?: null | string;

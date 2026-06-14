@@ -1,3 +1,5 @@
+/* eslint-disable @next/next/no-img-element -- public rich content renders dynamic user-authored image URLs */
+
 import type { ReactNode } from "react";
 
 import { isRichContentDocument } from "@/lib/rich-content/validate";
