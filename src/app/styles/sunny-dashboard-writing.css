@@ -102,6 +102,33 @@
   font-weight: 700;
 }
 
+.sunny-writing-library-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sunny-writing-admin-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.55rem;
+  border: 1px solid var(--writing-rule);
+  border-radius: 0.45rem;
+  background: var(--writing-control-bg);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 0.48rem;
+  text-decoration: none;
+}
+
+.sunny-writing-admin-link:hover {
+  background: var(--writing-hover);
+  color: var(--foreground);
+}
+
 .sunny-writing-filter-row {
   display: flex;
   flex-wrap: wrap;

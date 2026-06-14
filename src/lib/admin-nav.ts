@@ -18,6 +18,7 @@ export function getAdminWorkspaceCopy(locale: SiteLocale) {
 
   return {
     backToDashboard: copy.backToDashboard,
+    writingStudio: copy.writingStudio,
     workspace: copy.workspace,
   };
 }

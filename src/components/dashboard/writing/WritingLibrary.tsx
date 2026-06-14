@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   dashboardContentCollections,
   dashboardContentLabels,
@@ -53,7 +55,12 @@ export function WritingLibrary({
           <p className="sunny-writing-eyebrow">Dashboard Studio</p>
           <h2>写作</h2>
         </div>
-        <span className="sunny-writing-library-count">{documents.length}</span>
+        <div className="sunny-writing-library-actions">
+          <span className="sunny-writing-library-count">{documents.length}</span>
+          <Link className="sunny-writing-admin-link" href="/admin/collections/posts">
+            Admin
+          </Link>
+        </div>
       </div>
 
       <div className="sunny-writing-filter-row" aria-label="内容类型">

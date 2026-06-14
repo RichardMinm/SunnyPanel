@@ -30,6 +30,7 @@ export const siteCopy = {
     admin: {
       workspace: "Workspace",
       backToDashboard: "Dashboard",
+      writingStudio: "Writing Studio",
       groups: {
         content: "Content",
         planning: "Planning",
@@ -204,6 +205,7 @@ export const siteCopy = {
     admin: {
       workspace: "工作区",
       backToDashboard: "工作台",
+      writingStudio: "写作工作台",
       groups: {
         content: "内容管理",
         planning: "计划与日程",

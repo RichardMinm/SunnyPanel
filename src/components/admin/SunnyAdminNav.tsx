@@ -118,6 +118,12 @@ export async function SunnyAdminNav(props: SunnyAdminNavProps) {
               </span>
               {workspaceCopy.backToDashboard}
             </Link>
+            <Link href="/dashboard?mode=writing" className="sunny-admin-workspace-back">
+              <span aria-hidden="true" className="sunny-admin-workspace-back-icon">
+                W
+              </span>
+              {workspaceCopy.writingStudio}
+            </Link>
           </div>
           <SunnyAdminNavClient groups={groups} initialSiteLocale={siteLocale} navPreferences={navPreferences} />
           {renderSlot(afterNavLinks)}
