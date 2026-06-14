@@ -18,6 +18,7 @@ import { ChecklistView } from "./checklist/ChecklistView";
 import { ScheduleMonthView } from "./schedule/ScheduleMonthView";
 import { MemoryCardGrid } from "./memory/MemoryCardGrid";
 import { TimelineView } from "./timeline/TimelineView";
+import { WritingWorkspace } from "./writing/WritingWorkspace";
 
 
 type DashboardShellProps = {
@@ -55,6 +56,18 @@ type DashboardShellProps = {
   onWorkbenchModeChange?: (mode: AgentWorkbenchMode) => void;
   workbenchMode: AgentWorkbenchMode;
 };
+
+const dashboardUrlModes = new Set<DashboardIconMode>([
+  "agent",
+  "checklist",
+  "memory",
+  "schedule",
+  "timeline",
+  "writing",
+]);
+
+const parseDashboardUrlMode = (value: null | string): DashboardIconMode =>
+  dashboardUrlModes.has(value as DashboardIconMode) ? (value as DashboardIconMode) : "agent";
 
 export function DashboardShell({
   activeInspectorTab,
@@ -115,6 +128,13 @@ export function DashboardShell({
     }
   }, [pendingAction]);
 
+  useEffect(() => {
+    const mode = parseDashboardUrlMode(new URLSearchParams(window.location.search).get("mode"));
+    if (mode !== "agent") {
+      setActiveMode(mode);
+    }
+  }, []);
+
   // Wrap the inspector tab change to clear the persisted action when the user
   // navigates away from the linked tab.
   const handleInspectorTabChange = useCallback(
@@ -173,6 +193,14 @@ export function DashboardShell({
   const handleModeChange = useCallback(
     (_mode: DashboardIconMode, prompt: string) => {
       setActiveMode(_mode);
+      const params = new URLSearchParams(window.location.search);
+      if (_mode === "agent") {
+        params.delete("mode");
+      } else {
+        params.set("mode", _mode);
+      }
+      const nextQuery = params.toString();
+      window.history.replaceState(null, "", nextQuery ? `/dashboard?${nextQuery}` : "/dashboard");
       const wm = iconModeToWorkbenchMode[_mode];
       if (wm) {
         onWorkbenchModeChange?.(wm);
@@ -293,6 +321,8 @@ export function DashboardShell({
             onBackToWorkbench={() => setActiveMode("agent")}
             threadId={threadId}
           />
+        ) : activeMode === "writing" ? (
+          <WritingWorkspace />
         ) : (
           <DashboardInspectorControlProvider value={inspectorControl}>
             <DashboardModeProvider value={activeMode}>
