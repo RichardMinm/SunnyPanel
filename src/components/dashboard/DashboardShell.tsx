@@ -123,16 +123,20 @@ export function DashboardShell({
   // When a write action enters await_confirmation, snapshot it so the right panel
   // can keep showing linked objects after the user confirms and pendingAction clears.
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- snapshot pending write action for the inspector after the pending state clears */
     if (pendingAction?.type === "await_confirmation") {
       setLastExecutedAction(pendingAction.action);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [pendingAction]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- hydrate Dashboard mode from URL after the client route is available */
     const mode = parseDashboardUrlMode(new URLSearchParams(window.location.search).get("mode"));
     if (mode !== "agent") {
       setActiveMode(mode);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   // Wrap the inspector tab change to clear the persisted action when the user

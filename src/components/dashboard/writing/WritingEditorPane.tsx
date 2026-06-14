@@ -37,6 +37,7 @@ export function WritingEditorPane({
   const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- reset local editor draft when the selected document changes */
     if (!document) {
       setDraftContent(createEmptyRichDocument());
       setDraftTitle("");
@@ -47,6 +48,7 @@ export function WritingEditorPane({
     setDraftContent(document.contentRich);
     setDraftTitle(getTitleValue(document));
     setIsDirty(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [document]);
 
   const headerLabel = useMemo(() => {

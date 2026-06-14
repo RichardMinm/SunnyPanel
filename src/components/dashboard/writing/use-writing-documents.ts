@@ -227,10 +227,13 @@ export function useWritingDocuments() {
   );
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- fetch Dashboard content whenever the selected collection filter changes */
     void loadDocuments(collectionFilter);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [collectionFilter, loadDocuments]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- initialize the writing workspace from URL search params */
     const params = new URLSearchParams(window.location.search);
     const collection = parseCollection(params.get("collection"));
     const rawId = Number(params.get("id"));
@@ -242,6 +245,7 @@ export function useWritingDocuments() {
     if (collection && Number.isFinite(rawId) && rawId > 0) {
       void loadDocument(collection, rawId);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [loadDocument]);
 
   return {

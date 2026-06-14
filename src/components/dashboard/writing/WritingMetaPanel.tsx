@@ -76,6 +76,7 @@ export function WritingMetaPanel({
   const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- reset local metadata draft when the selected document changes */
     if (!document) {
       setDraft(null);
       setIsDirty(false);
@@ -84,6 +85,7 @@ export function WritingMetaPanel({
 
     setDraft(buildDraft(document));
     setIsDirty(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [document]);
 
   const title = useMemo(() => {
