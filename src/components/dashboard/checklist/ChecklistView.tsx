@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
+
 type ChecklistItem = { key: string; label: string; completed: boolean };
 
 type ChecklistSummary = {
@@ -86,7 +88,7 @@ export function ChecklistView({
       </header>
 
       {/* Checklist cards */}
-      <div className="sunny-checklist-card-list">
+      <DashboardStagger className="sunny-checklist-card-list">
         {loading ? (
           <p className="sunny-schedule-empty-day">加载中…</p>
         ) : checklists.length === 0 ? (
@@ -96,9 +98,9 @@ export function ChecklistView({
             可以从 Payload 管理后台创建新清单。
           </p>
         ) : (
-          checklists.map((cl) => (
+          checklists.map((cl, index) => {
+            const card = (
             <div
-              key={cl.id}
               className={`sunny-checklist-card${expandedId === cl.id ? " is-expanded" : ""}`}
             >
               <button
@@ -156,9 +158,16 @@ export function ChecklistView({
                 </ul>
               ) : null}
             </div>
-          ))
+            );
+
+            return index < 6 ? (
+              <DashboardStaggerItem key={cl.id}>{card}</DashboardStaggerItem>
+            ) : (
+              <div key={cl.id}>{card}</div>
+            );
+          })
         )}
-      </div>
+      </DashboardStagger>
     </div>
   );
 }

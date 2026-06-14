@@ -1,7 +1,7 @@
 import { restoreIntentsFromBatchConfirmation } from "../execution-graph";
 import { isBatchConfirmationReply, isCancellationReply, isConfirmationReply } from "../intent-resolution";
 import { createIntentFromProposedAction } from "../safety";
-import type { AgentIntent, PendingAction, ProposedAgentAction } from "../schemas";
+import type { AgentIntent, ComposeScheduleItemArgs, PendingAction, ProposedAgentAction, ScheduleProposal } from "../schemas";
 
 export type StructuredConfirmation = {
   actionId: string;
@@ -114,7 +114,50 @@ export const resolveConfirmationSignals = ({
 };
 
 export const restoreConfirmedIntent = (action: ProposedAgentAction): AgentIntent => {
-  const confirmedIntent = createIntentFromProposedAction(action);
+  // #region agent log
+  fetch("http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0c1aec" },
+    body: JSON.stringify({
+      sessionId: "0c1aec",
+      runId: "pre-fix",
+      hypothesisId: "A",
+      location: "confirmation-step.ts:restoreConfirmedIntent",
+      message: "restore confirmed action",
+      data: {
+        intent: action.intent,
+        argsHasProposal: Boolean(
+          action.args && typeof action.args === "object" && "proposal" in action.args && action.args.proposal,
+        ),
+        afterSnapshotDate:
+          action.afterSnapshot && typeof action.afterSnapshot === "object" && "date" in action.afterSnapshot
+            ? String((action.afterSnapshot as { date?: unknown }).date ?? "")
+            : null,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  const actionForRestore =
+    action.intent === "compose_schedule_item" &&
+    action.args &&
+    typeof action.args === "object" &&
+    !(action.args as ComposeScheduleItemArgs).proposal &&
+    action.afterSnapshot &&
+    typeof action.afterSnapshot === "object" &&
+    "date" in action.afterSnapshot &&
+    "title" in action.afterSnapshot
+      ? {
+          ...action,
+          args: {
+            ...(action.args as ComposeScheduleItemArgs),
+            proposal: action.afterSnapshot as ScheduleProposal,
+          },
+        }
+      : action;
+
+  const confirmedIntent = createIntentFromProposedAction(actionForRestore);
 
   if (!confirmedIntent) {
     throw new Error("Pending confirmation action could not be restored.");

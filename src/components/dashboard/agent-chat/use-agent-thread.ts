@@ -86,7 +86,10 @@ export function useAgentThreadList() {
       return false;
     }
 
-    setThreads((current) => current.map((t) => (t.id === archiveThreadId ? { ...t, archived } : t)));
+    /* When archiving, remove the thread from the active list so it
+       doesn't appear in both sections. The archive section fetches its
+       own list via GET /api/agent/thread?archived=true. */
+    setThreads((current) => current.filter((t) => t.id !== archiveThreadId));
 
     return true;
   }, []);

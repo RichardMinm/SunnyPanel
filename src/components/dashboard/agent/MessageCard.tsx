@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AgentMarkdownBubble } from "./AgentMarkdownBubble";
+import { ChecklistCompletionCard } from "./ChecklistCompletionCard";
+import { PlanOverviewCard } from "./PlanOverviewCard";
 import { ScheduleResultCard } from "./ScheduleResultCard";
-import { parseScheduleResultMessage } from "./utils";
+import {
+  parseChecklistCompletion,
+  parsePlanOverview,
+  parseScheduleResultMessage,
+} from "./utils";
 import { DashboardIcon } from "../icons";
 
 type MessageCardProps = {
@@ -19,8 +25,19 @@ export function MessageCard({
   role,
   thinkingContent,
 }: MessageCardProps) {
-  const scheduleResult = role === "assistant" ? parseScheduleResultMessage(content) : null;
   const [thinkingOpen, setThinkingOpen] = useState(isThinking === true);
+
+  // Only attempt structured parsing when NOT streaming (avoid false positives during generation)
+  const structuredCard = useMemo(() => {
+    if (role !== "assistant" || isStreaming || !content) return null;
+    const scheduleResult = parseScheduleResultMessage(content);
+    if (scheduleResult) return { type: "schedule" as const, data: scheduleResult };
+    const checklistResult = parseChecklistCompletion(content);
+    if (checklistResult) return { type: "checklist" as const, data: checklistResult };
+    const planResult = parsePlanOverview(content);
+    if (planResult) return { type: "plan" as const, data: planResult };
+    return null;
+  }, [content, isStreaming, role]);
 
   // 自动展开：正在思考时展开，思考完成后折叠
   if (isThinking && !thinkingOpen) {
@@ -32,9 +49,36 @@ export function MessageCard({
     ? thinkingContent!.split(/\n{2,}/).filter(Boolean)
     : [];
 
+  const renderAssistantContent = () => {
+    if (!structuredCard) {
+      return (
+        <AgentMarkdownBubble
+          content={content || (isStreaming ? "正在生成回复..." : "")}
+          isStreaming={isStreaming && Boolean(content)}
+        />
+      );
+    }
+
+    switch (structuredCard.type) {
+      case "schedule":
+        return <ScheduleResultCard result={structuredCard.data} />;
+      case "checklist":
+        return <ChecklistCompletionCard data={structuredCard.data} />;
+      case "plan":
+        return <PlanOverviewCard data={structuredCard.data} />;
+      default:
+        return (
+          <AgentMarkdownBubble
+            content={content || (isStreaming ? "正在生成回复..." : "")}
+            isStreaming={isStreaming && Boolean(content)}
+          />
+        );
+    }
+  };
+
   const body = (
     <div className="sunny-message-card-body">
-      {role === "assistant" ? <span className="sunny-message-card-label">助手</span> : null}
+      {role === "assistant" ? <span className="sunny-message-card-assistant-name">Sunny</span> : null}
       {role === "assistant" && hasThinking ? (
         <div className="sunny-thinking-fold">
           <button
@@ -52,39 +96,23 @@ export function MessageCard({
         </div>
       ) : null}
       {role === "assistant" ? (
-        scheduleResult ? (
-          <ScheduleResultCard result={scheduleResult} />
-        ) : (
-          <AgentMarkdownBubble
-            content={content || (isStreaming ? "正在生成回复..." : "")}
-            isStreaming={isStreaming && Boolean(content)}
-          />
-        )
+        renderAssistantContent()
       ) : (
         <p className="sunny-message-card-user-text">{content}</p>
       )}
     </div>
   );
 
-  const avatar = (
+  const avatar = role === "assistant" ? (
     <div className="sunny-message-card-avatar" aria-hidden="true">
-      {role === "assistant" ? "S" : "你"}
+      S
     </div>
-  );
+  ) : null;
 
   return (
     <div className={`sunny-message-card sunny-message-card-${role}`}>
-      {role === "user" ? (
-        <>
-          {body}
-          {avatar}
-        </>
-      ) : (
-        <>
-          {avatar}
-          {body}
-        </>
-      )}
+      {avatar}
+      {body}
     </div>
   );
 }

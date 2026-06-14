@@ -16,6 +16,10 @@ export default defineConfig({
     : {
         webServer: {
           command: "npm run dev",
+          env: {
+            ...process.env,
+            AGENT_DISABLE_LLM: "1",
+          },
           reuseExistingServer: !process.env.CI,
           timeout: 180_000,
           url: baseURL,

@@ -12,6 +12,8 @@ import type {
   ComposeScheduleItemArgs,
   ComposeTimelineEventArgs,
   CreatePlanArgs,
+  DeleteRecordArgs,
+  ModifyRecordArgs,
   PendingAction,
   ProposedAgentAction,
   QueryPlanProgressArgs,
@@ -137,6 +139,7 @@ export type AgentToolDryRunContext = {
   promptContext?: AgentPromptContext;
   resolveChecklistGroupForAppend?: ResolveChecklistGroupForAppend;
   resolveChecklistItem?: ResolveChecklistItem;
+  userMessage?: string;
 };
 
 export type AgentToolExecutionContext = {
@@ -229,6 +232,8 @@ type AgentToolRegistry = {
   save_memory: AgentToolDefinition<"save_memory", SaveMemoryArgs>;
   schedule_plan: AgentToolDefinition<"schedule_plan", SchedulePlanArgs>;
   weekly_review: AgentToolDefinition<"weekly_review", WeeklyReviewArgs>;
+  delete_record: AgentToolDefinition<"delete_record", DeleteRecordArgs>;
+  modify_record: AgentToolDefinition<"modify_record", ModifyRecordArgs>;
 };
 
 const visibilityOf = (doc: Pick<ChecklistDocument, "visibility">) =>
@@ -661,7 +666,36 @@ const composeScheduleItemDryRun = async (
   args: ComposeScheduleItemArgs,
   context: AgentToolDryRunContext,
 ): Promise<AgentToolDryRunResult> => {
-  const enrichedArgs = args;
+  let enrichedArgs = args;
+
+  if (isScheduleComposerDateAmbiguous(enrichedArgs, context.now)) {
+    const userMessage = context.userMessage?.trim() ?? "";
+
+    if (userMessage && !isScheduleComposerDateAmbiguous({ ...enrichedArgs, sourceText: userMessage }, context.now)) {
+      enrichedArgs = { ...enrichedArgs, sourceText: userMessage };
+    }
+  }
+
+  // #region agent log
+  fetch("http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0c1aec" },
+    body: JSON.stringify({
+      sessionId: "0c1aec",
+      runId: "pre-fix",
+      hypothesisId: "B",
+      location: "tool-registry.ts:composeScheduleItemDryRun",
+      message: "dry-run args after enrich",
+      data: {
+        argsSourceText: args.sourceText ?? null,
+        enrichedSourceText: enrichedArgs.sourceText ?? null,
+        userMessagePresent: Boolean(context.userMessage?.trim()),
+        dateAmbiguous: isScheduleComposerDateAmbiguous(enrichedArgs, context.now),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   if (isScheduleComposerDateAmbiguous(enrichedArgs, context.now)) {
     return createClarifyResult({
@@ -700,9 +734,32 @@ const composeScheduleItemDryRun = async (
     } satisfies ScheduleComposerContext,
   );
   const nextArgs: ComposeScheduleItemArgs = {
-    ...args,
+    ...enrichedArgs,
     proposal,
   };
+
+  // #region agent log
+  fetch("http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0c1aec" },
+    body: JSON.stringify({
+      sessionId: "0c1aec",
+      runId: "pre-fix",
+      hypothesisId: "B",
+      location: "tool-registry.ts:composeScheduleItemDryRun:proposed",
+      message: "dry-run proposal snapshot",
+      data: {
+        proposalDate: proposal.date,
+        proposalTitle: proposal.title,
+        proposalStart: proposal.startTime ?? null,
+        proposalEnd: proposal.endTime ?? null,
+        nextArgsHasProposal: Boolean(nextArgs.proposal),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
   const timePreview = proposal.isAllDay
     ? "全天"
     : [proposal.startTime, proposal.endTime].filter(Boolean).join("-") || "未定时间";
@@ -1891,6 +1948,52 @@ export const agentToolRegistry = {
       status: "planned",
     },
   },
+  delete_record: {
+    description: "Delete a plan, schedule, checklist, or timeline event after confirmation.",
+    dryRun: async (args: DeleteRecordArgs, _context) => ({
+      action: {
+        args: args as unknown as Record<string, unknown>,
+        changes: [{ collection: args.entityType === "plan" ? "plans" : args.entityType === "schedule" ? "schedule-items" : args.entityType === "checklist" ? "checklists" : "timeline-events", operation: "delete", preview: `删除「${args.entityName}」` }],
+        id: `delete-${Date.now()}`,
+        intent: "delete_record",
+        requiresConfirmation: true,
+        riskLevel: "high",
+        summary: `删除${args.entityType === "plan" ? "计划" : args.entityType === "schedule" ? "日程" : args.entityType === "checklist" ? "清单" : "时间线"}「${args.entityName}」`,
+      },
+      type: "proposed_action",
+    }),
+    execute: async (_args, _context, _onTrace) => {
+      throw new Error("delete_record execution not yet implemented");
+    },
+    intent: "delete_record",
+    name: "delete_record",
+    requiresConfirmation: true,
+    riskLevel: "high",
+    rollback: { description: "Restore the deleted record from backup.", status: "planned" },
+  },
+  modify_record: {
+    description: "Modify a plan, schedule, checklist, or timeline event after confirmation.",
+    dryRun: async (args: ModifyRecordArgs, _context) => ({
+      action: {
+        args: args as unknown as Record<string, unknown>,
+        changes: [{ collection: args.entityType === "plan" ? "plans" : args.entityType === "schedule" ? "schedule-items" : args.entityType === "checklist" ? "checklists" : "timeline-events", operation: "update", preview: `修改「${args.entityName}」：${args.changeDescription}` }],
+        id: `modify-${Date.now()}`,
+        intent: "modify_record",
+        requiresConfirmation: true,
+        riskLevel: "medium",
+        summary: `修改「${args.entityName}」`,
+      },
+      type: "proposed_action",
+    }),
+    execute: async (_args, _context, _onTrace) => {
+      throw new Error("modify_record execution not yet implemented");
+    },
+    intent: "modify_record",
+    name: "modify_record",
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    rollback: { description: "Restore the modified record from snapshot.", status: "planned" },
+  },
 } satisfies AgentToolRegistry;
 
 export const getAgentToolDefinition = (intent: AgentIntent["intent"]) =>
@@ -1924,6 +2027,10 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
       return agentToolRegistry.schedule_plan.dryRun(intent.args, context);
     case "weekly_review":
       return agentToolRegistry.weekly_review.dryRun(intent.args, context);
+    case "delete_record":
+      return agentToolRegistry.delete_record.dryRun(intent.args, context);
+    case "modify_record":
+      return agentToolRegistry.modify_record.dryRun(intent.args, context);
   }
 };
 
@@ -1959,5 +2066,9 @@ export const executeAgentTool = async (
       return agentToolRegistry.schedule_plan.execute(intent.args, context, onTrace);
     case "weekly_review":
       return agentToolRegistry.weekly_review.execute(intent.args, context, onTrace);
+    case "delete_record":
+      return agentToolRegistry.delete_record.execute(intent.args, context, onTrace);
+    case "modify_record":
+      return agentToolRegistry.modify_record.execute(intent.args, context, onTrace);
   }
 };

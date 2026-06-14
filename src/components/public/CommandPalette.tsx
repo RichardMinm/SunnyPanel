@@ -11,6 +11,7 @@ import {
   type CommandSearchItem,
   type CommandSearchResponse,
 } from "@/lib/command/palette";
+import { useFloatingCommandTrigger } from "@/lib/command/use-floating-command-trigger";
 import type { SiteLocale } from "@/lib/site-copy";
 
 const commandCopy = {
@@ -24,6 +25,7 @@ const commandCopy = {
     results: "results",
     shortcut: "Cmd K",
     title: "Command Center",
+    triggerHint: "Drag to move. Double-click to reset to bottom-right.",
   },
   zh: {
     close: "关闭",
@@ -35,6 +37,7 @@ const commandCopy = {
     results: "项结果",
     shortcut: "⌘K",
     title: "命令中心",
+    triggerHint: "拖动可移动；双击回右下角",
   },
 } as const;
 
@@ -71,7 +74,14 @@ export function CommandPalette({ locale }: { locale: SiteLocale }) {
   const listboxId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const {
+    consumeDragClick,
+    handlePointerDown,
+    isDragging,
+    resetPosition,
+    triggerRef,
+    triggerStyle,
+  } = useFloatingCommandTrigger();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -258,8 +268,18 @@ export function CommandPalette({ locale }: { locale: SiteLocale }) {
       <button
         ref={triggerRef}
         aria-label={copy.title}
-        className="sunny-command-trigger"
-        onClick={openPalette}
+        className={`sunny-command-trigger${isDragging ? " is-dragging" : ""}`}
+        onClick={(event) => {
+          if (consumeDragClick()) {
+            event.preventDefault();
+            return;
+          }
+          openPalette();
+        }}
+        onDoubleClick={resetPosition}
+        onPointerDown={handlePointerDown}
+        style={triggerStyle}
+        title={copy.triggerHint}
         type="button"
       >
         <span>{copy.open}</span>

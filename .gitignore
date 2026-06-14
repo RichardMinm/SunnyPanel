@@ -18,6 +18,8 @@
 
 # local IDE / agent tooling
 /.claude
+/.cursor/agent-pipeline-traces.txt
+/tests/agent-pipeline-traces.txt
 /.superpowers
 /.worktrees
 

@@ -1,6 +1,6 @@
 import { createClarifyIntent, type AgentIntent } from "../../schemas";
 import type { HeuristicCandidate } from "./index";
-import { weeklyReviewKeywords } from "./keywords";
+import { weeklyReviewKeywords, queryPattern, writeVerbsPattern } from "./keywords";
 import { parseCompleteItemIntent, parseExplicitNoteIntent } from "./checklist";
 import { parseKnowledgeAnswerIntent } from "./knowledge";
 import { parseSaveMemoryIntent } from "./memory";
@@ -13,6 +13,17 @@ import {
 } from "./plan-schedule";
 import { parseEvaluatePlanIntent, parseProgressIntent } from "./progress-review";
 import { parseComposeTimelineEventIntent } from "./timeline";
+import {
+  parseCapabilityQueryIntent,
+  parseCreateChecklistIntent,
+  parseCreateTimelineIntent,
+  parseQueryScheduleIntent,
+  parseQueryPlanIntent,
+  parseQueryChecklistProgressIntent,
+  parseQueryTimelineIntent,
+  parseQueryMemoryIntent,
+} from "./query";
+import { parseDeleteRecordIntent, parseModifyRecordIntent } from "./delete-update";
 
 const HEURISTIC_CONFIDENCE_THRESHOLD = 0.3;
 
@@ -44,19 +55,35 @@ type HeuristicParser = {
 };
 
 const heuristicParsers: HeuristicParser[] = [
-  { parse: parseComposePlanIntent, source: "compose_plan" },
-  { parse: parseComposeScheduleItemIntent, source: "compose_schedule_item" },
-  { parse: parseCreatePlanIntent, source: "create_plan" },
-  { parse: parseAppendPlanItemIntent, source: "append_plan_item" },
-  { parse: parseSaveMemoryIntent, source: "save_memory" },
-  { parse: parseExplicitNoteIntent, source: "explicit_note" },
-  { parse: parseCompleteItemIntent, source: "complete_plan_item" },
+  /* ── Create (before query — "安排/创建/加一条" → write, not query) ── */
+  { parse: parseCreateChecklistIntent, source: "create_checklist" },
+  { parse: parseCreateTimelineIntent, source: "create_timeline" },
+  /* ── Query-first (highest priority for read intents) ── */
+  { parse: parseCapabilityQueryIntent, source: "capability_query" },
+  { parse: parseQueryScheduleIntent, source: "query_schedule" },
+  { parse: parseQueryPlanIntent, source: "query_plan" },
+  { parse: parseQueryChecklistProgressIntent, source: "query_checklist_progress" },
+  { parse: parseQueryTimelineIntent, source: "query_timeline" },
+  { parse: parseQueryMemoryIntent, source: "query_memory" },
   { parse: parseKnowledgeAnswerIntent, source: "answer_question" },
-  { parse: parseComposeTimelineEventIntent, source: "compose_timeline_event" },
   { parse: parseProgressIntent, source: "query_progress" },
-  { parse: parseSchedulePlanIntent, source: "schedule_plan" },
   { parse: parseWeeklyReviewIntent, source: "weekly_review" },
   { parse: parseEvaluatePlanIntent, source: "evaluate_plan" },
+  /* ── Delete / cancel (higher than create/update) ── */
+  { parse: parseDeleteRecordIntent, source: "delete_record" },
+  { parse: parseCompleteItemIntent, source: "complete_plan_item" },
+  /* ── Update / modify ── */
+  { parse: parseModifyRecordIntent, source: "modify_record" },
+  { parse: parseAppendPlanItemIntent, source: "append_plan_item" },
+  { parse: parseSchedulePlanIntent, source: "schedule_plan" },
+  /* ── Create ── */
+  { parse: parseCreatePlanIntent, source: "create_plan" },
+  { parse: parseSaveMemoryIntent, source: "save_memory" },
+  { parse: parseExplicitNoteIntent, source: "explicit_note" },
+  { parse: parseComposeTimelineEventIntent, source: "compose_timeline_event" },
+  /* ── Compose (lowest write priority, narrow) ── */
+  { parse: parseComposePlanIntent, source: "compose_plan" },
+  { parse: parseComposeScheduleItemIntent, source: "compose_schedule_item" },
 ];
 
 const defaultClarifyIntent = createClarifyIntent(
@@ -97,6 +124,26 @@ export const parseHeuristicIntent = (message: string): AgentIntent => {
 
   if (best.intent.intent === "clarify") {
     return best.intent;
+  }
+
+  /* ── Query-First Guard ──
+     If the best heuristic match is a write intent (compose_*, create_*, update_*, delete_*)
+     but the message looks like a query (has query patterns, no write verbs),
+     check if a query candidate exists and prefer it. */
+  const isWriteIntent = /^(compose_|create_|update_|save_|delete_|cancel_|append_|schedule_)/.test(best.intent.intent);
+  if (isWriteIntent && queryPattern.test(message) && !writeVerbsPattern.test(message)) {
+    // Find the best query candidate
+    const queryCandidate = candidates.find((c) =>
+      /^(query_|capability_query|answer_question|weekly_review|evaluate_plan|clarify)/.test(c.intent.intent),
+    );
+    if (queryCandidate && (queryCandidate.intent.confidence ?? 0) >= HEURISTIC_CONFIDENCE_THRESHOLD) {
+      return queryCandidate.intent;
+    }
+    // If no query candidate found but input looks like a pure query, rewrite to clarify
+    // rather than executing a write
+    if (!queryCandidate) {
+      return createClarifyIntent("我理解你在查询信息。请告诉我你想查看什么：计划、日程、清单还是时间线？");
+    }
   }
 
   if ((best.intent.confidence ?? 0) < HEURISTIC_CONFIDENCE_THRESHOLD) {

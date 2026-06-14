@@ -17,11 +17,7 @@ import { ThreadHeader } from "./ThreadHeader";
 import { MessageCard } from "./MessageCard";
 import { riskLevelLabelMap } from "./constants";
 import { compactAssistantMessageForPendingAction } from "./utils";
-
-const messageVariants = {
-  assistant: { animate: { opacity: 1, x: 0 }, exit: { opacity: 0 }, initial: { opacity: 0, x: -12 } },
-  user: { animate: { opacity: 1, x: 0 }, exit: { opacity: 0 }, initial: { opacity: 0, x: 12 } },
-};
+import { useDashboardMotion } from "../motion/dashboard-motion";
 
 function summarizeBatchRisk(actions: ProposedAgentAction[]) {
   if (actions.some((action) => action.riskLevel === "high")) return "高风险";
@@ -99,6 +95,7 @@ type AgentConversationProps = {
   messages: AgentChatMessage[];
   onCancelApproval: () => void;
   onConfirmApproval: () => void;
+  onCapabilitySelect?: (prompt: string) => void;
   onDebugModeChange: (next: boolean) => void;
   onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
   onArchiveThread?: () => void;
@@ -123,6 +120,7 @@ export function AgentConversation({
   isSubmitting,
   messages,
   onCancelApproval,
+  onCapabilitySelect,
   onConfirmApproval,
   onDebugModeChange,
   onEditApproval,
@@ -140,8 +138,35 @@ export function AgentConversation({
   transcriptRef,
   workbenchMode,
 }: AgentConversationProps) {
+  const { messageView, prefersReducedMotion } = useDashboardMotion();
+  const messageVariants = useMemo(
+    () => ({
+      assistant: {
+        animate: messageView.animate,
+        exit: messageView.exit,
+        initial: prefersReducedMotion ? messageView.initial : { ...messageView.initial, x: -12 },
+      },
+      user: {
+        animate: messageView.animate,
+        exit: messageView.exit,
+        initial: prefersReducedMotion ? messageView.initial : { ...messageView.initial, x: 12 },
+      },
+    }),
+    [messageView, prefersReducedMotion],
+  );
   const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
   const batchActions = pendingAction?.type === "await_batch_confirmation" ? pendingAction.actions : null;
+  const connectedModules = useMemo(() => {
+    const detail = traceSteps
+      .filter((s) => s.kind === "context" && s.status === "done")
+      .map((s) => s.detail ?? "")
+      .join("\n");
+    const modules: string[] = [];
+    if (/\d+ 条计划/.test(detail) || /计划/.test(detail)) modules.push("计划");
+    if (/\d+ 份清单/.test(detail) || /清单/.test(detail)) modules.push("清单");
+    if (/命中记忆/.test(detail)) modules.push("记忆库");
+    return modules;
+  }, [traceSteps]);
   const lastAssistantIndex = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === "assistant") return i;
@@ -190,6 +215,7 @@ export function AgentConversation({
   return (
     <section className="sunny-agent-conversation-surface">
       <ThreadHeader
+        connectedModules={connectedModules}
         displayTitle={displayTitle}
         debugMode={debugMode}
         isSubmitting={isSubmitting}
@@ -203,9 +229,32 @@ export function AgentConversation({
       />
       <div ref={transcriptRef} className="sunny-agent-conversation-scroll" aria-live="polite" aria-relevant="additions">
         {messages.length === 0 ? (
-          <div className="sunny-agent-empty-state">
-            <strong>准备好开始一次 Agent 会话</strong>
-            <span>描述目标、约束或需要推进的任务，Agent 会自动判断是咨询、规划还是执行。</span>
+          <div className="sunny-agent-welcome">
+            <div className="sunny-agent-welcome-head">
+              <h2>准备好开始一次 Agent 会话</h2>
+              <p>描述目标、约束或需要推进的任务，Sunny 会自动判断是咨询、规划还是执行。</p>
+            </div>
+            <div className="sunny-agent-welcome-cards">
+              {[
+                { icon: "☀️", title: "安排今天", desc: "根据你的日程和清单生成今日行动安排", prompt: "帮我安排今天的日程" },
+                { icon: "📅", title: "查看最近日程", desc: "查看未来几天的重要安排", prompt: "帮我查看最近的日程安排" },
+                { icon: "📊", title: "总结学习进度", desc: "分析最近计划和清单完成情况", prompt: "总结一下当前的学习进度" },
+                { icon: "✅", title: "创建清单", desc: "把目标拆成可执行任务", prompt: "帮我创建一个待办清单" },
+              ].map((card) => (
+                <button
+                  key={card.title}
+                  type="button"
+                  className="sunny-agent-capability-card"
+                  onClick={() => onCapabilitySelect?.(card.prompt)}
+                >
+                  <span className="sunny-agent-capability-card-icon">{card.icon}</span>
+                  <span className="sunny-agent-capability-card-body">
+                    <strong>{card.title}</strong>
+                    <small>{card.desc}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <>
@@ -233,7 +282,7 @@ export function AgentConversation({
                     initial={variant.initial}
                     animate={variant.animate}
                     exit={variant.exit}
-                    transition={{ duration: 0.25 }}
+                    transition={{ duration: messageView.transition.duration }}
                   >
                     <MessageCard
                       content={
@@ -276,6 +325,7 @@ export function AgentConversation({
               isThinking={isThinking}
               statusLabel={statusLabel}
               steps={traceSteps}
+              debugMode={debugMode}
               streamChanges={streamChanges}
               streamProgress={streamProgress}
               streamStages={streamStages}

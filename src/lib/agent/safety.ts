@@ -34,6 +34,8 @@ const writeIntentValues = new Set<AgentWriteIntentName>([
   "compose_schedule_item",
   "compose_timeline_event",
   "create_plan",
+  "delete_record",
+  "modify_record",
   "query_plan_progress",
   "reschedule_item",
   "save_memory",

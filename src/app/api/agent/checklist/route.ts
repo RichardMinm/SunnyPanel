@@ -36,12 +36,12 @@ export async function GET(request: NextRequest) {
     limit,
     overrideAccess: true,
     sort: "-updatedAt",
-    where: { _status: { equals: "published" } },
+    where: { status: { equals: "published" } },
   });
 
   const checklists = result.docs
     .map((doc) => {
-      const checklist = doc as unknown as { groups?: ChecklistGroup[] | null; id: number; title: string; _status?: string };
+      const checklist = doc as unknown as { groups?: ChecklistGroup[] | null; id: number; status?: string; title: string };
       const items = flattenItems(checklist.groups);
       const completedItems = items.filter((item) => item.isCompleted).length;
 

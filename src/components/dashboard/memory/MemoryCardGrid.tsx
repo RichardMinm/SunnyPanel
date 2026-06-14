@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
+
 type MemorySummary = {
   id: number;
   title: string;
@@ -108,6 +110,29 @@ export function MemoryCardGrid({ onBackToWorkbench }: MemoryCardGridProps) {
     [fetchMemories, query],
   );
 
+  const renderMemoryCard = (mem: MemorySummary) => (
+    <div
+      className={`sunny-memory-card${expandedId === mem.id ? " is-expanded" : ""}`}
+      onClick={() => setExpandedId(expandedId === mem.id ? null : mem.id)}
+    >
+      <div className="sunny-memory-card-header">
+        <span className={`sunny-memory-type-badge is-${mem.type}`}>
+          {TYPE_LABELS[mem.type] ?? mem.type}
+        </span>
+        {mem.confidence >= 0.8 ? (
+          <span className="sunny-memory-star" title="高置信度">
+            ★
+          </span>
+        ) : null}
+      </div>
+      <h3 className="sunny-memory-card-title">{mem.title}</h3>
+      <span className="sunny-memory-card-time">{relativeTime(mem.lastUsedAt)}</span>
+      {expandedId === mem.id ? (
+        <p className="sunny-memory-card-content">{mem.content}</p>
+      ) : null}
+    </div>
+  );
+
   return (
     <div className="sunny-memory-card-grid">
       <div className="sunny-memory-head">
@@ -147,38 +172,18 @@ export function MemoryCardGrid({ onBackToWorkbench }: MemoryCardGridProps) {
         </span>
       </div>
 
-      <div className="sunny-memory-cards">
-        {memories.map((mem) => (
-          <div
-            key={mem.id}
-            className={`sunny-memory-card${expandedId === mem.id ? " is-expanded" : ""}`}
-            onClick={() =>
-              setExpandedId(expandedId === mem.id ? null : mem.id)
-            }
-          >
-            <div className="sunny-memory-card-header">
-              <span className={`sunny-memory-type-badge is-${mem.type}`}>
-                {TYPE_LABELS[mem.type] ?? mem.type}
-              </span>
-              {mem.confidence >= 0.8 ? (
-                <span className="sunny-memory-star" title="高置信度">
-                  ★
-                </span>
-              ) : null}
-            </div>
-            <h3 className="sunny-memory-card-title">{mem.title}</h3>
-            <span className="sunny-memory-card-time">
-              {relativeTime(mem.lastUsedAt)}
-            </span>
-            {expandedId === mem.id ? (
-              <p className="sunny-memory-card-content">{mem.content}</p>
-            ) : null}
-          </div>
-        ))}
+      <DashboardStagger className="sunny-memory-cards">
+        {memories.map((mem, index) =>
+          index < 6 ? (
+            <DashboardStaggerItem key={mem.id}>{renderMemoryCard(mem)}</DashboardStaggerItem>
+          ) : (
+            <div key={mem.id}>{renderMemoryCard(mem)}</div>
+          ),
+        )}
         {!loading && memories.length === 0 ? (
           <p className="sunny-memory-empty">暂无记忆记录</p>
         ) : null}
-      </div>
+      </DashboardStagger>
     </div>
   );
 }

@@ -399,6 +399,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           tokenUsage,
           trace,
           user,
+          userMessage: message,
         });
         if (isWriteLike || confirmedActionId) {
           stream.complete(
@@ -484,6 +485,25 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         const nextPhase = controller.observe();
         if (nextPhase === "done") break;
       } catch (error) {
+        // #region agent log
+        fetch("http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0c1aec" },
+          body: JSON.stringify({
+            sessionId: "0c1aec",
+            runId: "pre-fix",
+            hypothesisId: "E",
+            location: "run-agent-chat-pipeline.ts:catch",
+            message: "agent pipeline error",
+            data: {
+              intent: resolution.intent.intent,
+              errorMessage: error instanceof Error ? error.message : String(error),
+              confirmedActionId: confirmedActionId ?? null,
+            },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
         await recordAgentFailure({
           error,
           intent: resolution.intent.intent,

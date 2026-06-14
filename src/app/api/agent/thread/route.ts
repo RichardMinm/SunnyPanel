@@ -40,7 +40,9 @@ export async function GET(request: Request) {
     { user: { equals: authResult.user.id } },
   ];
 
-  if (!showArchived) {
+  if (showArchived) {
+    conditions.push({ archived: { equals: true } });
+  } else {
     conditions.push({
       or: [
         { archived: { equals: false } },

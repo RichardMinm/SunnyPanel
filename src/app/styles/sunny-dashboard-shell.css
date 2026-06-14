@@ -26,7 +26,7 @@
   background: var(--dashboard-app-bg);
   font-size: var(--text-base);
   line-height: var(--leading-normal);
-  transition: grid-template-columns 320ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: grid-template-columns var(--motion-duration-layout) var(--motion-ease-standard);
 }
 
 .sunny-dashboard-shell .sunny-dashboard-main {
@@ -36,7 +36,7 @@
 .sunny-dashboard-shell .sunny-dashboard-right-panel {
   grid-column: 3;
   visibility: visible;
-  transition: opacity 280ms ease, transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity var(--motion-duration-panel) var(--motion-ease-out), transform var(--motion-duration-panel) var(--motion-ease-standard);
 }
 
 /* Collapsed: right panel hidden */
@@ -222,24 +222,88 @@
   border-radius: 0.55rem;
 }
 
+.sunny-codex-collapse-caret {
+  display: inline-flex;
+  width: 0.75rem;
+  justify-content: center;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
+  transform: rotate(-90deg);
+}
+
+.sunny-codex-collapse-caret.is-open {
+  transform: rotate(0deg);
+}
+
+.sunny-codex-collapsible-body {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    max-height var(--motion-duration-panel) var(--motion-ease-standard),
+    opacity var(--motion-duration-ui) var(--motion-ease-out);
+}
+
+.sunny-codex-collapsible-body.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sunny-codex-collapsible-body.is-thread.is-open {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  max-height: none;
+}
+
+.sunny-codex-collapsible-body.is-archive.is-open {
+  max-height: min(50vh, 480px);
+}
+
 .sunny-codex-mode-list {
   display: grid;
   gap: 0.18rem;
 }
 
 .sunny-codex-mode-row {
+  position: relative;
+  overflow: hidden;
   gap: 0.5rem;
   min-height: 1.9rem;
   padding: 0 0.5rem;
   border-radius: 0.55rem;
   font-size: var(--text-xs);
   font-weight: 560;
+  transition: color var(--motion-duration-ui) var(--motion-ease-out);
 }
 
-.sunny-codex-mode-row.is-active,
+.sunny-codex-mode-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, #dbeafe 70%, transparent);
+  pointer-events: none;
+}
+
+.sunny-codex-mode-row .sunny-codex-sidebar-icon,
+.sunny-codex-mode-row .sunny-codex-sidebar-label {
+  position: relative;
+  z-index: 1;
+}
+
+.sunny-codex-thread-row.is-active {
+  color: #1d4ed8;
+}
+
+.sunny-codex-mode-row.is-active {
+  background: transparent;
+  color: color-mix(in srgb, var(--foreground) 64%, var(--muted));
+  font-weight: 560;
+}
+
 .sunny-codex-thread-row.is-active {
   background: color-mix(in srgb, #dbeafe 70%, transparent);
-  color: #1d4ed8;
 }
 
 .sunny-codex-thread-section {
@@ -529,6 +593,84 @@ html[data-theme="dark"] .sunny-dashboard-status-bar {
   flex-shrink: 0;
 }
 
+.sunny-dashboard-status-kbd {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  opacity: 0.65;
+}
+
+.sunny-dashboard-status-debug {
+  color: var(--muted);
+  font-family: var(--sunny-font-mono, monospace);
+  font-size: var(--text-2xs);
+  opacity: 0.7;
+}
+
+/* ── Recent session section (today mode) ── */
+
+.sunny-codex-recent-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  flex-shrink: 0;
+}
+
+.sunny-codex-recent-header {
+  margin: 0 !important;
+  padding: 0 0.55rem 0.1rem !important;
+  color: color-mix(in srgb, var(--muted) 82%, transparent) !important;
+  font-size: var(--text-2xs) !important;
+  font-weight: 650 !important;
+}
+
+.sunny-codex-view-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 1.85rem;
+  padding: 0.3rem 0.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 560;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.sunny-codex-view-all:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+
+/* ── Thread status badge ── */
+
+.sunny-thread-status-badge {
+  display: inline-block;
+  padding: 0.08rem 0.35rem;
+  border-radius: 999px;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sunny-thread-status-badge.is-executing {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent-strong, var(--accent));
+}
+
+.sunny-thread-status-badge.is-warning {
+  background: color-mix(in srgb, #f59e0b 15%, transparent);
+  color: #d97706;
+}
+
+.sunny-thread-status-badge.is-danger {
+  background: color-mix(in srgb, #ef4444 15%, transparent);
+  color: #dc2626;
+}
+
 /* ── 主区域 ── */
 .sunny-dashboard-main {
   grid-row: 1;
@@ -538,9 +680,17 @@ html[data-theme="dark"] .sunny-dashboard-status-bar {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: #fff;
+  background: #f8fafc;
   padding: 0;
   gap: 0;
+}
+
+.sunny-dashboard-view-transition {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .sunny-dashboard-shell.is-panel-collapsed .sunny-dashboard-main {
@@ -554,6 +704,19 @@ html[data-theme="dark"] .sunny-dashboard-shell {
 
 html[data-theme="dark"] .sunny-dashboard-main {
   background: var(--background);
+}
+
+html[data-theme="dark"] .sunny-agent-center-surface {
+  background: var(--background);
+}
+
+html[data-theme="dark"] .sunny-agent-capability-card {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+html[data-theme="dark"] .sunny-agent-capability-card-icon {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 /* ── 响应式：隐藏右面板 ── */
@@ -628,7 +791,18 @@ html[data-theme="dark"] .sunny-dashboard-main {
 
 /* ── 减少动画 ── */
 @media (prefers-reduced-motion: reduce) {
-  .sunny-dashboard-icon-btn {
+  .sunny-dashboard-shell {
+    transition: none;
+  }
+
+  .sunny-dashboard-shell .sunny-dashboard-right-panel {
+    transition: none;
+  }
+
+  .sunny-dashboard-icon-btn,
+  .sunny-codex-mode-row,
+  .sunny-codex-collapse-caret,
+  .sunny-codex-collapsible-body {
     transition: none;
   }
 }
@@ -639,9 +813,9 @@ html[data-theme="dark"] .sunny-dashboard-main {
   align-items: center;
   justify-content: space-between;
   gap: 0.25rem;
-  min-height: 2.25rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 0.58rem;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.625rem;
 }
 
 .sunny-codex-thread-row-btn {
@@ -659,19 +833,77 @@ html[data-theme="dark"] .sunny-dashboard-main {
 }
 
 .sunny-codex-thread-row-btn span {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
   font-size: var(--text-xs);
   font-weight: 560;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
 }
 
 .sunny-codex-thread-row-btn small {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
   color: var(--muted);
   font-size: var(--text-2xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── Sidebar Search ── */
+
+.sunny-codex-search-wrapper {
+  display: flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
+  padding: 0 0.5rem;
+  transition: border-color 160ms ease;
+}
+
+.sunny-codex-search-wrapper:focus-within {
+  border-color: color-mix(in srgb, var(--accent-ring-strong, var(--accent)) 45%, transparent);
+}
+
+.sunny-codex-sidebar-search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  padding: 0.35rem 0;
+  outline: none;
+}
+
+.sunny-codex-sidebar-search-input::placeholder {
+  color: var(--muted);
+}
+
+.sunny-codex-sidebar-search-clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.sunny-codex-sidebar-search-clear:hover {
+  background: color-mix(in srgb, var(--muted) 15%, transparent);
+  color: var(--foreground);
 }
 
 .sunny-thread-row-menu {
@@ -826,37 +1058,64 @@ html[data-theme="dark"] .sunny-dashboard-main {
 }
 
 /* ── Archive section ── */
+.sunny-codex-archive-list {
+  display: grid;
+  gap: 0.22rem;
+  /* match .sunny-codex-thread-list grid layout */
+}
+
 .sunny-codex-archive-thread {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.35rem;
-  padding: 0.35rem 0.5rem;
-}
-
-.sunny-codex-archive-actions {
-  display: flex;
   gap: 0.25rem;
-  flex-shrink: 0;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.625rem;
 }
 
-.sunny-codex-archive-restore-btn,
-.sunny-codex-archive-delete-btn {
-  padding: 0.15rem 0.45rem;
-  border: none;
-  border-radius: 0.3rem;
-  background: transparent;
+.sunny-codex-archive-thread:hover {
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
+}
+
+/* Archive thread content: title + time (matching thread-row layout) */
+.sunny-codex-archive-thread-content {
+  display: grid;
+  gap: 0.06rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.sunny-codex-archive-thread-content span {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  font-size: var(--text-xs);
+  font-weight: 560;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--foreground) 84%, var(--muted));
+}
+
+.sunny-codex-archive-thread-content small {
   color: var(--muted);
   font-size: var(--text-2xs);
-  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.sunny-codex-archive-restore-btn:hover {
-  background: color-mix(in srgb, var(--sunny-accent, #2563eb) 15%, transparent);
-  color: var(--sunny-accent, #2563eb);
+/* Show the ⋮ trigger for archive rows on hover (same as active thread rows) */
+.sunny-codex-archive-thread:hover .sunny-thread-row-menu-trigger,
+.sunny-codex-archive-thread:focus-within .sunny-thread-row-menu-trigger {
+  display: flex;
 }
 
-.sunny-codex-archive-delete-btn:hover {
-  background: color-mix(in srgb, #ef4444 15%, transparent);
+.sunny-thread-row-menu-item.is-danger {
   color: #ef4444;
+}
+
+.sunny-thread-row-menu-item.is-danger:hover {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
 }

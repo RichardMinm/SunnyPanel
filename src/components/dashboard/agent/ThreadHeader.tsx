@@ -9,6 +9,7 @@ import { getPendingActionLabel } from "./utils";
 import { DashboardIcon } from "../icons";
 
 type ThreadHeaderProps = {
+  connectedModules?: string[];
   debugMode: boolean;
   displayTitle: string;
   isSubmitting: boolean;
@@ -43,6 +44,7 @@ function getSummaryStatus(isSubmitting: boolean, statusLabel: string, pendingAct
 }
 
 export function ThreadHeader({
+  connectedModules = [],
   debugMode,
   displayTitle,
   isSubmitting,
@@ -60,11 +62,13 @@ export function ThreadHeader({
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const metaParts = [
-    threadId ? `Thread #${threadId}` : null,
-    getSummaryStatus(isSubmitting, statusLabel, pendingAction),
-    MODE_LABEL[workbenchMode],
-  ].filter(Boolean);
+  const statusSummary = getSummaryStatus(isSubmitting, statusLabel, pendingAction);
+  const modeLabel = MODE_LABEL[workbenchMode];
+  const modulesText = connectedModules.length > 0
+    ? ` · 已连接${connectedModules.join("、")}`
+    : "";
+
+  const headerTitle = `${modeLabel}${modulesText}`;
 
   const startEditing = useCallback(() => {
     setDraftTitle(displayTitle);
@@ -95,7 +99,7 @@ export function ThreadHeader({
   return (
     <div className="sunny-agent-thread-header">
       <div className="sunny-agent-thread-header-top">
-        <p>AGENT 会话</p>
+        <p className="sunny-agent-thread-header-subtitle">告诉 Sunny 你想推进什么，它会帮你整理成计划、清单、日程或进度动作。</p>
         <div className="sunny-agent-thread-header-actions" aria-label="Thread 操作">
           <button
             type="button"
@@ -145,11 +149,15 @@ export function ThreadHeader({
           </button>
         )}
       </div>
-      {metaParts.length > 0 ? (
-        <p className="sunny-agent-thread-header-meta">
-          {metaParts.join(" · ")}
-        </p>
-      ) : null}
+      <p className="sunny-agent-thread-header-meta">
+        {headerTitle}
+        {debugMode && threadId ? (
+          <span className="sunny-agent-thread-header-debug-id"> · Thread #{threadId}</span>
+        ) : null}
+        {statusSummary !== "已就绪" ? (
+          <span className="sunny-agent-thread-header-status"> · {statusSummary}</span>
+        ) : null}
+      </p>
       {archiveConfirmOpen && (
         <div
           className="sunny-confirm-overlay"
