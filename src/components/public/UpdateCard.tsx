@@ -41,7 +41,7 @@ export function UpdateCard({ locale, update, variant = "feed" }: UpdateCardProps
       />
 
       <div className={isHomeCard ? "mt-4" : "mt-4"}>
-        <MarkdownField content={getContentMarkdownFallback(update)} />
+        <MarkdownField content={update.contentRich} fallbackMarkdown={getContentMarkdownFallback(update)} />
       </div>
 
       {update.link ? (

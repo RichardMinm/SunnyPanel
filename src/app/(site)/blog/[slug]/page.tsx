@@ -133,7 +133,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 {copy.blogPost.articleLayer}
               </div>
 
-              <ContentRenderer content={getContentMarkdownFallback(post)} />
+              <ContentRenderer content={post.contentRich} fallbackMarkdown={getContentMarkdownFallback(post)} />
             </div>
           </div>
         </article>

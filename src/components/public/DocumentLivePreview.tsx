@@ -176,7 +176,7 @@ const renderPreviewDocument = ({
             />
 
             <div className="p-8 md:p-10">
-              <ContentRenderer content={getContentMarkdownFallback(post)} />
+              <ContentRenderer content={post.contentRich} fallbackMarkdown={getContentMarkdownFallback(post)} />
             </div>
           </div>
         </article>
@@ -195,7 +195,7 @@ const renderPreviewDocument = ({
             priority
             record={page as unknown as Record<string, unknown>}
           />
-          <ContentRenderer content={getContentMarkdownFallback(page)} />
+          <ContentRenderer content={page.contentRich} fallbackMarkdown={getContentMarkdownFallback(page)} />
         </article>
       );
     }
@@ -210,7 +210,7 @@ const renderPreviewDocument = ({
             {note.mood ? <span className="sunny-badge sunny-badge-muted">{note.mood}</span> : null}
           </div>
           <div className="mt-5">
-            <MarkdownField content={getContentMarkdownFallback(note)} />
+            <MarkdownField content={note.contentRich} fallbackMarkdown={getContentMarkdownFallback(note)} />
           </div>
           <RecordCoverImage
             containerClassName="mt-6 overflow-hidden rounded-lg border border-border/80"
@@ -232,7 +232,7 @@ const renderPreviewDocument = ({
             <span className="text-sm text-muted">{formatDateTime(update.updatedAt, locale)}</span>
           </div>
           <div className="mt-5">
-            <MarkdownField content={getContentMarkdownFallback(update)} />
+            <MarkdownField content={update.contentRich} fallbackMarkdown={getContentMarkdownFallback(update)} />
           </div>
           {update.link ? (
             <Link href={update.link} className="mt-4 inline-flex text-sm font-semibold text-accent-strong">

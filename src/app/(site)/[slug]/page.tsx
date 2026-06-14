@@ -124,7 +124,7 @@ export default async function StaticPage({ params }: StaticPageProps) {
             preferredSize="card"
             record={page as unknown as Record<string, unknown>}
           />
-          <ContentRenderer content={getContentMarkdownFallback(page)} />
+          <ContentRenderer content={page.contentRich} fallbackMarkdown={getContentMarkdownFallback(page)} />
         </article>
       </main>
     </PublicSiteFrame>

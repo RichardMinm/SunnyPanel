@@ -60,7 +60,7 @@ export default async function NotesPage() {
                         ) : null}
                       </div>
                       <div className="mt-5">
-                        <MarkdownField content={getContentMarkdownFallback(note)} />
+                        <MarkdownField content={note.contentRich} fallbackMarkdown={getContentMarkdownFallback(note)} />
                       </div>
                     </div>
                   </article>

@@ -141,13 +141,20 @@ const isValidNodeAttrs = (nodeType: string, attrs: unknown) => {
   switch (nodeType) {
     case "blockquote":
     case "bulletList":
-    case "callout":
     case "horizontalRule":
     case "listItem":
     case "paragraph":
     case "table":
     case "taskList":
       return hasIdOnlyAttrs(attrs);
+    case "callout":
+      return (
+        attrs === undefined ||
+        (isRecord(attrs) &&
+          hasOnlyAttrs(attrs, ["id", "tone"]) &&
+          hasValidIdAttr(attrs) &&
+          hasOptionalNullableStringAttr(attrs, "tone"))
+      );
     case "codeBlock":
       return (
         attrs === undefined ||

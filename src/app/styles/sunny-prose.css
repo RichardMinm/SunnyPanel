@@ -87,3 +87,65 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
   border: 1px solid var(--border);
   padding: 0.45rem 0.65rem;
 }
+
+.sunny-rich-content-display {
+  overflow-wrap: anywhere;
+}
+
+.sunny-rich-content-display :where(.sunny-rich-content-callout) {
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-left: 3px solid color-mix(in srgb, var(--accent) 48%, var(--border));
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-strong));
+  margin: 1.1rem 0;
+  padding: 0.95rem 1rem;
+}
+
+.sunny-rich-content-display :where(.sunny-rich-content-callout > :last-child) {
+  margin-bottom: 0;
+}
+
+.sunny-rich-content-display :where(.sunny-rich-content-task-list) {
+  display: grid;
+  gap: 0.45rem;
+  list-style: none;
+  padding-left: 0;
+}
+
+.sunny-rich-content-display :where(.sunny-rich-content-task-item) {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: start;
+}
+
+.sunny-rich-content-display :where(.sunny-rich-content-task-item input) {
+  margin-top: 0.42rem;
+  accent-color: var(--accent);
+}
+
+.sunny-rich-content-display :where(.sunny-rich-content-task-item > span > :first-child) {
+  margin-top: 0;
+}
+
+.sunny-rich-content-display :where(.sunny-rich-content-task-item > span > :last-child) {
+  margin-bottom: 0;
+}
+
+.sunny-rich-content-display :where(.sunny-rich-content-image) {
+  margin: 1.4rem 0;
+}
+
+.sunny-rich-content-display :where(.sunny-rich-content-image img) {
+  display: block;
+  width: auto;
+  max-width: 100%;
+}
+
+.sunny-rich-content-display :where(.sunny-rich-content-image figcaption) {
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  text-align: center;
+}
