@@ -433,7 +433,8 @@ export interface TimelineEvent {
    * 记录这个节点真正发生的时间。
    */
   eventDate: string;
-  type: 'milestone' | 'project' | 'life';
+  type: 'milestone' | 'project' | 'life' | 'study' | 'exam' | 'agent';
+  sourceType?: ('checklist' | 'schedule' | 'plan' | 'manual' | 'agent') | null;
   relatedPost?: (number | null) | Post;
   relatedUpdate?: (number | null) | Update;
   relatedChecklist?: (number | null) | Checklist;
@@ -946,6 +947,7 @@ export interface ScheduleItem {
   status: 'planned' | 'done' | 'skipped' | 'canceled';
   priority: 'low' | 'medium' | 'high';
   sourceType: 'plan' | 'checklist' | 'manual' | 'agent';
+  category?: ('course' | 'study' | 'plan_action' | 'agent' | 'exam' | 'default') | null;
   relatedPlan?: (number | null) | Plan;
   relatedChecklist?: (number | null) | Checklist;
   relatedChecklistItemKey?: string | null;
@@ -1300,6 +1302,7 @@ export interface TimelineEventsSelect<T extends boolean = true> {
   description?: T;
   eventDate?: T;
   type?: T;
+  sourceType?: T;
   relatedPost?: T;
   relatedUpdate?: T;
   relatedChecklist?: T;
@@ -1354,6 +1357,7 @@ export interface ScheduleItemsSelect<T extends boolean = true> {
   status?: T;
   priority?: T;
   sourceType?: T;
+  category?: T;
   relatedPlan?: T;
   relatedChecklist?: T;
   relatedChecklistItemKey?: T;

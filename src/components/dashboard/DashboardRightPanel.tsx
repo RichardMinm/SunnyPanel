@@ -4,10 +4,12 @@ import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent }
 
 import { AgentApprovalPanel } from "@/components/dashboard/agent/AgentApprovalPanel";
 import { AgentContextPanel } from "@/components/dashboard/agent/AgentContextPanel";
+import { AgentReviewPanel } from "@/components/dashboard/agent/AgentReviewPanel";
 import { AgentTracePanel } from "@/components/dashboard/agent/AgentTracePanel";
 import { InspectorTabBar } from "@/components/dashboard/agent/InspectorTabBar";
 import { inspectorTabs } from "@/components/dashboard/agent/constants";
 import { COLLECTION_ICON_MAP, DashboardIcon, DEFAULT_COLLECTION_ICON, InspectorPanelIcon } from "./icons";
+import { DashboardInspectorTransition } from "./motion/DashboardInspectorTransition";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
 import type { AgentInspectorTab, AgentRunDetail, ContextPreferences } from "@/components/dashboard/agent/types";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
@@ -43,17 +45,6 @@ type DashboardRightPanelProps = {
   tokenUsage: AgentTokenUsage;
   traceSteps: AgentTraceStep[];
   workbenchMode: AgentWorkbenchMode;
-};
-
-const modeLabelMap: Record<AgentWorkbenchMode, string> = {
-  ask: "自动模式",
-  answer: "只回答",
-  execute: "执行模式",
-  plan: "规划模式",
-  review: "回顾模式",
-  timeline: "时间线模式",
-  today: "今日模式",
-  writing: "写作模式",
 };
 
 const COLLECTION_LABEL: Record<string, string> = {
@@ -277,8 +268,68 @@ export function DashboardRightPanel({
     }, 300);
   }, []);
 
+  const renderInspectorPanel = () => {
+    switch (activeInspectorTab) {
+      case "context":
+        return (
+          <AgentContextPanel
+            contextPreferences={contextPreferences}
+            messages={messages}
+            onToggleExclude={onToggleContextExclude}
+            onTogglePin={onToggleContextPin}
+            pendingAction={pendingAction}
+            debugMode={debugMode}
+            inputTokenEstimate={inputTokenEstimate}
+            statusLabel={statusLabel}
+            threadId={threadId}
+            tokenUsage={tokenUsage}
+            traceSteps={traceSteps}
+            workbenchMode={workbenchMode}
+          />
+        );
+      case "approval":
+        return <AgentApprovalPanel action={action} pendingAction={pendingAction} />;
+      case "trace":
+        return (
+          <AgentTracePanel
+            action={action}
+            artifactsRollbackBusy={artifactsRollbackBusy}
+            artifactsRollbackError={artifactsRollbackError}
+            latestAssistantMessage={latestAssistantMessage}
+            lastRollbackPayload={lastRollbackPayload}
+            lastRollbackResult={lastRollbackResult}
+            onArtifactsRollback={onArtifactsRollback}
+            onRollbackSelectedRun={onRollbackSelectedRun}
+            selectedRunDetail={selectedRunDetail}
+            selectedRunRollbackBusy={selectedRunRollbackBusy}
+            selectedRunRollbackError={selectedRunRollbackError}
+            debugMode={debugMode}
+            statusLabel={statusLabel}
+            traceSteps={traceSteps}
+          />
+        );
+      case "linked":
+        return <LinkedObjectsPanel action={displayAction} debugMode={debugMode} selectedRunDetail={selectedRunDetail} />;
+      case "memory":
+        return <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} />;
+      case "review":
+        return (
+          <AgentReviewPanel
+            onGenerateReview={() => {
+              // trigger review mode in composer
+            }}
+            onOpenPlan={(id) => {
+              window.open(`/admin/collections/plans/${id}`, "_blank");
+            }}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <aside className="sunny-dashboard-right-panel sunny-right-context-panel" aria-label="右侧检查器">
+    <aside className="sunny-dashboard-right-panel sunny-right-context-panel" aria-label="当前上下文面板">
         {onResizeStart ? (
           <button
             type="button"
@@ -289,8 +340,8 @@ export function DashboardRightPanel({
         ) : null}
         <div className="sunny-dashboard-right-panel-head">
           <div>
-            <p>检查器</p>
-            <h2>{inspectorTabs.find((tab) => tab.key === activeInspectorTab)?.label ?? "上下文"}</h2>
+            <p>当前上下文</p>
+            <h2>本次会话正在使用的信息</h2>
           </div>
           <div className="sunny-dashboard-right-panel-actions">
             <button
@@ -304,17 +355,22 @@ export function DashboardRightPanel({
             </button>
           </div>
         </div>
-        {/* Inspector search */}
-        <div className="sunny-agent-inspector-search">
-          <input
-            type="text"
-            placeholder="搜索关联的计划、日程、笔记..."
-            value={inspectorSearch}
-            onChange={(e) => handleInspectorSearch(e.target.value)}
-            aria-label="搜索关联对象"
-          />
+        {/* Filter card: search + tabs merged */}
+        <div className="sunny-context-filter-card">
+          <div className="sunny-context-filter-search">
+            <span className="sunny-context-filter-search-icon" aria-hidden="true">
+              <DashboardIcon name="search" />
+            </span>
+            <input
+              type="text"
+              placeholder="搜索计划、日程、清单、记忆..."
+              value={inspectorSearch}
+              onChange={(e) => handleInspectorSearch(e.target.value)}
+              aria-label="搜索关联对象"
+            />
+          </div>
           {inspectorSearch.trim() && inspectorSearchResults.length > 0 ? (
-            <ul className="sunny-agent-inspector-search-results">
+            <ul className="sunny-context-filter-results">
               {inspectorSearchResults.map((r, i) => (
                 <li key={`${r.collection}-${r.id}-${i}`}>
                   <button
@@ -330,55 +386,24 @@ export function DashboardRightPanel({
               ))}
             </ul>
           ) : null}
-          {inspectorSearch.trim() && !inspectorSearching && inspectorSearchResults.length === 0 ? (
-            <p className="sunny-agent-inspector-search-empty">未找到匹配结果</p>
-          ) : null}
+          <div className="sunny-context-filter-divider" />
+          <InspectorTabBar
+            activeTab={activeInspectorTab}
+            debugMode={debugMode}
+            onTabChange={onInspectorTabChange}
+            pendingAction={pendingAction}
+          />
         </div>
-        <InspectorTabBar
-          activeTab={activeInspectorTab}
-          onTabChange={onInspectorTabChange}
-          pendingAction={pendingAction}
-        />
+        {inspectorSearch.trim() && !inspectorSearching && inspectorSearchResults.length === 0 ? (
+          <div className="sunny-context-filter-empty">
+            <p>暂无匹配结果</p>
+            <small>没有找到与「{inspectorSearch.trim()}」相关的计划、日程、清单或记忆。</small>
+          </div>
+        ) : null}
         <div className="sunny-dashboard-right-panel-body">
-          {activeInspectorTab === "context" ? (
-            <AgentContextPanel
-              contextPreferences={contextPreferences}
-              messages={messages}
-              onToggleExclude={onToggleContextExclude}
-              onTogglePin={onToggleContextPin}
-              pendingAction={pendingAction}
-              debugMode={debugMode}
-              statusLabel={
-                debugMode
-                  ? `${statusLabel} · ${modeLabelMap[workbenchMode]} · 上下文约 ${tokenUsage.contextTokens} tokens · 输入约 ${inputTokenEstimate} tokens`
-                  : statusLabel
-              }
-              threadId={threadId}
-              traceSteps={traceSteps}
-              workbenchMode={workbenchMode}
-            />
-          ) : null}
-          {activeInspectorTab === "approval" ? <AgentApprovalPanel action={action} pendingAction={pendingAction} /> : null}
-          {activeInspectorTab === "trace" ? (
-            <AgentTracePanel
-              action={action}
-              artifactsRollbackBusy={artifactsRollbackBusy}
-              artifactsRollbackError={artifactsRollbackError}
-              latestAssistantMessage={latestAssistantMessage}
-              lastRollbackPayload={lastRollbackPayload}
-              lastRollbackResult={lastRollbackResult}
-              onArtifactsRollback={onArtifactsRollback}
-              onRollbackSelectedRun={onRollbackSelectedRun}
-              selectedRunDetail={selectedRunDetail}
-              selectedRunRollbackBusy={selectedRunRollbackBusy}
-              selectedRunRollbackError={selectedRunRollbackError}
-              debugMode={debugMode}
-              statusLabel={statusLabel}
-              traceSteps={traceSteps}
-            />
-          ) : null}
-          {activeInspectorTab === "linked" ? <LinkedObjectsPanel action={displayAction} debugMode={debugMode} selectedRunDetail={selectedRunDetail} /> : null}
-          {activeInspectorTab === "memory" ? <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} /> : null}
+          <DashboardInspectorTransition panelKey={activeInspectorTab}>
+            {renderInspectorPanel()}
+          </DashboardInspectorTransition>
         </div>
       </aside>
   );

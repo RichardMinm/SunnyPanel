@@ -61,6 +61,7 @@ export async function GET(request: Request) {
     status: doc.status,
     priority: doc.priority ?? "medium",
     sourceType: doc.sourceType ?? "manual",
+    category: doc.category ?? null,
     planId:
       typeof doc.relatedPlan === "number"
         ? doc.relatedPlan
@@ -69,4 +70,25 @@ export async function GET(request: Request) {
   }));
 
   return NextResponse.json({ month: monthParam, items, count: items.length });
+}
+
+export async function PUT(request: Request) {
+  const authResult = await getPayloadAuthResult();
+  if (!authResult.user) return NextResponse.json({ message: "未登录" }, { status: 401 });
+
+  const body = (await request.json()) as { id?: number; status?: string };
+  const validStatuses = ["planned", "done", "skipped", "canceled"] as const;
+  if (!body.id || !body.status || !validStatuses.includes(body.status as typeof validStatuses[number])) {
+    return NextResponse.json({ message: "缺少参数或状态无效" }, { status: 400 });
+  }
+
+  const payload = await getPayloadClient();
+  await payload.update({
+    collection: "schedule-items",
+    id: body.id,
+    data: { status: body.status as typeof validStatuses[number] },
+    overrideAccess: true,
+  });
+
+  return NextResponse.json({ success: true });
 }

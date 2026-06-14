@@ -352,7 +352,8 @@ test("Phase 7: Dashboard components wire schedule UI correctly", () => {
 
   // MessageCard wires ScheduleResultCard when parseScheduleResultMessage returns data
   assert.match(messageCard, /parseScheduleResultMessage/);
-  assert.match(messageCard, /<ScheduleResultCard result=\{scheduleResult\}/);
+  assert.match(messageCard, /ScheduleResultCard/);
+  assert.match(messageCard, /structuredCard\.data/);
 
   // ScheduleResultCard renders schedule details
   assert.match(scheduleCard, /aria-label="日程创建结果"/);

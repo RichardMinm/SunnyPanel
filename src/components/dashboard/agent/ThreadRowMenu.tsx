@@ -2,13 +2,28 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+export type ThreadRowMenuAction = {
+  label: string;
+  onClick: () => void;
+  /** Use a danger style (red text) when true. */
+  danger?: boolean;
+};
+
 export type ThreadRowMenuProps = {
   threadId: number;
   threadTitle: string;
-  onArchive: (id: number) => void;
+  /** Additional menu items beyond the default "归档" action.
+      When provided, the menu shows ONLY these items (no default). */
+  menuItems?: ThreadRowMenuAction[];
+  onArchive?: (id: number) => void;
 };
 
-export function ThreadRowMenu({ threadId, threadTitle, onArchive }: ThreadRowMenuProps) {
+export function ThreadRowMenu({
+  threadId,
+  threadTitle,
+  menuItems,
+  onArchive,
+}: ThreadRowMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
@@ -44,12 +59,20 @@ export function ThreadRowMenu({ threadId, threadTitle, onArchive }: ThreadRowMen
 
   const handleConfirmArchive = useCallback(() => {
     setConfirmOpen(false);
-    onArchive(threadId);
+    onArchive?.(threadId);
   }, [onArchive, threadId]);
 
   const handleCancelConfirm = useCallback(() => {
     setConfirmOpen(false);
   }, []);
+
+  const handleMenuItemClick = useCallback(
+    (item: ThreadRowMenuAction) => {
+      setMenuOpen(false);
+      item.onClick();
+    },
+    [],
+  );
 
   return (
     <>
@@ -71,15 +94,32 @@ export function ThreadRowMenu({ threadId, threadTitle, onArchive }: ThreadRowMen
           ⋮
         </button>
         {menuOpen && (
-          <div className={`sunny-thread-row-menu-dropdown${dropUp ? " is-drop-up" : ""}`} role="menu">
-            <button
-              type="button"
-              className="sunny-thread-row-menu-item"
-              role="menuitem"
-              onClick={handleArchiveClick}
-            >
-              归档
-            </button>
+          <div
+            className={`sunny-thread-row-menu-dropdown${dropUp ? " is-drop-up" : ""}`}
+            role="menu"
+          >
+            {menuItems ? (
+              menuItems.map((item, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  className={`sunny-thread-row-menu-item${item.danger ? " is-danger" : ""}`}
+                  role="menuitem"
+                  onClick={() => handleMenuItemClick(item)}
+                >
+                  {item.label}
+                </button>
+              ))
+            ) : (
+              <button
+                type="button"
+                className="sunny-thread-row-menu-item"
+                role="menuitem"
+                onClick={handleArchiveClick}
+              >
+                归档
+              </button>
+            )}
           </div>
         )}
       </div>

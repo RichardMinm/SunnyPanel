@@ -43,6 +43,7 @@ export type DryRunAndProposeStepParams = {
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { id: number };
+  userMessage: string;
 };
 
 export type DryRunAndProposeStepNext = {
@@ -70,6 +71,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     tokenUsage: tokenUsageIn,
     trace,
     user,
+    userMessage,
   } = params;
 
   let tokenUsage = tokenUsageIn;
@@ -154,6 +156,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         promptContext: context,
         resolveChecklistGroupForAppend,
         resolveChecklistItem,
+        userMessage,
       });
 
   if (dryRunResult.type === "clarify") {

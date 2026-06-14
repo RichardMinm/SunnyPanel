@@ -91,9 +91,14 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 0.85rem;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--muted) 32%, transparent) transparent;
+}
+
+.sunny-dashboard-inspector-transition {
+  min-height: 0;
 }
 
 .sunny-agent-linked-panel,

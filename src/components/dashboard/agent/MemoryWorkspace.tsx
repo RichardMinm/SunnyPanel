@@ -4,6 +4,7 @@ type MemoryWorkspaceProps = {
   messages: AgentChatMessage[];
   statusLabel: string;
   threadId: null | number;
+  threadTitle?: string;
 };
 
 const getLatestUserMessage = (messages: AgentChatMessage[]) =>
@@ -12,7 +13,7 @@ const getLatestUserMessage = (messages: AgentChatMessage[]) =>
 const getLatestAssistantMessage = (messages: AgentChatMessage[]) =>
   [...messages].reverse().find((message) => message.role === "assistant" && message.content.trim().length > 0);
 
-export function MemoryWorkspace({ messages, statusLabel, threadId }: MemoryWorkspaceProps) {
+export function MemoryWorkspace({ messages, statusLabel, threadId, threadTitle }: MemoryWorkspaceProps) {
   const latestUserMessage = getLatestUserMessage(messages);
   const latestAssistantMessage = getLatestAssistantMessage(messages);
   return (
@@ -28,7 +29,7 @@ export function MemoryWorkspace({ messages, statusLabel, threadId }: MemoryWorks
       <div className="sunny-memory-grid">
         <article className="sunny-memory-card">
           <span>来源会话</span>
-          <h3>{threadId ? `Thread #${threadId}` : "尚未绑定会话"}</h3>
+          <h3>{threadId ? (threadTitle || `#${threadId}`) : "尚未绑定会话"}</h3>
           <p>{latestUserMessage?.content ?? "开始一次对话后，这里会显示可沉淀为记忆的来源。"}</p>
           <small>更新时间：最近一次会话</small>
         </article>

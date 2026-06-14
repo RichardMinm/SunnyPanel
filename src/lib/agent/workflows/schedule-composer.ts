@@ -181,6 +181,11 @@ const parseChineseHour = (value: string) => {
   return chineseHourMap[value] ?? null;
 };
 
+const sourceHasExplicitTimeExpression = (text: string) =>
+  /([01]?\d|2[0-3])[:：][0-5]\d/.test(text) ||
+  /(?:上午|早上|下午|晚上|今晚|中午)\s*[零一二三四五六七八九十\d]{1,3}点/.test(text) ||
+  /[零一二三四五六七八九十\d]{1,3}点(?:钟|半)?/.test(text);
+
 const inferStartMinutes = (text: string) => {
   const explicit = text.match(/([01]?\d|2[0-3])[:：]([0-5]\d)/);
 
@@ -231,8 +236,9 @@ const hasSourceTime = (text: string) =>
 
 const inferTimeRange = (args: ComposeScheduleItemArgs) => {
   const source = normalizeText(args.sourceText);
-  const explicitStart = normalizeText(args.startTime);
-  const explicitEnd = normalizeText(args.endTime);
+  const trustSourceTime = sourceHasExplicitTimeExpression(source);
+  let explicitStart = trustSourceTime ? "" : normalizeText(args.startTime);
+  let explicitEnd = trustSourceTime ? "" : normalizeText(args.endTime);
   const isAllDay = args.isAllDay === true || /全天|整天/.test(source);
 
   if (isAllDay) {
@@ -276,7 +282,9 @@ const inferTitle = (args: ComposeScheduleItemArgs, planCandidates: ScheduleCompo
   const explicit = normalizeText(args.title);
 
   if (explicit) {
-    return compactText(explicit, 72);
+    const cleanedExplicit = explicit.replace(/^[，,：:\s上]+/, "").trim();
+
+    return compactText(cleanedExplicit || explicit, 72);
   }
 
   const relatedPlan = args.relatedPlanId
@@ -293,8 +301,11 @@ const inferTitle = (args: ComposeScheduleItemArgs, planCandidates: ScheduleCompo
     .trim() || source;
   const cleaned = titleSource
     .replace(/^(帮我|请|把|将|给)?/, "")
-    .replace(/(安排|排到|放到|日程|创建|建立|新建|添加|加入|今天|明天|上午|下午|晚上|今晚|下周[一二三四五六日天]|[0-9零一二三四五六七八九十]+点钟?|[0-9]+分钟)/g, "")
-    .replace(/^(上|去|做|参加)\s*/, "")
+    .replace(
+      /(安排|排到|放到|日程|创建|建立|新建|添加|加入|今天|明天|上午|下午|晚上|今晚|下周[一二三四五六日天]|[0-9零一二三四五六七八九十]+点(?:钟|半)?|[0-9]+分钟)/g,
+      "",
+    )
+    .replace(/^(上|去|做|参加|[，,：:\s])+/, "")
     .replace(/[：:，,。]/g, " ")
     .trim();
 

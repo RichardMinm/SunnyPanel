@@ -108,6 +108,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     planCandidates: context.plans,
     resolveChecklistGroupForAppend,
     resolveChecklistItem,
+    userMessage: message,
     ...dryRunContextOverrides,
   };
   const pushGraphTraceSteps = (graphResult: Awaited<ReturnType<typeof executeOrchestrationGraph>>) => {

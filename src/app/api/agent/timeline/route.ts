@@ -42,12 +42,12 @@ export async function GET(request: NextRequest) {
   });
 
   const events = result.docs.map((doc) => {
-    const event = doc as unknown as { description?: string | null; eventDate: string; id: number; title: string; type: string };
+    const event = doc as unknown as { description?: string | null; eventDate: string; id: number; sourceType?: string | null; title: string; type: string };
     return {
       date: event.eventDate?.slice(0, 10) ?? "",
       description: event.description ?? null,
       id: event.id,
-      relatedPlan: null,
+      sourceType: event.sourceType ?? null,
       title: event.title,
       type: event.type,
     };

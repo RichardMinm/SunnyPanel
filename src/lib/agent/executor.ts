@@ -225,6 +225,8 @@ export const executeAgentIntent = async (
   options: AgentExecutionOptions = {},
 ): Promise<AgentIntentExecutionResult> => {
   switch (intent.intent) {
+    case "capability_query":
+    case "query_memory":
     case "answer_question":
       onTrace?.({
         detail: intent.args.suggestAction ?? "这轮只生成回答，不写入计划、清单或审计数据。",
@@ -262,6 +264,22 @@ export const executeAgentIntent = async (
       return runWithAgentExecutionContext({ userId: options.userId }, () =>
         executeAgentTool(intent, toolExecutors, onTrace),
       );
+    case "delete_record":
+    case "modify_record":
+      onTrace?.({
+        detail: intent.intent === "delete_record"
+          ? `目标：${(intent.args as Record<string,unknown>).entityName}`
+          : `修改：${(intent.args as Record<string,unknown>).entityName}`,
+        id: `workflow-${intent.intent}`,
+        kind: "write",
+        status: "done",
+        title: intent.intent === "delete_record" ? "已进入删除确认流程" : "已进入修改确认流程",
+      });
+      return { assistantMessage: "", pendingAction: null };
+    case "query_checklist_progress":
+    case "query_plan":
+    case "query_schedule":
+    case "query_timeline":
     case "query_progress":
       onTrace?.({
         detail: intent.args.checklistTitle ? `目标清单：${intent.args.checklistTitle}` : "范围：整体进度",

@@ -20,7 +20,7 @@ export type StreamTokenCallback = (token: string, block?: 'thinking' | 'response
 export const fetchWithRetry = async (
   url: string,
   options: RequestInit,
-  { maxRetries = 2, timeoutMs = 15_000 }: { maxRetries?: number; timeoutMs?: number } = {},
+  { maxRetries = 2, timeoutMs = 60_000 }: { maxRetries?: number; timeoutMs?: number } = {},
 ): Promise<Response> => {
   let lastError: unknown;
 
@@ -64,16 +64,30 @@ type AgentSettingsDocument = {
 const normalizeBaseUrl = (value: string) => value.replace(/\/+$/, "");
 
 export const getAgentModelConfig = async () => {
-  const payload = await getPayloadClient();
-  const settings = (await payload.findGlobal({
-    depth: 0,
-    overrideAccess: true,
-    slug: "agent-settings",
-  }).catch(() => null)) as AgentSettingsDocument | null;
-  const useStoredSettings = settings?.enabled !== false;
-  const provider = useStoredSettings ? settings?.provider : null;
-  const storedApiKey = useStoredSettings ? settings?.apiKey?.trim() : "";
+  // Check env vars first — allows LLM use without Payload DB access (e.g. tests)
   const envApiKey = process.env.OPENAI_API_KEY?.trim() || process.env.ZAI_API_KEY?.trim();
+
+  let storedApiKey = "";
+  let storedBaseUrl = "";
+  let storedModel = "";
+  let provider: string | null | undefined = null;
+
+  try {
+    const payload = await getPayloadClient();
+    const settings = (await payload.findGlobal({
+      depth: 0,
+      overrideAccess: true,
+      slug: "agent-settings",
+    }).catch(() => null)) as AgentSettingsDocument | null;
+    const useStoredSettings = settings?.enabled !== false;
+    provider = useStoredSettings ? settings?.provider : null;
+    storedApiKey = useStoredSettings ? settings?.apiKey?.trim() || "" : "";
+    storedBaseUrl = useStoredSettings ? settings?.baseUrl?.trim() || "" : "";
+    storedModel = useStoredSettings ? settings?.model?.trim() || "" : "";
+  } catch {
+    // Payload not available (e.g. test environment) — use env vars only
+  }
+
   const apiKey = storedApiKey || envApiKey;
 
   if (!apiKey) {
@@ -86,13 +100,13 @@ export const getAgentModelConfig = async () => {
   return {
     apiKey,
     baseUrl: normalizeBaseUrl(
-      (useStoredSettings ? settings?.baseUrl?.trim() : "") ||
+      storedBaseUrl ||
         process.env.OPENAI_BASE_URL?.trim() ||
         process.env.ZAI_BASE_URL?.trim() ||
         defaultBaseUrl,
     ),
     model:
-      (useStoredSettings ? settings?.model?.trim() : "") ||
+      storedModel ||
       process.env.OPENAI_MODEL?.trim() ||
       process.env.ZAI_MODEL?.trim() ||
       defaultModel,

@@ -9,10 +9,51 @@ export const composeScheduleItemFromIntent = async (
   args: ComposeScheduleItemArgs,
   onTrace?: AgentExecutionTraceReporter,
 ): Promise<AgentToolResult> => {
+  // #region agent log
+  fetch("http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0c1aec" },
+    body: JSON.stringify({
+      sessionId: "0c1aec",
+      runId: "pre-fix",
+      hypothesisId: "A",
+      location: "schedule-compose.ts:composeScheduleItemFromIntent",
+      message: "execute entry args",
+      data: {
+        hasProposal: Boolean(args.proposal),
+        sourceText: args.sourceText ?? null,
+        date: args.date ?? null,
+        title: args.title ?? null,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
   const proposal = composeScheduleProposal(args);
   const timeRange = proposal.isAllDay
     ? "全天"
     : [proposal.startTime, proposal.endTime].filter(Boolean).join("-") || "未定时间";
+
+  // #region agent log
+  fetch("http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0c1aec" },
+    body: JSON.stringify({
+      sessionId: "0c1aec",
+      runId: "pre-fix",
+      hypothesisId: "C",
+      location: "schedule-compose.ts:composeScheduleItemFromIntent:proposal",
+      message: "execute composed proposal",
+      data: {
+        proposalDate: proposal.date,
+        proposalTitle: proposal.title,
+        timeRange,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
   onTrace?.({
     detail: `${proposal.date} ${timeRange}`,

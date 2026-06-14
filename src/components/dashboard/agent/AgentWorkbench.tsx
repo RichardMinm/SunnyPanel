@@ -96,7 +96,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
       <div className="sunny-agent-center-surface">
         <div className="sunny-agent-unified-body">
           {dashboardMode === "memory" ? (
-            <MemoryWorkspace messages={messages} statusLabel={statusLabel} threadId={threadId} />
+            <MemoryWorkspace messages={messages} statusLabel={statusLabel} threadId={threadId} threadTitle={threadTitle} />
           ) : (
             <AgentConversation
               displayTitle={displayTitle}
@@ -106,6 +106,11 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
               messages={messages}
               onArchiveThread={onArchiveThread}
               onCancelApproval={onCancelApproval}
+              onCapabilitySelect={(prompt) => {
+                onInputChange(prompt);
+                // Use setTimeout to let the input update before submitting
+                setTimeout(() => onSubmit(), 0);
+              }}
               onConfirmApproval={onConfirmApproval}
               onEditApproval={onEditApproval}
               onOpenDetails={() => openInspector("context")}
@@ -128,6 +133,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
         <AgentComposer
           disabled={isSubmitting}
           input={input}
+          modelName="DeepSeek V3"
           onInputChange={onInputChange}
           onStop={onStop}
           onSubmit={onSubmit}

@@ -40,35 +40,11 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  const relatedRuns = await payload.find({
-    collection: "agent-runs",
-    depth: 0,
-    limit: 500,
-    overrideAccess: true,
-    where: { thread: { equals: body.id } },
-  });
-
-  let deletedRuns = 0;
-  for (const run of relatedRuns.docs) {
-    try {
-      await payload.delete({
-        collection: "agent-runs",
-        id: run.id,
-        overrideAccess: true,
-      });
-      deletedRuns++;
-    } catch {
-      console.error(
-        `Failed to delete agent-run ${run.id} during thread ${body.id} cleanup`,
-      );
-    }
-  }
-
   await payload.delete({
     collection: "agent-threads",
     id: body.id,
     overrideAccess: true,
   });
 
-  return NextResponse.json({ ok: true, deletedRuns });
+  return NextResponse.json({ ok: true });
 }

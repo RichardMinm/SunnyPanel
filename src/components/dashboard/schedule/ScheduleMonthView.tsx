@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { DashboardIcon } from "../icons";
+import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
 
 /* ── Types ── */
 
@@ -15,6 +17,7 @@ type ScheduleItemSummary = {
   status: string;
   priority: string;
   sourceType: string;
+  category?: null | string;
   planId: null | number;
   description: null | string;
 };
@@ -23,9 +26,21 @@ type ScheduleMonthViewProps = {
   onBackToWorkbench: () => void;
   threadId: null | number;
   isSubmitting?: boolean;
+  onNewSchedule?: (date: string) => void;
 };
 
 /* ── Constants ── */
+
+type ScheduleCategory = "agent" | "course" | "default" | "exam" | "plan_action" | "study";
+
+const CATEGORY_CONFIG: Record<ScheduleCategory, { label: string; dotColor: string; chipBg: string; chipText: string }> = {
+  course:      { label: "课程",  dotColor: "#3b82f6", chipBg: "#eff6ff", chipText: "#1e40af" },
+  study:       { label: "学习",  dotColor: "#8b5cf6", chipBg: "#f5f3ff", chipText: "#6d28d9" },
+  plan_action: { label: "计划",  dotColor: "#22c55e", chipBg: "#f0fdf4", chipText: "#166534" },
+  agent:       { label: "Agent", dotColor: "#f97316", chipBg: "#fff7ed", chipText: "#9a3412" },
+  exam:        { label: "截止",  dotColor: "#ef4444", chipBg: "#fef2f2", chipText: "#991b1b" },
+  default:     { label: "",       dotColor: "#94a3b8", chipBg: "#f1f5f9", chipText: "#475569" },
+};
 
 const WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
 const WEEKDAY_NAMES = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -121,9 +136,24 @@ function pickDefaultDateForMonth(days: Date[], todayKey: string, targetMonth: nu
   return firstInMonth ? formatDateKey(firstInMonth) : formatDateKey(days[0]);
 }
 
+function inferCategory(item: ScheduleItemSummary): ScheduleCategory {
+  if (item.category && item.category in CATEGORY_CONFIG) {
+    return item.category as ScheduleCategory;
+  }
+  if (item.sourceType === "agent") return "agent";
+  if (item.sourceType === "plan") return "plan_action";
+  if (item.sourceType === "checklist") return "study";
+  const title = item.title;
+  if (/考试|测验|截止|ddl|deadline|提交|交卷/.test(title)) return "exam";
+  if (/课|课程|上课|课堂|讲座|讲/.test(title)) return "course";
+  if (/学习|阅读|读书|练习|复习|作业|刷题|背/.test(title)) return "study";
+  if (/计划|目标|里程碑|复盘|总结/.test(title)) return "plan_action";
+  return "default";
+}
+
 /* ── Component ── */
 
-export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSubmitting }: ScheduleMonthViewProps) {
+export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSubmitting, onNewSchedule }: ScheduleMonthViewProps) {
   void _onBackToWorkbench; // kept for prop compatibility, not used in new design
   const now = new Date();
   const todayKey = formatDateKey(now);
@@ -252,7 +282,7 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
             <button type="button" disabled>周</button>
             <button type="button" disabled>日</button>
           </div>
-          <button type="button" className="sunny-schedule-btn-new">
+          <button type="button" className="sunny-schedule-btn-new" onClick={() => onNewSchedule?.(selectedDate)}>
             <DashboardIcon name="plus" />
             新建
           </button>
@@ -265,8 +295,9 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
 
       {/* Main Layout */}
       {!loading && !error && (
-        <div className="sunny-schedule-layout">
+        <DashboardStagger className="sunny-schedule-layout">
           {/* Calendar Grid */}
+          <DashboardStaggerItem className="sunny-schedule-calendar-pane-wrap">
           <section className="sunny-schedule-calendar-pane" aria-label="月历">
             <div className="sunny-schedule-grid">
               {WEEKDAY_LABELS.map((label, idx) => (
@@ -290,28 +321,36 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
                     aria-label={`${key}${dayItems.length > 0 ? `，${dayItems.length} 项日程` : ""}`}
                   >
                     <span className="sunny-schedule-day-num">{date.getUTCDate()}</span>
-                    {dayItems.length > 0 && (
+                    {dayItems.length > 0 ? (
                       <div className="sunny-schedule-day-chips">
-                        {chips.map((item) => (
-                          <span
-                            key={item.id}
-                            className={`sunny-schedule-event-chip${item.priority === "high" ? " is-priority-high" : ""}`}
-                          >
-                            {item.title}
-                          </span>
-                        ))}
+                        {chips.map((item) => {
+                          const cat = inferCategory(item);
+                          return (
+                            <span
+                              key={item.id}
+                              className={`sunny-schedule-event-chip cat-${cat}${item.priority === "high" ? " is-priority-high" : ""}`}
+                            >
+                              <span className="sunny-schedule-event-chip-dot" />
+                              {item.title}
+                            </span>
+                          );
+                        })}
                         {moreCount > 0 && (
                           <span className="sunny-schedule-chip-more">+{moreCount}</span>
                         )}
                       </div>
-                    )}
+                    ) : isCurrentMonth(date) ? (
+                      <span className="sunny-schedule-day-add-hint">+ 添加</span>
+                    ) : null}
                   </button>
                 );
               })}
             </div>
           </section>
+          </DashboardStaggerItem>
 
           {/* Timeline Panel */}
+          <DashboardStaggerItem className="sunny-schedule-agenda-pane-wrap">
           <aside className="sunny-schedule-agenda-pane" aria-label="当日安排">
             <div className="sunny-schedule-agenda-head">
               <h3>{formatAgendaDateLabel(selectedDate)}</h3>
@@ -320,12 +359,31 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
               </span>
             </div>
 
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={selectedDate}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}
+              >
             {selectedItems.length === 0 ? (
-              <p className="sunny-schedule-empty-day">
-                当天无日程安排。
-                <br />
-                可以从 Agent 对话中创建新日程。
-              </p>
+              <div className="sunny-schedule-empty-state">
+                <div className="sunny-schedule-empty-icon">
+                  <DashboardIcon name="calendar" />
+                </div>
+                <p className="sunny-schedule-empty-title">暂无日程</p>
+                <p className="sunny-schedule-empty-desc">这一天还没有安排。</p>
+                <button
+                  type="button"
+                  className="sunny-schedule-empty-add-btn"
+                  onClick={() => onNewSchedule?.(selectedDate)}
+                >
+                  <DashboardIcon name="plus" />
+                  添加日程
+                </button>
+              </div>
             ) : (
               <div className="sunny-schedule-timeline">
                 {selectedItems.map((item, idx) => {
@@ -335,10 +393,11 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
                   const isGap = nextItem && item.endTime && nextItem.startTime
                     ? nextItem.startTime.localeCompare(item.endTime) > 0
                     : false;
+                  const cat = inferCategory(item);
 
                   return (
                     <div key={item.id}>
-                      <div className={`sunny-schedule-timeline-item${item.priority === "high" ? " is-priority-high" : ""}${item.status === "done" ? " is-done" : ""}`}>
+                      <div className={`sunny-schedule-timeline-item${item.priority === "high" ? " is-priority-high" : ""}${item.status === "done" ? " is-done" : ""}`} data-category={cat}>
                         <span className="sunny-schedule-timeline-time">
                           {formatStartTime(item)}
                         </span>
@@ -349,20 +408,18 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
                         >
                           <div className="sunny-schedule-timeline-row">
                             <span className="sunny-schedule-timeline-title">{item.title}</span>
-                            {item.priority === "high" ? (
-                              <span className="sunny-schedule-status-pill is-priority-high">高优先级</span>
-                            ) : (
-                              <span className={`sunny-schedule-status-pill ${statusPillClass(item.status)}`}>
-                                {statusLabel(item.status)}
-                              </span>
-                            )}
+                            <span className={`sunny-schedule-status-pill ${statusPillClass(item.status)}`}>
+                              {statusLabel(item.status)}
+                            </span>
                           </div>
                           <p className="sunny-schedule-timeline-meta">
-                            {formatTimeRange(item)}
-                            {formatDuration(item) ? ` · ${formatDuration(item)}` : ""}
+                            {formatDuration(item)}
+                            {formatDuration(item) && item.priority === "high" ? " · " : ""}
+                            {item.priority === "high" ? "高优先级" : ""}
                           </p>
                           {isExpanded && (
                             <div className="sunny-schedule-timeline-expand">
+                              <p className="sunny-schedule-timeline-expand-time">{formatTimeRange(item)}</p>
                               {item.description && <p>{item.description}</p>}
                               {item.sourceType && (
                                 <span className="sunny-schedule-timeline-source">
@@ -370,6 +427,24 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
                                   基于{sourceTypeLabel(item.sourceType)}创建
                                 </span>
                               )}
+                              <div className="sunny-schedule-timeline-card-actions">
+                                {item.status !== "done" && (
+                                  <button
+                                    type="button"
+                                    className="sunny-schedule-timeline-action-btn is-complete"
+                                    onClick={(e) => { e.stopPropagation(); }}
+                                  >
+                                    完成
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="sunny-schedule-timeline-action-btn"
+                                  onClick={(e) => { e.stopPropagation(); }}
+                                >
+                                  编辑
+                                </button>
+                              </div>
                             </div>
                           )}
                         </button>
@@ -382,8 +457,11 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
                 })}
               </div>
             )}
+              </motion.div>
+            </AnimatePresence>
           </aside>
-        </div>
+          </DashboardStaggerItem>
+        </DashboardStagger>
       )}
 
       {/* Agent Toast */}

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { syncAgentSuggestionsFromWorkspaceSnapshot } from "@/lib/agent/suggestions";
+import { getPendingAgentSuggestions, syncAgentSuggestionsFromWorkspaceSnapshot, type AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { getCachedWorkspaceSnapshot } from "@/lib/payload/workspace-cache";
 
 export type DashboardSearchParams = {
@@ -10,6 +10,7 @@ export type DashboardSearchParams = {
 
 export type LoadedDashboardData = {
   initialThreadId?: number;
+  initialSuggestions: AgentInboxSuggestion[];
 };
 
 export const parseDashboardThreadId = (value?: string) => {
@@ -29,7 +30,10 @@ export const loadDashboardData = async (searchParams: DashboardSearchParams): Pr
 
   await syncAgentSuggestionsFromWorkspaceSnapshot(snapshot);
 
+  const initialSuggestions = await getPendingAgentSuggestions(6);
+
   return {
     initialThreadId,
+    initialSuggestions,
   };
 };

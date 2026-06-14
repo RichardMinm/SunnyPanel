@@ -56,20 +56,28 @@ export const TimelineEvent: CollectionConfig = {
       },
       defaultValue: "milestone",
       options: [
-        {
-          label: "里程碑",
-          value: "milestone",
-        },
-        {
-          label: "项目",
-          value: "project",
-        },
-        {
-          label: "生活",
-          value: "life",
-        },
+        { label: "里程碑", value: "milestone" },
+        { label: "项目", value: "project" },
+        { label: "生活", value: "life" },
+        { label: "学习", value: "study" },
+        { label: "考试", value: "exam" },
+        { label: "Agent", value: "agent" },
       ],
       required: true,
+    },
+    {
+      name: "sourceType",
+      type: "select",
+      label: "来源",
+      admin: { position: "sidebar" },
+      defaultValue: "manual",
+      options: [
+        { label: "清单", value: "checklist" },
+        { label: "日程", value: "schedule" },
+        { label: "计划", value: "plan" },
+        { label: "手动", value: "manual" },
+        { label: "Agent", value: "agent" },
+      ],
     },
     {
       name: "relatedPost",

@@ -95,6 +95,8 @@ export type AgentWriteIntentName =
   | "compose_schedule_item"
   | "compose_timeline_event"
   | "create_plan"
+  | "delete_record"
+  | "modify_record"
   | "query_plan_progress"
   | "reschedule_item"
   | "save_memory"
@@ -213,6 +215,8 @@ export type PendingAction = {
     | "reschedule_item"
     | "save_memory"
     | "schedule_plan"
+    | "delete_record"
+    | "modify_record"
   >;
   missingFields: string[];
   originalMessage?: string;
@@ -350,6 +354,22 @@ export type CancelScheduleItemArgs = {
   reason?: null | string;
 };
 
+export type ModifyRecordArgs = {
+  /** 自然语言描述的修改字段和值 */
+  changeDescription: string;
+  /** 要修改的目标实体名称 */
+  entityName: string;
+  /** 实体类型：plan / schedule / checklist / timeline */
+  entityType: "checklist" | "plan" | "schedule" | "timeline";
+};
+
+export type DeleteRecordArgs = {
+  /** 要删除的目标实体名称 */
+  entityName: string;
+  /** 实体类型 */
+  entityType: "checklist" | "plan" | "schedule" | "timeline";
+};
+
 export type QueryPlanProgressArgs = {
   planId?: null | number;
   planTitle?: null | string;
@@ -473,6 +493,54 @@ export type AgentIntent =
       confidence?: number;
       intent: "weekly_review";
       reply?: string;
+    }
+  | {
+      args: ModifyRecordArgs;
+      confidence?: number;
+      intent: "modify_record";
+      reply?: string;
+    }
+  | {
+      args: DeleteRecordArgs;
+      confidence?: number;
+      intent: "delete_record";
+      reply?: string;
+    }
+  | {
+      args: AnswerQuestionArgs;
+      confidence?: number;
+      intent: "capability_query";
+      reply?: string;
+    }
+  | {
+      args: QueryProgressArgs;
+      confidence?: number;
+      intent: "query_checklist_progress";
+      reply?: string;
+    }
+  | {
+      args: AnswerQuestionArgs;
+      confidence?: number;
+      intent: "query_memory";
+      reply?: string;
+    }
+  | {
+      args: QueryProgressArgs;
+      confidence?: number;
+      intent: "query_plan";
+      reply?: string;
+    }
+  | {
+      args: QueryProgressArgs;
+      confidence?: number;
+      intent: "query_schedule";
+      reply?: string;
+    }
+  | {
+      args: QueryProgressArgs;
+      confidence?: number;
+      intent: "query_timeline";
+      reply?: string;
     };
 
 export type AgentEngine = "glm" | "heuristic" | "model" | "openai" | "openai-compatible" | "workflow" | "zai";
@@ -527,15 +595,23 @@ const agentIntentValues = [
   "answer_question",
   "append_plan_item",
   "cancel_schedule_item",
+  "capability_query",
   "clarify",
+  "delete_record",
+  "modify_record",
   "complete_plan_item",
   "compose_plan",
   "compose_schedule_item",
   "compose_timeline_event",
   "create_plan",
   "evaluate_plan",
+  "query_checklist_progress",
+  "query_memory",
+  "query_plan",
   "query_progress",
   "query_plan_progress",
+  "query_schedule",
+  "query_timeline",
   "reschedule_item",
   "save_memory",
   "schedule_plan",

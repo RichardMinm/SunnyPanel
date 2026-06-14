@@ -104,6 +104,15 @@ const intentParameterHints: Record<AgentWriteIntentName, Record<string, Paramete
     scope: { description: "复盘范围 week/month", enum: ["week", "month"], type: "string" },
     weekKey: { description: "周标识如 2026-W20", type: "string" },
   },
+  delete_record: {
+    entityName: { description: "要删除的实体名称", type: "string" },
+    entityType: { description: "实体类型 plan/schedule/checklist/timeline", enum: ["plan", "schedule", "checklist", "timeline"], type: "string" },
+  },
+  modify_record: {
+    entityName: { description: "要修改的实体名称", type: "string" },
+    entityType: { description: "实体类型 plan/schedule/checklist/timeline", enum: ["plan", "schedule", "checklist", "timeline"], type: "string" },
+    changeDescription: { description: "修改内容描述", type: "string" },
+  },
 };
 
 const requiredFields: Partial<Record<AgentWriteIntentName, string[]>> = {
@@ -120,6 +129,8 @@ const requiredFields: Partial<Record<AgentWriteIntentName, string[]>> = {
   save_memory: ["content", "title"],
   schedule_plan: ["planId"],
   weekly_review: ["scope"],
+  delete_record: ["entityName", "entityType"],
+  modify_record: ["entityName", "entityType", "changeDescription"],
 };
 
 const writableIntents = Object.keys(agentToolRegistry) as AgentWriteIntentName[];

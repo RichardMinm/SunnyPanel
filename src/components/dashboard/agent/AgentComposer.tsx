@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PendingAction } from "@/lib/agent/schemas";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
+
 type QuickMenuItem = {
   label: string;
   children?: QuickMenuItem[];
@@ -102,6 +103,7 @@ const MODE_OPTIONS: Array<{
 type AgentComposerProps = {
   disabled?: boolean;
   input: string;
+  modelName?: string;
   onInputChange: (value: string) => void;
   onStop?: () => void;
   onSubmit: () => void;
@@ -114,6 +116,7 @@ type AgentComposerProps = {
 export function AgentComposer({
   disabled,
   input,
+  modelName = "DeepSeek V3",
   onInputChange,
   onStop,
   onSubmit,
@@ -207,7 +210,7 @@ export function AgentComposer({
               setQuickMenuOpen(false);
             }}
           >
-            <span>{activeMode.label}</span>
+            <span>{activeMode.label} <span className="sunny-agent-composer-model-name">· {modelName}</span></span>
             <span aria-hidden="true">⌄</span>
           </button>
           {modeMenuOpen ? (
@@ -295,7 +298,7 @@ export function AgentComposer({
             aria-label="打开快捷操作"
             aria-haspopup="menu"
             aria-expanded={quickMenuOpen}
-            title="打开快捷操作"
+            title="添加上下文 / 附件"
             onClick={() => {
               setQuickMenuOpen((open) => !open);
               setExpandedMenuIndex(null);

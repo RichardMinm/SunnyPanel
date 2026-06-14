@@ -24,6 +24,16 @@
   --agent-min-height: 42rem;
   --dashboard-left-width: 18rem;
   --dashboard-right-width: 20rem;
+  /* Motion — Dashboard / Site 共用 */
+  --motion-duration-fast: 140ms;
+  --motion-duration-ui: 180ms;
+  --motion-duration-content: 240ms;
+  --motion-duration-panel: 280ms;
+  --motion-duration-layout: 320ms;
+  --motion-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-ease-out: ease-out;
+  --motion-distance-sm: 10px;
+  --motion-distance-md: 14px;
   /* Type scale — Site / Admin / Agent 共用 */
   --text-icon: 0.45rem;
   --text-3xs: 0.625rem;
@@ -168,7 +178,8 @@ html[data-theme="dark"] {
   --btn-md-font: 0.875rem;
   --btn-radius: 0.625rem;
   --btn-icon-size: 2.5rem;
-  --btn-send-size: 2.625rem;
+  --btn-send-size: 2.5rem;
+  --composer-control-height: var(--btn-icon-size);
   --btn-icon-font: 1.125rem;
   /* Message */
   --msg-body-size: 0.9375rem;

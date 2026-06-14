@@ -119,6 +119,20 @@ export const ScheduleItem: CollectionConfig = {
       required: true,
     },
     {
+      name: "category",
+      type: "select",
+      label: "分类",
+      defaultValue: "default",
+      options: [
+        { label: "课程", value: "course" },
+        { label: "学习", value: "study" },
+        { label: "计划动作", value: "plan_action" },
+        { label: "Agent 生成", value: "agent" },
+        { label: "考试 / 截止", value: "exam" },
+        { label: "默认", value: "default" },
+      ],
+    },
+    {
       name: "relatedPlan",
       type: "relationship",
       label: "关联计划",

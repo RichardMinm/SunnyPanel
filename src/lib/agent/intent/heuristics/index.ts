@@ -49,6 +49,17 @@ export {
 export { parseEvaluatePlanIntent, parseProgressIntent } from "./progress-review";
 export { parseComposeTimelineEventIntent } from "./timeline";
 export { parseSaveMemoryIntent } from "./memory";
+export {
+  parseCapabilityQueryIntent,
+  parseCreateChecklistIntent,
+  parseCreateTimelineIntent,
+  parseQueryChecklistProgressIntent,
+  parseQueryMemoryIntent,
+  parseQueryPlanIntent,
+  parseQueryScheduleIntent,
+  parseQueryTimelineIntent,
+} from "./query";
+export { parseDeleteRecordIntent, parseModifyRecordIntent } from "./delete-update";
 
 import {
   appendItemKeywords,

@@ -9,13 +9,17 @@ import {
 import { cleanupPlanTitle, cleanupText, parseChecklistGroupMention } from "./shared-text";
 
 export const parseCreatePlanIntent = (message: string): AgentIntent | null => {
-  const keyword = createPlanKeywords.find((item) => message.includes(item));
+  const keyword = createPlanKeywords.find((item) => {
+    if (item.includes(".*")) return new RegExp(item).test(message);
+    return message.includes(item);
+  });
 
   if (!keyword) {
     return null;
   }
 
-  const remainder = cleanupText(message.slice(message.indexOf(keyword) + keyword.length));
+  const matchIndex = keyword.includes(".*") ? (message.match(new RegExp(keyword))?.index ?? 0) : message.indexOf(keyword);
+  const remainder = cleanupText(message.slice(matchIndex + keyword.length));
 
   if (!remainder) {
     return createClarifyIntent("你想创建的计划标题是什么？最好直接给我一句明确标题。", ["title"]);
@@ -55,23 +59,13 @@ export const parseComposePlanIntent = (message: string): AgentIntent | null => {
     };
   }
 
-  if (message.length > 10 && /(计划|规划|安排|拆分|拆解)/.test(message) && !/(今天|明天|日程)/.test(message)) {
-    return {
-      args: {
-        sourceText: message,
-      },
-      confidence: 0.5,
-      intent: "compose_plan",
-    };
-  }
-
   return null;
 };
 
 export const parseComposeScheduleItemIntent = (message: string): AgentIntent | null => {
   const hasKeyword =
     scheduleComposerKeywords.some((keyword) => message.includes(keyword)) ||
-    (/(今天|明天|今晚|明早|下周[一二三四五六日天])/.test(message) && /(安排|排|日程)/.test(message));
+    (/(今天|明天|今晚|明早|下周[一二三四五六日天])/.test(message) && /(安排到|加到|创建|新建|添加|排到|排入)/.test(message));
 
   if (!hasKeyword) {
     return null;

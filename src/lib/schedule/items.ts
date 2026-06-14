@@ -15,6 +15,7 @@ export type ScheduleItemCreatedBy = "agent" | "manual";
 
 export type ScheduleItemRecord = ScheduleConflictItem & {
   agentBrief?: null | string;
+  category?: null | string;
   conflictNote?: null | string;
   createdBy?: ScheduleItemCreatedBy;
   description?: null | string;
@@ -27,6 +28,7 @@ export type ScheduleItemRecord = ScheduleConflictItem & {
 
 export type ScheduleItemInput = {
   agentBrief?: null | string;
+  category?: null | string;
   conflictNote?: null | string;
   createdBy?: ScheduleItemCreatedBy;
   date: string;
@@ -108,6 +110,7 @@ export const detectScheduleConflicts = async (
 
 const normalizeScheduleInput = (data: ScheduleItemInput) => ({
   agentBrief: normalizeText(data.agentBrief) || null,
+  category: data.category ?? null,
   conflictNote: normalizeText(data.conflictNote) || null,
   createdBy: data.createdBy ?? "manual",
   date: data.date,

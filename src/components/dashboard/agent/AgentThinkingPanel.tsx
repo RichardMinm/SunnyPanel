@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { motion } from "motion/react";
 
 import type { AgentTraceStep } from "@/lib/agent/schemas";
@@ -9,16 +10,137 @@ import type {
   AgentStreamProgressEvent,
   AgentStreamStageEvent,
 } from "@/lib/agent/stream-events";
+import { useDashboardMotion } from "../motion/dashboard-motion";
 
 type AgentThinkingPanelProps = {
   isThinking: boolean;
   statusLabel: string;
   steps: AgentTraceStep[];
+  debugMode?: boolean;
   streamChanges?: AgentStreamChangeEvent[];
   streamProgress?: AgentStreamProgressEvent[];
   streamStages?: AgentStreamStageEvent[];
   thinkingContent?: string;
 };
+
+/* ── user-facing step type ── */
+
+type UserStep = {
+  id: string;
+  label: string;
+  status: "done" | "pending" | "running";
+};
+
+/* ── mapping: raw stages → user-friendly labels ── */
+
+function mapStagesToUserSteps(
+  stages: AgentStreamStageEvent[],
+  changes: AgentStreamChangeEvent[],
+): UserStep[] {
+  const steps: UserStep[] = [];
+  const titles = stages.map((s) => s.title).join(" ");
+  const hasRunning = stages.some((s) => s.status === "running");
+  const allDone = stages.length > 0 && stages.every((s) => s.status === "done");
+  const hasChanges = changes.length > 0;
+  const hasDryRun = stages.some((s) => s.phase === "dry_run");
+  const hasHighRisk = changes.some((c) => c.riskLevel === "high");
+
+  // Step 1: Intent recognized
+  const hasIntent = /识别为/.test(titles);
+  steps.push({
+    id: "intent",
+    label: "已理解请求",
+    status: hasIntent ? "done" : hasRunning ? "running" : "pending",
+  });
+
+  // Step 2: Context loaded
+  const hasContext = /上下文/.test(titles);
+  steps.push({
+    id: "context",
+    label: "已读取相关上下文",
+    status: hasContext ? "done" : hasIntent && hasRunning && !hasContext ? "running" : hasIntent ? "done" : "pending",
+  });
+
+  // Step 3: Pre-check for write operations (only if applicable)
+  if (hasDryRun || hasChanges) {
+    steps.push({
+      id: "precheck",
+      label: hasHighRisk ? "⚠️ 写入预检（高风险）" : "写入预检",
+      status: hasDryRun ? "done" : hasRunning ? "running" : "pending",
+    });
+  }
+
+  // Step 4: Generating response / plan
+  const hasGeneration = /生成/.test(titles) || /回复/.test(titles) || /回答/.test(titles);
+  const isQueryOnly = !hasDryRun && !hasChanges;
+  steps.push({
+    id: "generate",
+    label: isQueryOnly ? "正在生成回答" : "正在生成执行方案",
+    status: hasGeneration ? "done" : allDone && !hasGeneration ? "done" : hasRunning ? "running" : "pending",
+  });
+
+  // Step 5: Awaiting confirmation (only if there are changes pending)
+  if (hasChanges && !allDone) {
+    const hasConfirmation = /确认/.test(titles) || /安全提示/.test(titles);
+    steps.push({
+      id: "confirm",
+      label: "等待你的确认",
+      status: hasConfirmation ? "done" : "running",
+    });
+  }
+
+  // Mark completion
+  if (allDone) {
+    // Mark all steps as done
+    return steps.map((s) => ({ ...s, status: "done" as const }));
+  }
+
+  return steps;
+}
+
+/* ── derive safety notice from stage data ── */
+
+function getSafetyNotice(
+  stages: AgentStreamStageEvent[],
+  changes: AgentStreamChangeEvent[],
+): string | null {
+  const titles = stages.map((s) => s.title).join(" ");
+  const isAborted = /阻止/.test(titles);
+  if (isAborted) return null; // don't show notice when already cancelled
+
+  const hasHighRisk = changes.some((c) => c.riskLevel === "high");
+  const hasMediumRisk = changes.some((c) => c.riskLevel === "medium");
+  const isDelete = /删除/.test(changes.map((c) => c.summary).join(" "));
+  const isModify = /修改|更新/.test(changes.map((c) => c.summary).join(" "));
+  const hasDryRun = stages.some((s) => s.phase === "dry_run");
+  const allDone = stages.length > 0 && stages.every((s) => s.status === "done");
+
+  if (allDone) return null;
+  if (!hasDryRun && changes.length === 0) return null;
+
+  if (isDelete) {
+    return "⚠️ 此操作涉及删除数据，不可撤销，必须你手动确认后才会执行";
+  }
+  if (hasHighRisk) {
+    return "⚠️ 此操作风险较高，不会自动执行，需要你仔细确认";
+  }
+  if (hasMediumRisk && isModify) {
+    return "⚠️ 修改前会展示变更内容，需要你确认后才会写入";
+  }
+  if (hasDryRun) {
+    return "💡 本次操作不会自动写入，需要你确认后才会执行";
+  }
+
+  return null;
+}
+
+function isQueryOnly(stages: AgentStreamStageEvent[], changes: AgentStreamChangeEvent[]): boolean {
+  return stages.every((s) => s.phase === "context" || s.phase === "arbitration" || s.phase === "response") &&
+    changes.length === 0 &&
+    !stages.some((s) => s.phase === "dry_run" || s.phase === "execution");
+}
+
+/* ── helpers ── */
 
 const phaseLabelMap: Record<AgentStreamPhase, string> = {
   arbitration: "仲裁",
@@ -30,119 +152,187 @@ const phaseLabelMap: Record<AgentStreamPhase, string> = {
 };
 
 const formatElapsed = (elapsedMs?: number) => {
-  if (typeof elapsedMs !== "number") {
-    return "";
-  }
-
-  if (elapsedMs < 1000) {
-    return `${elapsedMs}ms`;
-  }
-
+  if (typeof elapsedMs !== "number") return "";
+  if (elapsedMs < 1000) return `${elapsedMs}ms`;
   return `${(elapsedMs / 1000).toFixed(elapsedMs < 10_000 ? 1 : 0)}s`;
 };
 
-const getVisibleStages = (streamStages: AgentStreamStageEvent[]) => {
-  const runningStages = streamStages.filter((stage) => stage.status === "running");
-
-  if (runningStages.length === 0) {
-    return streamStages.slice(-4);
-  }
-
-  const runningIds = new Set(runningStages.map((stage) => stage.id));
-  return [
-    ...streamStages.filter((stage) => !runningIds.has(stage.id)).slice(-3),
-    ...runningStages,
-  ].slice(-4);
-};
+/* ── component ── */
 
 export function AgentThinkingPanel({
   isThinking,
   statusLabel,
   steps,
+  debugMode = false,
   streamChanges = [],
   streamProgress = [],
   streamStages = [],
   thinkingContent,
 }: AgentThinkingPanelProps) {
-  const visibleSteps = steps.slice(-4);
-  const visibleStages = getVisibleStages(streamStages);
-  const hasStreamFlow = visibleStages.length > 0;
-  const activeStage = [...streamStages].reverse().find((stage) => stage.status === "running");
-  const thinkingLines = (thinkingContent ?? "").split("\n").map((line) => line.trim()).filter(Boolean).slice(-2);
+  const { messageView, prefersReducedMotion } = useDashboardMotion();
+  const [debugOpen, setDebugOpen] = useState(false);
 
-  if (!isThinking && visibleSteps.length === 0 && thinkingLines.length === 0 && !hasStreamFlow) {
+  const userSteps = useMemo(
+    () => mapStagesToUserSteps(streamStages, streamChanges),
+    [streamStages, streamChanges],
+  );
+
+  const safetyNotice = useMemo(
+    () => getSafetyNotice(streamStages, streamChanges),
+    [streamStages, streamChanges],
+  );
+
+  const isQuery = useMemo(
+    () => isQueryOnly(streamStages, streamChanges),
+    [streamStages, streamChanges],
+  );
+
+  const activeStage = [...streamStages].reverse().find((s) => s.status === "running");
+  const thinkingLines = (thinkingContent ?? "").split("\n").map((l) => l.trim()).filter(Boolean).slice(-2);
+  const hasStreamFlow = streamStages.length > 0;
+  const hasDebugData = hasStreamFlow || steps.length > 0 || thinkingLines.length > 0;
+
+  if (!isThinking && userSteps.length === 0 && thinkingLines.length === 0 && !hasStreamFlow) {
     return null;
   }
 
+  const statusIcon = (status: UserStep["status"]) => {
+    if (status === "done") return "✓";
+    if (status === "running") return "●";
+    return "○";
+  };
+
   return (
     <motion.div
-      className={`sunny-agent-thinking-panel${isThinking ? " is-running" : " is-complete"}`}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18 }}
+      className={`sunny-agent-progress-panel${isThinking ? " is-running" : " is-complete"}`}
+      initial={prefersReducedMotion ? messageView.initial : { opacity: 0, y: 6 }}
+      animate={messageView.animate}
+      transition={{ duration: messageView.transition.duration }}
       role="status"
-      aria-label="Agent 任务流"
+      aria-label="Sunny 正在处理"
     >
-      <span className="sunny-agent-thinking-dot" aria-hidden="true" />
-      <div className="sunny-agent-thinking-panel-content">
-        <div className="sunny-agent-thinking-panel-header">
-          <span>{activeStage ? activeStage.title : isThinking ? statusLabel : `思考完成 (${steps.length} 步)`}</span>
-          {isThinking ? (
-            <span className="sunny-agent-thinking-dots" aria-hidden="true">
-              <span /><span /><span />
-            </span>
-          ) : null}
-        </div>
-        {hasStreamFlow ? (
-          <ol className="sunny-agent-stage-list">
-            {visibleStages.map((stage) => {
-              const latestProgress = [...streamProgress].reverse().find((item) => item.stageId === stage.id);
-              const latestChanges = streamChanges.filter((item) => item.stageId === stage.id).slice(-2);
-              const elapsed = formatElapsed(stage.elapsedMs);
+      {/* ── header ── */}
+      <div className="sunny-agent-progress-header">
+        <span className="sunny-agent-progress-dot" aria-hidden="true" />
+        <span className="sunny-agent-progress-title">
+          {activeStage
+            ? "Sunny 正在处理"
+            : isThinking
+              ? statusLabel
+              : `处理完成 (${userSteps.length} 步)`}
+        </span>
+        {isThinking ? (
+          <span className="sunny-agent-thinking-dots" aria-hidden="true">
+            <span /><span /><span />
+          </span>
+        ) : null}
+      </div>
 
-              return (
-                <li key={stage.id} className={`sunny-agent-stage-row is-${stage.status}`}>
-                  <span className="sunny-agent-stage-dot" aria-hidden="true" />
-                  <div className="sunny-agent-stage-copy">
-                    <div className="sunny-agent-stage-title-row">
-                      <strong>{stage.title}</strong>
-                      <span>{phaseLabelMap[stage.phase]}</span>
-                      {elapsed ? <small>{elapsed}</small> : null}
-                    </div>
-                    {latestProgress ? (
-                      <p>{latestProgress.detail ? `${latestProgress.message} · ${latestProgress.detail}` : latestProgress.message}</p>
-                    ) : null}
-                    {latestChanges.length > 0 ? (
-                      <div className="sunny-agent-stage-change-list">
-                        {latestChanges.map((change, index) => (
-                          <span key={`${stage.id}-${change.summary}-${index}`}>
-                            {change.riskLevel ? `${change.riskLevel} · ` : ""}{change.summary}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        ) : visibleSteps.length > 0 ? (
-          <ol className="sunny-agent-thinking-step-list">
-            {visibleSteps.map((step) => (
-              <li key={step.id} className={`sunny-agent-thinking-step is-${step.status}`}>
-                <strong>{step.title}</strong>
-                {step.detail ? <p>{step.detail}</p> : null}
+      <div className="sunny-agent-progress-body">
+        {/* ── Layer 1: User-friendly steps ── */}
+        {userSteps.length > 0 && (
+          <ol className="sunny-agent-user-step-list">
+            {userSteps.map((step) => (
+              <li
+                key={step.id}
+                className={`sunny-agent-user-step is-${step.status}`}
+              >
+                <span className={`sunny-agent-user-step-icon is-${step.status}`} aria-hidden>
+                  {statusIcon(step.status)}
+                </span>
+                <span className="sunny-agent-user-step-label">{step.label}</span>
               </li>
             ))}
           </ol>
-        ) : thinkingLines.length > 0 ? (
+        )}
+
+        {/* ── FAQ / Query notice ── */}
+        {isQuery && streamStages.length > 0 && streamStages.every((s) => s.status === "done") && (
+          <div className="sunny-agent-progress-notice is-info">
+            💬 本次只是功能咨询，不会修改或删除任何数据
+          </div>
+        )}
+
+        {/* ── Safety notice ── */}
+        {safetyNotice && (
+          <div className="sunny-agent-progress-notice is-warning">
+            {safetyNotice}
+          </div>
+        )}
+
+        {/* ── Thinking content (streaming) ── */}
+        {thinkingLines.length > 0 && (
           <div className="sunny-agent-thinking-inline-content">
-            {thinkingLines.map((line, index) => (
-              <p key={`${line}-${index}`}>{line}</p>
+            {thinkingLines.map((line, i) => (
+              <p key={`${line.slice(0, 20)}-${i}`}>{line}</p>
             ))}
           </div>
-        ) : (
-          <p className="sunny-agent-thinking-placeholder">等待 Agent 反馈...</p>
+        )}
+
+        {/* ── Layer 2: Debug details (collapsible) ── */}
+        {debugMode && hasDebugData && (
+          <details
+            className="sunny-agent-progress-debug"
+            open={debugOpen}
+            onToggle={(e) => setDebugOpen(e.currentTarget.open)}
+          >
+            <summary>调试信息</summary>
+            <div className="sunny-agent-progress-debug-body">
+              {/* Stream stages */}
+              {hasStreamFlow && (
+                <div className="sunny-agent-progress-debug-section">
+                  <h4>流程阶段</h4>
+                  <ol className="sunny-agent-stage-list">
+                    {streamStages.map((stage) => {
+                      const latestProgress = [...streamProgress].reverse().find((p) => p.stageId === stage.id);
+                      const latestChanges = streamChanges.filter((c) => c.stageId === stage.id).slice(-2);
+                      const elapsed = formatElapsed(stage.elapsedMs);
+
+                      return (
+                        <li key={stage.id} className={`sunny-agent-stage-row is-${stage.status}`}>
+                          <span className="sunny-agent-stage-dot" aria-hidden />
+                          <div className="sunny-agent-stage-copy">
+                            <div className="sunny-agent-stage-title-row">
+                              <strong>{stage.title}</strong>
+                              <span>{phaseLabelMap[stage.phase]}</span>
+                              {elapsed ? <small>{elapsed}</small> : null}
+                            </div>
+                            {latestProgress ? (
+                              <p>{latestProgress.detail ? `${latestProgress.message} · ${latestProgress.detail}` : latestProgress.message}</p>
+                            ) : null}
+                            {latestChanges.length > 0 ? (
+                              <div className="sunny-agent-stage-change-list">
+                                {latestChanges.map((change, ci) => (
+                                  <span key={`${stage.id}-${change.summary}-${ci}`}>
+                                    {change.riskLevel ? `${change.riskLevel} · ` : ""}{change.summary}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              )}
+
+              {/* Trace steps */}
+              {steps.length > 0 && (
+                <div className="sunny-agent-progress-debug-section">
+                  <h4>Trace ({steps.length} 步)</h4>
+                  <ol className="sunny-agent-thinking-step-list">
+                    {steps.map((step) => (
+                      <li key={step.id} className={`sunny-agent-thinking-step is-${step.status}`}>
+                        <strong>{step.title}</strong>
+                        {step.detail ? <p>{step.detail}</p> : null}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </div>
+          </details>
         )}
       </div>
     </motion.div>

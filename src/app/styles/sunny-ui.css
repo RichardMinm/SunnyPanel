@@ -1965,6 +1965,17 @@ html[data-theme="dark"] .sunny-panel {
   flex-wrap: wrap;
 }
 
+.sunny-timeline-head-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.sunny-timeline-head-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .sunny-timeline-view-head h1 {
   margin: 0;
   font-size: 22px;
@@ -2144,4 +2155,125 @@ html[data-theme="dark"] .sunny-panel {
   font-size: 12px;
   color: #64748b;
   line-height: 1.5;
+}
+
+/* ── Timeline: Source Badge ── */
+.sunny-timeline-event-source {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.sunny-timeline-event-detail {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.sunny-timeline-event-detail p {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.sunny-timeline-event-source-detail {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* ── Timeline: Filter Tabs ── */
+.sunny-timeline-filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sunny-timeline-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.sunny-timeline-filter-btn:hover {
+  background: #f8fafc;
+}
+
+.sunny-timeline-filter-btn.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.sunny-timeline-filter-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Timeline: Empty State ── */
+.sunny-timeline-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.sunny-timeline-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  color: #94a3b8;
+}
+
+.sunny-timeline-empty-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.sunny-timeline-empty-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 650;
+  color: #334155;
+}
+
+.sunny-timeline-empty-desc {
+  margin: 0 0 24px;
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.7;
+}
+
+.sunny-timeline-empty-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
