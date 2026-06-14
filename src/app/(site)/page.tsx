@@ -5,6 +5,7 @@ import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { TimelineHighlight } from "@/components/public/TimelineHighlight";
 import { formatShortDate } from "@/lib/formatters";
 import { stripMarkdownForExcerpt } from "@/lib/markdown/plain-text";
+import { getContentMarkdownFallback } from "@/lib/rich-content/compat";
 import { getSiteLocale } from "@/lib/site-locale";
 import {
   getPublicChecklists,
@@ -55,7 +56,7 @@ export default async function Home() {
       signal: {
         date: formatShortDate(note.createdAt, locale),
         description: excerpt(
-          stripMarkdownForExcerpt(note.content),
+          stripMarkdownForExcerpt(getContentMarkdownFallback(note)),
           locale === "en" ? "A small note was added to the public memory stream." : "新的短札已经进入公开记忆流。",
         ),
         href: "/notes",
@@ -68,7 +69,7 @@ export default async function Home() {
       signal: {
         date: formatShortDate(update.createdAt, locale),
         description: excerpt(
-          stripMarkdownForExcerpt(update.content),
+          stripMarkdownForExcerpt(getContentMarkdownFallback(update)),
           locale === "en" ? "A new public update was recorded." : "新的公开动态已经记录。",
         ),
         href: "/updates",

@@ -5,6 +5,7 @@ import { MotionReveal } from "@/components/public/MotionReveal";
 import { formatDate } from "@/lib/formatters";
 import { getMediaAsset, getMediaDisplayUrl } from "@/lib/media";
 import { getReadingMinutesFromContent } from "@/lib/markdown/reading-time";
+import { getContentTextFallback } from "@/lib/rich-content/compat";
 import type { SiteLocale } from "@/lib/site-copy";
 import type { Post } from "@/payload-types";
 
@@ -20,7 +21,7 @@ export function PostPreviewCard({
   variant = "stack",
 }: PostPreviewCardProps) {
   const coverImage = getMediaAsset(post.coverImage);
-  const readingTime = getReadingMinutesFromContent(post.content);
+  const readingTime = getReadingMinutesFromContent(getContentTextFallback(post));
   const isFeatured = variant === "featured";
   const isCompact = variant === "compact";
 

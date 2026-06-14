@@ -6,6 +6,7 @@ import { PublicSiteFrame } from "@/components/public/PublicSiteFrame";
 import { RecordCoverImage } from "@/components/public/RecordCoverImage";
 import { ContentRenderer } from "@/components/public/ContentRenderer";
 import { formatDateTime } from "@/lib/formatters";
+import { getContentMarkdownFallback } from "@/lib/rich-content/compat";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPageBySlug } from "@/lib/payload/public";
@@ -123,7 +124,7 @@ export default async function StaticPage({ params }: StaticPageProps) {
             preferredSize="card"
             record={page as unknown as Record<string, unknown>}
           />
-          <ContentRenderer content={page.content} />
+          <ContentRenderer content={getContentMarkdownFallback(page)} />
         </article>
       </main>
     </PublicSiteFrame>

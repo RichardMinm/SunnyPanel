@@ -5,6 +5,7 @@ import type { Note, Post, Update } from "@/payload-types";
 import { EmptyState, SectionHeader, StatusBadge, SurfaceCard } from "@/components/ui/SunnyComponents";
 import { formatShortDate } from "@/lib/formatters";
 import { stripMarkdownForExcerpt } from "@/lib/markdown/plain-text";
+import { getContentMarkdownFallback } from "@/lib/rich-content/compat";
 import type { SiteLocale } from "@/lib/site-copy";
 
 type LatestWritingProps = {
@@ -83,7 +84,7 @@ const getWritingItems = ({
 
   const noteItems: WritingItem[] = notes.map((note) => ({
     date: formatShortDate(note.createdAt, locale),
-    description: excerpt(stripMarkdownForExcerpt(note.content)),
+    description: excerpt(stripMarkdownForExcerpt(getContentMarkdownFallback(note))),
     href: "/notes",
     id: `note-${note.id}`,
     label: note.mood || note.category || copy.noteLabel,
@@ -94,7 +95,7 @@ const getWritingItems = ({
 
   const updateItems: WritingItem[] = updates.map((update) => ({
     date: formatShortDate(update.createdAt, locale),
-    description: excerpt(stripMarkdownForExcerpt(update.content)),
+    description: excerpt(stripMarkdownForExcerpt(getContentMarkdownFallback(update))),
     href: "/updates",
     id: `update-${update.id}`,
     label: update.type,

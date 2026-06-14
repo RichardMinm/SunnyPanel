@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { createEmptyRichDocument, getDashboardContentProfile } from "../../src/lib/rich-content/defaults";
+import { Page } from "../../src/collections/Page";
+import { Post } from "../../src/collections/Post";
+import { Note } from "../../src/collections/Note";
+import { Update } from "../../src/collections/Update";
+import { deriveRichContentBeforeChange } from "../../src/lib/payload/rich-content-hooks";
+import { richContentFields } from "../../src/lib/payload/rich-content-fields";
+import { RICH_CONTENT_VERSION, createEmptyRichDocument, getDashboardContentProfile } from "../../src/lib/rich-content/defaults";
 import { deriveRichContentFields } from "../../src/lib/rich-content/derive";
 import { ensureRichContentBlockIds } from "../../src/lib/rich-content/ids";
 import { markdownToRichContent } from "../../src/lib/rich-content/markdown-to-rich";
@@ -16,6 +22,8 @@ const collectNodeIds = (node: RichContentNode): string[] => {
 };
 
 const collectDocumentIds = (document: RichContentDocument): string[] => document.content?.flatMap(collectNodeIds) ?? [];
+const collectionFieldNames = (fields: ReadonlyArray<unknown>) =>
+  fields.map((field) => (field && typeof field === "object" && "name" in field ? field.name : ""));
 
 describe("rich content utilities", () => {
   test("createEmptyRichDocument returns a stable Tiptap doc", () => {
@@ -1178,5 +1186,63 @@ describe("rich content utilities", () => {
     assert.equal(doc.content?.[0]?.type, "image");
     assert.equal(doc.content?.[0]?.attrs?.src, "/uploads/image-(1).png");
     assert.equal(doc.content?.[0]?.attrs?.alt, "x");
+  });
+
+  test("richContentFields includes rich, derived, version, and legacy fields", () => {
+    const fields = richContentFields({ label: "正文", legacyLabel: "旧 Markdown" });
+    const names = collectionFieldNames(fields);
+
+    assert.deepEqual(names, [
+      "contentRich",
+      "contentText",
+      "contentExcerpt",
+      "contentOutline",
+      "contentVersion",
+      "legacyContentMarkdown",
+    ]);
+    assert.equal(fields[0]?.type, "json");
+    assert.equal(fields[0]?.required, true);
+    assert.deepEqual(fields[0]?.hooks?.beforeChange, [deriveRichContentBeforeChange]);
+    assert.equal(fields[4] && "defaultValue" in fields[4] ? fields[4].defaultValue : undefined, RICH_CONTENT_VERSION);
+  });
+
+  test("deriveRichContentBeforeChange normalizes rich content and writes derived sibling fields", async () => {
+    const data: Record<string, unknown> = {};
+    const result = await deriveRichContentBeforeChange({
+      data,
+      value: {
+        type: "doc",
+        content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Agent friendly" }] }],
+      },
+    } as Parameters<typeof deriveRichContentBeforeChange>[0]);
+
+    assert.deepEqual(result, {
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 1, id: "heading-1" },
+          content: [{ type: "text", text: "Agent friendly" }],
+        },
+      ],
+    });
+    assert.equal(data.contentText, "Agent friendly");
+    assert.equal(data.contentExcerpt, "Agent friendly");
+    assert.deepEqual(data.contentOutline, [{ id: "heading-1", level: 1, order: 0, text: "Agent friendly" }]);
+    assert.equal(data.contentVersion, RICH_CONTENT_VERSION);
+  });
+
+  test("content collections use the shared rich content field model", () => {
+    for (const collection of [Post, Page, Note, Update]) {
+      const names = collectionFieldNames(collection.fields);
+
+      assert.equal(names.includes("content"), false, collection.slug);
+      assert.equal(names.includes("contentRich"), true, collection.slug);
+      assert.equal(names.includes("contentText"), true, collection.slug);
+      assert.equal(names.includes("contentExcerpt"), true, collection.slug);
+      assert.equal(names.includes("contentOutline"), true, collection.slug);
+      assert.equal(names.includes("contentVersion"), true, collection.slug);
+      assert.equal(names.includes("legacyContentMarkdown"), true, collection.slug);
+    }
   });
 });

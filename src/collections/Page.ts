@@ -6,7 +6,7 @@ import {
   statusField,
   visibilityField,
 } from "../lib/payload/fields.ts";
-import { markdownContentField } from "../lib/payload/markdown-fields.ts";
+import { richContentFields } from "../lib/payload/rich-content-fields.ts";
 import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const Page: CollectionConfig = {
@@ -35,9 +35,9 @@ export const Page: CollectionConfig = {
       required: true,
     },
     createSlugField(),
-    markdownContentField({
-      description: "先把页面的核心内容写出来，版式可以之后再慢慢调整。",
+    ...richContentFields({
       label: "页面内容",
+      legacyLabel: "旧 Markdown 页面内容",
     }),
     {
       name: "coverImage",

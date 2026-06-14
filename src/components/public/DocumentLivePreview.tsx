@@ -8,6 +8,7 @@ import { ChecklistPreviewCard } from "@/components/public/ChecklistPreviewCard";
 import { RecordCoverImage } from "@/components/public/RecordCoverImage";
 import { ContentRenderer, MarkdownField } from "@/components/public/ContentRenderer";
 import { formatDate, formatDateTime } from "@/lib/formatters";
+import { getContentMarkdownFallback, getContentTextFallback } from "@/lib/rich-content/compat";
 import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
 import type {
   Checklist,
@@ -124,8 +125,10 @@ const getPreviewTitle = (
     return document.title;
   }
 
-  if ("content" in document && typeof document.content === "string" && document.content.trim()) {
-    return document.content.slice(0, 32);
+  const contentTitle = getContentTextFallback(document);
+
+  if (contentTitle) {
+    return contentTitle.slice(0, 32);
   }
 
   return `${getCollectionLabel(collection, "zh")} #${fallbackId}`;
@@ -173,7 +176,7 @@ const renderPreviewDocument = ({
             />
 
             <div className="p-8 md:p-10">
-              <ContentRenderer content={post.content} />
+              <ContentRenderer content={getContentMarkdownFallback(post)} />
             </div>
           </div>
         </article>
@@ -192,7 +195,7 @@ const renderPreviewDocument = ({
             priority
             record={page as unknown as Record<string, unknown>}
           />
-          <ContentRenderer content={page.content} />
+          <ContentRenderer content={getContentMarkdownFallback(page)} />
         </article>
       );
     }
@@ -207,7 +210,7 @@ const renderPreviewDocument = ({
             {note.mood ? <span className="sunny-badge sunny-badge-muted">{note.mood}</span> : null}
           </div>
           <div className="mt-5">
-            <MarkdownField content={note.content} />
+            <MarkdownField content={getContentMarkdownFallback(note)} />
           </div>
           <RecordCoverImage
             containerClassName="mt-6 overflow-hidden rounded-lg border border-border/80"
@@ -229,7 +232,7 @@ const renderPreviewDocument = ({
             <span className="text-sm text-muted">{formatDateTime(update.updatedAt, locale)}</span>
           </div>
           <div className="mt-5">
-            <MarkdownField content={update.content} />
+            <MarkdownField content={getContentMarkdownFallback(update)} />
           </div>
           {update.link ? (
             <Link href={update.link} className="mt-4 inline-flex text-sm font-semibold text-accent-strong">

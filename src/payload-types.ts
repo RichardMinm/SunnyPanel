@@ -236,9 +236,33 @@ export interface Post {
    */
   summary: string;
   /**
-   * 先把核心内容写下来，格式和细节可以之后再整理。
+   * Dashboard Writing 使用的结构化富文本内容。
    */
-  content: string;
+  contentRich:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  contentText?: string | null;
+  contentExcerpt?: string | null;
+  contentOutline?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  contentVersion?: string | null;
+  /**
+   * 迁移和回滚来源；Dashboard 不写入这个字段。
+   */
+  legacyContentMarkdown?: string | null;
   /**
    * 可选。先不填也没关系。
    */
@@ -260,9 +284,33 @@ export interface Post {
 export interface Note {
   id: number;
   /**
-   * 支持 Markdown 短札写作。
+   * Dashboard Writing 使用的结构化富文本内容。
    */
-  content: string;
+  contentRich:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  contentText?: string | null;
+  contentExcerpt?: string | null;
+  contentOutline?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  contentVersion?: string | null;
+  /**
+   * 迁移和回滚来源；Dashboard 不写入这个字段。
+   */
+  legacyContentMarkdown?: string | null;
   mood?: string | null;
   category: string;
   pinned?: boolean | null;
@@ -283,9 +331,33 @@ export interface Update {
    */
   type: 'life' | 'work' | 'project';
   /**
-   * 支持 Markdown 动态记录。
+   * Dashboard Writing 使用的结构化富文本内容。
    */
-  content: string;
+  contentRich:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  contentText?: string | null;
+  contentExcerpt?: string | null;
+  contentOutline?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  contentVersion?: string | null;
+  /**
+   * 迁移和回滚来源；Dashboard 不写入这个字段。
+   */
+  legacyContentMarkdown?: string | null;
   /**
    * 可选。需要时再补。
    */
@@ -511,9 +583,33 @@ export interface Page {
    */
   slug: string;
   /**
-   * 先把页面的核心内容写出来，版式可以之后再慢慢调整。
+   * Dashboard Writing 使用的结构化富文本内容。
    */
-  content: string;
+  contentRich:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  contentText?: string | null;
+  contentExcerpt?: string | null;
+  contentOutline?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  contentVersion?: string | null;
+  /**
+   * 迁移和回滚来源；Dashboard 不写入这个字段。
+   */
+  legacyContentMarkdown?: string | null;
   coverImage?: (number | null) | Media;
   status: 'draft' | 'published';
   visibility: 'public' | 'private';
@@ -1111,7 +1207,12 @@ export interface PostsSelect<T extends boolean = true> {
   generateSlug?: T;
   slug?: T;
   summary?: T;
-  content?: T;
+  contentRich?: T;
+  contentText?: T;
+  contentExcerpt?: T;
+  contentOutline?: T;
+  contentVersion?: T;
+  legacyContentMarkdown?: T;
   tags?: T;
   coverImage?: T;
   status?: T;
@@ -1125,7 +1226,12 @@ export interface PostsSelect<T extends boolean = true> {
  * via the `definition` "notes_select".
  */
 export interface NotesSelect<T extends boolean = true> {
-  content?: T;
+  contentRich?: T;
+  contentText?: T;
+  contentExcerpt?: T;
+  contentOutline?: T;
+  contentVersion?: T;
+  legacyContentMarkdown?: T;
   mood?: T;
   category?: T;
   pinned?: T;
@@ -1141,7 +1247,12 @@ export interface NotesSelect<T extends boolean = true> {
  */
 export interface UpdatesSelect<T extends boolean = true> {
   type?: T;
-  content?: T;
+  contentRich?: T;
+  contentText?: T;
+  contentExcerpt?: T;
+  contentOutline?: T;
+  contentVersion?: T;
+  legacyContentMarkdown?: T;
   link?: T;
   coverImage?: T;
   status?: T;
@@ -1390,7 +1501,12 @@ export interface PagesSelect<T extends boolean = true> {
   title?: T;
   generateSlug?: T;
   slug?: T;
-  content?: T;
+  contentRich?: T;
+  contentText?: T;
+  contentExcerpt?: T;
+  contentOutline?: T;
+  contentVersion?: T;
+  legacyContentMarkdown?: T;
   coverImage?: T;
   status?: T;
   visibility?: T;

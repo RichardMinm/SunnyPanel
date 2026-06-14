@@ -6,6 +6,7 @@ import { SectionIntro } from "@/components/public/SectionIntro";
 import { formatDate } from "@/lib/formatters";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicNotes } from "@/lib/payload/public";
+import { getContentMarkdownFallback } from "@/lib/rich-content/compat";
 
 export const revalidate = 60;
 
@@ -59,7 +60,7 @@ export default async function NotesPage() {
                         ) : null}
                       </div>
                       <div className="mt-5">
-                        <MarkdownField content={note.content} />
+                        <MarkdownField content={getContentMarkdownFallback(note)} />
                       </div>
                     </div>
                   </article>

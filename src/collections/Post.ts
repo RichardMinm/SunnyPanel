@@ -7,7 +7,7 @@ import {
   statusField,
   visibilityField,
 } from "../lib/payload/fields.ts";
-import { markdownContentField } from "../lib/payload/markdown-fields.ts";
+import { richContentFields } from "../lib/payload/rich-content-fields.ts";
 import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const Post: CollectionConfig = {
@@ -46,9 +46,9 @@ export const Post: CollectionConfig = {
       },
       required: true,
     },
-    markdownContentField({
-      description: "先把核心内容写下来，格式和细节可以之后再整理。",
+    ...richContentFields({
       label: "正文",
+      legacyLabel: "旧 Markdown 正文",
     }),
     {
       name: "tags",

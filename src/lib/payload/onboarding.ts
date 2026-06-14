@@ -1,9 +1,20 @@
 import type { Payload, Where } from "payload";
 
 import type { AgentRun, Plan, User } from "@/payload-types";
+import { markdownToRichContent } from "@/lib/rich-content/markdown-to-rich";
 
 const createMarkdownContent = (headline: string, paragraphs: string[]) =>
   [`## ${headline}`, ...paragraphs].join("\n\n");
+
+const withRichSeedContent = <TSeed extends { content: string }>(seed: TSeed) => {
+  const { content, ...data } = seed;
+
+  return {
+    ...data,
+    contentRich: markdownToRichContent(content),
+    legacyContentMarkdown: content,
+  };
+};
 
 const samplePublishedAt = "2026-04-23T08:30:00.000Z";
 
@@ -208,7 +219,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
     ((await payload.create({
       collection: "pages",
       data: {
-        ...aboutPageSeed,
+        ...withRichSeedContent(aboutPageSeed),
         status: "published",
         visibility: "public",
       },
@@ -220,7 +231,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
     ((await payload.create({
       collection: "pages",
       data: {
-        ...nowPageSeed,
+        ...withRichSeedContent(nowPageSeed),
         status: "published",
         visibility: "public",
       },
@@ -232,7 +243,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
     ((await payload.create({
       collection: "posts",
       data: {
-        ...starterPostSeed,
+        ...withRichSeedContent(starterPostSeed),
         status: "published",
         visibility: "public",
       },
@@ -257,7 +268,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
   const starterUpdateDocs = await Promise.all(
     starterUpdates.map(async (update) => {
       const existingUpdate = await findFirstByWhere<{ id: number }>(payload, "updates", {
-        content: {
+        legacyContentMarkdown: {
           equals: update.content,
         },
       });
@@ -269,7 +280,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
       return (await payload.create({
         collection: "updates",
         data: {
-          ...update,
+          ...withRichSeedContent(update),
           status: "published",
           visibility: "public",
         },
@@ -281,7 +292,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
   const starterNoteDocs = await Promise.all(
     starterNotes.map(async (note) => {
       const existingNote = await findFirstByWhere<{ id: number }>(payload, "notes", {
-        content: {
+        legacyContentMarkdown: {
           equals: note.content,
         },
       });
@@ -293,7 +304,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
       return (await payload.create({
         collection: "notes",
         data: {
-          ...note,
+          ...withRichSeedContent(note),
           status: "published",
           visibility: "public",
         },

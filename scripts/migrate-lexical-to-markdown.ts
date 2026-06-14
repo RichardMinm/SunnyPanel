@@ -9,9 +9,16 @@ const collections = ["posts", "pages"] as const;
 const isLexicalDocument = (value: unknown): value is { root?: unknown } =>
   typeof value === "object" && value !== null && "root" in value;
 
+type LegacyContentDocument = {
+  content?: unknown;
+  id: number | string;
+  legacyContentMarkdown?: null | string;
+};
+
 const run = async () => {
   const { default: config } = await import("../payload.config.ts");
   const { lexicalContentToMarkdownWithMeta } = await import("./lib/migrate-lexical.ts");
+  const { markdownToRichContent } = await import("../src/lib/rich-content/markdown-to-rich.ts");
 
   const payload = await getPayload({ config });
   const report = {
@@ -31,18 +38,20 @@ const run = async () => {
     });
 
     for (const doc of result.docs) {
-      if (typeof doc.content === "string") {
+      const legacyDoc = doc as LegacyContentDocument;
+
+      if (typeof legacyDoc.legacyContentMarkdown === "string" && legacyDoc.legacyContentMarkdown.trim().length > 0) {
         report.skipped.push({ collection, id: doc.id, reason: "already-markdown" });
         continue;
       }
 
-      if (!isLexicalDocument(doc.content)) {
+      if (!isLexicalDocument(legacyDoc.content)) {
         report.skipped.push({ collection, id: doc.id, reason: "not-lexical" });
         continue;
       }
 
       try {
-        const { markdown, warnings } = lexicalContentToMarkdownWithMeta(doc.content);
+        const { markdown, warnings } = lexicalContentToMarkdownWithMeta(legacyDoc.content);
 
         if (!markdown.trim()) {
           report.failed.push({ collection, id: doc.id, reason: "empty-markdown" });
@@ -53,7 +62,8 @@ const run = async () => {
           collection,
           id: doc.id,
           data: {
-            content: markdown,
+            contentRich: markdownToRichContent(markdown),
+            legacyContentMarkdown: markdown,
           },
           overrideAccess: true,
         });

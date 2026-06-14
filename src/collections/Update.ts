@@ -2,7 +2,7 @@ import type { CollectionConfig } from "payload";
 
 import { adminsOnly, adminsOrPublished, canAccessAdmin } from "../lib/payload/access.ts";
 import { statusField, visibilityField } from "../lib/payload/fields.ts";
-import { markdownContentField } from "../lib/payload/markdown-fields.ts";
+import { richContentFields } from "../lib/payload/rich-content-fields.ts";
 import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
 
 export const Update: CollectionConfig = {
@@ -46,10 +46,9 @@ export const Update: CollectionConfig = {
       ],
       required: true,
     },
-    markdownContentField({
-      description: "支持 Markdown 动态记录。",
+    ...richContentFields({
       label: "内容",
-      toolbarMode: "minimal",
+      legacyLabel: "旧 Markdown 内容",
     }),
     {
       name: "link",

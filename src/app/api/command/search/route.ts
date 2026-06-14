@@ -11,6 +11,7 @@ import { stripMarkdownForExcerpt } from "@/lib/markdown/plain-text";
 import { publicContentConstraint } from "@/lib/payload/access";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
+import { getContentMarkdownFallback } from "@/lib/rich-content/compat";
 import type { SiteLocale } from "@/lib/site-copy";
 
 const maxQueryLength = 80;
@@ -88,7 +89,7 @@ const createNoteItem = (note: Note): CommandSearchItem => ({
   kind: "Note",
   source: "notes",
   subtitle: note.category,
-  title: summarizeText(stripMarkdownForExcerpt(note.content, 72), "Untitled Note"),
+  title: summarizeText(stripMarkdownForExcerpt(getContentMarkdownFallback(note), 72), "Untitled Note"),
   updatedAt: note.updatedAt,
 });
 
@@ -100,7 +101,7 @@ const createUpdateItem = (update: Update): CommandSearchItem => ({
   kind: "Update",
   source: "updates",
   subtitle: update.type,
-  title: summarizeText(stripMarkdownForExcerpt(update.content, 72), "Untitled Update"),
+  title: summarizeText(stripMarkdownForExcerpt(getContentMarkdownFallback(update), 72), "Untitled Update"),
   updatedAt: update.updatedAt,
 });
 

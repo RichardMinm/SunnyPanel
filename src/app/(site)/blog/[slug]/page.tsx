@@ -11,6 +11,7 @@ import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPostBySlug } from "@/lib/payload/public";
 import { getReadingMinutesFromContent } from "@/lib/markdown/reading-time";
+import { getContentMarkdownFallback, getContentTextFallback } from "@/lib/rich-content/compat";
 
 export const revalidate = 60;
 
@@ -57,7 +58,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   }
 
   const coverImage = getMediaAsset(post.coverImage);
-  const readingTime = getReadingMinutesFromContent(post.content);
+  const readingTime = getReadingMinutesFromContent(getContentTextFallback(post));
 
   return (
     <PublicSiteFrame locale={locale}>
@@ -132,7 +133,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 {copy.blogPost.articleLayer}
               </div>
 
-              <ContentRenderer content={post.content} />
+              <ContentRenderer content={getContentMarkdownFallback(post)} />
             </div>
           </div>
         </article>
