@@ -302,13 +302,15 @@
 
 .sunny-writing-title-input {
   display: block;
+  flex: 1;
+  min-width: 0;
   width: 100%;
   margin: 0;
   border: 0;
   background: transparent;
   color: var(--writing-text);
   font-family: var(--sunny-font-sans);
-  font-size: clamp(2.25rem, 4vw, 2.75rem);
+  font-size: clamp(2.5rem, 4.5vw, 3rem);
   font-weight: 700;
   letter-spacing: 0;
   line-height: 1.08;
@@ -317,6 +319,45 @@
 
 .sunny-writing-title-input::placeholder {
   color: color-mix(in srgb, var(--muted) 54%, transparent);
+}
+
+/* Title ghost AI button */
+.sunny-writing-title-ai-ghost {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--writing-text);
+  font-family: var(--sunny-font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  opacity: 0.55;
+  padding: 0 0.7rem;
+  cursor: pointer;
+  transition: opacity 180ms ease, background 180ms ease;
+  white-space: nowrap;
+}
+
+.sunny-writing-title-ai-ghost[data-title-empty="true"] {
+  opacity: 0.72;
+}
+
+.sunny-writing-title-ai-ghost:hover {
+  opacity: 1;
+  background: var(--writing-hover);
+}
+
+.sunny-writing-title-ai-ghost:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.sunny-writing-title-ai-ghost:disabled:hover {
+  background: transparent;
 }
 
 .sunny-writing-tiptap-editor {
@@ -752,6 +793,24 @@ html[data-theme="dark"] .sunny-writing-icon-button:disabled,
 html[data-theme="dark"] .sunny-writing-ai-inline-button:disabled {
   opacity: 0.35;
   cursor: default;
+}
+
+html[data-theme="dark"] .sunny-writing-title-ai-ghost {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-writing-title-ai-ghost:hover {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .sunny-writing-summary-ai-ghost {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-writing-summary-ai-ghost:hover {
+  background: #1e293b;
+  color: #cbd5e1;
 }
 
 /* ── Library sidebar ── */
@@ -1250,6 +1309,10 @@ html[data-theme="dark"] .sunny-writing-meta-head button:hover {
   .sunny-writing-title-input {
     font-size: 2rem;
   }
+
+  .sunny-writing-title-ai-ghost {
+    align-self: flex-end;
+  }
 }
 
 .sunny-writing-workspace.is-library-collapsed {
@@ -1560,23 +1623,80 @@ html[data-theme="dark"] .sunny-writing-meta-head button:hover {
   margin-left: auto;
 }
 
-.sunny-writing-title-row,
+.sunny-writing-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
 .sunny-writing-summary-row {
-  display: grid;
-  gap: 0.45rem;
-  margin-bottom: 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
 }
 
 .sunny-writing-summary-input {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   border: 0;
-  border-bottom: 1px solid var(--writing-rule);
   background: transparent;
   color: var(--writing-muted);
+  font-family: var(--sunny-font-sans);
   font-size: 0.9375rem;
   line-height: 1.5;
   outline: none;
   resize: vertical;
+}
+
+.sunny-writing-summary-input:hover,
+.sunny-writing-summary-input:focus {
+  border-bottom: 1px solid var(--writing-rule);
+}
+
+.sunny-writing-summary-input::placeholder {
+  color: var(--writing-muted);
+}
+
+/* Summary ghost AI button — sparkle icon */
+.sunny-writing-summary-ai-ghost {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--writing-muted);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 180ms ease, background 180ms ease, color 180ms ease;
+  margin-top: 0.25rem;
+}
+
+.sunny-writing-summary-row:hover .sunny-writing-summary-ai-ghost,
+.sunny-writing-summary-ai-ghost:hover {
+  opacity: 1;
+}
+
+.sunny-writing-summary-ai-ghost:hover {
+  background: var(--writing-hover);
+  color: var(--writing-text);
+}
+
+.sunny-writing-summary-ai-ghost:disabled {
+  opacity: 0;
+  cursor: default;
+  pointer-events: none;
+}
+
+.sunny-writing-summary-ai-ghost .sunny-dashboard-nav-icon {
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 .sunny-writing-focus-title {

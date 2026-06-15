@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { ContentEditor } from "@/components/content-editor/ContentEditor";
+import { DashboardIcon } from "@/components/dashboard/icons";
 import type { EditorBubbleAiPayload } from "@/components/content-editor/EditorBubbleMenu";
 import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 import { createEmptyRichDocument } from "@/lib/rich-content/defaults";
@@ -253,7 +254,8 @@ export function WritingEditorPane({
               value={draft.title}
             />
             <button
-              className="sunny-writing-ai-inline-button"
+              className="sunny-writing-title-ai-ghost"
+              data-title-empty={!draft.title.trim() ? "true" : "false"}
               disabled={aiLoading}
               onClick={() => void handleAssist("generate_title")}
               type="button"
@@ -269,17 +271,18 @@ export function WritingEditorPane({
               aria-label="摘要"
               className="sunny-writing-summary-input"
               onChange={(event) => onUpdateDraft({ summary: event.target.value })}
-              placeholder="可选：写一句摘要..."
+              placeholder="添加一句简短摘要..."
               rows={2}
               value={draft.summary}
             />
             <button
-              className="sunny-writing-ai-inline-button"
+              className="sunny-writing-summary-ai-ghost"
               disabled={aiLoading}
               onClick={() => void handleAssist("generate_summary")}
+              title="自动生成摘要"
               type="button"
             >
-              自动生成摘要
+              <DashboardIcon name="sparkle" />
             </button>
           </div>
         ) : null}
