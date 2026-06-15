@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 
@@ -35,6 +35,82 @@ const updateTypes: Array<{ label: string; value: WritingMetadataDraft["type"] }>
   { label: "工作", value: "work" },
   { label: "项目", value: "project" },
 ];
+
+function EmptyMuted({ children }: { children: React.ReactNode }) {
+  return <span className="sunny-writing-empty-muted">{children}</span>;
+}
+
+function TagsChipInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [newTag, setNewTag] = useState("");
+
+  const tags = value
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  const addTag = () => {
+    const tag = newTag.trim();
+    if (tag && !tags.includes(tag)) {
+      onChange([...tags, tag].join(", "));
+    }
+    setNewTag("");
+    setAdding(false);
+  };
+
+  const removeTag = (tag: string) => {
+    onChange(tags.filter((t) => t !== tag).join(", "));
+  };
+
+  return (
+    <div className="sunny-writing-tags-chip-row">
+      {tags.map((tag) => (
+        <span key={tag} className="sunny-writing-tag-chip">
+          {tag}
+          <button
+            aria-label={`移除标签 ${tag}`}
+            className="sunny-writing-tag-chip-remove"
+            onClick={() => removeTag(tag)}
+            type="button"
+          >
+            &times;
+          </button>
+        </span>
+      ))}
+      {adding ? (
+        <input
+          autoFocus
+          className="sunny-writing-tag-chip-input"
+          onBlur={addTag}
+          onChange={(e) => setNewTag(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") addTag();
+            if (e.key === "Escape") {
+              setNewTag("");
+              setAdding(false);
+            }
+          }}
+          placeholder="新标签..."
+          value={newTag}
+        />
+      ) : (
+        <button
+          className="sunny-writing-tag-chip-add"
+          onClick={() => setAdding(true)}
+          type="button"
+        >
+          + 添加
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function WritingMetaPanel({
   document,
@@ -136,11 +212,15 @@ export function WritingMetaPanel({
         {document.collection === "updates" ? (
           <label className="sunny-writing-field">
             <span>关联链接</span>
-            <input
-              onChange={(event) => onUpdateMetadata("link", event.target.value)}
-              placeholder="https://..."
-              value={draft.metadata.link}
-            />
+            {draft.metadata.link ? (
+              <input
+                onChange={(event) => onUpdateMetadata("link", event.target.value)}
+                placeholder="https://..."
+                value={draft.metadata.link}
+              />
+            ) : (
+              <EmptyMuted>暂无所属层级</EmptyMuted>
+            )}
           </label>
         ) : null}
       </WritingInspectorSection>
@@ -158,9 +238,8 @@ export function WritingMetaPanel({
         {document.collection === "posts" ? (
           <label className="sunny-writing-field">
             <span>标签</span>
-            <input
-              onChange={(event) => onUpdateMetadata("tags", event.target.value)}
-              placeholder="design, agent, notes"
+            <TagsChipInput
+              onChange={(value) => onUpdateMetadata("tags", value)}
               value={draft.metadata.tags}
             />
           </label>
@@ -170,10 +249,14 @@ export function WritingMetaPanel({
           <>
             <label className="sunny-writing-field">
               <span>分类</span>
-              <input
-                onChange={(event) => onUpdateMetadata("category", event.target.value)}
-                value={draft.metadata.category}
-              />
+              {draft.metadata.category ? (
+                <input
+                  onChange={(event) => onUpdateMetadata("category", event.target.value)}
+                  value={draft.metadata.category}
+                />
+              ) : (
+                <EmptyMuted>未设置</EmptyMuted>
+              )}
             </label>
             <label className="sunny-writing-field">
               <span>心情</span>
