@@ -1069,6 +1069,41 @@ html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-floating-men
   color: #fff;
 }
 
+/* ── Editor toolbar ── */
+
+html[data-theme="dark"] .sunny-rich-editor-toolbar {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-toolbar button,
+html[data-theme="dark"] .sunny-rich-editor-style-select {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-toolbar button:hover,
+html[data-theme="dark"] .sunny-rich-editor-toolbar button[aria-pressed="true"] {
+  background: #334155;
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-toolbar-divider {
+  background: #334155;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-ai-menu {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-ai-menu button {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-ai-menu button:hover {
+  background: #273449;
+}
+
 /* ── Meta panel ── */
 
 html[data-theme="dark"] .sunny-writing-meta-panel {
@@ -1783,7 +1818,19 @@ html[data-theme="dark"] .sunny-writing-meta-head button:hover {
   font-size: 0.8125rem;
 }
 
-.sunny-rich-editor-toolbar,
+.sunny-rich-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem;
+  min-height: 2.5rem;
+  border: 1px solid var(--writing-rule);
+  border-radius: 12px;
+  background: var(--writing-card-bg);
+  padding: 0.35rem;
+  margin-bottom: 1rem;
+}
+
 .sunny-rich-editor-bubble-menu {
   display: flex;
   flex-wrap: wrap;
@@ -1805,8 +1852,44 @@ html[data-theme="dark"] .sunny-writing-meta-head button:hover {
 }
 
 .sunny-rich-editor-toolbar button,
-.sunny-rich-editor-bubble-menu button,
 .sunny-rich-editor-style-select {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--writing-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  min-height: 1.75rem;
+  padding: 0 0.55rem;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.sunny-rich-editor-toolbar button:hover,
+.sunny-rich-editor-toolbar button[aria-pressed="true"] {
+  background: var(--writing-active-bg);
+  color: var(--writing-accent);
+}
+
+.sunny-rich-editor-style-select:hover {
+  background: var(--writing-active-bg);
+}
+
+.sunny-rich-editor-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.sunny-rich-editor-toolbar-divider {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--writing-rule);
+  margin-inline: 0.2rem;
+  flex-shrink: 0;
+}
+
+.sunny-rich-editor-bubble-menu button {
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -1817,9 +1900,7 @@ html[data-theme="dark"] .sunny-writing-meta-head button:hover {
   padding: 0 0.55rem;
 }
 
-.sunny-rich-editor-toolbar button:hover,
 .sunny-rich-editor-bubble-menu button:hover,
-.sunny-rich-editor-toolbar button[aria-pressed="true"],
 .sunny-rich-editor-bubble-menu button[aria-pressed="true"] {
   background: var(--writing-active-bg);
   color: var(--writing-accent);
@@ -1834,10 +1915,55 @@ html[data-theme="dark"] .sunny-writing-meta-head button:hover {
   left: 0;
 }
 
-.sunny-rich-editor-ai-actions {
-  display: inline-flex;
-  gap: 0.2rem;
+.sunny-rich-editor-ai-dropdown {
+  position: relative;
   margin-left: auto;
+}
+
+.sunny-rich-editor-ai-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.sunny-rich-editor-ai-trigger .sunny-dashboard-nav-icon {
+  width: 0.625rem;
+  height: 0.625rem;
+  transition: transform 180ms ease;
+}
+
+.sunny-rich-editor-ai-trigger[aria-expanded="true"] .sunny-dashboard-nav-icon {
+  transform: rotate(180deg);
+}
+
+.sunny-rich-editor-ai-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 20;
+  display: grid;
+  gap: 0.15rem;
+  min-width: 9rem;
+  border: 1px solid var(--writing-rule);
+  border-radius: 12px;
+  background: var(--writing-card-bg);
+  box-shadow: var(--writing-shadow);
+  padding: 0.35rem;
+}
+
+.sunny-rich-editor-ai-menu button {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--writing-text);
+  font-size: 0.8125rem;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sunny-rich-editor-ai-menu button:hover {
+  background: var(--writing-hover);
 }
 
 .sunny-rich-editor-slash-popup {

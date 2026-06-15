@@ -33,7 +33,7 @@ type ContentEditorProps = {
   content: RichContentDocument;
   disabled?: boolean;
   onAiBubbleAction?: (payload: EditorBubbleAiPayload) => void;
-  onAiToolbarAction?: (action: "continue" | "extract_tags" | "generate_outline") => void;
+  onAiToolbarAction?: (action: "continue" | "extract_tags" | "generate_outline" | "generate_summary") => void;
   onChange: (content: RichContentDocument) => void;
   variant?: "default" | "writing";
 };
