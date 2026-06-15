@@ -656,18 +656,568 @@
   color: var(--accent-strong);
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   Dark Mode — Writing Studio
+   Token system: explicit hand-tuned values, not color-mix() inverted
+   Reference: Linear / Notion Dark / VS Code aesthetic
+   ═══════════════════════════════════════════════════════════════════ */
+
 html[data-theme="dark"] .sunny-writing-workspace {
-  --writing-rail-bg: color-mix(in srgb, var(--surface) 84%, var(--background));
-  --writing-panel-bg: color-mix(in srgb, var(--surface-strong) 90%, var(--foreground) 2%);
-  --writing-control-bg: color-mix(in srgb, var(--surface-strong) 82%, var(--foreground) 4%);
-  --writing-hover: color-mix(in srgb, var(--foreground) 8%, transparent);
-  --writing-active: color-mix(in srgb, var(--accent) 18%, var(--surface-strong));
-  --writing-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
-  background: var(--background);
+  /* ── Core tokens ── */
+  --writing-page-bg: #0f172a;
+  --writing-card-bg: #1e293b;
+  --writing-border: #334155;
+  --writing-text: #f8fafc;
+  --writing-muted: #64748b;
+  --writing-accent: #3b82f6;
+  --writing-active-bg: rgba(59, 130, 246, 0.14);
+  --writing-rail-bg: #111827;
+  --writing-panel-bg: #111827;
+  --writing-control-bg: #0f172a;
+  --writing-rule: #1f2937;
+  --writing-rule-strong: #334155;
+  --writing-hover: #273449;
+  --writing-active: rgba(59, 130, 246, 0.14);
+  --writing-active-text: #93c5fd;
+  --writing-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  background: #0f172a;
 }
 
+/* ── Topbar ── */
+
 html[data-theme="dark"] .sunny-writing-editor-topbar {
-  background: color-mix(in srgb, var(--surface-strong) 84%, transparent);
+  background: #1e293b;
+  border-bottom-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-writing-editor-topbar > span {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-writing-focus-title {
+  color: #f8fafc;
+}
+
+/* Save state */
+html[data-theme="dark"] .sunny-writing-save-state {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-writing-save-state[data-state="saved"] {
+  color: #22c55e;
+}
+
+html[data-theme="dark"] .sunny-writing-save-state[data-state="error"] {
+  color: #f87171;
+}
+
+/* Primary button — publish */
+html[data-theme="dark"] .sunny-writing-primary-button {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+html[data-theme="dark"] .sunny-writing-primary-button:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+html[data-theme="dark"] .sunny-writing-primary-button:disabled {
+  background: #1e3a5f;
+  border-color: #1e3a5f;
+  color: #64748b;
+  opacity: 0.6;
+}
+
+/* Secondary / icon / AI inline buttons */
+html[data-theme="dark"] .sunny-writing-secondary-button,
+html[data-theme="dark"] .sunny-writing-icon-button,
+html[data-theme="dark"] .sunny-writing-ai-inline-button {
+  background: transparent;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-writing-secondary-button:hover,
+html[data-theme="dark"] .sunny-writing-icon-button:hover,
+html[data-theme="dark"] .sunny-writing-ai-inline-button:hover {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .sunny-writing-secondary-button:disabled,
+html[data-theme="dark"] .sunny-writing-icon-button:disabled,
+html[data-theme="dark"] .sunny-writing-ai-inline-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ── Library sidebar ── */
+
+html[data-theme="dark"] .sunny-writing-library {
+  border-right-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-writing-library-head h2 {
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .sunny-writing-library-count {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+/* Search */
+html[data-theme="dark"] .sunny-writing-library-search input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-writing-library-search input::placeholder {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-writing-library-search input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* Filter pills */
+html[data-theme="dark"] .sunny-writing-filter {
+  background: transparent;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-writing-filter:hover {
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-writing-filter.is-active {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(96, 165, 250, 0.3);
+  color: #93c5fd;
+}
+
+/* Create buttons */
+html[data-theme="dark"] .sunny-writing-create-button {
+  background: transparent;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-writing-create-button:hover {
+  background: #1e293b;
+}
+
+html[data-theme="dark"] .sunny-writing-create-menu {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .sunny-writing-create-menu button {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-writing-create-menu button:hover {
+  background: #273449;
+}
+
+/* Document rows */
+html[data-theme="dark"] .sunny-writing-document-row {
+  background: transparent;
+  border-color: transparent;
+}
+
+html[data-theme="dark"] .sunny-writing-document-row:hover {
+  background: #1e293b;
+}
+
+html[data-theme="dark"] .sunny-writing-document-row.is-active {
+  background: #172554;
+  border-color: rgba(96, 165, 250, 0.5);
+}
+
+html[data-theme="dark"] .sunny-writing-document-type {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-writing-document-status {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-writing-document-status.is-published {
+  color: #22c55e;
+}
+
+html[data-theme="dark"] .sunny-writing-document-title {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-writing-document-row time {
+  color: #64748b;
+}
+
+/* Document rename input */
+html[data-theme="dark"] .sunny-writing-document-rename {
+  background: #1e293b;
+  border-color: rgba(96, 165, 250, 0.5);
+  color: #f8fafc;
+}
+
+/* Document menu */
+html[data-theme="dark"] .sunny-writing-document-menu {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .sunny-writing-document-menu button {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-writing-document-menu button:hover {
+  background: #273449;
+}
+
+html[data-theme="dark"] .sunny-writing-document-menu .is-danger {
+  color: #f87171;
+}
+
+html[data-theme="dark"] .sunny-writing-empty {
+  color: #64748b;
+}
+
+/* ── Editor pane ── */
+
+html[data-theme="dark"] .sunny-writing-editor-pane {
+  background: #0b1120;
+}
+
+html[data-theme="dark"] .sunny-writing-title-input {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-writing-title-input::placeholder {
+  color: #475569;
+}
+
+html[data-theme="dark"] .sunny-writing-summary-input {
+  color: #e5e7eb;
+  border-bottom-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-writing-summary-input::placeholder {
+  color: #64748b;
+}
+
+/* Rich editor body */
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content {
+  color: #e5e7eb;
+}
+
+/* Headings */
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content h1 { color: #f8fafc; }
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content h2 { color: #f1f5f9; }
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content h3 { color: #e2e8f0; }
+
+/* Links */
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content a {
+  color: #60a5fa;
+}
+
+/* Blockquote */
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content blockquote {
+  border-left-color: #3b82f6;
+  color: #94a3b8;
+}
+
+/* Inline code */
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content code {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+}
+
+/* Code block */
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content pre {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content pre code {
+  background: transparent;
+  color: #e5e7eb;
+}
+
+/* Table */
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content th {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content th,
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content td {
+  border-color: #334155;
+}
+
+/* Image placeholder */
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-image-placeholder {
+  border-color: rgba(96, 165, 250, 0.3);
+  color: #64748b;
+}
+
+/* Empty state */
+html[data-theme="dark"] .sunny-writing-empty-state {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-writing-empty-state h2 {
+  color: #e5e7eb;
+}
+
+/* ── Toolbar (floating / bubble / slash menus) ── */
+
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-floating-menu,
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-slash-menu {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  padding: 0.35rem;
+}
+
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-floating-menu button,
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-slash-menu button,
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-image-action {
+  background: transparent;
+  border-color: transparent;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-floating-menu button:hover,
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-slash-menu button:hover,
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-image-action:hover {
+  background: #334155;
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-floating-menu button[aria-pressed="true"] {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+/* ── Meta panel ── */
+
+html[data-theme="dark"] .sunny-writing-meta-panel {
+  border-left-color: #1f2937;
+}
+
+/* Section headers */
+html[data-theme="dark"] .sunny-writing-meta-head h3,
+html[data-theme="dark"] .sunny-writing-side-section h3 {
+  color: #e5e7eb;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+html[data-theme="dark"] .sunny-writing-meta-head p,
+html[data-theme="dark"] .sunny-writing-side-muted {
+  color: #64748b;
+}
+
+/* Section dividers */
+html[data-theme="dark"] .sunny-writing-side-section {
+  border-bottom-color: #1f2937;
+}
+
+/* Field labels */
+html[data-theme="dark"] .sunny-writing-field span,
+html[data-theme="dark"] .sunny-writing-checkbox span {
+  color: #64748b;
+}
+
+/* Inputs / selects / textareas */
+html[data-theme="dark"] .sunny-writing-field input,
+html[data-theme="dark"] .sunny-writing-field select,
+html[data-theme="dark"] .sunny-writing-field textarea {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-writing-field input::placeholder,
+html[data-theme="dark"] .sunny-writing-field textarea::placeholder {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-writing-field input:focus,
+html[data-theme="dark"] .sunny-writing-field select:focus,
+html[data-theme="dark"] .sunny-writing-field textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* Publish section */
+html[data-theme="dark"] .sunny-writing-publish-head span {
+  background: rgba(250, 204, 21, 0.12);
+  color: #facc15;
+}
+
+html[data-theme="dark"] .sunny-writing-publish-head span[data-status="published"] {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+
+html[data-theme="dark"] .sunny-writing-publish-actions button,
+html[data-theme="dark"] .sunny-writing-publish-actions a {
+  background: transparent;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-writing-publish-actions button:hover,
+html[data-theme="dark"] .sunny-writing-publish-actions a:hover {
+  background: #1e293b;
+}
+
+/* Checkbox */
+html[data-theme="dark"] .sunny-writing-checkbox input {
+  accent-color: #3b82f6;
+}
+
+/* Outline list */
+html[data-theme="dark"] .sunny-writing-outline-list a {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-writing-outline-list a:hover {
+  color: #93c5fd;
+}
+
+/* Admin / advanced links */
+html[data-theme="dark"] .sunny-writing-admin-link {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-writing-admin-link:hover {
+  background: #273449;
+  color: #cbd5e1;
+}
+
+/* ── Panel toggle ── */
+
+html[data-theme="dark"] .sunny-writing-panel-toggle {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-writing-panel-toggle:hover {
+  background: #273449;
+  border-color: #475569;
+  color: #cbd5e1;
+}
+
+/* ── Preview pane ── */
+
+html[data-theme="dark"] .sunny-writing-preview-pane {
+  background: #0b1120;
+}
+
+html[data-theme="dark"] .sunny-writing-preview-article h1 {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-writing-preview-summary {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich {
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich h1,
+html[data-theme="dark"] .sunny-writing-preview-rich h2,
+html[data-theme="dark"] .sunny-writing-preview-rich h3 {
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich a {
+  color: #60a5fa;
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich blockquote {
+  border-left-color: #334155;
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich code {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich pre {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+/* ── Inline error ── */
+
+html[data-theme="dark"] .sunny-writing-inline-error {
+  color: #f87171;
+}
+
+/* ── Switch actions ── */
+
+html[data-theme="dark"] .sunny-writing-switch-actions {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .sunny-writing-switch-actions button {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-writing-switch-actions button:hover {
+  color: #f1f5f9;
+}
+
+/* ── Library empty state ── */
+
+html[data-theme="dark"] .sunny-writing-empty-state.is-library {
+  color: #64748b;
+}
+
+/* ── Eyebrow / subtle labels ── */
+
+html[data-theme="dark"] .sunny-writing-eyebrow {
+  color: #64748b;
+}
+
+/* ── Advanced links container ── */
+
+html[data-theme="dark"] .sunny-writing-advanced-links {
+  /* inherits, no override needed */
+}
+
+/* ── Editor buttons in topbar — reduced weight ── */
+
+html[data-theme="dark"] .sunny-writing-meta-head button,
+html[data-theme="dark"] .sunny-writing-meta-head button:hover {
+  background: transparent;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-writing-meta-head button:hover {
+  background: #1e293b;
+  color: #cbd5e1;
 }
 
 @media (max-width: 1180px) {
@@ -985,28 +1535,6 @@ html[data-theme="dark"] .sunny-writing-editor-topbar {
   flex-wrap: wrap;
   gap: 0.35rem;
   margin-top: 0.25rem;
-}
-
-/* Dark mode — preview */
-html[data-theme="dark"] .sunny-writing-preview-rich {
-  color: color-mix(in srgb, var(--foreground) 90%, var(--background));
-}
-
-/* Dark mode — document rename input */
-html[data-theme="dark"] .sunny-writing-document-rename {
-  background: color-mix(in srgb, var(--surface-strong) 86%, var(--foreground) 4%);
-}
-
-/* Dark mode — panel toggle hover */
-html[data-theme="dark"] .sunny-writing-panel-toggle:hover {
-  background: color-mix(in srgb, var(--accent) 18%, var(--surface-strong));
-}
-
-/* Dark mode — secondary button hover */
-html[data-theme="dark"] .sunny-writing-secondary-button:hover,
-html[data-theme="dark"] .sunny-writing-icon-button:hover,
-html[data-theme="dark"] .sunny-writing-ai-inline-button:hover {
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 .sunny-writing-secondary-button,
