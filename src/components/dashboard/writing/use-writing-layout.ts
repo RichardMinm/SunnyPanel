@@ -1,20 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const STORAGE_KEY = "sunny-writing-layout";
 
 export type WritingLayoutState = {
   focusMode: boolean;
   inspectorOpen: boolean;
+  inspectorPinned: boolean;
   libraryOpen: boolean;
+  libraryPinned: boolean;
   previewMode: boolean;
 };
 
 const defaultLayout: WritingLayoutState = {
   focusMode: false,
   inspectorOpen: true,
+  inspectorPinned: false,
   libraryOpen: true,
+  libraryPinned: false,
   previewMode: false,
 };
 
@@ -35,7 +39,9 @@ const readStoredLayout = (): WritingLayoutState => {
     return {
       focusMode: parsed.focusMode === true,
       inspectorOpen: parsed.inspectorOpen !== false,
+      inspectorPinned: parsed.inspectorPinned === true,
       libraryOpen: parsed.libraryOpen !== false,
+      libraryPinned: parsed.libraryPinned === true,
       previewMode: parsed.previewMode === true,
     };
   } catch {
@@ -53,6 +59,7 @@ const persistLayout = (layout: WritingLayoutState) => {
 
 export function useWritingLayout() {
   const [layout, setLayout] = useState<WritingLayoutState>(defaultLayout);
+  const preFocusLayout = useRef<null | WritingLayoutState>(null);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- hydrate layout preferences from localStorage */
@@ -65,9 +72,24 @@ export function useWritingLayout() {
       const next = { ...current, ...patch };
 
       if (patch.focusMode === true) {
+        // Save pre-focus state before collapsing everything
+        if (preFocusLayout.current === null) {
+          preFocusLayout.current = {
+            ...current,
+            focusMode: false,
+          };
+        }
         next.libraryOpen = false;
         next.inspectorOpen = false;
         next.previewMode = false;
+      }
+
+      if (patch.focusMode === false && preFocusLayout.current) {
+        // Restore pre-focus layout
+        next.libraryOpen = preFocusLayout.current.libraryOpen;
+        next.inspectorOpen = preFocusLayout.current.inspectorOpen;
+        next.inspectorPinned = preFocusLayout.current.inspectorPinned;
+        preFocusLayout.current = null;
       }
 
       if (patch.previewMode === true) {
@@ -89,6 +111,16 @@ export function useWritingLayout() {
     [updateLayout],
   );
 
+  const setInspectorPinned = useCallback(
+    (inspectorPinned: boolean) => updateLayout({ inspectorPinned }),
+    [updateLayout],
+  );
+
+  const setLibraryPinned = useCallback(
+    (libraryPinned: boolean) => updateLayout({ libraryPinned }),
+    [updateLayout],
+  );
+
   const setFocusMode = useCallback(
     (focusMode: boolean) => updateLayout({ focusMode }),
     [updateLayout],
@@ -100,41 +132,23 @@ export function useWritingLayout() {
   );
 
   const toggleFocusMode = useCallback(() => {
-    setLayout((current) => {
-      const nextFocus = !current.focusMode;
-      const next: WritingLayoutState = {
-        ...current,
-        focusMode: nextFocus,
-        inspectorOpen: nextFocus ? false : true,
-        libraryOpen: nextFocus ? false : true,
-        previewMode: false,
-      };
-
-      persistLayout(next);
-      return next;
-    });
-  }, []);
+    updateLayout({ focusMode: !layout.focusMode });
+  }, [layout.focusMode, updateLayout]);
 
   const togglePreviewMode = useCallback(() => {
-    setLayout((current) => {
-      const nextPreview = !current.previewMode;
-      const next: WritingLayoutState = {
-        ...current,
-        previewMode: nextPreview,
-        focusMode: false,
-        inspectorOpen: nextPreview ? false : current.inspectorOpen,
-      };
-
-      persistLayout(next);
-      return next;
+    updateLayout({
+      previewMode: !layout.previewMode,
+      focusMode: false,
     });
-  }, []);
+  }, [layout.previewMode, updateLayout]);
 
   return {
     layout,
     setFocusMode,
     setInspectorOpen,
+    setInspectorPinned,
     setLibraryOpen,
+    setLibraryPinned,
     setPreviewMode,
     toggleFocusMode,
     togglePreviewMode,

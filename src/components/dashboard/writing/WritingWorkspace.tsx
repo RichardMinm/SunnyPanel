@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/dashboard/agent/ConfirmDialog";
 import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
@@ -39,6 +39,7 @@ export function WritingWorkspace() {
   const {
     layout,
     setInspectorOpen,
+    setInspectorPinned,
     setLibraryOpen,
     toggleFocusMode,
     togglePreviewMode,
@@ -47,6 +48,84 @@ export function WritingWorkspace() {
   const [pendingSwitch, setPendingSwitch] = useState<null | WritingDocumentListItem>(null);
   const [deleteTarget, setDeleteTarget] = useState<null | WritingDocumentListItem>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  // Inspector peek state
+  const [peekOpen, setPeekOpen] = useState(false);
+  const peekTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const peekZoneRef = useRef<HTMLDivElement | null>(null);
+
+  const handlePeekEnter = useCallback(() => {
+    if (peekTimer.current) clearTimeout(peekTimer.current);
+    setPeekOpen(true);
+    setInspectorOpen(true);
+  }, [setInspectorOpen]);
+
+  const handlePeekLeave = useCallback(() => {
+    if (layout.inspectorPinned) return;
+    peekTimer.current = setTimeout(() => {
+      setPeekOpen(false);
+      setInspectorOpen(false);
+    }, 300);
+  }, [layout.inspectorPinned, setInspectorOpen]);
+
+  const handlePinInspector = useCallback(() => {
+    setInspectorPinned(!layout.inspectorPinned);
+  }, [layout.inspectorPinned, setInspectorPinned]);
+
+  // Esc key — exit focus / close peek
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (layout.focusMode) {
+          toggleFocusMode();
+          return;
+        }
+        if (peekOpen && !layout.inspectorPinned) {
+          setPeekOpen(false);
+          setInspectorOpen(false);
+          return;
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [layout.focusMode, layout.inspectorPinned, peekOpen, setInspectorOpen, toggleFocusMode]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+
+      if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        void flushSave();
+        return;
+      }
+      if (e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        togglePreviewMode();
+        return;
+      }
+      if (e.shiftKey && (e.key === "f" || e.key === "F")) {
+        e.preventDefault();
+        toggleFocusMode();
+        return;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [flushSave, toggleFocusMode, togglePreviewMode]);
+
+  // beforeunload guard
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
   const handleCreateDocument = useCallback(
     (collection: DashboardContentCollection) => {
@@ -111,10 +190,13 @@ export function WritingWorkspace() {
     [draft, updateDraft],
   );
 
+  const inspectorVisible = layout.inspectorOpen || peekOpen;
+  const libraryVisible = layout.libraryOpen;
+
   const workspaceClassName = [
     "sunny-writing-workspace",
-    layout.libraryOpen ? "is-library-open" : "is-library-collapsed",
-    layout.inspectorOpen ? "is-inspector-open" : "is-inspector-collapsed",
+    libraryVisible ? "is-library-open" : "is-library-collapsed",
+    inspectorVisible ? "is-inspector-open" : "is-inspector-collapsed",
     layout.focusMode ? "is-focus-mode" : "",
     layout.previewMode ? "is-preview-mode" : "",
   ]
@@ -123,12 +205,13 @@ export function WritingWorkspace() {
 
   return (
     <div className={workspaceClassName} data-testid="dashboard-writing-workspace">
-      {layout.libraryOpen && !layout.focusMode ? (
+      {libraryVisible && !layout.focusMode ? (
         <WritingLibrary
           activeDocument={selectedDocument}
           collectionFilter={collectionFilter}
           documents={documents}
           isLoading={isLoading}
+          onClose={() => setLibraryOpen(false)}
           onCollectionFilterChange={setCollectionFilter}
           onCreateDocument={handleCreateDocument}
           onDeleteDocument={setDeleteTarget}
@@ -170,26 +253,37 @@ export function WritingWorkspace() {
         />
       )}
 
-      {layout.inspectorOpen && !layout.focusMode && !layout.previewMode ? (
+      {inspectorVisible && !layout.focusMode && !layout.previewMode ? (
         <WritingMetaPanel
           document={selectedDocument}
           draft={draft}
+          isPinned={layout.inspectorPinned}
           onClose={() => setInspectorOpen(false)}
+          onPin={handlePinInspector}
           onPublish={publishDocument}
           onUnpublish={unpublishDocument}
           onUpdateMetadata={handleUpdateMetadata}
           saveState={saveState}
         />
       ) : !layout.focusMode && !layout.previewMode ? (
-        <button
-          aria-label="展开属性栏"
-          className="sunny-writing-panel-toggle is-inspector"
-          onClick={() => setInspectorOpen(true)}
-          title="展开属性栏"
-          type="button"
+        <div
+          ref={peekZoneRef}
+          className="sunny-writing-inspector-peek-zone"
+          onMouseEnter={handlePeekEnter}
         >
-          属性
-        </button>
+          <button
+            aria-label="展开属性栏"
+            className="sunny-writing-panel-toggle is-inspector"
+            onClick={() => {
+              setInspectorOpen(true);
+              setPeekOpen(true);
+            }}
+            title="展开属性栏"
+            type="button"
+          >
+            属性
+          </button>
+        </div>
       ) : null}
 
       <ConfirmDialog

@@ -9,6 +9,7 @@ import { createEmptyRichDocument } from "@/lib/rich-content/defaults";
 
 import { useWritingAssist, type WritingAssistAction } from "./use-writing-assist";
 import { canEditTitle, showsSummaryField } from "./writing-metadata";
+import { WritingStats } from "./WritingStats";
 import type { WritingDocument, WritingDraft, WritingSaveState } from "./writing-types";
 
 type WritingEditorPaneProps = {
@@ -297,6 +298,11 @@ export function WritingEditorPane({
           onAiToolbarAction={(action) => void handleAssist(action)}
           onChange={(contentRich) => onUpdateDraft({ contentRich })}
           variant="writing"
+        />
+        <WritingStats
+          contentJson={draft.contentRich}
+          lastEdited={document.updatedAt}
+          title={draft.title}
         />
       </div>
     </section>

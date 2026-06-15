@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 
@@ -34,6 +34,35 @@ export function WritingDocumentRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(document.title);
+  const [contextMenu, setContextMenu] = useState<null | { x: number; y: number }>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    window.addEventListener("mousedown", handler);
+    return () => window.removeEventListener("mousedown", handler);
+  }, [contextMenu]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleCopyLink = useCallback(async () => {
+    setContextMenu(null);
+    const url = `${window.location.origin}/dashboard?content=${document.collection}:${document.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // Fallback silently
+    }
+  }, [document.collection, document.id]);
 
   const finishRename = () => {
     const nextTitle = renameValue.trim();
@@ -46,6 +75,7 @@ export function WritingDocumentRow({
   return (
     <div
       className={`sunny-writing-document-row${active ? " is-active" : ""}`}
+      onContextMenu={handleContextMenu}
       onMouseLeave={() => setMenuOpen(false)}
       role="listitem"
     >
@@ -122,6 +152,19 @@ export function WritingDocumentRow({
           >
             删除
           </button>
+        </div>
+      ) : null}
+      {contextMenu ? (
+        <div
+          ref={contextMenuRef}
+          className="sunny-writing-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          role="menu"
+        >
+          <button onClick={() => { setRenaming(true); setRenameValue(document.title); setContextMenu(null); }} role="menuitem" type="button">重命名</button>
+          <button onClick={() => { onDuplicate(document); setContextMenu(null); }} role="menuitem" type="button">复制副本</button>
+          <button onClick={handleCopyLink} role="menuitem" type="button">复制链接</button>
+          <button className="is-danger" onClick={() => { onDelete(document); setContextMenu(null); }} role="menuitem" type="button">删除</button>
         </div>
       ) : null}
     </div>

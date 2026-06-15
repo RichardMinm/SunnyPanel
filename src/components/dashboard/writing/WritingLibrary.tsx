@@ -16,6 +16,7 @@ type WritingLibraryProps = {
   collectionFilter: WritingCollectionFilter;
   documents: WritingDocumentListItem[];
   isLoading: boolean;
+  onClose?: () => void;
   onCollectionFilterChange: (filter: WritingCollectionFilter) => void;
   onCreateDocument: (collection: DashboardContentCollection) => void;
   onDeleteDocument: (document: WritingDocumentListItem) => void;
@@ -29,6 +30,7 @@ export function WritingLibrary({
   collectionFilter,
   documents,
   isLoading,
+  onClose,
   onCollectionFilterChange,
   onCreateDocument,
   onDeleteDocument,
@@ -53,7 +55,7 @@ export function WritingLibrary({
 
   return (
     <aside className="sunny-writing-library" aria-label="内容库">
-      <WritingLibraryHeader onCreateDocument={onCreateDocument} />
+      <WritingLibraryHeader onClose={onClose} onCreateDocument={onCreateDocument} />
       <WritingLibrarySearch onChange={setSearchQuery} value={searchQuery} />
       <WritingLibraryFilters
         collectionFilter={collectionFilter}

@@ -18,7 +18,9 @@ import type {
 type WritingMetaPanelProps = {
   document: null | WritingDocument;
   draft: WritingDraft | null;
+  isPinned?: boolean;
   onClose?: () => void;
+  onPin?: () => void;
   onPublish: (document: WritingDocument) => Promise<null | WritingDocument>;
   onUnpublish: (document: WritingDocument) => Promise<null | WritingDocument>;
   onUpdateMetadata: <Key extends keyof WritingMetadataDraft>(
@@ -37,7 +39,9 @@ const updateTypes: Array<{ label: string; value: WritingMetadataDraft["type"] }>
 export function WritingMetaPanel({
   document,
   draft,
+  isPinned = false,
   onClose,
+  onPin,
   onPublish,
   onUnpublish,
   onUpdateMetadata,
@@ -71,17 +75,30 @@ export function WritingMetaPanel({
             {title} · #{document.id}
           </p>
         </div>
-        {onClose ? (
-          <button
-            aria-label="收起属性栏"
-            className="sunny-writing-icon-button"
-            onClick={onClose}
-            title="收起属性栏"
-            type="button"
-          >
-            ›
-          </button>
-        ) : null}
+        <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+          {onPin ? (
+            <button
+              aria-label={isPinned ? "取消固定属性栏" : "固定属性栏"}
+              className={`sunny-writing-meta-pin-button${isPinned ? " is-pinned" : ""}`}
+              onClick={onPin}
+              title={isPinned ? "取消固定" : "固定属性栏"}
+              type="button"
+            >
+              📌
+            </button>
+          ) : null}
+          {onClose ? (
+            <button
+              aria-label="收起属性栏"
+              className="sunny-writing-icon-button"
+              onClick={onClose}
+              title="收起属性栏"
+              type="button"
+            >
+              ›
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <WritingInspectorSection title="基本信息">

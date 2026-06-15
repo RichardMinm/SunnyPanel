@@ -9,6 +9,7 @@ import {
 } from "@/lib/dashboard/content/config";
 
 type WritingLibraryHeaderProps = {
+  onClose?: () => void;
   onCreateDocument: (collection: DashboardContentCollection) => void;
 };
 
@@ -17,7 +18,7 @@ const createOptions = dashboardContentCollections.map((collection) => ({
   label: `新${dashboardContentLabels[collection]}`,
 }));
 
-export function WritingLibraryHeader({ onCreateDocument }: WritingLibraryHeaderProps) {
+export function WritingLibraryHeader({ onClose, onCreateDocument }: WritingLibraryHeaderProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +72,17 @@ export function WritingLibraryHeader({ onCreateDocument }: WritingLibraryHeaderP
             </div>
           ) : null}
         </div>
+        {onClose ? (
+          <button
+            aria-label="收起内容库"
+            className="sunny-writing-icon-button"
+            onClick={onClose}
+            title="收起内容库"
+            type="button"
+          >
+            ◂
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -1774,6 +1774,169 @@ html[data-theme="dark"] .sunny-writing-meta-head button:hover {
   text-decoration: underline;
 }
 
+/* ── Inspector peek zone ── */
+
+.sunny-writing-inspector-peek-zone {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  z-index: 4;
+  cursor: e-resize;
+}
+
+.sunny-writing-meta-pin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--writing-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 160ms, color 160ms;
+}
+
+.sunny-writing-meta-pin-button:hover {
+  background: var(--writing-hover);
+  color: var(--writing-text);
+}
+
+.sunny-writing-meta-pin-button.is-pinned {
+  color: var(--writing-accent);
+  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+/* ── Section collapse ── */
+
+.sunny-writing-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--writing-text);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sunny-writing-section-header span {
+  display: inline-block;
+  transition: transform 160ms ease;
+  font-size: 10px;
+  color: var(--writing-muted);
+}
+
+.sunny-writing-section-header.is-collapsed span {
+  transform: rotate(-90deg);
+}
+
+.sunny-writing-section-body {
+  overflow: hidden;
+  transition: max-height 200ms ease, opacity 180ms ease;
+  max-height: 800px;
+  opacity: 1;
+}
+
+.sunny-writing-section-body.is-collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+/* ── Writing stats ── */
+
+.sunny-writing-stats {
+  display: flex;
+  gap: 1rem;
+  margin: 0;
+  padding: 0.6rem 0 2rem;
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+html[data-theme="dark"] .sunny-writing-stats {
+  color: #64748b;
+}
+
+/* ── Keyboard shortcut hints ── */
+
+.sunny-writing-kbd {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.32rem;
+  border: 1px solid var(--writing-rule);
+  border-radius: 4px;
+  background: var(--writing-control-bg);
+  color: var(--writing-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+/* ── Right-click context menu ── */
+
+.sunny-writing-context-menu {
+  position: fixed;
+  z-index: 50;
+  display: grid;
+  gap: 0.15rem;
+  min-width: 9rem;
+  border: 1px solid var(--writing-border);
+  border-radius: 12px;
+  background: var(--writing-card-bg);
+  box-shadow: var(--writing-shadow);
+  padding: 0.35rem;
+}
+
+.sunny-writing-context-menu button {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--writing-text);
+  font-size: 0.8125rem;
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sunny-writing-context-menu button:hover {
+  background: var(--writing-hover);
+}
+
+.sunny-writing-context-menu .is-danger {
+  color: #f87171;
+}
+
+/* ── Collapse icons in topbar ── */
+
+.sunny-writing-collapse-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--writing-rule);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--writing-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.sunny-writing-collapse-icon:hover {
+  background: var(--writing-hover);
+  color: var(--writing-text);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
