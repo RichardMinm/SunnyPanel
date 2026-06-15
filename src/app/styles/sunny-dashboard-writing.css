@@ -231,47 +231,6 @@
   scrollbar-color: color-mix(in srgb, var(--muted) 28%, transparent) transparent;
 }
 
-.sunny-writing-document-row {
-  display: grid;
-  gap: 0.18rem;
-  width: 100%;
-  padding: 0.58rem 0.62rem;
-  background: transparent;
-  color: var(--foreground);
-  text-align: left;
-  cursor: pointer;
-}
-
-.sunny-writing-document-row.is-active {
-  background: var(--writing-active);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
-.sunny-writing-document-row strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--foreground);
-  font-size: var(--text-sm-compact);
-  font-weight: 700;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sunny-writing-document-row span:not(.sunny-writing-document-kind) {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.sunny-writing-document-kind {
-  width: fit-content;
-  color: var(--accent-strong);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-}
-
 .sunny-writing-empty {
   margin: 0;
   padding: 0.75rem 0.55rem;
@@ -902,6 +861,152 @@ html[data-theme="dark"] .sunny-writing-editor-topbar {
   gap: 0.5rem;
   padding: 1.5rem 0.75rem;
   text-align: center;
+}
+
+/* ── Missing UI rules ── */
+
+.sunny-writing-secondary-button:hover,
+.sunny-writing-icon-button:hover,
+.sunny-writing-ai-inline-button:hover {
+  background: var(--writing-hover);
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--writing-rule));
+}
+
+.sunny-writing-secondary-button:disabled,
+.sunny-writing-icon-button:disabled,
+.sunny-writing-ai-inline-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.sunny-writing-panel-toggle:hover {
+  background: var(--writing-active);
+  color: var(--writing-active-text);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--writing-rule));
+}
+
+/* Inline rename input inside document row */
+.sunny-writing-document-rename {
+  position: absolute;
+  inset: 0.35rem;
+  z-index: 5;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--writing-rule));
+  border-radius: 10px;
+  background: var(--writing-control-bg);
+  color: var(--foreground);
+  font-family: var(--sunny-font-sans);
+  font-size: 0.8125rem;
+  padding: 0.45rem 0.55rem;
+  outline: none;
+}
+
+.sunny-writing-document-rename:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Preview rich content */
+.sunny-writing-preview-rich {
+  color: var(--foreground);
+  font-family: var(--sunny-font-sans);
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.sunny-writing-preview-rich p {
+  margin: 0 0 1rem;
+}
+
+.sunny-writing-preview-rich h1,
+.sunny-writing-preview-rich h2,
+.sunny-writing-preview-rich h3 {
+  margin: 1.5rem 0 0.6rem;
+  font-weight: 760;
+  line-height: 1.2;
+}
+
+.sunny-writing-preview-rich h1 { font-size: 1.75rem; }
+.sunny-writing-preview-rich h2 { font-size: 1.35rem; }
+.sunny-writing-preview-rich h3 { font-size: 1.1rem; }
+
+.sunny-writing-preview-rich a {
+  color: var(--accent-strong);
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+.sunny-writing-preview-rich blockquote {
+  border-left: 3px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  margin: 1rem 0;
+  padding-left: 1rem;
+  color: color-mix(in srgb, var(--foreground) 74%, var(--muted));
+}
+
+.sunny-writing-preview-rich ul,
+.sunny-writing-preview-rich ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.sunny-writing-preview-rich li {
+  margin-bottom: 0.25rem;
+}
+
+.sunny-writing-preview-rich code {
+  border-radius: 0.35rem;
+  background: var(--agent-code-inline-bg);
+  font-family: var(--sunny-font-mono);
+  font-size: 0.9em;
+  padding: 0.08rem 0.28rem;
+}
+
+.sunny-writing-preview-rich pre {
+  border: 1px solid var(--writing-rule);
+  border-radius: 0.5rem;
+  background: var(--agent-code-block-bg);
+  overflow-x: auto;
+  padding: 0.9rem 1rem;
+  margin: 1rem 0;
+}
+
+.sunny-writing-preview-rich pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.sunny-writing-preview-rich img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+  box-shadow: var(--writing-shadow);
+}
+
+/* Advanced links container in meta panel */
+.sunny-writing-advanced-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+/* Dark mode — preview */
+html[data-theme="dark"] .sunny-writing-preview-rich {
+  color: color-mix(in srgb, var(--foreground) 90%, var(--background));
+}
+
+/* Dark mode — document rename input */
+html[data-theme="dark"] .sunny-writing-document-rename {
+  background: color-mix(in srgb, var(--surface-strong) 86%, var(--foreground) 4%);
+}
+
+/* Dark mode — panel toggle hover */
+html[data-theme="dark"] .sunny-writing-panel-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-strong));
+}
+
+/* Dark mode — secondary button hover */
+html[data-theme="dark"] .sunny-writing-secondary-button:hover,
+html[data-theme="dark"] .sunny-writing-icon-button:hover,
+html[data-theme="dark"] .sunny-writing-ai-inline-button:hover {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 .sunny-writing-secondary-button,
