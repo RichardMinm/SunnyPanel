@@ -287,7 +287,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: clamp(2rem, 5vh, 3.4rem) clamp(1.25rem, 4vw, 3.75rem) 5rem;
+  padding: clamp(1.5rem, 4vh, 2.8rem) clamp(1.25rem, 4vw, 3.75rem) 5rem;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--muted) 24%, transparent) transparent;
 }
@@ -296,7 +296,7 @@
 .sunny-writing-editor-canvas > .sunny-writing-summary-row,
 .sunny-writing-editor-canvas > .sunny-writing-tiptap-editor,
 .sunny-writing-preview-canvas > .sunny-writing-preview-article {
-  width: min(100%, clamp(720px, 80%, 860px));
+  width: min(100%, 780px);
   margin-inline: auto;
 }
 
@@ -374,10 +374,23 @@
   min-height: 50vh;
   color: var(--writing-text);
   font-family: var(--sunny-font-sans);
-  font-size: 1rem;
+  font-size: 1.0625rem;
   letter-spacing: 0;
   line-height: 1.7;
   outline: none;
+}
+
+/* Placeholder styling for Tiptap */
+.sunny-writing-workspace .ProseMirror p.is-editor-empty:first-child::before {
+  float: left;
+  height: 0;
+  color: #64748b;
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+html[data-theme="dark"] .sunny-writing-workspace .ProseMirror p.is-editor-empty:first-child::before {
+  color: #64748b;
 }
 
 .sunny-writing-workspace .sunny-rich-editor-content:focus,
