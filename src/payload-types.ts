@@ -970,7 +970,7 @@ export interface AgentSuggestion {
    * 由 Agent 生成，用于避免同一条建议反复出现。
    */
   uniqueKey: string;
-  source: 'dashboard' | 'plan' | 'content' | 'timeline' | 'agent-run' | 'review';
+  source: 'dashboard' | 'plan' | 'content' | 'content-lifecycle' | 'timeline' | 'agent-run' | 'review';
   riskLevel: 'low' | 'medium' | 'high';
   status: 'pending' | 'accepted' | 'dismissed' | 'done';
   relatedPlan?: (number | null) | Plan;

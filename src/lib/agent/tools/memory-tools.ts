@@ -1,5 +1,4 @@
-import { upsertMemory, validateAgentMemoryData as validateAgentMemoryPayload } from "../memory";
-import { syncMemoryEmbedding } from "../memory-vector";
+import { persistMemoryWithEmbedding, validateAgentMemoryData as validateAgentMemoryPayload } from "../memory";
 import type { SaveMemoryArgs } from "../schemas";
 import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
 
@@ -27,15 +26,13 @@ export const saveMemoryFromIntent = async (
     lastUsedAt: new Date().toISOString(),
     status: "active",
   });
-  const memory = await upsertMemory({
+  const memory = await persistMemoryWithEmbedding({
     confidence: data.confidence,
     content: data.content!,
     lastUsedAt: data.lastUsedAt ?? null,
     title: data.title,
     type: data.type,
   });
-
-  await syncMemoryEmbedding(memory.id, `${memory.title}\n${memory.content}`).catch(() => undefined);
 
   onTrace?.({
     detail: `AgentMemory #${memory.id} · ${memory.type}`,

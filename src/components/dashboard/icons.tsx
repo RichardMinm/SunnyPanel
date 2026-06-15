@@ -10,6 +10,7 @@ export type DashboardIconName =
   | "command"
   | "debug"
   | "document"
+  | "inbox"
   | "inspectorPanel"
   | "memory"
   | "new"
@@ -73,6 +74,12 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
     <>
       <path d="M6.25 4.25h4.5l3 3v8.5h-7.5z" />
       <path d="M10.75 4.25v3h3M7.5 9.75h5M7.5 12.25h3.5" />
+    </>
+  ),
+  inbox: (
+    <>
+      <path d="M4.5 4.75h11v10.5h-11z" />
+      <path d="M4.5 11h3l1.5 2h2l1.5-2h3" />
     </>
   ),
   inspectorPanel: (
@@ -182,6 +189,7 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
 const INSPECTOR_TAB_ICONS: Record<AgentInspectorTab, DashboardIconName> = {
   approval: "checklist",
   context: "thinking",
+  inbox: "inbox",
   linked: "project",
   memory: "memory",
   review: "review",

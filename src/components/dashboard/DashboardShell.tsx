@@ -5,11 +5,8 @@ import type { AgentChatMessage, AgentTraceStep, AgentTokenUsage, PendingAction, 
 import type { AgentInspectorTab, AgentRunDetail, AgentThreadSummary, ContextPreferences } from "@/components/dashboard/agent/types";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
-import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
 import { AppShell } from "./AppShell";
 import type { DashboardIconMode } from "./DashboardIconBar";
-import { DashboardWorkbenchHome } from "./workbench/DashboardWorkbenchHome";
-import type { WorkbenchData } from "@/lib/dashboard/load-workbench-data";
 import { DashboardInspectorControlProvider } from "./DashboardInspectorControlContext";
 import { DashboardModeProvider } from "./DashboardModeContext";
 import { DashboardRightPanel } from "./DashboardRightPanel";
@@ -22,7 +19,7 @@ import { ScheduleMonthView } from "./schedule/ScheduleMonthView";
 import { MemoryCardGrid } from "./memory/MemoryCardGrid";
 import { TimelineView } from "./timeline/TimelineView";
 import { WritingWorkspace } from "./writing/WritingWorkspace";
-import { DashboardViewTransition } from "./motion/DashboardViewTransition";
+import { WritingLayoutProvider } from "./writing/WritingLayoutContext";
 
 
 type DashboardShellProps = {
@@ -31,8 +28,6 @@ type DashboardShellProps = {
   artifactsRollbackBusy?: boolean;
   artifactsRollbackError?: null | string;
   contextPreferences: ContextPreferences;
-  initialSuggestions: AgentInboxSuggestion[];
-  workbenchData: WorkbenchData;
   isSubmitting: boolean;
   /* Right panel */
   inputTokenEstimate: number;
@@ -43,14 +38,13 @@ type DashboardShellProps = {
   tokenUsage: AgentTokenUsage;
   onInspectorTabChange: (tab: AgentInspectorTab) => void;
   onArtifactsRollback?: () => void;
+  onPrefillComposer?: (prompt: string) => void;
   onRollbackSelectedRun?: () => void;
   onToggleContextExclude: (key: string) => void;
   onToggleContextPin: (key: string) => void;
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
   onRunPrompt: (prompt: string) => void;
-  onAcceptSuggestion: (id: number) => Promise<void>;
-  onDismissSuggestion: (id: number) => Promise<void>;
   onArchiveThread: (id: number) => Promise<boolean>;
   onDeleteThread: (id: number) => Promise<boolean>;
   pendingAction: null | PendingAction;
@@ -69,35 +63,31 @@ const dashboardUrlModes = new Set<DashboardIconMode>([
   "checklist",
   "memory",
   "schedule",
-  "today",
   "timeline",
   "writing",
 ]);
 
-const parseDashboardUrlMode = (value: null | string): DashboardIconMode | null =>
-  dashboardUrlModes.has(value as DashboardIconMode) ? (value as DashboardIconMode) : null;
+const parseDashboardUrlMode = (value: null | string): DashboardIconMode =>
+  dashboardUrlModes.has(value as DashboardIconMode) ? (value as DashboardIconMode) : "agent";
 
 export function DashboardShell({
   activeInspectorTab,
   artifactsRollbackBusy,
   artifactsRollbackError,
   contextPreferences,
-  initialSuggestions,
-  workbenchData,
   isSubmitting,
   inputTokenEstimate,
   lastRollbackPayload,
   lastRollbackResult,
   messages,
   children,
-  onAcceptSuggestion,
-  onDismissSuggestion,
   onLoadThread,
   onNewThread,
   onArchiveThread,
   onDeleteThread,
   onInspectorTabChange,
   onArtifactsRollback,
+  onPrefillComposer,
   onRollbackSelectedRun,
   onRunPrompt,
   onToggleContextExclude,
@@ -123,9 +113,10 @@ export function DashboardShell({
     [],
   );
 
-  const [activeMode, setActiveMode] = useState<DashboardIconMode>("today");
+  const [activeMode, setActiveMode] = useState<DashboardIconMode>("agent");
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelWidth, setPanelWidth] = useState(340);
+  const [writingFocusMode, setWritingFocusMode] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [lastExecutedAction, setLastExecutedAction] = useState<ProposedAgentAction | null>(null);
   const suppressAutoOpenRef = useRef(false);
@@ -144,7 +135,7 @@ export function DashboardShell({
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- hydrate Dashboard mode from URL after the client route is available */
     const mode = parseDashboardUrlMode(new URLSearchParams(window.location.search).get("mode"));
-    if (mode) {
+    if (mode !== "agent") {
       setActiveMode(mode);
     }
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -209,16 +200,13 @@ export function DashboardShell({
     (_mode: DashboardIconMode, prompt: string) => {
       setActiveMode(_mode);
       const params = new URLSearchParams(window.location.search);
-      if (_mode === "today") {
+      if (_mode === "agent") {
         params.delete("mode");
       } else {
         params.set("mode", _mode);
       }
       const nextQuery = params.toString();
       window.history.replaceState(null, "", nextQuery ? `/dashboard?${nextQuery}` : "/dashboard");
-      if (_mode !== "agent") {
-        setPanelOpen(false);
-      }
       const wm = iconModeToWorkbenchMode[_mode];
       if (wm) {
         onWorkbenchModeChange?.(wm);
@@ -234,18 +222,12 @@ export function DashboardShell({
     suppressAutoOpenRef.current = true;
     setPanelOpen(false);
     setLastExecutedAction(null);
-    setActiveMode("agent");
     onNewThread();
     window.requestAnimationFrame(() => {
       setPanelOpen(false);
       suppressAutoOpenRef.current = false;
     });
   }, [onNewThread]);
-
-  const handleLoadThread = useCallback((threadId: number) => {
-    setActiveMode("agent");
-    onLoadThread(threadId);
-  }, [onLoadThread]);
 
   const handleTogglePanel = useCallback(() => {
     setPanelOpen((v) => !v);
@@ -310,74 +292,60 @@ export function DashboardShell({
   );
 
   return (
-    <AppShell panelOpen={panelOpen} panelWidth={panelWidth}>
+    <AppShell
+      panelOpen={activeMode !== "writing" && panelOpen}
+      panelWidth={panelWidth}
+      sidebarCollapsed={activeMode === "writing" && writingFocusMode}
+    >
       <SidebarNav
         activeMode={activeMode}
-        initialSuggestions={initialSuggestions}
         onArchiveThread={onArchiveThread}
         onDeleteThread={onDeleteThread}
-        onLoadThread={handleLoadThread}
+        onLoadThread={onLoadThread}
         onModeChange={handleModeChange}
         onNewThread={handleNewThread}
         threadId={threadId}
+        threadListMode={activeMode === "writing" ? "compact" : "full"}
         threads={threads}
       />
 
       <MainWorkspace>
-        <DashboardViewTransition modeKey={activeMode}>
-          {activeMode === "today" ? (
-            <DashboardWorkbenchHome
-              suggestions={initialSuggestions}
-              workbenchData={workbenchData}
-              onModeChange={handleModeChange}
-              onAcceptSuggestion={onAcceptSuggestion}
-              onDismissSuggestion={onDismissSuggestion}
-            />
-          ) : activeMode === "schedule" ? (
-            <ScheduleMonthView
-              onBackToWorkbench={() => setActiveMode("today")}
-              threadId={threadId}
-              isSubmitting={isSubmitting}
-              onNewSchedule={(date) => {
-                setActiveMode("agent");
-                onRunPrompt(`为 ${date} 创建一条新的日程安排`);
-              }}
-            />
-          ) : activeMode === "memory" ? (
-            <MemoryCardGrid
-              onBackToWorkbench={() => setActiveMode("today")}
-              threadId={threadId}
-            />
-          ) : activeMode === "checklist" ? (
-            <ChecklistView
-              onBackToWorkbench={() => setActiveMode("today")}
-              threadId={threadId}
-            />
-          ) : activeMode === "timeline" ? (
-            <TimelineView
-              onBackToWorkbench={() => setActiveMode("today")}
-              threadId={threadId}
-              onModeChange={(mode) => {
-                setActiveMode(mode as DashboardIconMode);
-              }}
-              onNewTimelineEvent={() => {
-                setActiveMode("agent");
-                onRunPrompt("为今天添加一条时间线记录");
-              }}
-            />
-          ) : activeMode === "writing" ? (
+        {activeMode === "schedule" ? (
+          <ScheduleMonthView
+            onBackToWorkbench={() => setActiveMode("agent")}
+            threadId={threadId}
+            isSubmitting={isSubmitting}
+          />
+        ) : activeMode === "memory" ? (
+          <MemoryCardGrid
+            onBackToWorkbench={() => setActiveMode("agent")}
+            threadId={threadId}
+          />
+        ) : activeMode === "checklist" ? (
+          <ChecklistView
+            onBackToWorkbench={() => setActiveMode("agent")}
+            threadId={threadId}
+          />
+        ) : activeMode === "timeline" ? (
+          <TimelineView
+            onBackToWorkbench={() => setActiveMode("agent")}
+            threadId={threadId}
+          />
+        ) : activeMode === "writing" ? (
+          <WritingLayoutProvider onFocusModeChange={setWritingFocusMode}>
             <WritingWorkspace />
-          ) : (
-            <DashboardInspectorControlProvider value={inspectorControl}>
-              <DashboardModeProvider value={activeMode}>
-                {children}
-              </DashboardModeProvider>
-            </DashboardInspectorControlProvider>
-          )}
-        </DashboardViewTransition>
+          </WritingLayoutProvider>
+        ) : (
+          <DashboardInspectorControlProvider value={inspectorControl}>
+            <DashboardModeProvider value={activeMode}>
+              {children}
+            </DashboardModeProvider>
+          </DashboardInspectorControlProvider>
+        )}
       </MainWorkspace>
 
-      <DashboardRightPanel
+      {activeMode !== "writing" ? (
+        <DashboardRightPanel
         action={confirmationAction}
         lastExecutedAction={lastExecutedAction}
         activeInspectorTab={activeInspectorTab}
@@ -393,6 +361,7 @@ export function DashboardShell({
         onResizeStart={handleResizeStart}
         onArtifactsRollback={onArtifactsRollback}
         onInspectorTabChange={handleInspectorTabChange}
+        onPrefillComposer={onPrefillComposer}
         onTogglePanel={handleTogglePanel}
         panelOpen={panelOpen}
         onRollbackSelectedRun={onRollbackSelectedRun}
@@ -407,23 +376,23 @@ export function DashboardShell({
         tokenUsage={tokenUsage}
         traceSteps={traceSteps}
         workbenchMode={workbenchMode}
-      />
-      <button
-        type="button"
-        className="sunny-dashboard-inspector-toggle"
-        aria-label={panelOpen ? "收起检查器" : "展开检查器"}
-        title={panelOpen ? "收起检查器" : "展开检查器"}
-        onClick={handleTogglePanel}
-      >
-        <InspectorPanelIcon open={panelOpen} />
-      </button>
+        />
+      ) : null}
+      {activeMode !== "writing" ? (
+        <button
+          type="button"
+          className="sunny-dashboard-inspector-toggle"
+          aria-label={panelOpen ? "收起检查器" : "展开检查器"}
+          title={panelOpen ? "收起检查器" : "展开检查器"}
+          onClick={handleTogglePanel}
+        >
+          <InspectorPanelIcon open={panelOpen} />
+        </button>
+      ) : null}
 
       {activeMode !== "schedule" && (
         <DashboardStatusBar
-          isProduction={process.env.NODE_ENV === "production"}
           statusLabel={statusLabel}
-          threadId={threadId}
-          tokenSummary={tokenUsage ? `${tokenUsage.totalTokens} tokens` : undefined}
         />
       )}
     </AppShell>

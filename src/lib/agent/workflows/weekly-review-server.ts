@@ -37,8 +37,22 @@ export const executeWeeklyReviewFromIntent = async (
     title: "本周回顾已生成",
   });
 
+  const rollbackPayload = result.reviewId
+    ? {
+        reason: "删除本次 Weekly Review 创建的 PlanReview、AgentRun，并将自动生成的建议归档为 dismissed。",
+        strategy: "delete_created_weekly_review_artifacts" as const,
+        target: {
+          agentRunId: result.agentRunId ?? null,
+          collection: "plan-reviews" as const,
+          planReviewId: result.reviewId,
+          suggestionIds: result.suggestionIds ?? [],
+        },
+      }
+    : undefined;
+
   return {
     assistantMessage: result.assistantMessage,
     pendingAction: null,
+    ...(rollbackPayload ? { rollbackPayload } : {}),
   };
 };

@@ -1,7 +1,7 @@
 import { createScheduleItem } from "@/lib/schedule/items";
 
 import type { ComposeScheduleItemArgs } from "../schemas";
-import { composeScheduleProposal } from "../workflows/schedule-composer";
+import { composeScheduleProposalAsync } from "../workflows/schedule-composer";
 import { validateScheduleItemData } from "../write-schemas";
 import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
 
@@ -9,51 +9,12 @@ export const composeScheduleItemFromIntent = async (
   args: ComposeScheduleItemArgs,
   onTrace?: AgentExecutionTraceReporter,
 ): Promise<AgentToolResult> => {
-  // #region agent log
-  fetch("http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0c1aec" },
-    body: JSON.stringify({
-      sessionId: "0c1aec",
-      runId: "pre-fix",
-      hypothesisId: "A",
-      location: "schedule-compose.ts:composeScheduleItemFromIntent",
-      message: "execute entry args",
-      data: {
-        hasProposal: Boolean(args.proposal),
-        sourceText: args.sourceText ?? null,
-        date: args.date ?? null,
-        title: args.title ?? null,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
-  const proposal = composeScheduleProposal(args);
+  // 与 dryRun 保持一致：若用户确认的提案已携带（args.proposal），直接复用；
+  // 否则走与 dryRun 相同的 LLM 时间解析链路，避免“确认的提案 ≠ 实际写入”。
+  const proposal = await composeScheduleProposalAsync(args);
   const timeRange = proposal.isAllDay
     ? "全天"
     : [proposal.startTime, proposal.endTime].filter(Boolean).join("-") || "未定时间";
-
-  // #region agent log
-  fetch("http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0c1aec" },
-    body: JSON.stringify({
-      sessionId: "0c1aec",
-      runId: "pre-fix",
-      hypothesisId: "C",
-      location: "schedule-compose.ts:composeScheduleItemFromIntent:proposal",
-      message: "execute composed proposal",
-      data: {
-        proposalDate: proposal.date,
-        proposalTitle: proposal.title,
-        timeRange,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   onTrace?.({
     detail: `${proposal.date} ${timeRange}`,

@@ -1,4 +1,3 @@
-import { MarkdownEditorField as MarkdownEditorField_eecf8429ed7564f996f789fceeb182e6 } from '@/components/editor/MarkdownEditorField'
 import { SunnyAdminNav as SunnyAdminNav_be1b76c448da3d8b77dc74b939906527 } from '@/components/admin/SunnyAdminNav'
 import { SunnyAdminHeader as SunnyAdminHeader_056fb99630ee287d8ef81317b0c44c98 } from '@/components/admin/SunnyAdminHeader'
 import { SunnyAdminIcon as SunnyAdminIcon_d69fa598592b86794c7f73e5fade1a6b } from '@/components/admin/SunnyAdminIcon'
@@ -9,7 +8,6 @@ import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } f
 
 /** @type import('payload').ImportMap */
 export const importMap = {
-  "@/components/editor/MarkdownEditorField#MarkdownEditorField": MarkdownEditorField_eecf8429ed7564f996f789fceeb182e6,
   "@/components/admin/SunnyAdminNav#SunnyAdminNav": SunnyAdminNav_be1b76c448da3d8b77dc74b939906527,
   "@/components/admin/SunnyAdminHeader#SunnyAdminHeader": SunnyAdminHeader_056fb99630ee287d8ef81317b0c44c98,
   "@/components/admin/SunnyAdminIcon#SunnyAdminIcon": SunnyAdminIcon_d69fa598592b86794c7f73e5fade1a6b,

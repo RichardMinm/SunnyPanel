@@ -1,9 +1,12 @@
 export {
   createAgentBus,
+  formatUpstreamContext,
   mergeTaskArgsWithBus,
-  publishAgentResult,
   publishBusMessage,
   publishTaskArtifact,
+  publishTaskIntent,
+  publishTaskNote,
+  resolveUpstreamTaskIds,
 } from "./bus";
 export type { AgentBusMessage, AgentBusState } from "./bus";
 export { groupTasksByAgent, routeTaskToAgent } from "./router";

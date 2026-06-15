@@ -3,8 +3,6 @@
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { buildDashboardHref } from "@/lib/dashboard/dashboard-href";
-
 export function useDashboardUrlThreadSync(threadId: number | null, enabled: boolean) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -14,16 +12,18 @@ export function useDashboardUrlThreadSync(threadId: number | null, enabled: bool
       return;
     }
 
-    const week = searchParams.get("week");
-    const currentThreadId = searchParams.get("threadId");
-    const nextHref = buildDashboardHref({
-      threadId,
-      week,
-    });
-    const currentHref = buildDashboardHref({
-      threadId: currentThreadId ? Number(currentThreadId) : null,
-      week,
-    });
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (threadId != null) {
+      params.set("threadId", String(threadId));
+    } else {
+      params.delete("threadId");
+    }
+
+    const nextQuery = params.toString();
+    const nextHref = nextQuery ? `/dashboard?${nextQuery}` : "/dashboard";
+    const currentQuery = searchParams.toString();
+    const currentHref = currentQuery ? `/dashboard?${currentQuery}` : "/dashboard";
 
     if (nextHref !== currentHref) {
       router.replace(nextHref, { scroll: false });

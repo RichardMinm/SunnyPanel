@@ -7,10 +7,12 @@ export const enrichQueryIntent = async (
   intent: AgentIntent,
   context: AgentPromptContext,
   message: string,
+  upstreamContext?: string,
 ): Promise<AgentIntent | null> =>
   enrichIntentWithAgentPrompt({
     buildSystemPrompt: buildQueryAgentSystemPrompt,
     context,
     intent,
     message,
+    upstreamContext,
   });

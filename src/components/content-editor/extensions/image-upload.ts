@@ -1,6 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
-import { Plugin } from "prosemirror-state";
+import { Plugin } from "@tiptap/pm/state";
 
 import { uploadDashboardImage } from "@/lib/editor/upload-dashboard-image";
 

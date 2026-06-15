@@ -45,6 +45,7 @@ const rollbackStrategyLabelMap: Record<string, string> = {
   delete_created_document: "删除刚创建的文档",
   delete_created_documents: "删除刚创建的一组文档",
   delete_created_timeline_event: "删除刚创建的时间线节点",
+  delete_created_weekly_review_artifacts: "删除本周回顾的 PlanReview 与运行记录",
   restore_checklist_groups: "恢复清单快照",
   restore_checklist_groups_and_timeline: "恢复清单并移除关联时间线",
   restore_schedule_item_snapshot: "恢复日程快照",

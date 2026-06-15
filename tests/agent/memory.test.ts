@@ -6,6 +6,11 @@ import {
   scoreAgentMemoryRelevance,
   validateAgentMemoryData,
 } from "../../src/lib/agent/memory-schema";
+import {
+  computeMemoryRankScore,
+  computeRecencyDecay,
+  reinforceMemoryConfidence,
+} from "../../src/lib/agent/memory-ranking";
 
 test("parses and validates memory input", () => {
   const parsed = parseAgentMemoryInput({
@@ -94,4 +99,42 @@ test("stopwords filtering prevents noise tokens from inflating scores", () => {
   );
 
   assert.ok(scoreWithContent > scoreWithStopwords, "content match should score higher than stopword-heavy query");
+});
+
+test("recency decay drops toward 0.5 around the half-life and stays in (0,1]", () => {
+  const now = Date.parse("2026-06-14T00:00:00.000Z");
+  const fresh = computeRecencyDecay("2026-06-14T00:00:00.000Z", now);
+  const halfLife = computeRecencyDecay("2026-05-01T00:00:00.000Z", now, 44);
+  const stale = computeRecencyDecay("2026-01-01T00:00:00.000Z", now);
+  const neverUsed = computeRecencyDecay(null, now);
+
+  assert.ok(fresh > 0.99 && fresh <= 1);
+  assert.ok(Math.abs(halfLife - 0.5) < 0.05);
+  assert.ok(stale < halfLife);
+  assert.ok(neverUsed > 0 && neverUsed < 1);
+});
+
+test("confidence reinforcement nudges upward but is capped", () => {
+  assert.equal(reinforceMemoryConfidence(0.7), 0.72);
+  assert.equal(reinforceMemoryConfidence(0.97), 0.97);
+  assert.equal(reinforceMemoryConfidence(0.965), 0.97);
+  assert.equal(reinforceMemoryConfidence(undefined), 0.72);
+});
+
+test("rank score ranks a frequently-used confident memory above a stale low-confidence one", () => {
+  const now = Date.parse("2026-06-14T00:00:00.000Z");
+  const freshConfident = computeMemoryRankScore({
+    baseScore: 60,
+    confidence: 0.95,
+    lastUsedAt: "2026-06-13T00:00:00.000Z",
+    now,
+  });
+  const staleWeak = computeMemoryRankScore({
+    baseScore: 60,
+    confidence: 0.4,
+    lastUsedAt: "2025-09-01T00:00:00.000Z",
+    now,
+  });
+
+  assert.ok(freshConfident > staleWeak);
 });

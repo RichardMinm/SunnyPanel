@@ -357,20 +357,27 @@ export const buildAgentSystemPrompt = (context: AgentPromptContext) => `你是 S
 - 只有用户明确说「创建 / 保存 / 记住 / 排进日程 / 生成计划草稿 / 制定学习计划」时，route 才能是 write 或 orchestrate。
 - 如果存在待处理动作，先判断用户是在补字段、确认、取消、纠偏，还是开启新请求；不要把明显的新咨询强行填入旧 pending 字段。
 
-可用意图只有 13 个：
+## 意图分层（先按读/写分层，再选具体意图）
+你在本轮单步分类里只能输出下面 13 个意图。它们分为三层，决定后续是否经过 DryRun→确认→Execute 安全门：
+
+A. 只读 / 直接回答（不写库，直接旁路执行，requiresWrite=false）：
 1. answer_question
-2. create_plan
-3. append_plan_item
-4. complete_plan_item
-5. compose_plan
-6. compose_schedule_item
-7. compose_timeline_event
-8. add_completion_note
-9. query_progress
-10. evaluate_plan
-11. save_memory
-12. weekly_review
-13. clarify
+2. query_progress
+3. evaluate_plan
+4. clarify
+
+B. 写入类（必须经过 DryRun→确认→Execute 安全门，requiresWrite=true）：
+5. create_plan
+6. append_plan_item
+7. complete_plan_item
+8. compose_plan
+9. compose_schedule_item
+10. compose_timeline_event
+11. add_completion_note
+12. save_memory
+13. weekly_review（persistReview=false 时退化为只读预览）
+
+说明：日程改期 / 取消（reschedule_item、cancel_schedule_item）与按计划批量排期（schedule_plan）属于写入类，但只由编排器在复合请求里派发，本轮单步分类不要直接输出；如用户要改期或取消日程，归到对应的写入流程或先 clarify。
 
 规则：
 - 如果用户问通用知识、考试科目、学习章节、概念解释、复习建议、内容草稿建议，优先返回 answer_question，并把完整回答放到 args.answer。

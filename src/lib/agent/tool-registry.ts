@@ -12,8 +12,6 @@ import type {
   ComposeScheduleItemArgs,
   ComposeTimelineEventArgs,
   CreatePlanArgs,
-  DeleteRecordArgs,
-  ModifyRecordArgs,
   PendingAction,
   ProposedAgentAction,
   QueryPlanProgressArgs,
@@ -120,6 +118,17 @@ type FindTimelineEvent = (args: {
   checklist: ChecklistDocument;
   item: ChecklistItem;
 }) => Promise<null | TimelineEventDocument>;
+export type ScheduleItemSnapshot = {
+  date?: null | string;
+  endTime?: null | string;
+  id: number;
+  isAllDay?: boolean | null;
+  priority?: null | string;
+  startTime?: null | string;
+  status?: null | string;
+  title?: null | string;
+};
+type ResolveScheduleItem = (itemId: number) => Promise<null | ScheduleItemSnapshot>;
 type ResolvedChecklistItem = NonNullable<Awaited<ReturnType<ResolveChecklistItem>>["resolved"]>;
 type ResolvedChecklistGroup = NonNullable<Awaited<ReturnType<ResolveChecklistGroupForAppend>>["resolved"]>;
 
@@ -139,7 +148,7 @@ export type AgentToolDryRunContext = {
   promptContext?: AgentPromptContext;
   resolveChecklistGroupForAppend?: ResolveChecklistGroupForAppend;
   resolveChecklistItem?: ResolveChecklistItem;
-  userMessage?: string;
+  resolveScheduleItem?: ResolveScheduleItem;
 };
 
 export type AgentToolExecutionContext = {
@@ -232,8 +241,6 @@ type AgentToolRegistry = {
   save_memory: AgentToolDefinition<"save_memory", SaveMemoryArgs>;
   schedule_plan: AgentToolDefinition<"schedule_plan", SchedulePlanArgs>;
   weekly_review: AgentToolDefinition<"weekly_review", WeeklyReviewArgs>;
-  delete_record: AgentToolDefinition<"delete_record", DeleteRecordArgs>;
-  modify_record: AgentToolDefinition<"modify_record", ModifyRecordArgs>;
 };
 
 const visibilityOf = (doc: Pick<ChecklistDocument, "visibility">) =>
@@ -666,36 +673,7 @@ const composeScheduleItemDryRun = async (
   args: ComposeScheduleItemArgs,
   context: AgentToolDryRunContext,
 ): Promise<AgentToolDryRunResult> => {
-  let enrichedArgs = args;
-
-  if (isScheduleComposerDateAmbiguous(enrichedArgs, context.now)) {
-    const userMessage = context.userMessage?.trim() ?? "";
-
-    if (userMessage && !isScheduleComposerDateAmbiguous({ ...enrichedArgs, sourceText: userMessage }, context.now)) {
-      enrichedArgs = { ...enrichedArgs, sourceText: userMessage };
-    }
-  }
-
-  // #region agent log
-  fetch("http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0c1aec" },
-    body: JSON.stringify({
-      sessionId: "0c1aec",
-      runId: "pre-fix",
-      hypothesisId: "B",
-      location: "tool-registry.ts:composeScheduleItemDryRun",
-      message: "dry-run args after enrich",
-      data: {
-        argsSourceText: args.sourceText ?? null,
-        enrichedSourceText: enrichedArgs.sourceText ?? null,
-        userMessagePresent: Boolean(context.userMessage?.trim()),
-        dateAmbiguous: isScheduleComposerDateAmbiguous(enrichedArgs, context.now),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
+  const enrichedArgs = args;
 
   if (isScheduleComposerDateAmbiguous(enrichedArgs, context.now)) {
     return createClarifyResult({
@@ -734,32 +712,9 @@ const composeScheduleItemDryRun = async (
     } satisfies ScheduleComposerContext,
   );
   const nextArgs: ComposeScheduleItemArgs = {
-    ...enrichedArgs,
+    ...args,
     proposal,
   };
-
-  // #region agent log
-  fetch("http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0c1aec" },
-    body: JSON.stringify({
-      sessionId: "0c1aec",
-      runId: "pre-fix",
-      hypothesisId: "B",
-      location: "tool-registry.ts:composeScheduleItemDryRun:proposed",
-      message: "dry-run proposal snapshot",
-      data: {
-        proposalDate: proposal.date,
-        proposalTitle: proposal.title,
-        proposalStart: proposal.startTime ?? null,
-        proposalEnd: proposal.endTime ?? null,
-        nextArgsHasProposal: Boolean(nextArgs.proposal),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-
   const timePreview = proposal.isAllDay
     ? "全天"
     : [proposal.startTime, proposal.endTime].filter(Boolean).join("-") || "未定时间";
@@ -999,21 +954,8 @@ const queryPlanProgressDryRun = async (
       affectedDocuments: [],
       afterSnapshot: null,
       beforeSnapshot: null,
-      changes: [
-        {
-          afterPreview: targetPlan
-            ? `将读取计划「${targetPlan.title}」的阶段数据、进度和关联日程。`
-            : "将根据标题或 ID 查找计划并读取进度。",
-          beforePreview: "当前仅知道查询意图。",
-          collection: "plans",
-          operation: "create",
-          preview: targetPlan
-            ? `查询计划「${targetPlan.title}」的阶段进度`
-            : "根据标题或 ID 查询计划进度",
-          timelineAffected: false,
-          visibility: "private",
-        },
-      ],
+      // 只读查询不产生任何写入变更；保持 changes 为空以避免误报为 create 操作。
+      changes: [],
       requiresConfirmation: false,
       rollbackAvailable: false,
     },
@@ -1097,9 +1039,14 @@ const rescheduleItemDryRun = async (
 
   const hasDateChange = Boolean(args.newDate);
   const riskLevel: ToolRiskLevel = hasDateChange ? "medium" : "low";
+  const current = context.resolveScheduleItem ? await context.resolveScheduleItem(args.itemId) : null;
+  const beforeText = current
+    ? `原：${current.date ?? "?"} ${current.startTime ?? "?"}${current.endTime ? `-${current.endTime}` : ""} ${current.title ?? ""}`.trim()
+    : `日程 #${args.itemId}`;
 
   const changes: ProposedAgentAction["changes"] = [
     {
+      beforePreview: beforeText,
       collection: "schedule-items",
       documentId: args.itemId,
       operation: "update",
@@ -1115,6 +1062,21 @@ const rescheduleItemDryRun = async (
       visibility: "private",
     },
   ];
+
+  const beforeSnapshot = current
+    ? {
+        date: current.date ?? null,
+        endTime: current.endTime ?? null,
+        isAllDay: current.isAllDay ?? false,
+        itemId: args.itemId,
+        priority: current.priority ?? null,
+        startTime: current.startTime ?? null,
+        status: current.status ?? null,
+        title: current.title ?? null,
+      }
+    : {
+        itemId: args.itemId,
+      };
 
   return {
     action: {
@@ -1140,12 +1102,24 @@ const rescheduleItemDryRun = async (
         newStartTime: args.newStartTime ?? null,
         newTitle: args.newTitle ?? null,
       },
-      beforeSnapshot: {
-        itemId: args.itemId,
-      },
+      beforeSnapshot,
       changes,
       rollbackAvailable: true,
       rollbackPayload: {
+        // 携带真实快照，使预览阶段的回滚描述即可执行（execute 仍会以写入前的实时数据重建）。
+        ...(current
+          ? {
+              beforeSnapshot: {
+                date: current.date ?? null,
+                endTime: current.endTime ?? null,
+                isAllDay: current.isAllDay ?? false,
+                priority: current.priority ?? null,
+                startTime: current.startTime ?? null,
+                status: current.status ?? null,
+                title: current.title ?? null,
+              },
+            }
+          : {}),
         strategy: "restore_schedule_item_snapshot",
         target: {
           collection: "schedule-items",
@@ -1160,56 +1134,64 @@ const rescheduleItemDryRun = async (
 const cancelScheduleItemDryRun = async (
   args: CancelScheduleItemArgs,
   context: AgentToolDryRunContext,
-): Promise<AgentToolDryRunResult> => ({
-  action: {
-    ...actionBase({
-      args,
-      context,
-      intent: "cancel_schedule_item",
-      riskLevel: "low",
-      summary: `取消日程 #${args.itemId}`,
-    }),
-    affectedDocuments: [
-      {
-        collection: "schedule-items",
-        documentId: args.itemId,
-        operation: "update",
-        visibility: "private",
+): Promise<AgentToolDryRunResult> => {
+  const current = context.resolveScheduleItem ? await context.resolveScheduleItem(args.itemId) : null;
+  const currentStatus = current?.status ?? "planned";
+
+  return {
+    action: {
+      ...actionBase({
+        args,
+        context,
+        intent: "cancel_schedule_item",
+        riskLevel: "low",
+        summary: current?.title ? `取消日程「${current.title}」` : `取消日程 #${args.itemId}`,
+      }),
+      affectedDocuments: [
+        {
+          collection: "schedule-items",
+          documentId: args.itemId,
+          operation: "update",
+          visibility: "private",
+        },
+      ],
+      afterSnapshot: {
+        itemId: args.itemId,
+        status: "canceled",
       },
-    ],
-    afterSnapshot: {
-      itemId: args.itemId,
-      status: "canceled",
-    },
-    beforeSnapshot: {
-      itemId: args.itemId,
-      status: "planned",
-    },
-    changes: [
-      {
-        afterPreview: "日程状态将变为「已取消」。",
-        beforePreview: "当前状态：planned",
-        collection: "schedule-items",
-        documentId: args.itemId,
-        operation: "update",
-        preview: args.reason
-          ? `取消日程 #${args.itemId}，原因：${args.reason}`
-          : `取消日程 #${args.itemId}`,
-        timelineAffected: false,
-        visibility: "private",
+      beforeSnapshot: {
+        itemId: args.itemId,
+        status: currentStatus,
       },
-    ],
-    rollbackAvailable: true,
-    rollbackPayload: {
-      strategy: "restore_schedule_item_status",
-      target: {
-        collection: "schedule-items",
-        documentId: args.itemId,
+      changes: [
+        {
+          afterPreview: "日程状态将变为「已取消」。",
+          beforePreview: `当前状态：${currentStatus}`,
+          collection: "schedule-items",
+          documentId: args.itemId,
+          operation: "update",
+          preview: args.reason
+            ? `取消日程 #${args.itemId}，原因：${args.reason}`
+            : `取消日程 #${args.itemId}`,
+          timelineAffected: false,
+          visibility: "private",
+        },
+      ],
+      rollbackAvailable: true,
+      rollbackPayload: {
+        beforeSnapshot: {
+          status: currentStatus,
+        },
+        strategy: "restore_schedule_item_status",
+        target: {
+          collection: "schedule-items",
+          documentId: args.itemId,
+        },
       },
     },
-  },
-  type: "proposed_action",
-});
+    type: "proposed_action",
+  };
+};
 
 const composeTimelineEventDryRun = async (
   args: ComposeTimelineEventArgs,
@@ -1586,11 +1568,14 @@ const completePlanItemDryRun = async (
       ],
       rollbackAvailable: true,
       rollbackPayload: {
-        strategy: "restore_checklist_item_and_timeline",
+        // 占位预览：execute 会以写入前的真实清单快照重建该 payload。
+        // 此处对齐 rollback.ts 实际支持的策略名，避免预览展示无法执行的策略。
+        reason: "完成动作执行后才能拿到清单分组快照与 Timeline 节点 ID，届时会补齐 beforeSnapshot。",
+        strategy: "restore_checklist_groups_and_timeline",
         target: {
-          checklistId: checklist.id,
-          itemId: item.id ?? null,
-          timelineEventId: timeline.timelineEvent?.id ?? null,
+          collection: "checklists",
+          documentId: checklist.id,
+          ...(timeline.timelineEvent?.id ? { timelineEventId: timeline.timelineEvent.id } : {}),
         },
       },
     },
@@ -1692,11 +1677,13 @@ const addCompletionNoteDryRun = async (
       ],
       rollbackAvailable: true,
       rollbackPayload: {
-        strategy: "restore_completion_note_and_timeline",
+        // 占位预览：execute 会以写入前的真实清单快照重建该 payload。
+        reason: "补备注执行后才能拿到清单分组快照与 Timeline 节点 ID，届时会补齐 beforeSnapshot。",
+        strategy: "restore_checklist_groups_and_timeline",
         target: {
-          checklistId: checklist.id,
-          itemId: item.id ?? null,
-          timelineEventId: timeline.timelineEvent?.id ?? null,
+          collection: "checklists",
+          documentId: checklist.id,
+          ...(timeline.timelineEvent?.id ? { timelineEventId: timeline.timelineEvent.id } : {}),
         },
       },
     },
@@ -1948,52 +1935,6 @@ export const agentToolRegistry = {
       status: "planned",
     },
   },
-  delete_record: {
-    description: "Delete a plan, schedule, checklist, or timeline event after confirmation.",
-    dryRun: async (args: DeleteRecordArgs, _context) => ({
-      action: {
-        args: args as unknown as Record<string, unknown>,
-        changes: [{ collection: args.entityType === "plan" ? "plans" : args.entityType === "schedule" ? "schedule-items" : args.entityType === "checklist" ? "checklists" : "timeline-events", operation: "delete", preview: `删除「${args.entityName}」` }],
-        id: `delete-${Date.now()}`,
-        intent: "delete_record",
-        requiresConfirmation: true,
-        riskLevel: "high",
-        summary: `删除${args.entityType === "plan" ? "计划" : args.entityType === "schedule" ? "日程" : args.entityType === "checklist" ? "清单" : "时间线"}「${args.entityName}」`,
-      },
-      type: "proposed_action",
-    }),
-    execute: async (_args, _context, _onTrace) => {
-      throw new Error("delete_record execution not yet implemented");
-    },
-    intent: "delete_record",
-    name: "delete_record",
-    requiresConfirmation: true,
-    riskLevel: "high",
-    rollback: { description: "Restore the deleted record from backup.", status: "planned" },
-  },
-  modify_record: {
-    description: "Modify a plan, schedule, checklist, or timeline event after confirmation.",
-    dryRun: async (args: ModifyRecordArgs, _context) => ({
-      action: {
-        args: args as unknown as Record<string, unknown>,
-        changes: [{ collection: args.entityType === "plan" ? "plans" : args.entityType === "schedule" ? "schedule-items" : args.entityType === "checklist" ? "checklists" : "timeline-events", operation: "update", preview: `修改「${args.entityName}」：${args.changeDescription}` }],
-        id: `modify-${Date.now()}`,
-        intent: "modify_record",
-        requiresConfirmation: true,
-        riskLevel: "medium",
-        summary: `修改「${args.entityName}」`,
-      },
-      type: "proposed_action",
-    }),
-    execute: async (_args, _context, _onTrace) => {
-      throw new Error("modify_record execution not yet implemented");
-    },
-    intent: "modify_record",
-    name: "modify_record",
-    requiresConfirmation: true,
-    riskLevel: "medium",
-    rollback: { description: "Restore the modified record from snapshot.", status: "planned" },
-  },
 } satisfies AgentToolRegistry;
 
 export const getAgentToolDefinition = (intent: AgentIntent["intent"]) =>
@@ -2027,10 +1968,6 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
       return agentToolRegistry.schedule_plan.dryRun(intent.args, context);
     case "weekly_review":
       return agentToolRegistry.weekly_review.dryRun(intent.args, context);
-    case "delete_record":
-      return agentToolRegistry.delete_record.dryRun(intent.args, context);
-    case "modify_record":
-      return agentToolRegistry.modify_record.dryRun(intent.args, context);
   }
 };
 
@@ -2066,9 +2003,5 @@ export const executeAgentTool = async (
       return agentToolRegistry.schedule_plan.execute(intent.args, context, onTrace);
     case "weekly_review":
       return agentToolRegistry.weekly_review.execute(intent.args, context, onTrace);
-    case "delete_record":
-      return agentToolRegistry.delete_record.execute(intent.args, context, onTrace);
-    case "modify_record":
-      return agentToolRegistry.modify_record.execute(intent.args, context, onTrace);
   }
 };

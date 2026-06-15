@@ -1,6 +1,8 @@
 import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
 import type { ContentOutlineItem, RichContentDocument } from "@/lib/rich-content/types";
 
+import type { WritingMetadataDraft } from "./writing-metadata";
+
 export type WritingDocumentListItem = {
   advancedAdminHref: string;
   collection: DashboardContentCollection;
@@ -38,5 +40,12 @@ export type WritingDocumentPatch = {
 };
 
 export type WritingCollectionFilter = "all" | DashboardContentCollection;
+
+export type WritingDraft = {
+  contentRich: RichContentDocument;
+  metadata: WritingMetadataDraft;
+  summary: string;
+  title: string;
+};
 
 export type WritingSaveState = "dirty" | "error" | "idle" | "saving" | "saved";

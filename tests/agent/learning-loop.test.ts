@@ -6,6 +6,7 @@ import {
   runAgentLearningLoop,
   type AgentLearningCandidate,
 } from "../../src/lib/agent/learning-loop";
+import { persistMemoryWithEmbedding } from "../../src/lib/agent/memory";
 import type { AgentMemoryDocument, AgentMemoryInput, AgentMemoryType } from "../../src/lib/agent/memory";
 import type { AgentSuggestionDraft } from "../../src/lib/agent/suggestions";
 import type { AgentChatResponse, PendingAction } from "../../src/lib/agent/schemas";
@@ -293,4 +294,46 @@ test("learning loop turns implicit low-confidence candidates into confirmable su
   assert.match(suggestions[0]?.suggestedPrompt ?? "", /先给路径/);
   assert.equal(suggestions[0]?.source, "dashboard");
   assert.equal(suggestions[0]?.riskLevel, "low");
+});
+
+test("learning loop save path persists learned memory through the embedding-writing persistence", async () => {
+  const embedCalls: Array<{ id: number; text: string }> = [];
+  const upsertCalls: AgentMemoryInput[] = [];
+
+  const result = await runAgentLearningLoop({
+    assistantMessage: "好的，记住了。",
+    existingMemories: [],
+    intent: "answer_question",
+    // 走 fallback 正则抽取（AGENT_DISABLE_LLM=1）。注入的 upsertMemoryFn 复用真实的 persistMemoryWithEmbedding，
+    // 仅替换其底层 upsert/syncEmbedding 依赖，验证“学来的记忆”确实会触发 embedding 写入。
+    message: "以后回答先给结论，再讲原因。",
+    pendingActionAfter: null,
+    pendingActionBefore: null,
+    sourceThread: 21,
+    upsertMemoryFn: (memory) =>
+      persistMemoryWithEmbedding(memory, {
+        syncEmbedding: async (id, text) => {
+          embedCalls.push({ id, text });
+
+          return [0.2, 0.4, 0.6];
+        },
+        upsert: async (input) => {
+          upsertCalls.push(input);
+
+          return memoryDoc({
+            content: input.content,
+            id: 7777,
+            title: input.title,
+            type: input.type as AgentMemoryType,
+          });
+        },
+      }),
+    user: { id: 1 },
+  });
+
+  assert.equal(result.savedMemories.length, 1);
+  assert.equal(upsertCalls.length, 1);
+  assert.equal(embedCalls.length, 1);
+  assert.equal(embedCalls[0]?.id, 7777);
+  assert.match(embedCalls[0]?.text ?? "", /先给结论/);
 });

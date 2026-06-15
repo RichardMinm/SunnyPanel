@@ -473,14 +473,11 @@ export const completePlanItemFromIntent = async (
     };
   }
 
+  // 不再无条件挂起 await_completion_note 阻塞后续流程（尤其是复合编排）。
+  // 完成动作本身已是终态；如果用户想补备注，可在后续消息里直接说，意图系统会路由到 add_completion_note。
   return {
-    assistantMessage: `已把 ${buildChecklistItemLabel(updatedChecklist.title, updatedGroup.title, updatedItem.title)} 标记完成。要不要再补一句完成备注或感受？`,
-    pendingAction: {
-      checklistTitle: updatedChecklist.title,
-      groupTitle: updatedGroup.title,
-      itemTitle: updatedItem.title,
-      type: "await_completion_note",
-    },
+    assistantMessage: `已把 ${buildChecklistItemLabel(updatedChecklist.title, updatedGroup.title, updatedItem.title)} 标记完成，对应 Timeline 节点也已同步。如果想补一句完成备注或感受，告诉我就好。`,
+    pendingAction: null,
     rollbackPayload,
   };
 };

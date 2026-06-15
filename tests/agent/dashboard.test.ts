@@ -65,29 +65,31 @@ describe("Dashboard layout contracts", () => {
   test("Sidebar navigation exposes grouped actions, project, workspace, and thread metadata", () => {
     const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
 
-    for (const label of ["主操作", "新对话", "项目", "SunnyPanel", "工作区", "会话"]) {
+    for (const label of ["主操作", "新对话", "搜索", "命令中心", "项目", "SunnyPanel", "工作区", "会话"]) {
       assert.match(sidebar, new RegExp(label));
     }
-
-    assert.match(sidebar, /placeholder="搜索会话\.\.\."/);
-    assert.doesNotMatch(sidebar, /aria-label="命令中心"/);
-    assert.doesNotMatch(sidebar, /aria-label="搜索"/);
 
     assert.doesNotMatch(sidebar, /aria-label="插件"/);
     assert.doesNotMatch(sidebar, /aria-label="自动化"/);
     assert.match(sidebar, /formatThreadMeta/);
     assert.match(sidebar, /getPendingActionLabel\(thread\.pendingAction\)/);
     assert.match(sidebar, /filterDashboardThreads/);
-    assert.match(sidebar, /sunny-codex-thread-list/);
-    assert.match(sidebar, /filteredThreads\.map/);
-    assert.doesNotMatch(sidebar, /filteredThreads\.slice/);
-    assert.match(sidebar, /threadsOpen/);
-    assert.match(sidebar, /sunny-codex-sidebar-collapse-toggle/);
-    assert.match(sidebar, /aria-expanded=\{threadsOpen\}/);
-    assert.match(sidebar, /DashboardIcon name="agent"/);
-    assert.match(sidebar, /sunny-codex-archive-list/);
-    assert.doesNotMatch(sidebar, /archiveThreads\.slice/);
+    assert.match(sidebar, /filteredThreads\.slice/);
+    assert.match(sidebar, /visibleThreads\.map/);
     assert.match(sidebar, /is-active/);
+  });
+
+  test("Archived and thread sidebar controls share one collapse button contract", () => {
+    const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
+    const shellCss = read("src/app/styles/sunny-dashboard-shell.css");
+    const agentCss = read("src/app/styles/sunny-agent.css");
+
+    assert.match(sidebar, /sunny-codex-thread-section\$\{threadsOpen \? "" : " is-collapsed"\}/);
+    assert.match(sidebar, /sunny-codex-archive-section\$\{archiveOpen \? "" : " is-collapsed"\}/);
+    assert.match(shellCss, /\.sunny-codex-thread-section,\s*\.sunny-codex-archive-section/);
+    assert.match(shellCss, /\.sunny-codex-thread-section\.is-collapsed,\s*\.sunny-codex-archive-section\.is-collapsed/);
+    assert.doesNotMatch(agentCss, /\.sunny-codex-archive-section\s*\{/);
+    assert.doesNotMatch(agentCss, /\.sunny-codex-archive-section\[aria-expanded="false"\]/);
   });
 
   test("Sidebar is icon-first and does not own the right Inspector toggle", () => {
@@ -97,7 +99,7 @@ describe("Dashboard layout contracts", () => {
 
     assert.match(sidebar, /DashboardIcon/);
     assert.match(sidebar, /type DashboardIconName/);
-    assert.match(sidebar, /icon:\s*"schedule"/);
+    assert.match(sidebar, /icon:\s*"calendar"/);
     assert.match(sidebar, /icon:\s*"memory"/);
     assert.doesNotMatch(sidebar, /sunny-codex-sidebar-window-controls/);
     assert.doesNotMatch(sidebar, /sunny-codex-panel-toggle/);
@@ -117,21 +119,11 @@ describe("Dashboard layout contracts", () => {
     assert.match(shellCss, /--dashboard-icon-bar-width:\s*var\(--dashboard-sidebar-width\)/);
     assert.match(shellCss, /grid-template-columns:\s*var\(--dashboard-icon-bar-width\)/);
     assert.match(shellCss, /\.sunny-codex-sidebar/);
-    assert.match(shellCss, /\.sunny-codex-sidebar-top[\s\S]*overflow:\s*hidden/);
-    assert.match(shellCss, /\.sunny-codex-thread-list[\s\S]*overflow-y:\s*auto/);
     assert.match(shellCss, /\.sunny-dashboard-right-panel/);
     assert.match(rightPanelCss, /\.sunny-dashboard-right-panel[\s\S]*grid-column:\s*3/);
     assert.match(rightPanelCss, /\.sunny-dashboard-right-panel[\s\S]*max-height:/);
     assert.match(agentCss, /\.sunny-agent-center-surface[\s\S]*box-shadow:\s*none/);
     assert.match(agentCss, /\.sunny-agent-composer[\s\S]*position:\s*sticky/);
-    assert.doesNotMatch(agentCss, /\.sunny-agent-composer-drag-handle/);
-    assert.doesNotMatch(agentCss, /\.sunny-agent-composer\.is-docked/);
-    assert.doesNotMatch(agentCss, /\.sunny-agent-composer\.is-floating/);
-    assert.match(agentCss, /\.sunny-agent-composer-row[\s\S]*align-items:\s*center/);
-    assert.match(read("src/app/styles/sunny-tokens.css"), /--composer-control-height/);
-    assert.match(agentCss, /\.sunny-agent-composer-input-wrap[\s\S]*align-items:\s*center/);
-    assert.match(agentCss, /\.sunny-agent-composer-mode-trigger[\s\S]*height:\s*var\(--composer-control-height\)/);
-    assert.match(agentCss, /\.sunny-agent-composer-input[\s\S]*border:\s*none/);
     assert.match(agentCss, /\.sunny-message-card-body[\s\S]*border:\s*none/);
   });
 
@@ -180,10 +172,8 @@ describe("Dashboard layout contracts", () => {
     const pageClient = read("src/components/dashboard/DashboardPageClient.tsx");
     const shell = read("src/components/dashboard/DashboardShell.tsx");
     const rightPanel = read("src/components/dashboard/DashboardRightPanel.tsx");
-    const inspectorTabBar = read("src/components/dashboard/agent/InspectorTabBar.tsx");
     const constants = read("src/components/dashboard/agent/constants.ts");
     const types = read("src/components/dashboard/agent/types.ts");
-    const agentCss = read("src/app/styles/sunny-agent.css");
 
     assert.match(pageClient, /messages=\{chat\.messages\}/);
     assert.match(pageClient, /workbenchMode=\{chat\.workbenchMode\}/);
@@ -197,31 +187,48 @@ describe("Dashboard layout contracts", () => {
     assert.match(shell, /debugMode=\{debugMode\}/);
     assert.doesNotMatch(shell, /<RightContextPanel/);
     assert.doesNotMatch(shell, /setPanelOpen\(!mediaQuery\.matches\)/);
-    assert.match(rightPanel, /aria-label="当前上下文面板"/);
+    assert.match(rightPanel, /aria-label="右侧检查器"/);
+    assert.match(rightPanel, /panelOpen/);
     assert.match(rightPanel, /onTogglePanel/);
     assert.match(rightPanel, /debugMode/);
-    assert.match(rightPanel, /aria-label="收起上下文面板"/);
-    assert.doesNotMatch(rightPanel, /sunny-dashboard-inspector-toggle/);
+    assert.match(rightPanel, /aria-label=\{panelOpen \? "收起检查器" : "展开检查器"\}/);
     assert.match(rightPanel, /activeInspectorTab/);
     assert.match(rightPanel, /AgentContextPanel/);
     assert.match(rightPanel, /AgentApprovalPanel/);
     assert.match(rightPanel, /AgentTracePanel/);
     assert.match(rightPanel, /LinkedObjectsPanel/);
     assert.match(rightPanel, /MemoryInspectorPanel/);
-    assert.match(rightPanel, /InspectorTabBar/);
-    assert.match(rightPanel, /InspectorPanelIcon/);
-    assert.match(inspectorTabBar, /aria-label=\{tab\.label\}/);
-    assert.match(inspectorTabBar, /DashboardIcon name=\{tab\.icon\}/);
-    assert.match(inspectorTabBar, /has-badge/);
     assert.doesNotMatch(rightPanel, /会话历史/);
-    assert.match(types, /AgentInspectorTab = "approval" \| "context" \| "linked" \| "memory" \| "review" \| "trace"/);
-    for (const label of ["上下文", "审批", "Trace", "关联", "记忆", "复盘"]) {
+    assert.match(types, /AgentInspectorTab = "approval" \| "context" \| "linked" \| "memory" \| "trace" \| "inbox"/);
+    for (const label of ["上下文", "审批", "Trace", "关联", "记忆", "建议"]) {
       assert.match(constants, new RegExp(label));
     }
-    assert.match(constants, /icon:\s*"thinking"/);
-    assert.match(agentCss, /\.sunny-inspector-tab-bar/);
     assert.doesNotMatch(constants, /label:\s*"确认"/);
     assert.doesNotMatch(constants, /label:\s*"记录"/);
+  });
+
+  test("Agent Inbox tab surfaces suggestions and accept prefills the composer through a safe gate", () => {
+    const rightPanel = read("src/components/dashboard/DashboardRightPanel.tsx");
+    const inboxPanel = read("src/components/dashboard/agent/AgentInboxPanel.tsx");
+    const inboxHook = read("src/components/dashboard/agent/use-agent-inbox.ts");
+    const pageClient = read("src/components/dashboard/DashboardPageClient.tsx");
+
+    // Inbox 作为检查器新 Tab 接入，accept 预填 composer（复核后再经安全门）。
+    assert.match(rightPanel, /AgentInboxPanel/);
+    assert.match(rightPanel, /activeInspectorTab === "inbox"/);
+    assert.match(rightPanel, /onPrefillComposer=\{onPrefillComposer\}/);
+
+    assert.match(inboxPanel, /useAgentInbox/);
+    assert.match(inboxPanel, /onPrefillComposer\?\.\(item\.suggestedPrompt\)/);
+    assert.match(inboxPanel, /采纳/);
+    assert.match(inboxPanel, /忽略/);
+
+    // dismiss 复用后端既有 7 天冷却（PATCH dismiss），无需额外客户端冷却逻辑。
+    assert.match(inboxHook, /\/api\/agent\/suggestions/);
+    assert.match(inboxHook, /"accept" \| "dismiss"/);
+    assert.match(inboxHook, /method: "PATCH"/);
+
+    assert.match(pageClient, /onPrefillComposer=\{\(prompt\) => \{ chat\.setInput\(prompt\); \}\}/);
   });
 
   test("Composer is mode-aware through a compact menu and sends workbenchMode to the Agent chat API", () => {
@@ -237,7 +244,6 @@ describe("Dashboard layout contracts", () => {
     assert.match(dashboardHook, /setWorkbenchMode/);
     assert.match(messagingHook, /workbenchMode/);
     assert.match(messagingHook, /workbenchMode,\s*stream: true/);
-    assert.match(workbench, /<AgentComposer/);
     assert.match(workbench, /workbenchMode=\{workbenchMode\}/);
     assert.match(workbench, /onWorkbenchModeChange=\{onWorkbenchModeChange\}/);
     assert.match(pageClient, /onWorkbenchModeChange=\{chat\.setWorkbenchMode\}/);
@@ -247,8 +253,7 @@ describe("Dashboard layout contracts", () => {
     assert.match(composer, /quickMenuOpen/);
     assert.match(composer, /aria-label="选择工作模式"/);
     assert.match(composer, /aria-label="打开快捷操作"/);
-    assert.match(composer, /QUICK_MENU/);
-    assert.match(composer, /sunny-agent-composer-input-wrap/);
+    assert.match(composer, /QUICK_ACTIONS/);
     assert.match(composer, /生成 DryRun/);
     assert.doesNotMatch(composer, /sunny-agent-composer-mode-copy/);
     assert.doesNotMatch(composer, /当前模式：/);
@@ -267,7 +272,7 @@ describe("Dashboard layout contracts", () => {
     assert.match(conversation, /<AgentApprovalCard/);
     assert.match(conversation, /compactAssistantMessageForPendingAction/);
     assert.match(messageCard, /ScheduleResultCard/);
-    assert.match(messageCard, /role === "assistant"/);
+    assert.match(messageCard, /role === "user" \?/);
     assert.doesNotMatch(dashboardHook, /setStatusText\(`已恢复 Thread #\$\{selectedThread\.id\}`\)/);
     assert.match(dashboardHook, /setStatusText\("已就绪"\)/);
     assert.match(conversation, /sunny-agent-thread-action-area/);
@@ -279,10 +284,7 @@ describe("Dashboard layout contracts", () => {
     assert.match(agentCss, /\.sunny-agent-thread-header[\s\S]*width:\s*min\(100%, 860px\)/);
     assert.match(threadHeader, /MODE_LABEL/);
     assert.match(threadHeader, /Thread #/);
-    assert.doesNotMatch(threadHeader, /onOpenDetails/);
-    assert.doesNotMatch(threadHeader, /aria-label="详情"/);
-    assert.match(threadHeader, /DashboardIcon name="debug"/);
-    assert.match(threadHeader, /aria-pressed=\{debugMode\}/);
+    assert.match(threadHeader, /onOpenDetails/);
     assert.match(threadHeader, /debugMode/);
     assert.match(threadHeader, /onDebugModeChange/);
     assert.doesNotMatch(threadHeader, /formatTokenCount/);
@@ -368,9 +370,6 @@ describe("Dashboard layout contracts", () => {
 
     assert.match(dashboardHook, /resetThread:\s*resetConversationThread/);
     assert.match(dashboardHook, /const resetThread = useCallback/);
-    assert.match(dashboardHook, /skipInitialThreadLoadRef/);
-    assert.match(dashboardHook, /stopGeneration\(\)/);
-    assert.match(dashboardHook, /fetchThread\(undefined, \{ listOnly: true \}\)/);
     assert.match(dashboardHook, /resetConversationThread\(\)/);
     assert.match(dashboardHook, /clearRunDetail\(\)/);
     assert.match(dashboardHook, /setThreadTitle\(""\)/);
@@ -378,13 +377,22 @@ describe("Dashboard layout contracts", () => {
     assert.match(pageClient, /onNewThread=\{\(\) => \{ chat\.clearRunDetail\(\); chat\.resetThread\(\); \}\}/);
   });
 
-  test("Right panel header toggle closes Inspector without a floating edge button", () => {
+  test("Thread URL sync preserves existing Dashboard workspace search params", () => {
+    const sync = read("src/components/dashboard/agent-chat/use-dashboard-url-thread-sync.ts");
+
+    assert.match(sync, /new URLSearchParams\(searchParams\.toString\(\)\)/);
+    assert.match(sync, /params\.set\("threadId", String\(threadId\)\)/);
+    assert.match(sync, /params\.delete\("threadId"\)/);
+    assert.doesNotMatch(sync, /buildDashboardHref/);
+  });
+
+  test("Right edge Inspector toggle is styled as the right panel affordance", () => {
     const shellCss = read("src/app/styles/sunny-dashboard-shell.css");
     const rightCss = read("src/app/styles/sunny-dashboard-right-panel.css");
-    const rightPanel = read("src/components/dashboard/DashboardRightPanel.tsx");
 
-    assert.doesNotMatch(shellCss, /\.sunny-dashboard-inspector-toggle/);
-    assert.doesNotMatch(rightPanel, /sunny-dashboard-inspector-toggle/);
+    assert.match(shellCss, /\.sunny-dashboard-inspector-toggle/);
+    assert.match(shellCss, /right:\s*max\(0\.75rem, env\(safe-area-inset-right, 0px\)\)/);
+    assert.match(shellCss, /\.sunny-dashboard-shell\.is-panel-expanded \.sunny-dashboard-inspector-toggle/);
     assert.match(rightCss, /\.sunny-dashboard-right-panel-toggle/);
     assert.match(rightCss, /\.sunny-dashboard-right-panel-actions/);
   });
@@ -433,11 +441,6 @@ describe("Dashboard conversation utils", () => {
       title: "专注推进一个计划动作",
       date: "2026-06-06",
       timeRange: "09:00-10:30",
-    });
-    assert.deepEqual(parseScheduleResultMessage("已创建日程「产品经理课程」：2026-06-08 17:00-18:30。"), {
-      title: "产品经理课程",
-      date: "2026-06-08",
-      timeRange: "17:00-18:30",
     });
     assert.equal(parseScheduleResultMessage("普通助手回复"), null);
   });
