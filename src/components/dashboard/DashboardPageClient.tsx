@@ -57,6 +57,7 @@ export function DashboardPageClient({
       onDeleteThread={handleDeleteThread}
       onArtifactsRollback={chat.runArtifactsRollback}
       onInspectorTabChange={chat.setActiveInspectorTab}
+      onPrefillComposer={(prompt) => { chat.setInput(prompt); }}
       onLoadThread={(nextThreadId) => { void chat.loadThread(nextThreadId); }}
       onNewThread={() => { chat.clearRunDetail(); chat.resetThread(); }}
       onRollbackSelectedRun={chat.rollbackSelectedRun}

@@ -19,6 +19,7 @@ import { ScheduleMonthView } from "./schedule/ScheduleMonthView";
 import { MemoryCardGrid } from "./memory/MemoryCardGrid";
 import { TimelineView } from "./timeline/TimelineView";
 import { WritingWorkspace } from "./writing/WritingWorkspace";
+import { WritingLayoutProvider } from "./writing/WritingLayoutContext";
 
 
 type DashboardShellProps = {
@@ -37,6 +38,7 @@ type DashboardShellProps = {
   tokenUsage: AgentTokenUsage;
   onInspectorTabChange: (tab: AgentInspectorTab) => void;
   onArtifactsRollback?: () => void;
+  onPrefillComposer?: (prompt: string) => void;
   onRollbackSelectedRun?: () => void;
   onToggleContextExclude: (key: string) => void;
   onToggleContextPin: (key: string) => void;
@@ -85,6 +87,7 @@ export function DashboardShell({
   onDeleteThread,
   onInspectorTabChange,
   onArtifactsRollback,
+  onPrefillComposer,
   onRollbackSelectedRun,
   onRunPrompt,
   onToggleContextExclude,
@@ -113,6 +116,7 @@ export function DashboardShell({
   const [activeMode, setActiveMode] = useState<DashboardIconMode>("agent");
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelWidth, setPanelWidth] = useState(340);
+  const [writingFocusMode, setWritingFocusMode] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [lastExecutedAction, setLastExecutedAction] = useState<ProposedAgentAction | null>(null);
   const suppressAutoOpenRef = useRef(false);
@@ -288,7 +292,11 @@ export function DashboardShell({
   );
 
   return (
-    <AppShell panelOpen={panelOpen} panelWidth={panelWidth}>
+    <AppShell
+      panelOpen={activeMode !== "writing" && panelOpen}
+      panelWidth={panelWidth}
+      sidebarCollapsed={activeMode === "writing" && writingFocusMode}
+    >
       <SidebarNav
         activeMode={activeMode}
         onArchiveThread={onArchiveThread}
@@ -297,6 +305,7 @@ export function DashboardShell({
         onModeChange={handleModeChange}
         onNewThread={handleNewThread}
         threadId={threadId}
+        threadListMode={activeMode === "writing" ? "compact" : "full"}
         threads={threads}
       />
 
@@ -323,7 +332,9 @@ export function DashboardShell({
             threadId={threadId}
           />
         ) : activeMode === "writing" ? (
-          <WritingWorkspace />
+          <WritingLayoutProvider onFocusModeChange={setWritingFocusMode}>
+            <WritingWorkspace />
+          </WritingLayoutProvider>
         ) : (
           <DashboardInspectorControlProvider value={inspectorControl}>
             <DashboardModeProvider value={activeMode}>
@@ -333,7 +344,8 @@ export function DashboardShell({
         )}
       </MainWorkspace>
 
-      <DashboardRightPanel
+      {activeMode !== "writing" ? (
+        <DashboardRightPanel
         action={confirmationAction}
         lastExecutedAction={lastExecutedAction}
         activeInspectorTab={activeInspectorTab}
@@ -349,6 +361,7 @@ export function DashboardShell({
         onResizeStart={handleResizeStart}
         onArtifactsRollback={onArtifactsRollback}
         onInspectorTabChange={handleInspectorTabChange}
+        onPrefillComposer={onPrefillComposer}
         onTogglePanel={handleTogglePanel}
         panelOpen={panelOpen}
         onRollbackSelectedRun={onRollbackSelectedRun}
@@ -363,16 +376,19 @@ export function DashboardShell({
         tokenUsage={tokenUsage}
         traceSteps={traceSteps}
         workbenchMode={workbenchMode}
-      />
-      <button
-        type="button"
-        className="sunny-dashboard-inspector-toggle"
-        aria-label={panelOpen ? "收起检查器" : "展开检查器"}
-        title={panelOpen ? "收起检查器" : "展开检查器"}
-        onClick={handleTogglePanel}
-      >
-        <InspectorPanelIcon open={panelOpen} />
-      </button>
+        />
+      ) : null}
+      {activeMode !== "writing" ? (
+        <button
+          type="button"
+          className="sunny-dashboard-inspector-toggle"
+          aria-label={panelOpen ? "收起检查器" : "展开检查器"}
+          title={panelOpen ? "收起检查器" : "展开检查器"}
+          onClick={handleTogglePanel}
+        >
+          <InspectorPanelIcon open={panelOpen} />
+        </button>
+      ) : null}
 
       {activeMode !== "schedule" && (
         <DashboardStatusBar

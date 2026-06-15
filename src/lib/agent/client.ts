@@ -144,27 +144,73 @@ type OpenAICompatibleResponse = {
   };
 };
 
+/** ReAct 多轮循环是否启用：默认跟随 function calling，可用 AGENT_REACT_LOOP 显式开关。 */
+export const isReactLoopEnabled = async (): Promise<boolean> => {
+  if (process.env.AGENT_REACT_LOOP === "false" || process.env.AGENT_REACT_LOOP === "0") {
+    return false;
+  }
+
+  if (process.env.AGENT_REACT_LOOP === "true" || process.env.AGENT_REACT_LOOP === "1") {
+    return true;
+  }
+
+  const { isFunctionCallingEnabled } = await import("./function-tools");
+
+  return isFunctionCallingEnabled();
+};
+
+/** 执行只读工具并返回可读观察文本，供 ReAct 循环回灌 LLM。 */
+export const executeReadToolObservation = async (call: {
+  args: Record<string, unknown>;
+  name: string;
+}): Promise<string> => {
+  const { executeAgentIntent } = await import("./executor");
+  const intent = parseAgentIntentResult({
+    args: call.args,
+    confidence: 0.9,
+    intent: call.name,
+  });
+
+  if (!intent) {
+    return `工具 ${call.name} 参数无法解析，已跳过。`;
+  }
+
+  const result = await executeAgentIntent(intent);
+
+  return result.assistantMessage || `工具 ${call.name} 没有返回可用观察。`;
+};
+
+export type GenerateIntentDeps = {
+  callModelTurn?: (messages: Array<{ content: string; role: string }>) => Promise<null | {
+    turn: import("./react-loop").ReactModelTurn | null;
+    usage?: OpenAICompatibleResponse["usage"];
+  }>;
+  executeReadTool?: (call: { args: Record<string, unknown>; name: string }) => Promise<string>;
+};
+
 export const generateIntentWithAgentModel = async ({
   context,
+  deps = {},
   history,
   message,
 }: {
   context: AgentPromptContext;
+  deps?: GenerateIntentDeps;
   history: AgentChatMessage[];
   message: string;
 }): Promise<null | {
   arbitration?: AgentArbitrationDecision;
   intent: AgentIntent;
+  reactSteps?: import("./react-loop").ReactStepTrace[];
   tokenUsage: ReturnType<typeof createTokenUsageSnapshot>;
 }> => {
-  const config = getAgentModelConfig();
-  const resolvedConfig = await config;
+  const resolvedConfig = await getAgentModelConfig();
 
   if (!resolvedConfig) {
     return null;
   }
 
-  const messages = [
+  const baseMessages = [
     {
       content: buildAgentSystemPrompt(context),
       role: "system",
@@ -179,96 +225,191 @@ export const generateIntentWithAgentModel = async ({
     },
   ];
   const estimatedUsage = createTokenUsageSnapshot({
-    contextTokens: estimateTokenCount(messages.slice(0, -1)),
+    contextTokens: estimateTokenCount(baseMessages.slice(0, -1)),
     inputTokens: estimateTokenCount(message),
   });
-  const { buildAgentFunctionTools, intentFromFunctionCall, isFunctionCallingEnabled } =
-    await import("./function-tools");
+  const {
+    buildAgentFunctionTools,
+    buildAgentReadTools,
+    intentFromFunctionCall,
+    isFunctionCallingEnabled,
+    isWriteToolName,
+    parseModelTurn,
+  } = await import("./function-tools");
+  const { runReactToolLoop } = await import("./react-loop");
   const useFunctionCalling = await isFunctionCallingEnabled();
-  const requestBody: Record<string, unknown> = {
-    messages,
-    model: resolvedConfig.model,
-    temperature: 0.1,
-  };
+  const useReactLoop = useFunctionCalling && (await isReactLoopEnabled());
 
-  if (useFunctionCalling) {
-    requestBody.tools = buildAgentFunctionTools();
-    requestBody.tool_choice = "auto";
-  }
+  let accumulatedOutputTokens = 0;
+  let providerUsage: OpenAICompatibleResponse["usage"] | undefined;
 
-  const response = await fetchWithRetry(`${resolvedConfig.baseUrl}/chat/completions`, {
-    body: JSON.stringify(requestBody),
-    headers: {
-      Authorization: `Bearer ${resolvedConfig.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    method: "POST",
-  });
+  const defaultCallModelTurn = async (messages: Array<{ content: string; role: string }>) => {
+    const requestBody: Record<string, unknown> = {
+      messages,
+      model: resolvedConfig.model,
+      temperature: 0.1,
+    };
 
-  if (!response.ok) {
-    return null;
-  }
-
-  const data = (await response.json()) as OpenAICompatibleResponse;
-  const assistantMessage = data.choices?.[0]?.message;
-  const toolCall = assistantMessage?.tool_calls?.[0];
-
-  if (useFunctionCalling && toolCall?.function?.name) {
-    const intent = intentFromFunctionCall(toolCall.function.name, toolCall.function.arguments ?? "{}");
-
-    if (intent) {
-      const output = JSON.stringify(intent);
-
-      return {
-        intent,
-        tokenUsage: mergeProviderTokenUsage(
-          {
-            ...estimatedUsage,
-            outputTokens: estimateTokenCount(output),
-            totalTokens: estimatedUsage.contextTokens + estimatedUsage.inputTokens + estimateTokenCount(output),
-          },
-          data.usage,
-        ),
-      };
+    if (useFunctionCalling) {
+      requestBody.tools = useReactLoop
+        ? [...buildAgentReadTools(), ...buildAgentFunctionTools()]
+        : buildAgentFunctionTools();
+      requestBody.tool_choice = "auto";
     }
-  }
 
-  const content = assistantMessage?.content;
+    const response = await fetchWithRetry(`${resolvedConfig.baseUrl}/chat/completions`, {
+      body: JSON.stringify(requestBody),
+      headers: {
+        Authorization: `Bearer ${resolvedConfig.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
 
-  if (typeof content !== "string" || content.trim().length === 0) {
-    return null;
-  }
-
-  const jsonString = extractJSONObject(content);
-
-  if (!jsonString) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(jsonString) as unknown;
-    const arbitration = parseAgentArbitrationResult(parsed);
-    const intent = arbitration?.intent ?? parseAgentIntentResult(parsed);
-
-    if (!intent) {
+    if (!response.ok) {
       return null;
     }
 
-    return {
-      intent,
-      ...(arbitration ? { arbitration } : {}),
-      tokenUsage: mergeProviderTokenUsage(
-        {
-          ...estimatedUsage,
-          outputTokens: estimateTokenCount(content),
-          totalTokens: estimatedUsage.contextTokens + estimatedUsage.inputTokens + estimateTokenCount(content),
-        },
-        data.usage,
-      ),
-    };
-  } catch {
+    const data = (await response.json()) as OpenAICompatibleResponse;
+    const assistantMessage = data.choices?.[0]?.message;
+
+    if (!assistantMessage) {
+      return null;
+    }
+
+    return { turn: parseModelTurn(assistantMessage), usage: data.usage };
+  };
+
+  const callModelTurn = deps.callModelTurn ?? defaultCallModelTurn;
+  const executeReadTool = deps.executeReadTool ?? executeReadToolObservation;
+
+  const finalizeUsage = (outputText: string) => {
+    const outputTokens = accumulatedOutputTokens + estimateTokenCount(outputText);
+
+    return mergeProviderTokenUsage(
+      {
+        ...estimatedUsage,
+        outputTokens,
+        totalTokens: estimatedUsage.contextTokens + estimatedUsage.inputTokens + outputTokens,
+      },
+      providerUsage,
+    );
+  };
+
+  const intentFromCall = (toolCall: { args: Record<string, unknown>; name: string }) =>
+    intentFromFunctionCall(toolCall.name, JSON.stringify(toolCall.args));
+
+  const parseFinalContent = (content: string) => {
+    const jsonString = extractJSONObject(content);
+
+    if (!jsonString) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(jsonString) as unknown;
+      const arbitration = parseAgentArbitrationResult(parsed);
+      const intent = arbitration?.intent ?? parseAgentIntentResult(parsed);
+
+      if (!intent) {
+        return null;
+      }
+
+      return { arbitration: arbitration ?? undefined, intent };
+    } catch {
+      return null;
+    }
+  };
+
+  const callModel = async (messages: Array<{ content: string; name?: string; role: string; toolCallId?: string }>) => {
+    const result = await callModelTurn(
+      messages.map((item) => ({ content: item.content, role: item.role })),
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    if (result.usage) {
+      providerUsage = result.usage;
+    }
+
+    if (result.turn?.type === "final") {
+      accumulatedOutputTokens += estimateTokenCount(result.turn.content);
+    }
+
+    return result.turn;
+  };
+
+  if (useReactLoop) {
+    const loopResult = await runReactToolLoop({
+      callModel,
+      executeReadTool,
+      initialMessages: baseMessages.map((item) => ({
+        content: item.content,
+        role: item.role as "assistant" | "system" | "tool" | "user",
+      })),
+      isWriteTool: isWriteToolName,
+      maxSteps: 5,
+    });
+
+    if (loopResult.kind === "write_proposal") {
+      const intent = intentFromCall(loopResult.toolCall);
+
+      if (intent) {
+        return { intent, reactSteps: loopResult.steps, tokenUsage: finalizeUsage(JSON.stringify(intent)) };
+      }
+    }
+
+    if (loopResult.kind === "final_answer") {
+      const parsed = parseFinalContent(loopResult.content);
+
+      if (parsed) {
+        return {
+          intent: parsed.intent,
+          ...(parsed.arbitration ? { arbitration: parsed.arbitration } : {}),
+          reactSteps: loopResult.steps,
+          tokenUsage: finalizeUsage(loopResult.content),
+        };
+      }
+    }
+
     return null;
   }
+
+  // 非循环路径：单轮 function calling / content JSON。
+  const result = await callModelTurn(baseMessages);
+
+  if (!result?.turn) {
+    return null;
+  }
+
+  if (result.usage) {
+    providerUsage = result.usage;
+  }
+
+  if (result.turn.type === "tool_calls") {
+    const writeCall = result.turn.toolCalls.find((call) => isWriteToolName(call.name)) ?? result.turn.toolCalls[0];
+    const intent = writeCall ? intentFromCall(writeCall) : null;
+
+    if (intent) {
+      return { intent, tokenUsage: finalizeUsage(JSON.stringify(intent)) };
+    }
+
+    return null;
+  }
+
+  const parsed = parseFinalContent(result.turn.content);
+
+  if (!parsed) {
+    return null;
+  }
+
+  return {
+    intent: parsed.intent,
+    ...(parsed.arbitration ? { arbitration: parsed.arbitration } : {}),
+    tokenUsage: finalizeUsage(result.turn.content),
+  };
 };
 
 /** OpenAI-compatible streaming chat completion. Reads SSE chunks and calls `onToken` for each delta. */

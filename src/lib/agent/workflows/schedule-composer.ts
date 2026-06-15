@@ -337,6 +337,11 @@ export const composeScheduleProposalAsync = async (
   let enrichedArgs = args;
   const sourceText = normalizeText(args.sourceText);
 
+  // 已确认提案直接复用，无需再调用 LLM 解析时间。
+  if (args.proposal) {
+    return composeScheduleProposal(args, context);
+  }
+
   if (sourceText && hasSourceTime(sourceText)) {
     return composeScheduleProposal(args, context);
   }

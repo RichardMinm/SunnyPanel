@@ -28,7 +28,7 @@ const buildCreateData = (collection: DashboardContentCollection, body: Record<st
 
   if (collection === "posts") {
     data.title = title ?? "未命名文章";
-    data.summary = "";
+    data.summary = "待补充摘要";
     data.slug = createDraftSlug(collection);
   }
 

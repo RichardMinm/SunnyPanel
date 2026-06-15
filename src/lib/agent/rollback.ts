@@ -181,7 +181,52 @@ export const executeRollbackFromPayload = async (
   const shouldPersistAudit = options.persistAudit !== false;
   const recordAudit = options.recordAudit ?? recordAgentRollbackExecuted;
   const userId = options.userId;
-  const { collection, documentId, documentIds, timelineEventId } = parsed.target;
+  const { agentRunId, collection, documentId, documentIds, planReviewId, suggestionIds, timelineEventId } = parsed.target;
+
+  if (parsed.strategy === "delete_created_weekly_review_artifacts") {
+    if (typeof planReviewId !== "number") {
+      throw new Error("delete_created_weekly_review_artifacts 需要 planReviewId。");
+    }
+
+    const affectedDocuments: RollbackAffectedDocument[] = [];
+
+    await payload.delete({
+      collection: "plan-reviews",
+      id: planReviewId,
+      overrideAccess: true,
+    });
+    affectedDocuments.push(affectedDocument("plan-reviews", planReviewId, "delete"));
+
+    if (typeof agentRunId === "number") {
+      await payload.delete({
+        collection: "agent-runs",
+        id: agentRunId,
+        overrideAccess: true,
+      });
+      affectedDocuments.push(affectedDocument("agent-runs", agentRunId, "delete"));
+    }
+
+    for (const suggestionId of suggestionIds ?? []) {
+      // 建议是幂等 upsert 的，回滚时归档（dismissed）而非物理删除，避免误删历史建议。
+      await payload.update({
+        collection: "agent-suggestions",
+        data: { dismissedAt: new Date().toISOString(), status: "dismissed" },
+        id: suggestionId,
+        overrideAccess: true,
+      });
+      affectedDocuments.push(affectedDocument("agent-suggestions", suggestionId, "update"));
+    }
+
+    const result = buildRollbackResult({
+      affectedDocuments,
+      collection: "plan-reviews",
+      documentId: planReviewId,
+      strategy: parsed.strategy,
+    });
+    const auditWarning = shouldPersistAudit ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId) : undefined;
+
+    return auditWarning ? { ...result, auditWarning } : result;
+  }
 
   if (parsed.strategy === "delete_created_document") {
     if (!documentId) {

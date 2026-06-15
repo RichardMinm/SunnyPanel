@@ -15,7 +15,7 @@ describe("Dashboard Writing workspace styling", () => {
     const css = read("src/app/styles/sunny-dashboard-writing.css");
 
     assert.match(css, /\.sunny-writing-workspace/);
-    assert.match(css, /grid-template-columns:\s*minmax\(260px,\s*320px\)\s*minmax\(560px,\s*1fr\)\s*minmax\(280px,\s*340px\)/);
+    assert.match(css, /grid-template-columns:\s*280px\s*minmax\(0,\s*1fr\)\s*300px/);
     assert.match(css, /\.sunny-writing-editor-canvas/);
     assert.match(css, /\.sunny-rich-editor-content/);
     assert.match(css, /@media\s*\(max-width:\s*1180px\)/);

@@ -7,10 +7,12 @@ export const enrichMemoryIntent = async (
   intent: AgentIntent,
   context: AgentPromptContext,
   message: string,
+  upstreamContext?: string,
 ): Promise<AgentIntent | null> =>
   enrichIntentWithAgentPrompt({
     buildSystemPrompt: buildMemoryAgentSystemPrompt,
     context,
     intent,
     message,
+    upstreamContext,
   });

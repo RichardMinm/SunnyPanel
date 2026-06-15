@@ -71,6 +71,10 @@ export const AgentSuggestion: CollectionConfig = {
           value: "content",
         },
         {
+          label: "Content Lifecycle",
+          value: "content-lifecycle",
+        },
+        {
           label: "Timeline",
           value: "timeline",
         },

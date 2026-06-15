@@ -4,6 +4,7 @@ import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent }
 
 import { AgentApprovalPanel } from "@/components/dashboard/agent/AgentApprovalPanel";
 import { AgentContextPanel } from "@/components/dashboard/agent/AgentContextPanel";
+import { AgentInboxPanel } from "@/components/dashboard/agent/AgentInboxPanel";
 import { AgentTracePanel } from "@/components/dashboard/agent/AgentTracePanel";
 import { InspectorTabBar } from "@/components/dashboard/agent/InspectorTabBar";
 import { inspectorTabs } from "@/components/dashboard/agent/constants";
@@ -28,6 +29,7 @@ type DashboardRightPanelProps = {
   messages: AgentChatMessage[];
   onArtifactsRollback?: () => void;
   onInspectorTabChange: (tab: AgentInspectorTab) => void;
+  onPrefillComposer?: (prompt: string) => void;
   onResizeStart?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onTogglePanel: () => void;
   panelOpen: boolean;
@@ -227,6 +229,7 @@ export function DashboardRightPanel({
   messages,
   onArtifactsRollback,
   onInspectorTabChange,
+  onPrefillComposer,
   onResizeStart,
   onTogglePanel,
   panelOpen,
@@ -379,6 +382,7 @@ export function DashboardRightPanel({
           ) : null}
           {activeInspectorTab === "linked" ? <LinkedObjectsPanel action={displayAction} debugMode={debugMode} selectedRunDetail={selectedRunDetail} /> : null}
           {activeInspectorTab === "memory" ? <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} /> : null}
+          {activeInspectorTab === "inbox" ? <AgentInboxPanel onPrefillComposer={onPrefillComposer} /> : null}
         </div>
       </aside>
   );

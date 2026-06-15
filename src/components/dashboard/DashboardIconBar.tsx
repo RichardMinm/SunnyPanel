@@ -42,6 +42,7 @@ export type DashboardIconBarProps = {
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
   threadId: null | number;
+  threadListMode?: "compact" | "full" | "hidden";
   threads: AgentThreadSummary[];
 };
 
@@ -53,12 +54,13 @@ export function DashboardIconBar({
   onLoadThread,
   onNewThread,
   threadId,
+  threadListMode = "full",
   threads,
 }: DashboardIconBarProps) {
   const { locale } = useSitePreferences();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [threadsOpen, setThreadsOpen] = useState(true);
+  const [threadsOpen, setThreadsOpen] = useState(threadListMode !== "compact");
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveThreads, setArchiveThreads] = useState<AgentThreadSummary[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
@@ -71,7 +73,16 @@ export function DashboardIconBar({
     () => filterDashboardThreads(threads, searchQuery),
     [threads, searchQuery],
   );
-  const visibleThreads = useMemo(() => filteredThreads.slice(0, 40), [filteredThreads]);
+  const visibleThreads = useMemo(() => {
+    const limit = threadListMode === "compact" ? 3 : 40;
+    return filteredThreads.slice(0, limit);
+  }, [filteredThreads, threadListMode]);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- sync thread list openness with writing mode */
+    setThreadsOpen(threadListMode !== "compact");
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [threadListMode]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -254,7 +265,7 @@ export function DashboardIconBar({
         </section>
 
         <section
-          className={`sunny-codex-sidebar-section sunny-codex-thread-section${threadsOpen ? "" : " is-collapsed"}`}
+          className={`sunny-codex-sidebar-section sunny-codex-thread-section${threadsOpen ? "" : " is-collapsed"}${threadListMode === "compact" ? " is-compact" : ""}`}
           aria-label="会话"
         >
           <button
@@ -293,11 +304,23 @@ export function DashboardIconBar({
               ) : (
                 <span className="sunny-codex-empty-label">暂无聊天</span>
               )}
+              {threadListMode === "compact" && filteredThreads.length > 3 ? (
+                <button
+                  className="sunny-codex-thread-view-all"
+                  onClick={() => onModeChange("agent", "")}
+                  type="button"
+                >
+                  查看全部会话
+                </button>
+              ) : null}
             </div>
           ) : null}
         </section>
 
-        <section className="sunny-codex-sidebar-section sunny-codex-archive-section" aria-label="已归档">
+        <section
+          className={`sunny-codex-sidebar-section sunny-codex-archive-section${archiveOpen ? "" : " is-collapsed"}`}
+          aria-label="已归档"
+        >
           <button
             type="button"
             className="sunny-codex-sidebar-collapse-toggle"
@@ -305,8 +328,8 @@ export function DashboardIconBar({
             aria-expanded={archiveOpen}
           >
             <span>{archiveOpen ? "▾" : "▸"}</span>
-            <span className="sunny-codex-sidebar-icon"><DashboardIcon name="archive" /></span> 已归档
-            {archiveLoaded ? ` (${archiveThreads.length})` : ""}
+            <span className="sunny-codex-sidebar-icon"><DashboardIcon name="archive" /></span>
+            <span className="sunny-codex-sidebar-label">已归档{archiveLoaded ? ` (${archiveThreads.length})` : ""}</span>
           </button>
           {archiveOpen ? (
             archiveLoading ? (

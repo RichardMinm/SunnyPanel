@@ -93,6 +93,54 @@ test("dismissed suggestions do not reappear immediately", () => {
   );
 });
 
+test("published public content generates content-lifecycle timeline and plan-link suggestions", () => {
+  const publicPost = {
+    id: 42,
+    kind: "posts" as const,
+    status: "published" as const,
+    title: "发布内容协作演进",
+    visibility: "public" as const,
+  };
+
+  const suggestions = generateSuggestionsFromWorkspaceSnapshot({
+    ...baseSnapshot,
+    execution: {
+      ...baseSnapshot.execution,
+      recentContentWithoutPlans: [publicPost],
+      recentPublicContent: [publicPost],
+      timelineCandidates: [publicPost],
+    },
+    plans: {
+      ...baseSnapshot.plans,
+      active: [
+        {
+          id: 9,
+          state: "active",
+          title: "内容运营协作者",
+        },
+      ],
+    },
+  });
+
+  const timeline = suggestions.find((item) => item.uniqueKey === "content-lifecycle-timeline:posts:42");
+  const planLink = suggestions.find((item) => item.uniqueKey === "content-lifecycle-plan:posts:42");
+
+  assert.ok(timeline, "应生成发布后补时间线建议");
+  assert.equal(timeline?.source, "content-lifecycle");
+  assert.match(timeline?.suggestedPrompt ?? "", /compose_timeline_event/);
+  assert.match(timeline?.suggestedPrompt ?? "", /来源 ID 42/);
+
+  assert.ok(planLink, "应生成发布成果关联计划建议");
+  assert.equal(planLink?.relatedPlan, 9);
+  assert.match(planLink?.suggestedPrompt ?? "", /计划 ID 9/);
+
+  // 生命周期建议已覆盖该内容，通用 timeline-gap 不应对同一条内容重复 surfacing。
+  assert.equal(
+    suggestions.some((item) => item.uniqueKey === "timeline-gap:posts:42"),
+    false,
+  );
+});
+
 test("timeline gap suggestions use timeline composer workflow", () => {
   const suggestions = generateSuggestionsFromWorkspaceSnapshot({
     ...baseSnapshot,

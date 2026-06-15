@@ -8,12 +8,14 @@ export const enrichPlanIntent = async (
   intent: AgentIntent,
   context: AgentPromptContext,
   message: string,
+  upstreamContext?: string,
 ): Promise<AgentIntent | null> => {
   const enriched = await enrichIntentWithAgentPrompt({
     buildSystemPrompt: buildPlanAgentSystemPrompt,
     context,
     intent,
     message,
+    upstreamContext,
   });
 
   if (enriched.intent !== "compose_plan") {

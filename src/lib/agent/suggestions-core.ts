@@ -1,4 +1,11 @@
-export type AgentSuggestionSource = "agent-run" | "content" | "dashboard" | "plan" | "review" | "timeline";
+export type AgentSuggestionSource =
+  | "agent-run"
+  | "content"
+  | "content-lifecycle"
+  | "dashboard"
+  | "plan"
+  | "review"
+  | "timeline";
 export type AgentSuggestionRiskLevel = "high" | "low" | "medium";
 export type AgentSuggestionStatus = "accepted" | "dismissed" | "done" | "pending";
 export type AgentSuggestionCreatedBy = "agent" | "manual";
@@ -60,6 +67,7 @@ export type AgentSuggestionSnapshot = {
   execution: {
     recentContentWithoutPlans: SnapshotContentItem[];
     recentPrivateReady: SnapshotContentItem[];
+    recentPublicContent?: SnapshotContentItem[];
     timelineCandidates: SnapshotContentItem[];
   };
   plans: {
@@ -162,7 +170,22 @@ export const generateSuggestionsFromWorkspaceSnapshot = (
   const suggestions: AgentSuggestionDraft[] = [];
   const plans = [...snapshot.plans.active, ...snapshot.plans.backlog, ...snapshot.plans.paused];
   const overduePlan = plans.find((plan) => isOverduePlan(plan, now));
-  const timelineGap = snapshot.execution.timelineCandidates[0];
+  const contentKey = (item: SnapshotContentItem) => `${item.kind}:${item.id}`;
+
+  // 内容生命周期联动：已公开发布、但还没补时间线 / 没挂计划的内容，是发布后最该被 Agent 接力的对象。
+  const publicContent = snapshot.execution.recentPublicContent ?? [];
+  const timelineCandidateKeys = new Set(snapshot.execution.timelineCandidates.map(contentKey));
+  const withoutPlanKeys = new Set(snapshot.execution.recentContentWithoutPlans.map(contentKey));
+  const publishedNeedingTimeline = publicContent.find(
+    (item) => (item.kind === "posts" || item.kind === "updates") && timelineCandidateKeys.has(contentKey(item)),
+  );
+  const publishedNeedingPlan = publicContent.find((item) => withoutPlanKeys.has(contentKey(item)));
+  const planLinkTarget = snapshot.plans.active[0];
+
+  // 已被生命周期建议覆盖的内容，避免与通用「补时间线」候选重复 surfacing。
+  const timelineGap = snapshot.execution.timelineCandidates.find(
+    (item) => !publishedNeedingTimeline || contentKey(item) !== contentKey(publishedNeedingTimeline),
+  );
   const draftWithoutPlan = snapshot.execution.recentContentWithoutPlans.find((item) => item.status === "draft");
   const privateReadyContent = snapshot.execution.recentPrivateReady[0];
   const failedRun = snapshot.agent.recentRuns.find((run) => run.status === "failed");
@@ -226,6 +249,37 @@ export const generateSuggestionsFromWorkspaceSnapshot = (
         suggestedPrompt: `检查${quote(privateReadyContent.title)}是否适合公开发布`,
         title: `检查私有待发内容：${privateReadyContent.title}`,
         uniqueKey: `private-ready:${privateReadyContent.kind}:${privateReadyContent.id}`,
+      }),
+    );
+  }
+
+  if (publishedNeedingTimeline) {
+    pushUnique(
+      suggestions,
+      createBaseSuggestion({
+        reason: `${quote(publishedNeedingTimeline.title)} 已公开发布，但还没有对应的公开时间线节点，补一个能让它进入对外叙事。`,
+        relatedContent: [contentRelation(publishedNeedingTimeline)],
+        riskLevel: "low",
+        source: "content-lifecycle",
+        suggestedPrompt: `用 compose_timeline_event 把已发布的${quote(publishedNeedingTimeline.title)}补成公开时间线节点，来源类型 ${timelineComposerSourceType(publishedNeedingTimeline)}，来源 ID ${publishedNeedingTimeline.id}`,
+        title: `发布后补时间线：${publishedNeedingTimeline.title}`,
+        uniqueKey: `content-lifecycle-timeline:${publishedNeedingTimeline.kind}:${publishedNeedingTimeline.id}`,
+      }),
+    );
+  }
+
+  if (publishedNeedingPlan && planLinkTarget) {
+    pushUnique(
+      suggestions,
+      createBaseSuggestion({
+        reason: `${quote(publishedNeedingPlan.title)} 已发布但没有关联到任何计划，挂到${quote(planLinkTarget.title)}能把成果归档到正在推进的目标。`,
+        relatedContent: [contentRelation(publishedNeedingPlan)],
+        relatedPlan: planLinkTarget.id,
+        riskLevel: "low",
+        source: "content-lifecycle",
+        suggestedPrompt: `把已发布的${quote(publishedNeedingPlan.title)}（来源 ${publishedNeedingPlan.kind} ID ${publishedNeedingPlan.id}）关联到计划${quote(planLinkTarget.title)}（计划 ID ${planLinkTarget.id}），并补一条对应的计划进展`,
+        title: `发布成果关联计划：${publishedNeedingPlan.title}`,
+        uniqueKey: `content-lifecycle-plan:${publishedNeedingPlan.kind}:${publishedNeedingPlan.id}`,
       }),
     );
   }

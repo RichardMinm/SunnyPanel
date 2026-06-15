@@ -44,6 +44,35 @@
   grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr) 0px;
 }
 
+.sunny-dashboard-shell.is-sidebar-collapsed {
+  --dashboard-sidebar-width: 4.5rem;
+}
+
+.sunny-codex-mode-row.is-active {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.sunny-codex-thread-section.is-compact .sunny-codex-thread-list {
+  gap: 0.2rem;
+}
+
+.sunny-codex-thread-view-all {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #2563eb;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.45rem 0.5rem;
+  text-align: left;
+}
+
+.sunny-codex-thread-view-all:hover {
+  background: #eff6ff;
+}
+
 .sunny-dashboard-shell:not(.is-panel-expanded) .sunny-dashboard-right-panel {
   opacity: 0;
   transform: translateX(12px);
@@ -205,10 +234,13 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  box-sizing: border-box;
   width: 100%;
+  min-height: 2rem;
   padding: 0.4rem 0.5rem;
   background: none;
   border: none;
+  border-radius: 0.55rem;
   cursor: pointer;
   font-size: var(--text-2xs);
   font-weight: 650;
@@ -219,7 +251,6 @@
 .sunny-codex-sidebar-collapse-toggle:hover {
   color: var(--foreground);
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
-  border-radius: 0.55rem;
 }
 
 .sunny-codex-mode-list {
@@ -242,7 +273,8 @@
   color: #1d4ed8;
 }
 
-.sunny-codex-thread-section {
+.sunny-codex-thread-section,
+.sunny-codex-archive-section {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -250,8 +282,13 @@
   overflow: hidden;
 }
 
-.sunny-codex-thread-section.is-collapsed {
+.sunny-codex-thread-section.is-collapsed,
+.sunny-codex-archive-section.is-collapsed {
   flex: 0 0 auto;
+}
+
+.sunny-codex-archive-section {
+  margin-top: 0.25rem;
 }
 
 .sunny-codex-thread-list {
@@ -293,6 +330,35 @@
 
 .sunny-codex-empty-label {
   padding: 0.35rem 0.5rem;
+}
+
+.sunny-codex-archive-list {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 0.22rem;
+  min-height: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 28%, transparent) transparent;
+}
+
+.sunny-codex-archive-thread {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.58rem;
+  cursor: pointer;
+  font-size: var(--text-xs);
+}
+
+.sunny-codex-archive-thread:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
 }
 
 .sunny-codex-sidebar-bottom {
@@ -853,15 +919,6 @@ html[data-theme="dark"] .sunny-dashboard-main {
 
 .sunny-confirm-btn-danger:hover {
   background: #dc2626;
-}
-
-/* ── Archive section ── */
-.sunny-codex-archive-thread {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.35rem;
-  padding: 0.35rem 0.5rem;
 }
 
 .sunny-codex-archive-actions {

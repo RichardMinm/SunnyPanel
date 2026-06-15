@@ -7,10 +7,12 @@ export const enrichScheduleIntent = async (
   intent: AgentIntent,
   context: AgentPromptContext,
   message: string,
+  upstreamContext?: string,
 ): Promise<AgentIntent | null> =>
   enrichIntentWithAgentPrompt({
     buildSystemPrompt: buildScheduleAgentSystemPrompt,
     context,
     intent,
     message,
+    upstreamContext,
   });

@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { dryRunAgentIntent } from "../../src/lib/agent/safety";
-import type { AgentToolDryRunContext } from "../../src/lib/agent/tool-registry";
+import { dryRunAgentTool, type AgentToolDryRunContext } from "../../src/lib/agent/tool-registry";
+import { isRollbackPayloadExecutable } from "../../src/lib/agent/rollback-parse";
 
 const fakeChecklist = {
   createdAt: "2026-05-06T00:00:00.000Z",
@@ -187,5 +188,114 @@ test("complete item preview includes timeline impact", async () => {
       result.action.changes.some((change) => change.collection === "timeline-events" && change.timelineAffected),
       true,
     );
+  }
+});
+
+test("complete item dry-run uses a rollback strategy that rollback.ts can execute", async () => {
+  const result = await dryRunAgentTool(
+    {
+      args: {
+        checklistTitle: "高等数学",
+        completedAt: null,
+        completionNote: null,
+        groupTitle: "映射与函数",
+        itemTitle: "反函数习题",
+      },
+      intent: "complete_plan_item",
+    },
+    dryRunContext,
+  );
+
+  assert.equal(result.type, "proposed_action");
+
+  if (result.type === "proposed_action") {
+    // 之前误用了 rollback.ts 不支持的 restore_checklist_item_and_timeline。
+    assert.equal(
+      (result.action.rollbackPayload as { strategy?: string }).strategy,
+      "restore_checklist_groups_and_timeline",
+    );
+    assert.equal(
+      (result.action.rollbackPayload as { target?: { collection?: string } }).target?.collection,
+      "checklists",
+    );
+  }
+});
+
+test("query_plan_progress dry-run is read-only and records no write changes", async () => {
+  const result = await dryRunAgentTool(
+    {
+      args: { planTitle: "考研数学" },
+      intent: "query_plan_progress",
+    },
+    {
+      planCandidates: [{ id: 7, priority: "high", state: "active", title: "考研数学二" }],
+    },
+  );
+
+  assert.equal(result.type, "proposed_action");
+
+  if (result.type === "proposed_action") {
+    assert.equal(result.action.requiresConfirmation, false);
+    assert.deepEqual(result.action.changes, []);
+    assert.deepEqual(result.action.affectedDocuments, []);
+  }
+});
+
+test("reschedule dry-run captures the real before snapshot and an executable rollback payload", async () => {
+  const result = await dryRunAgentTool(
+    {
+      args: { itemId: 55, newDate: "2026-06-20" },
+      intent: "reschedule_item",
+    },
+    {
+      resolveScheduleItem: async (itemId) => ({
+        date: "2026-06-14",
+        endTime: "11:00",
+        id: itemId,
+        isAllDay: false,
+        priority: "medium",
+        startTime: "09:30",
+        status: "planned",
+        title: "复习线性代数",
+      }),
+    },
+  );
+
+  assert.equal(result.type, "proposed_action");
+
+  if (result.type === "proposed_action") {
+    const before = result.action.beforeSnapshot as Record<string, unknown>;
+    assert.equal(before.date, "2026-06-14");
+    assert.equal(before.startTime, "09:30");
+    assert.equal(before.title, "复习线性代数");
+    // 携带真实快照后，预览阶段的 rollbackPayload 应当可执行。
+    assert.equal(isRollbackPayloadExecutable(result.action.rollbackPayload), true);
+  }
+});
+
+test("cancel dry-run reflects the real current status instead of a hardcoded value", async () => {
+  const result = await dryRunAgentTool(
+    {
+      args: { itemId: 88 },
+      intent: "cancel_schedule_item",
+    },
+    {
+      resolveScheduleItem: async (itemId) => ({
+        date: "2026-06-14",
+        id: itemId,
+        priority: "low",
+        status: "done",
+        title: "晨间复盘",
+      }),
+    },
+  );
+
+  assert.equal(result.type, "proposed_action");
+
+  if (result.type === "proposed_action") {
+    const before = result.action.beforeSnapshot as { status?: string };
+    assert.equal(before.status, "done");
+    assert.match(result.action.changes[0]?.beforePreview ?? "", /done/);
+    assert.equal(isRollbackPayloadExecutable(result.action.rollbackPayload), true);
   }
 });

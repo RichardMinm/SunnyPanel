@@ -1,7 +1,7 @@
 import { createScheduleItem } from "@/lib/schedule/items";
 
 import type { ComposeScheduleItemArgs } from "../schemas";
-import { composeScheduleProposal } from "../workflows/schedule-composer";
+import { composeScheduleProposalAsync } from "../workflows/schedule-composer";
 import { validateScheduleItemData } from "../write-schemas";
 import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
 
@@ -9,7 +9,9 @@ export const composeScheduleItemFromIntent = async (
   args: ComposeScheduleItemArgs,
   onTrace?: AgentExecutionTraceReporter,
 ): Promise<AgentToolResult> => {
-  const proposal = composeScheduleProposal(args);
+  // 与 dryRun 保持一致：若用户确认的提案已携带（args.proposal），直接复用；
+  // 否则走与 dryRun 相同的 LLM 时间解析链路，避免“确认的提案 ≠ 实际写入”。
+  const proposal = await composeScheduleProposalAsync(args);
   const timeRange = proposal.isAllDay
     ? "全天"
     : [proposal.startTime, proposal.endTime].filter(Boolean).join("-") || "未定时间";

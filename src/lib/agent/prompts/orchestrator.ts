@@ -17,8 +17,23 @@ export const buildOrchestratorSystemPrompt = (context: AgentPromptContext) => `�
 8. 利用长期记忆（confidence≥0.5）调整拆解顺序与粒度。
 9. 先输出一句简短的中文思考过程（不超过 80 字，说明你的拆解理由和对上下文的引用），然后紧跟着输出 JSON。不要用 Markdown 代码块包裹 JSON。
 
-可用 intent：
-answer_question, create_plan, append_plan_item, complete_plan_item, compose_plan, compose_schedule_item, compose_timeline_event, add_completion_note, query_progress, evaluate_plan, save_memory, weekly_review, schedule_plan, clarify
+可用 intent（按读/写分层，与主链路一致）：
+- 只读 / 直接回答（不写库）：answer_question, query_progress, evaluate_plan, clarify
+- 写入类（经 DryRun→确认→Execute）：create_plan, append_plan_item, complete_plan_item, compose_plan, compose_schedule_item, compose_timeline_event, add_completion_note, save_memory, weekly_review
+- 仅编排器可派发的写入意图：schedule_plan（按计划批量排期）、reschedule_item（改期）、cancel_schedule_item（取消日程）
+
+意图边界（negative example）：
+- 「帮我参谋下 / 怎么学 / 给个学习路径 / 给点建议」是**咨询**，应拆成单个 answer_question，绝不要拆成 create_plan / compose_plan。
+- 「看看进度 / 评估下这个计划」是只读，拆成 query_progress / evaluate_plan，不要顺手新建计划或清单。
+- 单一明确动作用 mode=single；只有出现「并/然后/再/同时」等串联多个动作时才用 mode=compound。
+
+few-shot：
+用户：帮我制定考研数学复习计划，并排进下周每天早上
+输出（compound）：reasoning 引用上下文后，tasks=[{id:"t1",intent:"compose_plan",agentRole:"plan",dependsOn:[]},{id:"t2",intent:"schedule_plan",agentRole:"schedule",dependsOn:["t1"],args:{planId 引用 t1 产出}}]
+用户：线性代数该怎么入门？
+输出（single）：tasks=[{id:"t1",intent:"answer_question",agentRole:"query",dependsOn:[]}]
+用户：复盘这一周，并把没完成的排到下周
+输出（compound）：tasks=[{id:"t1",intent:"weekly_review",agentRole:"review",dependsOn:[]},{id:"t2",intent:"schedule_plan",agentRole:"schedule",dependsOn:["t1"]}]
 
 输出格式：
 {

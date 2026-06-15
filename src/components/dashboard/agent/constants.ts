@@ -8,6 +8,7 @@ export const inspectorTabs: Array<{ key: AgentInspectorTab; label: string }> = [
   { key: "trace", label: "Trace" },
   { key: "linked", label: "关联" },
   { key: "memory", label: "记忆" },
+  { key: "inbox", label: "建议" },
 ];
 
 export const traceKindLabelMap: Record<AgentTraceStep["kind"], string> = {

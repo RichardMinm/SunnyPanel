@@ -2,6 +2,7 @@ import type { AgentRun, Checklist, Plan } from "@/payload-types";
 
 import { getPayloadClient } from "@/lib/payload/client";
 
+import { enhanceEvaluationWithLLM, mergeEvaluationEnhancement } from "./evaluation-llm";
 import { getCurrentAgentUserId } from "./execution-context";
 import type { EvaluatePlanArgs } from "./schemas";
 import { getAgentProgressSnapshot } from "./progress";
@@ -203,6 +204,43 @@ const persistPlanReview = async (result: EvaluationResult) => {
   };
 };
 
+/**
+ * 在规则评估之上叠加 LLM 语义增强（summary/recommendations）。LLM 不可用或失败时原样返回规则结论。
+ */
+const applyEvaluationEnhancement = async (result: EvaluationResult): Promise<EvaluationResult> => {
+  if (result.recommendations.length === 0) {
+    return result;
+  }
+
+  try {
+    const enhancement = await enhanceEvaluationWithLLM({
+      health: result.health,
+      metrics: result.metrics,
+      recommendations: result.recommendations,
+      scope: result.scope,
+      summary: result.assistantMessage,
+    });
+    const merged = mergeEvaluationEnhancement(
+      {
+        health: result.health,
+        metrics: result.metrics,
+        recommendations: result.recommendations,
+        scope: result.scope,
+        summary: result.assistantMessage,
+      },
+      enhancement,
+    );
+
+    return {
+      ...result,
+      assistantMessage: merged.summary,
+      recommendations: merged.recommendations,
+    };
+  } catch {
+    return result;
+  }
+};
+
 const buildOverallEvaluation = async (): Promise<EvaluationResult> => {
   const snapshot = await getAgentProgressSnapshot();
   const { summary } = snapshot;
@@ -264,7 +302,7 @@ export const evaluatePlan = async (
   } = {},
 ): Promise<EvaluationResult> => {
   if (!args.planId && !args.planTitle) {
-    const result = await buildOverallEvaluation();
+    const result = await applyEvaluationEnhancement(await buildOverallEvaluation());
 
     return options.persistReview ? persistPlanReview(result) : result;
   }
@@ -356,7 +394,7 @@ export const evaluatePlan = async (
           ? "今天到期"
           : `${dueDayOffset} 天后到期`;
 
-  const result: EvaluationResult = {
+  const baseResult: EvaluationResult = {
     assistantMessage: `「${plan.title}」评估：状态 ${plan.state}，优先级 ${plan.priority}，${dueText}，关联产出 ${linkedContentCount} 条，关联清单完成率 ${formatPercent(
       checklistStats.completionRate,
     )}。建议：${recommendations.join(" ")}`,
@@ -377,6 +415,7 @@ export const evaluatePlan = async (
     recommendations,
     scope: "plan",
   };
+  const result = await applyEvaluationEnhancement(baseResult);
 
   return options.persistReview ? persistPlanReview(result) : result;
 };

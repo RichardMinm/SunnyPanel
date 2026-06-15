@@ -55,6 +55,7 @@ export type SpecializedAgentDefinition = {
     intent: AgentIntent,
     context: AgentPromptContext,
     message: string,
+    upstreamContext?: string,
   ) => Promise<AgentIntent | null>;
   id: SpecializedAgentId;
   role: AgentRole;
@@ -68,6 +69,8 @@ export type SpecializedAgentRunInput = {
   message: string;
   promptContext: AgentPromptContext;
   taskLabel: string;
+  /** 上游闭包的产物/推理/意图摘要，回灌给本 Agent 的 LLM 上下文。 */
+  upstreamContext?: string;
 };
 
 export type SpecializedAgentRunResult = {

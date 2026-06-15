@@ -5,8 +5,8 @@ import {
 } from "@/lib/agent/llm/complete-structured";
 import {
   inferAgentMemoryType,
+  persistMemoryWithEmbedding,
   scoreAgentMemoryRelevance,
-  upsertMemory,
   type AgentMemoryDocument,
   type AgentMemoryInput,
   type AgentMemoryType,
@@ -499,7 +499,8 @@ export const runAgentLearningLoop = async (input: RunAgentLearningLoopInput): Pr
             reason: "未发现明确长期偏好或工作流规则。",
           },
         ];
-  const upsert = input.upsertMemoryFn ?? upsertMemory;
+  // 默认走带 embedding 的写入入口，确保“学来的记忆”也具备向量，可被语义检索命中。
+  const upsert = input.upsertMemoryFn ?? persistMemoryWithEmbedding;
   const upsertLearningSuggestion = input.upsertSuggestionFn ?? upsertSuggestion;
   const savedMemories: AgentMemoryDocument[] = [];
   const suggestedMemories: AgentSuggestionDraft[] = [];

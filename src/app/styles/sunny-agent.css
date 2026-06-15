@@ -940,6 +940,85 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div {
   font-size: var(--text-xs);
 }
 
+.sunny-agent-inbox-list {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.sunny-agent-inbox-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--sunny-border, rgba(0, 0, 0, 0.08));
+  border-radius: 10px;
+  background: var(--sunny-surface-raised, rgba(255, 255, 255, 0.04));
+}
+
+.sunny-agent-inbox-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sunny-agent-inbox-card-head h4 {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-kicker);
+  line-height: 1.3;
+  margin: 0;
+}
+
+.sunny-agent-inbox-risk {
+  flex: none;
+  font-family: var(--sunny-font-mono);
+  font-size: 10px;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(120, 120, 120, 0.16);
+  color: var(--muted);
+}
+
+.sunny-agent-inbox-risk.is-high {
+  background: rgba(220, 70, 70, 0.18);
+  color: #c0392b;
+}
+
+.sunny-agent-inbox-risk.is-medium {
+  background: rgba(230, 160, 50, 0.18);
+  color: #b9770e;
+}
+
+.sunny-agent-inbox-reason {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.sunny-agent-inbox-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sunny-agent-inbox-actions button {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  border: 1px solid var(--sunny-border, rgba(0, 0, 0, 0.12));
+  background: transparent;
+}
+
+.sunny-agent-inbox-accept {
+  border-color: var(--sunny-accent, #2f6feb);
+  color: var(--sunny-accent, #2f6feb);
+  font-weight: var(--font-weight-kicker);
+}
+
+.sunny-agent-inbox-dismiss {
+  color: var(--muted);
+}
+
 .sunny-agent-change-list-v2,
 .sunny-agent-context-notes-v2 {
   display: grid;
@@ -3862,42 +3941,6 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   position: relative;
 }
 
-/* 归档折叠区 */
-.sunny-codex-archive-section {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  margin-top: 0.25rem;
-}
-
-.sunny-codex-archive-section[aria-expanded="false"] {
-  flex: 0 0 auto;
-}
-
-.sunny-codex-archive-list {
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: 50vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 28%, transparent) transparent;
-}
-
-.sunny-codex-archive-thread {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.3rem 0.75rem;
-  cursor: pointer;
-  font-size: var(--text-xs);
-}
-.sunny-codex-archive-thread:hover {
-  background: var(--sunny-bg-hover);
-}
-
 .sunny-codex-archive-restore-btn {
   padding: 0.15rem 0.45rem;
   border: none;
@@ -3911,4 +3954,3 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   background: color-mix(in srgb, var(--sunny-accent, #2563eb) 15%, transparent);
   color: var(--sunny-accent, #2563eb);
 }
-

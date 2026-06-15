@@ -13,11 +13,11 @@ describe("Dashboard and Admin writing affordances", () => {
     assert.match(copy, /writingStudio/);
   });
 
-  test("Dashboard writing library keeps an advanced Admin escape hatch", () => {
-    const library = read("src/components/dashboard/writing/WritingLibrary.tsx");
+  test("Dashboard writing inspector keeps an advanced Admin escape hatch", () => {
+    const metaPanel = read("src/components/dashboard/writing/WritingMetaPanel.tsx");
     const controls = read("src/components/dashboard/writing/WritingPublishControls.tsx");
 
-    assert.match(library, /\/admin\/collections\/posts/);
+    assert.match(metaPanel, /advancedAdminHref/);
     assert.match(controls, /advancedAdminHref/);
   });
 });

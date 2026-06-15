@@ -1,6 +1,7 @@
 import { getPayloadClient } from "@/lib/payload/client";
 
 import { cosineSimilarity, embedText } from "./memory-embeddings";
+import { computeMemoryRankScore } from "./memory-ranking";
 import type { AgentMemoryDocument } from "./memory-schema";
 import { scoreAgentMemoryRelevance } from "./memory-schema";
 
@@ -9,6 +10,19 @@ type MemoryWithEmbedding = AgentMemoryDocument & {
 };
 
 const MIN_VECTOR_SCORE = 0.35;
+
+/**
+ * pgvector 评估结论：
+ * 当前为单用户工作台，活跃记忆量级通常在数十到数百条，O(n) 线性扫描 + 内存内 cosine
+ * 足够，且零额外运维成本。pgvector 的收益（ANN 索引）要到上千条以上才显著。
+ * 因此本阶段保留线性扫描，但把候选上限提为可配置（AGENT_VECTOR_MEMORY_CANDIDATES），
+ * 为后续平滑切换到 pgvector（仅需替换 find + 排序为 `<=>` 距离查询）预留空间。
+ */
+const getCandidateLimit = () => {
+  const raw = Number(process.env.AGENT_VECTOR_MEMORY_CANDIDATES);
+
+  return Number.isFinite(raw) && raw > 0 ? Math.min(500, Math.floor(raw)) : 40;
+};
 
 const parseEmbedding = (value: unknown): number[] | null => {
   if (!Array.isArray(value)) {
@@ -59,7 +73,7 @@ export const searchMemoriesByVector = async (query: string, limit = 6, intentHin
   const memories = await payload.find({
     collection: "agent-memories",
     depth: 0,
-    limit: 40,
+    limit: getCandidateLimit(),
     overrideAccess: true,
     pagination: false,
     sort: "-lastUsedAt",
@@ -71,23 +85,38 @@ export const searchMemoriesByVector = async (query: string, limit = 6, intentHin
     },
   });
 
+  const rankNow = Date.now();
   const ranked = (memories.docs as MemoryWithEmbedding[])
     .map((memory) => {
       const embedding = parseEmbedding(memory.embedding);
 
       if (!embedding) {
+        const baseScore = scoreAgentMemoryRelevance(memory, query, intentHint) * 0.5;
+
         return {
           memory,
-          score: scoreAgentMemoryRelevance(memory, query, intentHint) * 0.5,
+          // 缺向量的记忆只靠关键词，且综合置信度与 recency 衰减后参与排序。
+          score: computeMemoryRankScore({
+            baseScore,
+            confidence: memory.confidence,
+            lastUsedAt: memory.lastUsedAt,
+            now: rankNow,
+          }),
         };
       }
 
       const vectorScore = cosineSimilarity(queryEmbedding, embedding);
       const keywordScore = scoreAgentMemoryRelevance(memory, query, intentHint) / 100;
+      const baseScore = vectorScore * 0.75 + keywordScore * 0.25;
 
       return {
         memory,
-        score: vectorScore * 0.75 + keywordScore * 0.25,
+        score: computeMemoryRankScore({
+          baseScore,
+          confidence: memory.confidence,
+          lastUsedAt: memory.lastUsedAt,
+          now: rankNow,
+        }),
       };
     })
     .filter((item) => item.score > 0.05)

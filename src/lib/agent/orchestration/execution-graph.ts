@@ -1,8 +1,9 @@
 import {
   createAgentBus,
+  formatUpstreamContext,
   mergeTaskArgsWithBus,
-  publishAgentResult,
   publishTaskArtifact,
+  publishTaskIntent,
   runSpecializedAgentForTask,
 } from "../agents";
 import type { AgentRoleArtifactMap } from "../agents/types";
@@ -430,7 +431,7 @@ export const executeOrchestrationGraph = async (
     task: TaskNode,
   ): Promise<Extract<ExecutionGraphResult, { pendingAction: PendingAction | null }> | null> => {
     try {
-      const mergedTask = mergeTaskArgsWithBus(task, bus);
+      const mergedTask = mergeTaskArgsWithBus(task, bus, plan.tasks);
       let intent = taskToIntent(mergedTask);
 
       if (promptContext && message) {
@@ -452,14 +453,23 @@ export const executeOrchestrationGraph = async (
           return null;
         }
 
+        // 把上游闭包的产物/推理/意图回灌给下游专业 Agent 的 LLM 上下文，形成反馈闭环。
+        const upstreamContext = formatUpstreamContext(mergedTask, bus, plan.tasks);
         const specialized = await runSpecializedAgentForTask(mergedTask, {
           dryRunContext,
           intent: baseIntent,
           message,
           promptContext,
+          upstreamContext: upstreamContext || undefined,
         });
         intent = specialized.intent;
-        bus = publishAgentResult(bus, specialized);
+        // 用 intent 消息记录上游 Agent 的最终决策与说明（替代原 bus.results 死数据）。
+        bus = publishTaskIntent(bus, {
+          from: task.agentRole,
+          intent: specialized.intent.intent,
+          reasoning: specialized.note,
+          taskId: task.id,
+        });
       }
 
       if (!intent) {
@@ -516,6 +526,7 @@ export const executeOrchestrationGraph = async (
             bus = publishTaskArtifact(bus, {
               from: task.agentRole,
               payload: buildArtifactPayload(task, intent, dryRun.action),
+              reasoning: `已自动执行：${message}`,
               taskId: task.id,
             });
             void recordAutoApproval({
@@ -542,6 +553,7 @@ export const executeOrchestrationGraph = async (
         bus = publishTaskArtifact(bus, {
           from: task.agentRole,
           payload: buildArtifactPayload(task, intent, dryRun.action),
+          reasoning: `待确认提案：${dryRun.action.summary}`,
           taskId: task.id,
         });
 
@@ -574,6 +586,7 @@ export const executeOrchestrationGraph = async (
         bus = publishTaskArtifact(bus, {
           from: task.agentRole,
           payload: buildArtifactPayload(task, intent),
+          reasoning: executed.assistantMessage.slice(0, 160),
           taskId: task.id,
         });
       }

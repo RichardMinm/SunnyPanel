@@ -1084,6 +1084,12 @@ const parseScheduleProposal = (value: unknown): undefined | ScheduleProposal => 
 };
 
 export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
+  // 兼容主 prompt 的仲裁包装 {decision, intent:{...}}：当 intent 字段本身是对象时解包内层意图，
+  // 使主链路与子 Agent（输出扁平 intent）共用一套解析，避免编排链路因格式漂移而丢意图。
+  if (isRecord(value) && isRecord(value.intent)) {
+    return parseAgentIntentResult(value.intent);
+  }
+
   if (!isRecord(value) || typeof value.intent !== "string" || !isRecord(value.args)) {
     return null;
   }

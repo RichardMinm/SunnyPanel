@@ -79,6 +79,19 @@ describe("Dashboard layout contracts", () => {
     assert.match(sidebar, /is-active/);
   });
 
+  test("Archived and thread sidebar controls share one collapse button contract", () => {
+    const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
+    const shellCss = read("src/app/styles/sunny-dashboard-shell.css");
+    const agentCss = read("src/app/styles/sunny-agent.css");
+
+    assert.match(sidebar, /sunny-codex-thread-section\$\{threadsOpen \? "" : " is-collapsed"\}/);
+    assert.match(sidebar, /sunny-codex-archive-section\$\{archiveOpen \? "" : " is-collapsed"\}/);
+    assert.match(shellCss, /\.sunny-codex-thread-section,\s*\.sunny-codex-archive-section/);
+    assert.match(shellCss, /\.sunny-codex-thread-section\.is-collapsed,\s*\.sunny-codex-archive-section\.is-collapsed/);
+    assert.doesNotMatch(agentCss, /\.sunny-codex-archive-section\s*\{/);
+    assert.doesNotMatch(agentCss, /\.sunny-codex-archive-section\[aria-expanded="false"\]/);
+  });
+
   test("Sidebar is icon-first and does not own the right Inspector toggle", () => {
     const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
     const shell = read("src/components/dashboard/DashboardShell.tsx");
@@ -155,7 +168,7 @@ describe("Dashboard layout contracts", () => {
     assert.match(agentCss, /\.sunny-agent-stage-row/);
   });
 
-  test("Dashboard keeps the five-tab Inspector as a default-hidden detail drawer", () => {
+  test("Dashboard keeps the six-tab Inspector as a default-hidden detail drawer", () => {
     const pageClient = read("src/components/dashboard/DashboardPageClient.tsx");
     const shell = read("src/components/dashboard/DashboardShell.tsx");
     const rightPanel = read("src/components/dashboard/DashboardRightPanel.tsx");
@@ -186,12 +199,36 @@ describe("Dashboard layout contracts", () => {
     assert.match(rightPanel, /LinkedObjectsPanel/);
     assert.match(rightPanel, /MemoryInspectorPanel/);
     assert.doesNotMatch(rightPanel, /会话历史/);
-    assert.match(types, /AgentInspectorTab = "approval" \| "context" \| "linked" \| "memory" \| "trace"/);
-    for (const label of ["上下文", "审批", "Trace", "关联", "记忆"]) {
+    assert.match(types, /AgentInspectorTab = "approval" \| "context" \| "linked" \| "memory" \| "trace" \| "inbox"/);
+    for (const label of ["上下文", "审批", "Trace", "关联", "记忆", "建议"]) {
       assert.match(constants, new RegExp(label));
     }
     assert.doesNotMatch(constants, /label:\s*"确认"/);
     assert.doesNotMatch(constants, /label:\s*"记录"/);
+  });
+
+  test("Agent Inbox tab surfaces suggestions and accept prefills the composer through a safe gate", () => {
+    const rightPanel = read("src/components/dashboard/DashboardRightPanel.tsx");
+    const inboxPanel = read("src/components/dashboard/agent/AgentInboxPanel.tsx");
+    const inboxHook = read("src/components/dashboard/agent/use-agent-inbox.ts");
+    const pageClient = read("src/components/dashboard/DashboardPageClient.tsx");
+
+    // Inbox 作为检查器新 Tab 接入，accept 预填 composer（复核后再经安全门）。
+    assert.match(rightPanel, /AgentInboxPanel/);
+    assert.match(rightPanel, /activeInspectorTab === "inbox"/);
+    assert.match(rightPanel, /onPrefillComposer=\{onPrefillComposer\}/);
+
+    assert.match(inboxPanel, /useAgentInbox/);
+    assert.match(inboxPanel, /onPrefillComposer\?\.\(item\.suggestedPrompt\)/);
+    assert.match(inboxPanel, /采纳/);
+    assert.match(inboxPanel, /忽略/);
+
+    // dismiss 复用后端既有 7 天冷却（PATCH dismiss），无需额外客户端冷却逻辑。
+    assert.match(inboxHook, /\/api\/agent\/suggestions/);
+    assert.match(inboxHook, /"accept" \| "dismiss"/);
+    assert.match(inboxHook, /method: "PATCH"/);
+
+    assert.match(pageClient, /onPrefillComposer=\{\(prompt\) => \{ chat\.setInput\(prompt\); \}\}/);
   });
 
   test("Composer is mode-aware through a compact menu and sends workbenchMode to the Agent chat API", () => {
@@ -338,6 +375,15 @@ describe("Dashboard layout contracts", () => {
     assert.match(dashboardHook, /setThreadTitle\(""\)/);
     assert.match(dashboardHook, /setThreadHydrated\(true\)/);
     assert.match(pageClient, /onNewThread=\{\(\) => \{ chat\.clearRunDetail\(\); chat\.resetThread\(\); \}\}/);
+  });
+
+  test("Thread URL sync preserves existing Dashboard workspace search params", () => {
+    const sync = read("src/components/dashboard/agent-chat/use-dashboard-url-thread-sync.ts");
+
+    assert.match(sync, /new URLSearchParams\(searchParams\.toString\(\)\)/);
+    assert.match(sync, /params\.set\("threadId", String\(threadId\)\)/);
+    assert.match(sync, /params\.delete\("threadId"\)/);
+    assert.doesNotMatch(sync, /buildDashboardHref/);
   });
 
   test("Right edge Inspector toggle is styled as the right panel affordance", () => {

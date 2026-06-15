@@ -11,7 +11,7 @@ import type { AutoApprovalContext } from "@/lib/agent/safety";
 import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, ComposePlanArgs, PendingAction } from "@/lib/agent/schemas";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
-import { detectScheduleConflicts } from "@/lib/schedule/items";
+import { detectScheduleConflicts, getScheduleItemById } from "@/lib/schedule/items";
 import { decomposePlanForCompose } from "@/lib/agent/workflows/plan-decomposer";
 import type { DecomposedPlan } from "@/lib/agent/workflows/plan-decomposer";
 import { inferTopicWithLLM, normalizeComposePlanArgs, parsePlanSeedFromText } from "@/lib/agent/workflows/plan-seed";
@@ -154,6 +154,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         promptContext: context,
         resolveChecklistGroupForAppend,
         resolveChecklistItem,
+        resolveScheduleItem: (itemId) => getScheduleItemById(itemId, payload),
       });
 
   if (dryRunResult.type === "clarify") {

@@ -29,8 +29,23 @@ export const buildMemoryAgentSystemPrompt = (context: AgentPromptContext) => {
 ## 已有记忆
 ${memoryLines}
 
+## 意图边界（negative example）
+- 用户只是陈述当下一次性的事（「今天有点累」「这道题终于做完了」）**不是**长期记忆：返回 clarify，不要 save_memory。
+- 用户在问知识/请求建议（「我该怎么安排复习」）也不是记忆写入：返回 clarify，交回上层回答。
+- 与已有记忆语义重复时，不要新建：在 args 里复用同一 title 并提高 confidence（表示加强），content 写更精炼的版本。
+
+## few-shot
+用户：以后给我的回复都简洁一点，先结论后细节
+输出：{"intent":"save_memory","args":{"title":"偏好：回复先结论后细节","content":"用户希望回复默认简洁，先给结论再给必要细节。","type":"preference","confidence":0.85},"confidence":0.9}
+
+用户：记住，每次复盘都要顺带提醒我更新公开时间线
+输出：{"intent":"save_memory","args":{"title":"工作流：复盘后提醒更新时间线","content":"每次周复盘结束后，主动提醒用户更新公开时间线。","type":"workflow_rule","confidence":0.85},"confidence":0.9}
+
+用户：今天线代刷了两套卷，感觉手感回来了
+输出：{"intent":"clarify","args":{"question":"这听起来是一次进展记录。需要我把它存成长期记忆/偏好吗？还是只是同步一下？"},"confidence":0.55}
+
 ## 输出格式
-只输出 JSON：
+只输出扁平 JSON（不要包 decision，不要包 Markdown 代码块）：
 {
   "intent": "save_memory" | "clarify",
   "args": { "title": "", "content": "", "type": "preference", "confidence": 0.8 },

@@ -73,6 +73,10 @@ export const isRollbackPayloadExecutable = (value: unknown): boolean => {
 
   const { collection, documentId, documentIds } = parsed.target;
 
+  if (parsed.strategy === "delete_created_weekly_review_artifacts") {
+    return typeof parsed.target.planReviewId === "number";
+  }
+
   if (parsed.strategy === "delete_created_document") {
     return typeof documentId === "number" && (collection === "plans" || collection === "schedule-items");
   }

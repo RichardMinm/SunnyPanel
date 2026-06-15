@@ -89,6 +89,25 @@ export const getScheduleForDate = async (date: string | Date, payload?: Payload)
   return result.docs;
 };
 
+export const getScheduleItemById = async (
+  itemId: number,
+  payload?: Payload,
+): Promise<null | ScheduleItemRecord> => {
+  const payloadClient = (await getPayload(payload)) as unknown as {
+    findByID: (args: unknown) => Promise<null | ScheduleItemRecord>;
+  };
+
+  try {
+    return await payloadClient.findByID({
+      collection: scheduleCollection,
+      id: itemId,
+      overrideAccess: true,
+    });
+  } catch {
+    return null;
+  }
+};
+
 export const getTodaySchedule = (payload?: Payload) => getScheduleForDate(new Date(), payload);
 
 export const getTomorrowSchedule = (payload?: Payload) =>

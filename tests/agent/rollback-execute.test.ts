@@ -299,3 +299,42 @@ test("executeRollbackFromPayload restores checklist groups and an existing timel
     ],
   );
 });
+
+test("executeRollbackFromPayload deletes weekly review artifacts and archives suggestions", async () => {
+  const payload = await getPayloadClient();
+  const result = await executeRollbackFromPayload(
+    {
+      strategy: "delete_created_weekly_review_artifacts",
+      target: {
+        agentRunId: 920,
+        collection: "plan-reviews",
+        planReviewId: 700,
+        suggestionIds: [301, 302],
+      },
+    },
+    { payload: payload as never, persistAudit: false },
+  );
+
+  assert.equal(result.strategy, "delete_created_weekly_review_artifacts");
+  assert.equal(result.collection, "plan-reviews");
+  assert.equal(result.documentId, 700);
+
+  const deletes = getPayloadStubOperations()
+    .filter((operation) => operation.type === "delete")
+    .map((operation) => operation.args);
+  assert.deepEqual(deletes, [
+    { collection: "plan-reviews", id: 700, overrideAccess: true },
+    { collection: "agent-runs", id: 920, overrideAccess: true },
+  ]);
+
+  const suggestionUpdates = getPayloadStubOperations()
+    .filter((operation) => operation.type === "update")
+    .map((operation) => operation.args as { collection?: string; data?: { status?: string }; id?: number });
+  assert.deepEqual(
+    suggestionUpdates.map((args) => ({ collection: args.collection, id: args.id, status: args.data?.status })),
+    [
+      { collection: "agent-suggestions", id: 301, status: "dismissed" },
+      { collection: "agent-suggestions", id: 302, status: "dismissed" },
+    ],
+  );
+});

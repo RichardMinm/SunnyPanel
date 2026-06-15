@@ -1,145 +1,302 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { ContentEditor } from "@/components/content-editor/ContentEditor";
+import type { EditorBubbleAiPayload } from "@/components/content-editor/EditorBubbleMenu";
 import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 import { createEmptyRichDocument } from "@/lib/rich-content/defaults";
-import type { RichContentDocument } from "@/lib/rich-content/types";
 
-import type {
-  WritingDocument,
-  WritingDocumentPatch,
-  WritingSaveState,
-} from "./writing-types";
+import { useWritingAssist, type WritingAssistAction } from "./use-writing-assist";
+import { canEditTitle, showsSummaryField } from "./writing-metadata";
+import type { WritingDocument, WritingDraft, WritingSaveState } from "./writing-types";
 
 type WritingEditorPaneProps = {
   document: null | WritingDocument;
+  draft: WritingDraft | null;
   error: null | string;
-  onSave: (document: WritingDocument, patch: WritingDocumentPatch) => Promise<null | WritingDocument>;
+  focusMode: boolean;
+  isDirty: boolean;
+  onFlushSave: () => Promise<null | WritingDocument>;
+  onPublish: (document: WritingDocument) => Promise<null | WritingDocument>;
+  onToggleFocusMode: () => void;
+  onTogglePreviewMode: () => void;
+  onUpdateDraft: (patch: Partial<WritingDraft>) => void;
   saveState: WritingSaveState;
 };
 
-const canEditTitle = (document: WritingDocument) =>
-  document.collection === "posts" || document.collection === "pages";
+const saveStateLabel = (saveState: WritingSaveState, isDirty: boolean, error: null | string) => {
+  if (error) {
+    return error;
+  }
 
-const getTitleValue = (document: WritingDocument) =>
-  typeof document.metadata.title === "string" ? document.metadata.title : document.title;
+  if (saveState === "saving") {
+    return "保存中...";
+  }
+
+  if (saveState === "saved") {
+    return "已保存";
+  }
+
+  if (saveState === "error") {
+    return "保存失败";
+  }
+
+  if (isDirty || saveState === "dirty") {
+    return "有未保存修改";
+  }
+
+  return "已保存";
+};
+
+type WritingAssistExtra = {
+  replaceSelection?: EditorBubbleAiPayload["replaceSelection"];
+  text?: string;
+};
 
 export function WritingEditorPane({
   document,
+  draft,
   error,
-  onSave,
+  focusMode,
+  isDirty,
+  onFlushSave,
+  onPublish,
+  onToggleFocusMode,
+  onTogglePreviewMode,
+  onUpdateDraft,
   saveState,
 }: WritingEditorPaneProps) {
-  const [draftContent, setDraftContent] = useState<RichContentDocument>(() => createEmptyRichDocument());
-  const [draftTitle, setDraftTitle] = useState("");
-  const [isDirty, setIsDirty] = useState(false);
-
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- reset local editor draft when the selected document changes */
-    if (!document) {
-      setDraftContent(createEmptyRichDocument());
-      setDraftTitle("");
-      setIsDirty(false);
-      return;
-    }
-
-    setDraftContent(document.contentRich);
-    setDraftTitle(getTitleValue(document));
-    setIsDirty(false);
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [document]);
+  const { isLoading: aiLoading, rememberStyle, runAssist } = useWritingAssist();
+  const [publishError, setPublishError] = useState<null | string>(null);
 
   const headerLabel = useMemo(() => {
     if (!document) {
-      return "选择或新建内容";
+      return "Dashboard Studio";
     }
 
-    return dashboardContentLabels[document.collection];
+    return `${dashboardContentLabels[document.collection]} / Dashboard Studio`;
   }, [document]);
 
-  const handleContentChange = useCallback((content: RichContentDocument) => {
-    setDraftContent(content);
-    setIsDirty(true);
-  }, []);
+  const handleAssist = useCallback(
+    async (action: WritingAssistAction, extra?: WritingAssistExtra) => {
+      if (!document || !draft) {
+        return;
+      }
 
-  const handleSave = useCallback(async () => {
-    if (!document) {
+      const response = await runAssist(action, {
+        collection: document.collection,
+        contentRich: draft.contentRich,
+        summary: draft.summary,
+        text: extra?.text,
+        title: draft.title,
+      });
+
+      if (!response) {
+        return;
+      }
+
+      if (response.result) {
+        if (action === "generate_title") {
+          onUpdateDraft({ title: response.result });
+          return;
+        }
+
+        if (action === "generate_summary") {
+          onUpdateDraft({ summary: response.result });
+          return;
+        }
+
+        if (action === "continue") {
+          const nextContent = {
+            ...draft.contentRich,
+            content: [
+              ...(draft.contentRich.content ?? []),
+              {
+                content: [{ text: response.result, type: "text" }],
+                type: "paragraph",
+              },
+            ],
+          };
+          onUpdateDraft({ contentRich: nextContent });
+          return;
+        }
+
+        if (extra?.text && extra.replaceSelection) {
+          extra.replaceSelection(response.result);
+          // 选区改写被应用回文档即视为用户显式采纳 → 沉淀为 writing_style 记忆。
+          if (["condense", "expand", "polish", "rewrite"].includes(action)) {
+            void rememberStyle(action, response.result, {
+              collection: document.collection,
+              text: extra.text,
+            });
+          }
+        }
+      }
+
+      if (response.tags?.length) {
+        onUpdateDraft({
+          metadata: {
+            ...draft.metadata,
+            tags: response.tags.join(", "),
+          },
+        });
+      }
+    },
+    [document, draft, onUpdateDraft, rememberStyle, runAssist],
+  );
+
+  const handlePublish = useCallback(async () => {
+    if (!document || !draft) {
       return;
     }
 
-    const patch: WritingDocumentPatch = {
-      contentRich: draftContent,
-    };
-
-    if (canEditTitle(document)) {
-      patch.title = draftTitle.trim() || document.title;
+    if (canEditTitle(document) && !draft.title.trim()) {
+      setPublishError("发布前请先填写标题");
+      return;
     }
 
-    const saved = await onSave(document, patch);
-    if (saved) {
-      setIsDirty(false);
-    }
-  }, [document, draftContent, draftTitle, onSave]);
+    setPublishError(null);
+    await onPublish(document);
+  }, [document, draft, onPublish]);
 
-  const saveLabel =
-    saveState === "saving"
-      ? "保存中"
-      : saveState === "saved"
-        ? "已保存"
-        : isDirty
-          ? "有未保存修改"
-          : "已同步";
-
-  if (!document) {
+  if (!document || !draft) {
     return (
       <section className="sunny-writing-editor-pane" aria-label="编辑器">
         <div className="sunny-writing-empty-state">
           <p>{headerLabel}</p>
-          <h2>暂无选中文档</h2>
+          <h2>输入标题，开始写作</h2>
+          <p className="sunny-writing-side-muted">或从左侧内容库选择一篇文档。</p>
         </div>
       </section>
     );
   }
 
+  const statusLabel = saveStateLabel(saveState, isDirty, error);
+
   return (
-    <section className="sunny-writing-editor-pane" aria-label="编辑器">
+    <section
+      className={`sunny-writing-editor-pane${focusMode ? " is-focus-mode" : ""}`}
+      aria-label="编辑器"
+    >
       <div className="sunny-writing-editor-topbar">
-        <span>{headerLabel}</span>
-        <div className="sunny-writing-save-state" data-state={saveState}>
-          {error ?? saveLabel}
+        {focusMode ? (
+          <button
+            className="sunny-writing-secondary-button"
+            onClick={onToggleFocusMode}
+            type="button"
+          >
+            ← 退出专注
+          </button>
+        ) : (
+          <span>{headerLabel}</span>
+        )}
+
+        {focusMode ? (
+          <strong className="sunny-writing-focus-title">{draft.title || "未命名内容"}</strong>
+        ) : null}
+
+        <div className="sunny-writing-topbar-actions">
+          <div className="sunny-writing-save-state" data-state={saveState}>
+            {aiLoading ? "AI 处理中..." : statusLabel}
+          </div>
+          {!focusMode ? (
+            <>
+              <button
+                className="sunny-writing-secondary-button"
+                onClick={onToggleFocusMode}
+                title="专注写作模式"
+                type="button"
+              >
+                专注
+              </button>
+              <button
+                className="sunny-writing-secondary-button"
+                onClick={onTogglePreviewMode}
+                title="预览"
+                type="button"
+              >
+                预览
+              </button>
+              <button
+                className="sunny-writing-secondary-button"
+                disabled={!isDirty || saveState === "saving"}
+                onClick={() => void onFlushSave()}
+                type="button"
+              >
+                保存
+              </button>
+            </>
+          ) : null}
+          <button
+            className="sunny-writing-primary-button"
+            disabled={saveState === "saving"}
+            onClick={() => void handlePublish()}
+            type="button"
+          >
+            发布
+          </button>
         </div>
-        <button
-          className="sunny-writing-primary-button"
-          disabled={!isDirty || saveState === "saving"}
-          onClick={handleSave}
-          type="button"
-        >
-          保存
-        </button>
       </div>
+
+      {publishError ? <p className="sunny-writing-inline-error">{publishError}</p> : null}
 
       <div className="sunny-writing-editor-canvas">
         {canEditTitle(document) ? (
-          <input
-            aria-label="标题"
-            className="sunny-writing-title-input"
-            onChange={(event) => {
-              setDraftTitle(event.target.value);
-              setIsDirty(true);
-            }}
-            placeholder="写下标题"
-            value={draftTitle}
-          />
+          <div className="sunny-writing-title-row">
+            <input
+              aria-label="标题"
+              className="sunny-writing-title-input"
+              onChange={(event) => onUpdateDraft({ title: event.target.value })}
+              placeholder="输入标题..."
+              value={draft.title}
+            />
+            <button
+              className="sunny-writing-ai-inline-button"
+              disabled={aiLoading}
+              onClick={() => void handleAssist("generate_title")}
+              type="button"
+            >
+              生成标题
+            </button>
+          </div>
+        ) : null}
+
+        {showsSummaryField(document.collection) ? (
+          <div className="sunny-writing-summary-row">
+            <textarea
+              aria-label="摘要"
+              className="sunny-writing-summary-input"
+              onChange={(event) => onUpdateDraft({ summary: event.target.value })}
+              placeholder="可选：写一句摘要..."
+              rows={2}
+              value={draft.summary}
+            />
+            <button
+              className="sunny-writing-ai-inline-button"
+              disabled={aiLoading}
+              onClick={() => void handleAssist("generate_summary")}
+              type="button"
+            >
+              自动生成摘要
+            </button>
+          </div>
         ) : null}
 
         <ContentEditor
           autoFocus
           className="sunny-writing-tiptap-editor"
-          content={draftContent}
+          content={draft.contentRich ?? createEmptyRichDocument()}
           disabled={saveState === "saving"}
-          onChange={handleContentChange}
+          onAiBubbleAction={(payload) =>
+            void handleAssist(payload.action, {
+              replaceSelection: payload.replaceSelection,
+              text: payload.selectedText,
+            })
+          }
+          onAiToolbarAction={(action) => void handleAssist(action)}
+          onChange={(contentRich) => onUpdateDraft({ contentRich })}
+          variant="writing"
         />
       </div>
     </section>

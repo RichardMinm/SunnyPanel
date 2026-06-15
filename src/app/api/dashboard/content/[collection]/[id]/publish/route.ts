@@ -61,5 +61,16 @@ export async function POST(_request: Request, context: DashboardContentPublishCo
     user: authResult.user,
   });
 
+  // 发布即内容生命周期的关键节点：刷新建议，让"补时间线 / 关联计划"等候选及时出现在 Agent Inbox。
+  // 建议刷新是增强能力，失败时不影响发布主流程。
+  try {
+    const { assembleWorkspaceSnapshot, loadWorkspaceCore } = await import("@/lib/payload/workspace");
+    const { syncAgentSuggestionsFromWorkspaceSnapshot } = await import("@/lib/agent/suggestions");
+
+    await syncAgentSuggestionsFromWorkspaceSnapshot(assembleWorkspaceSnapshot(await loadWorkspaceCore()));
+  } catch {
+    // 静默降级：下一次工作台加载会重新生成建议。
+  }
+
   return NextResponse.json({ document: normalizeDashboardContentDocument(collection, doc as never) });
 }

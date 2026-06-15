@@ -29,7 +29,7 @@ import type { AgentToolDryRunContext } from "@/lib/agent/tool-registry";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
-import { detectScheduleConflicts } from "@/lib/schedule/items";
+import { detectScheduleConflicts, getScheduleItemById } from "@/lib/schedule/items";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
 
 import {
@@ -108,6 +108,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     planCandidates: context.plans,
     resolveChecklistGroupForAppend,
     resolveChecklistItem,
+    resolveScheduleItem: (itemId: number) => getScheduleItemById(itemId, payload),
     ...dryRunContextOverrides,
   };
   const pushGraphTraceSteps = (graphResult: Awaited<ReturnType<typeof executeOrchestrationGraph>>) => {

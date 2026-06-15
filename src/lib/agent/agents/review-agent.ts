@@ -7,10 +7,12 @@ export const enrichReviewIntent = async (
   intent: AgentIntent,
   context: AgentPromptContext,
   message: string,
+  upstreamContext?: string,
 ): Promise<AgentIntent | null> =>
   enrichIntentWithAgentPrompt({
     buildSystemPrompt: buildReviewAgentSystemPrompt,
     context,
     intent,
     message,
+    upstreamContext,
   });

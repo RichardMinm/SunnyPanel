@@ -102,6 +102,7 @@ export type WeeklyReviewResult = {
   reviewId?: number;
   risks: string[];
   suggestionDrafts: AgentSuggestionDraft[];
+  suggestionIds?: number[];
 };
 
 export type WeeklyReviewWorkflowDeps = {
@@ -592,6 +593,13 @@ export const runWeeklyReviewWorkflow = async (
           return upsertSuggestion(suggestion.uniqueKey, suggestion);
         }),
       );
+  const suggestionIds = suggestionResults
+    .map((result) =>
+      result && typeof result === "object" && typeof (result as { id?: unknown }).id === "number"
+        ? (result as { id: number }).id
+        : null,
+    )
+    .filter((id): id is number => id !== null);
   const rawAgentRunData = {
     afterSnapshot: {
       llmEnhanced: Boolean(llmInsights),
@@ -640,6 +648,7 @@ export const runWeeklyReviewWorkflow = async (
     ...mergedReview,
     agentRunId: agentRun.id,
     reviewId: planReview.id,
+    suggestionIds,
   };
 
   return {
