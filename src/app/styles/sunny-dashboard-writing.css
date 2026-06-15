@@ -18,7 +18,7 @@
   --writing-active-text: var(--writing-accent);
   --writing-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 300px;
+  grid-template-columns: 280px minmax(0, 1fr) 280px;
   grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   height: 100%;
@@ -46,7 +46,7 @@
 .sunny-writing-meta-panel {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
   border-left: 1px solid var(--writing-rule);
   padding: 1rem 0.85rem;
   overflow-y: auto;
@@ -1462,7 +1462,7 @@ html[data-theme="dark"] .sunny-writing-tag-chip-input {
 }
 
 .sunny-writing-workspace.is-library-collapsed {
-  grid-template-columns: 0 minmax(0, 1fr) 300px;
+  grid-template-columns: 0 minmax(0, 1fr) 280px;
 }
 
 .sunny-writing-workspace.is-inspector-collapsed {
@@ -1932,7 +1932,7 @@ html[data-theme="dark"] .sunny-writing-tag-chip-input {
 
 .sunny-writing-inspector-section-body {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.5rem;
 }
 
 .sunny-writing-preview-pane,
