@@ -18,6 +18,7 @@ import {
   composeTimelineEventFromIntent,
   completePlanItemFromIntent,
   createPlanFromIntent,
+  deletePlanFromIntent,
   queryPlanProgressFromIntent,
   rescheduleItemFromIntent,
   saveMemoryFromIntent,
@@ -61,6 +62,7 @@ const toolExecutors = {
   composeTimelineEvent: composeTimelineEventFromIntent,
   completePlanItem: completePlanItemFromIntent,
   createPlan: createPlanFromIntent,
+  deleteRecord: deletePlanFromIntent,
   queryPlanProgress: queryPlanProgressFromIntent,
   rescheduleItem: rescheduleItemFromIntent,
   saveMemory: saveMemoryFromIntent,
@@ -261,19 +263,17 @@ export const executeAgentIntent = async (
     case "save_memory":
     case "schedule_plan":
     case "weekly_review":
+    case "delete_record":
       return runWithAgentExecutionContext({ userId: options.userId }, () =>
         executeAgentTool(intent, toolExecutors, onTrace),
       );
-    case "delete_record":
     case "modify_record":
       onTrace?.({
-        detail: intent.intent === "delete_record"
-          ? `目标：${(intent.args as Record<string,unknown>).entityName}`
-          : `修改：${(intent.args as Record<string,unknown>).entityName}`,
-        id: `workflow-${intent.intent}`,
+        detail: `修改：${(intent.args as Record<string,unknown>).entityName}`,
+        id: "workflow-modify_record",
         kind: "write",
         status: "done",
-        title: intent.intent === "delete_record" ? "已进入删除确认流程" : "已进入修改确认流程",
+        title: "已进入修改确认流程",
       });
       return { assistantMessage: "", pendingAction: null };
     case "query_checklist_progress":

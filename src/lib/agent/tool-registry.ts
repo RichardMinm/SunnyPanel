@@ -12,6 +12,7 @@ import type {
   ComposeScheduleItemArgs,
   ComposeTimelineEventArgs,
   CreatePlanArgs,
+  DeleteRecordArgs,
   PendingAction,
   ProposedAgentAction,
   QueryPlanProgressArgs,
@@ -184,6 +185,10 @@ export type AgentToolExecutionContext = {
     args: CreatePlanArgs,
     onTrace?: AgentExecutionTraceReporter,
   ) => Promise<AgentToolResult>;
+  deleteRecord?: (
+    args: DeleteRecordArgs,
+    onTrace?: AgentExecutionTraceReporter,
+  ) => Promise<AgentToolResult>;
   now?: string;
   queryPlanProgress?: (
     args: QueryPlanProgressArgs,
@@ -240,6 +245,7 @@ type AgentToolRegistry = {
   reschedule_item: AgentToolDefinition<"reschedule_item", RescheduleItemArgs>;
   save_memory: AgentToolDefinition<"save_memory", SaveMemoryArgs>;
   schedule_plan: AgentToolDefinition<"schedule_plan", SchedulePlanArgs>;
+  delete_record: AgentToolDefinition<"delete_record", DeleteRecordArgs>;
   weekly_review: AgentToolDefinition<"weekly_review", WeeklyReviewArgs>;
 };
 
@@ -264,6 +270,7 @@ const createClarifyResult = ({
     | ComposePlanArgs
     | ComposeScheduleItemArgs
     | CreatePlanArgs
+    | DeleteRecordArgs
     | QueryPlanProgressArgs
     | RescheduleItemArgs
     | SaveMemoryArgs
@@ -1691,6 +1698,76 @@ const addCompletionNoteDryRun = async (
   };
 };
 
+const deleteRecordDryRun = async (
+  args: DeleteRecordArgs,
+  context: AgentToolDryRunContext,
+): Promise<AgentToolDryRunResult> => {
+  const { entityName, entityType } = args;
+  const trimmedName = entityName.trim();
+
+  if (!trimmedName || trimmedName.length < 2) {
+    return createClarifyResult({
+      args,
+      intent: "delete_record",
+      missingFields: ["entityName"],
+      question: "请提供要删除的计划名称，例如「删除「React 学习计划」」。",
+    });
+  }
+
+  if (entityType !== "plan") {
+    return {
+      assistantMessage: `暂不支持删除 ${entityType === "schedule" ? "日程" : entityType === "checklist" ? "清单" : "时间线"}，目前仅支持删除计划。`,
+      pendingAction: null,
+      type: "clarify",
+    } as AgentDryRunClarifyResult;
+  }
+
+  const candidates = context.planCandidates ?? [];
+  const matches = candidates.filter(
+    (c) => c.title.includes(trimmedName) || trimmedName.includes(c.title),
+  );
+
+  if (matches.length === 0) {
+    return {
+      assistantMessage: `未找到标题包含「${trimmedName}」的计划。请检查计划名称是否正确。`,
+      pendingAction: null,
+      type: "clarify",
+    } as AgentDryRunClarifyResult;
+  }
+
+  if (matches.length > 1) {
+    const matchList = matches
+      .slice(0, 5)
+      .map((p) => `· ${p.title} (ID: ${p.id})`)
+      .join("\n");
+    return {
+      assistantMessage: `找到 ${matches.length} 个匹配的计划：\n${matchList}\n\n请指定要删除的具体计划名称。`,
+      pendingAction: null,
+      type: "clarify",
+    } as AgentDryRunClarifyResult;
+  }
+
+  const matched = matches[0];
+  return {
+    action: {
+      args: args as unknown as Record<string, unknown>,
+      changes: [
+        {
+          collection: "plans",
+          operation: "delete" as const,
+          preview: `删除计划「${matched.title}」`,
+        },
+      ],
+      id: createProposedActionId(),
+      intent: "delete_record",
+      requiresConfirmation: true,
+      riskLevel: "high",
+      summary: `删除计划「${matched.title}」（此操作不可撤销）`,
+    },
+    type: "proposed_action",
+  };
+};
+
 export const agentToolRegistry = {
   add_completion_note: {
     description: "Add a completion note to a completed checklist item and synchronize the Timeline event.",
@@ -1916,6 +1993,25 @@ export const agentToolRegistry = {
       status: "planned",
     },
   },
+  delete_record: {
+    description: "删除计划/日程/清单/时间线，需确认后执行。目前仅支持删除计划。",
+    dryRun: deleteRecordDryRun,
+    execute: (args, context, onTrace) => {
+      if (!context.deleteRecord) {
+        throw new Error("Agent tool registry missing deleteRecord executor.");
+      }
+
+      return context.deleteRecord(args, onTrace);
+    },
+    intent: "delete_record",
+    name: "delete_record",
+    requiresConfirmation: true,
+    riskLevel: "high",
+    rollback: {
+      description: "从快照恢复已删除的计划。",
+      status: "planned",
+    },
+  },
   weekly_review: {
     description: "Generate a weekly workspace review from plans, checklists, timeline events, public content, and recent AgentRuns.",
     dryRun: weeklyReviewDryRun,
@@ -1958,6 +2054,8 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
       return agentToolRegistry.compose_timeline_event.dryRun(intent.args, context);
     case "create_plan":
       return agentToolRegistry.create_plan.dryRun(intent.args, context);
+    case "delete_record":
+      return agentToolRegistry.delete_record.dryRun(intent.args, context);
     case "query_plan_progress":
       return agentToolRegistry.query_plan_progress.dryRun(intent.args, context);
     case "reschedule_item":
@@ -1993,6 +2091,8 @@ export const executeAgentTool = async (
       return agentToolRegistry.compose_timeline_event.execute(intent.args, context, onTrace);
     case "create_plan":
       return agentToolRegistry.create_plan.execute(intent.args, context, onTrace);
+    case "delete_record":
+      return agentToolRegistry.delete_record.execute(intent.args, context, onTrace);
     case "query_plan_progress":
       return agentToolRegistry.query_plan_progress.execute(intent.args, context, onTrace);
     case "reschedule_item":

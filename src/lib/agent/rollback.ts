@@ -492,5 +492,52 @@ export const executeRollbackFromPayload = async (
     return auditWarning ? { ...result, auditWarning } : result;
   }
 
+  if (parsed.strategy === "restore_deleted_plan") {
+    if (!documentId) {
+      throw new Error("restore_deleted_plan 需要 documentId。");
+    }
+
+    if (collection !== "plans") {
+      throw new Error(`restore_deleted_plan 期望 plans，收到：${collection}`);
+    }
+
+    const snapshot = parsed.beforeSnapshot as Record<string, unknown> | undefined;
+    if (!snapshot || typeof snapshot.title !== "string") {
+      throw new Error("restore_deleted_plan 缺少有效的 beforeSnapshot（至少需要 title）。");
+    }
+
+    const created = (await payload.create({
+      collection: "plans",
+      data: {
+        agentBrief: snapshot.agentBrief ?? null,
+        description: snapshot.description ?? null,
+        domain: snapshot.domain ?? null,
+        dueDate: snapshot.dueDate ?? null,
+        executionMode: snapshot.executionMode ?? "manual",
+        phases: snapshot.phases ?? null,
+        priority: snapshot.priority ?? "medium",
+        progress: snapshot.progress ?? null,
+        state: snapshot.state ?? "backlog",
+        title: snapshot.title as string,
+        totalEstimatedDays: snapshot.totalEstimatedDays ?? null,
+        visibility: snapshot.visibility ?? "private",
+        weeklyRhythm: snapshot.weeklyRhythm ?? null,
+      },
+      overrideAccess: true,
+    })) as { id: number };
+
+    const result = buildRollbackResult({
+      affectedDocuments: [affectedDocument(collection, documentId, "create")],
+      collection,
+      documentId,
+      strategy: parsed.strategy,
+    });
+    const auditWarning = shouldPersistAudit
+      ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId)
+      : undefined;
+
+    return auditWarning ? { ...result, auditWarning } : result;
+  }
+
   throw new Error(`暂不支持的回滚策略：${parsed.strategy}`);
 };

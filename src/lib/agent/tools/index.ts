@@ -9,6 +9,7 @@ export { appendPlanItemFromIntent, completePlanItemFromIntent } from "./checklis
 export { addCompletionNoteFromIntent } from "./checklist-note";
 export { saveMemoryFromIntent } from "./memory-tools";
 export { composePlanFromIntent } from "./plan-compose";
+export { deletePlanFromIntent } from "./plan-delete";
 export { createPlanFromIntent } from "./plan-create";
 export { queryPlanProgressFromIntent } from "./query-tools";
 export { cancelScheduleItemFromIntent, rescheduleItemFromIntent, schedulePlanFromIntent } from "./schedule-mutate";

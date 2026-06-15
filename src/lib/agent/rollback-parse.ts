@@ -115,5 +115,14 @@ export const isRollbackPayloadExecutable = (value: unknown): boolean => {
     return typeof documentId === "number" && collection === "schedule-items" && parsed.beforeSnapshot != null;
   }
 
+  if (parsed.strategy === "restore_deleted_plan") {
+    const snapshot = parsed.beforeSnapshot as { title?: unknown } | undefined;
+    return (
+      typeof documentId === "number" &&
+      collection === "plans" &&
+      typeof snapshot?.title === "string"
+    );
+  }
+
   return false;
 };
