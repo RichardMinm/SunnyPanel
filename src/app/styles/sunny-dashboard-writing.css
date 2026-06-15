@@ -1425,6 +1425,59 @@ html[data-theme="dark"] .sunny-writing-tag-chip-input {
   padding: 0.35rem 0;
 }
 
+/* ── Bubble menu (dark) ── */
+
+html[data-theme="dark"] .sunny-rich-editor-bubble-menu {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="dark"] .sunny-rich-editor-bubble-menu button {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-bubble-menu button:hover,
+html[data-theme="dark"] .sunny-rich-editor-bubble-menu button[aria-pressed="true"] {
+  background: #334155;
+  color: #f1f5f9;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-bubble-divider {
+  background: #334155;
+}
+
+/* ── Insert menu (dark) ── */
+
+html[data-theme="dark"] .sunny-rich-editor-insert-menu {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-insert-menu button {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-insert-menu button:hover {
+  background: #273449;
+}
+
+/* ── AI trigger button (dark) ── */
+
+html[data-theme="dark"] .sunny-rich-editor-ai-trigger {
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-rich-editor-ai-trigger:hover {
+  color: #f1f5f9;
+}
+
+/* ── Pin button icon color (dark) ── */
+
+html[data-theme="dark"] .sunny-writing-meta-pin-button .sunny-dashboard-nav-icon {
+  color: inherit;
+}
+
 @media (max-width: 1180px) {
   .sunny-writing-workspace {
     grid-template-columns: 240px minmax(0, 1fr);

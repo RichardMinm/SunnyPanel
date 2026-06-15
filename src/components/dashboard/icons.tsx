@@ -14,9 +14,11 @@ export type DashboardIconName =
   | "inbox"
   | "inspectorPanel"
   | "memory"
+  | "moreHorizontal"
   | "new"
   | "note"
   | "pencil"
+  | "pin"
   | "plans"
   | "post"
   | "project"
@@ -96,6 +98,13 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
       <path d="M6.5 8h7M6.5 11h7M8.25 4.9v9.2M11.75 4.9v9.2" />
     </>
   ),
+  moreHorizontal: (
+    <>
+      <circle cx="6" cy="10" r="1.1" />
+      <circle cx="10" cy="10" r="1.1" />
+      <circle cx="14" cy="10" r="1.1" />
+    </>
+  ),
   new: (
     <>
       <path d="M5 14.5 14.5 5M8 5h6.5v6.5" />
@@ -113,6 +122,9 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
       <path d="m5 13.75.8-3.05 6.6-6.6a1.55 1.55 0 0 1 2.2 2.2l-6.6 6.6-3 .85Z" />
       <path d="m11.5 5.05 2.45 2.45" />
     </>
+  ),
+  pin: (
+    <path d="M10 2.5 8.25 6.5v6.5l-2.5 4h8.5l-2.5-4V6.5L10 2.5Z" />
   ),
   plans: (
     <>

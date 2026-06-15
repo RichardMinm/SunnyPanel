@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DashboardIcon } from "@/components/dashboard/icons";
 import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 
 import type { WritingDocumentListItem } from "./writing-types";
@@ -116,7 +117,7 @@ export function WritingDocumentRow({
         onClick={() => setMenuOpen((value) => !value)}
         type="button"
       >
-        ⋯
+        <DashboardIcon name="moreHorizontal" />
       </button>
       {menuOpen ? (
         <div className="sunny-writing-document-menu" role="menu">

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { DashboardIcon } from "@/components/dashboard/icons";
 import {
   dashboardContentCollections,
   dashboardContentLabels,
@@ -52,7 +53,10 @@ export function WritingLibraryHeader({ onClose, onCreateDocument }: WritingLibra
             onClick={() => setOpen((value) => !value)}
             type="button"
           >
-            新建 ▾
+            <>
+              新建{" "}
+              <DashboardIcon name="chevronDown" />
+            </>
           </button>
           {open ? (
             <div className="sunny-writing-create-menu" role="menu">
@@ -80,7 +84,7 @@ export function WritingLibraryHeader({ onClose, onCreateDocument }: WritingLibra
             title="收起内容库"
             type="button"
           >
-            ◂
+            <DashboardIcon name="chevronLeft" />
           </button>
         ) : null}
       </div>

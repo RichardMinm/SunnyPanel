@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DashboardIcon } from "@/components/dashboard/icons";
 import { ConfirmDialog } from "@/components/dashboard/agent/ConfirmDialog";
 import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
 
@@ -227,7 +228,7 @@ export function WritingWorkspace() {
           title="展开内容库"
           type="button"
         >
-          库
+          <DashboardIcon name="chevronRight" />
         </button>
       ) : null}
 
@@ -281,7 +282,7 @@ export function WritingWorkspace() {
             title="展开属性栏"
             type="button"
           >
-            属性
+            <DashboardIcon name="chevronLeft" />
           </button>
         </div>
       ) : null}

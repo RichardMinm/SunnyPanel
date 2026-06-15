@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { DashboardIcon } from "@/components/dashboard/icons";
 import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 
 import { WritingInspectorSection } from "./WritingInspectorSection";
@@ -160,7 +161,7 @@ export function WritingMetaPanel({
               title={isPinned ? "取消固定" : "固定属性栏"}
               type="button"
             >
-              📌
+              <DashboardIcon name="pin" />
             </button>
           ) : null}
           {onClose ? (
@@ -171,7 +172,7 @@ export function WritingMetaPanel({
               title="收起属性栏"
               type="button"
             >
-              ›
+              <DashboardIcon name="chevronRight" />
             </button>
           ) : null}
         </div>
