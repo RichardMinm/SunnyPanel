@@ -1,5 +1,7 @@
 "use client";
 
+import { DashboardIcon } from "../icons";
+
 export type ReviewCardData = {
   planTitle: string;
   week: string;
@@ -110,7 +112,7 @@ export function AgentReviewCard({
         ) : null}
         {onOpenInInspector ? (
           <button type="button" onClick={onOpenInInspector}>
-            在 Inspector 中打开 ▸
+            在 Inspector 中打开 <DashboardIcon name="chevronRight" />
           </button>
         ) : null}
       </div>

@@ -10,6 +10,7 @@ import type {
   AgentStreamProgressEvent,
   AgentStreamStageEvent,
 } from "@/lib/agent/stream-events";
+import { DashboardIcon } from "../icons";
 import { useDashboardMotion } from "../motion/dashboard-motion";
 
 type AgentThinkingPanelProps = {
@@ -197,9 +198,21 @@ export function AgentThinkingPanel({
   }
 
   const statusIcon = (status: UserStep["status"]) => {
-    if (status === "done") return "✓";
-    if (status === "running") return "●";
-    return "○";
+    if (status === "done") return (
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{flexShrink:0}}>
+        <path d="m5 11 3.5 3.5 6.5-6.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+    if (status === "running") return (
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{flexShrink:0}}>
+        <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    );
+    return (
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{flexShrink:0}}>
+        <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    );
   };
 
   return (

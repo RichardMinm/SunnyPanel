@@ -86,7 +86,9 @@ export function MessageCard({
             className="sunny-thinking-fold-header"
             onClick={() => setThinkingOpen((v) => !v)}
           >
-            <span className={`sunny-thinking-fold-arrow${thinkingOpen ? " is-open" : ""}`}>▸</span>
+            <span className={`sunny-thinking-fold-arrow${thinkingOpen ? " is-open" : ""}`}>
+              <DashboardIcon name="chevronDown" />
+            </span>
             <span className="sunny-thinking-icon"><DashboardIcon name="thinking" /></span> 思考过程
             {thinkingSteps.length > 1 ? ` (${thinkingSteps.length} 步)` : ""}
           </button>

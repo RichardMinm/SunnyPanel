@@ -274,7 +274,9 @@ export function DashboardIconBar({
             onClick={() => setThreadsOpen((v) => !v)}
             aria-expanded={threadsOpen}
           >
-            <span>{threadsOpen ? "▾" : "▸"}</span>
+            <span className="sunny-sidebar-fold-arrow" data-open={threadsOpen}>
+              <DashboardIcon name="chevronDown" />
+            </span>
             <span className="sunny-codex-sidebar-icon"><DashboardIcon name="agent" /></span>
             会话 ({filteredThreads.length})
           </button>
@@ -327,7 +329,9 @@ export function DashboardIconBar({
             onClick={loadArchivedThreads}
             aria-expanded={archiveOpen}
           >
-            <span>{archiveOpen ? "▾" : "▸"}</span>
+            <span className="sunny-sidebar-fold-arrow" data-open={archiveOpen}>
+              <DashboardIcon name="chevronDown" />
+            </span>
             <span className="sunny-codex-sidebar-icon"><DashboardIcon name="archive" /></span>
             <span className="sunny-codex-sidebar-label">已归档{archiveLoaded ? ` (${archiveThreads.length})` : ""}</span>
           </button>

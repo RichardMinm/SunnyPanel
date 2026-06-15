@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { PendingAction } from "@/lib/agent/schemas";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
+import { DashboardIcon } from "../icons";
 
 
 type QuickMenuItem = {
@@ -328,7 +329,7 @@ export function AgentComposer({
                   >
                     <span>{item.label}</span>
                     {item.children && item.children.length > 0 ? (
-                      <span style={{ marginLeft: "auto", fontSize: "10px", opacity: 0.5 }}>▸</span>
+                      <DashboardIcon name="chevronRight" />
                     ) : null}
                   </button>
                   {item.children && expandedMenuIndex === index ? (
