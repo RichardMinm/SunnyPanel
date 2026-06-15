@@ -1217,6 +1217,16 @@ html[data-theme="dark"] .sunny-writing-admin-link:hover {
   color: #cbd5e1;
 }
 
+/* ── Inspector sections ── */
+
+html[data-theme="dark"] .sunny-writing-inspector-section summary:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme="dark"] .sunny-writing-inspector-chevron {
+  color: #64748b;
+}
+
 /* ── Panel toggle ── */
 
 html[data-theme="dark"] .sunny-writing-panel-toggle {
@@ -1788,12 +1798,47 @@ html[data-theme="dark"] .sunny-writing-meta-head button:hover {
 }
 
 .sunny-writing-inspector-section summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   color: var(--writing-text);
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   list-style: none;
   margin-bottom: 0.55rem;
+  padding: 0.15rem 0.25rem;
+  border-radius: 4px;
+  transition: background 160ms ease;
+}
+
+.sunny-writing-inspector-section summary:hover {
+  background: var(--writing-hover);
+}
+
+.sunny-writing-inspector-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.sunny-writing-inspector-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms ease;
+  color: var(--writing-muted);
+}
+
+.sunny-writing-inspector-chevron .sunny-dashboard-nav-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.sunny-writing-inspector-section[open] > summary .sunny-writing-inspector-chevron {
+  transform: rotate(0deg);
+}
+
+.sunny-writing-inspector-section:not([open]) > summary .sunny-writing-inspector-chevron {
+  transform: rotate(-90deg);
 }
 
 .sunny-writing-inspector-section-body {

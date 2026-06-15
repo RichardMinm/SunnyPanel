@@ -154,7 +154,7 @@ export function WritingMetaPanel({
         />
       </WritingInspectorSection>
 
-      <WritingInspectorSection title="内容结构">
+      <WritingInspectorSection defaultOpen={false} title="内容结构">
         {document.collection === "posts" ? (
           <label className="sunny-writing-field">
             <span>标签</span>
