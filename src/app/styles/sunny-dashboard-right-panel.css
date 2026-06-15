@@ -149,3 +149,67 @@ html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span {
     box-shadow: 0 18px 48px rgba(15, 23, 42, 0.14);
   }
 }
+
+/* ═══ Dark Mode ═══ */
+
+html[data-theme="dark"] .sunny-dashboard-right-panel {
+  background: #111827;
+  border-left-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-dashboard-right-panel h3 {
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .sunny-dashboard-right-panel p {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-context-card,
+html[data-theme="dark"] .sunny-history-card,
+html[data-theme="dark"] .sunny-pending-card {
+  background: #1e293b;
+  border-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-context-card:hover,
+html[data-theme="dark"] .sunny-history-card:hover {
+  background: #273449;
+}
+
+html[data-theme="dark"] .sunny-context-card h4,
+html[data-theme="dark"] .sunny-history-card h4 {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-context-card span,
+html[data-theme="dark"] .sunny-history-card time {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-pending-card .sunny-pending-badge {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-inspector-search input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-inspector-search input:focus {
+  border-color: #3b82f6;
+}
+
+html[data-theme="dark"] .sunny-inspector-tab {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-inspector-tab.is-active {
+  color: #93c5fd;
+  border-bottom-color: #3b82f6;
+}

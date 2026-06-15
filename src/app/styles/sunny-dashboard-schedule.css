@@ -827,3 +827,89 @@
     font-size: 11px;
   }
 }
+
+/* ═══ Dark Mode ═══ */
+
+html[data-theme="dark"] .sunny-dashboard-schedule {
+  background: #111827;
+  border-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-calendar-day {
+  background: transparent;
+  color: #e5e7eb;
+  border-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-calendar-day:hover {
+  background: #1e293b;
+}
+
+html[data-theme="dark"] .sunny-calendar-day.is-today {
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.3);
+}
+
+html[data-theme="dark"] .sunny-calendar-day.is-selected {
+  background: #3b82f6;
+  color: #fff;
+}
+
+html[data-theme="dark"] .sunny-calendar-weekday {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-calendar-nav button {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-calendar-nav button:hover {
+  background: #1e293b;
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .sunny-schedule-event-chip {
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+html[data-theme="dark"] .sunny-schedule-event-chip:hover {
+  background: rgba(59, 130, 246, 0.22);
+}
+
+html[data-theme="dark"] .sunny-schedule-month-header {
+  color: #f8fafc;
+  border-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-schedule-timeline {
+  background: #111827;
+  border-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-schedule-timeline-item {
+  border-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-schedule-timeline-item:hover {
+  background: #1e293b;
+}
+
+html[data-theme="dark"] .sunny-schedule-filter-bar {
+  border-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-schedule-empty {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-schedule-status-badge {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-calendar-grid {
+  border-color: #1f2937;
+}

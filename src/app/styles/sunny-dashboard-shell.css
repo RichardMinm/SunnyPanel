@@ -1152,3 +1152,198 @@ html[data-theme="dark"] .sunny-agent-capability-card-icon {
 
 /* ── Archive actions (from dashboard-content-studio) ── */
 
+
+/* ═══ Dark Mode ═══ */
+
+html[data-theme="dark"] .sunny-dashboard-shell {
+  background: #0f172a;
+}
+
+html[data-theme="dark"] .sunny-dashboard-main {
+  background: #0f172a;
+}
+
+/* Sidebar / nav */
+html[data-theme="dark"] .sunny-dashboard-icon-bar,
+html[data-theme="dark"] .sunny-codex-sidebar {
+  background: #111827;
+  border-right-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-codex-project-row {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-codex-project-row:hover {
+  background: #1e293b;
+}
+
+html[data-theme="dark"] .sunny-codex-project-mark {
+  background: #3b82f6;
+  color: #fff;
+}
+
+/* Sidebar sections */
+html[data-theme="dark"] .sunny-codex-sidebar-section p {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-codex-sidebar-action,
+html[data-theme="dark"] .sunny-codex-mode-row,
+html[data-theme="dark"] .sunny-codex-thread-row {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-codex-sidebar-action:hover,
+html[data-theme="dark"] .sunny-codex-mode-row:hover,
+html[data-theme="dark"] .sunny-codex-thread-row:hover {
+  background: #1e293b;
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .sunny-codex-mode-row.is-active,
+html[data-theme="dark"] .sunny-codex-thread-row.is-active {
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+}
+
+html[data-theme="dark"] .sunny-codex-sidebar-icon {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-codex-sidebar-label {
+  color: #94a3b8;
+}
+
+/* Collapse */
+html[data-theme="dark"] .sunny-codex-sidebar-collapse-toggle {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-codex-sidebar-collapse-toggle:hover {
+  color: #e5e7eb;
+  background: #1e293b;
+}
+
+/* Thread list */
+html[data-theme="dark"] .sunny-codex-thread-row-btn {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-codex-thread-row-btn:hover {
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .sunny-codex-thread-row small {
+  color: #64748b;
+}
+
+/* Search */
+html[data-theme="dark"] .sunny-codex-sidebar-search-input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-codex-sidebar-search-input::placeholder {
+  color: #64748b;
+}
+
+/* Status bar */
+html[data-theme="dark"] .sunny-dashboard-status-bar {
+  background: #111827;
+  border-top-color: #1f2937;
+  color: #64748b;
+}
+
+/* Thread header */
+html[data-theme="dark"] .sunny-agent-thread-header {
+  background: #0f172a;
+  border-bottom-color: #1f2937;
+}
+
+/* Mode pills */
+html[data-theme="dark"] .sunny-codex-mode-pill {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-codex-mode-pill.is-active {
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+}
+
+/* Dashboard settings */
+html[data-theme="dark"] .sunny-dashboard-settings-popover {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .sunny-dashboard-settings-popover p {
+  color: #64748b;
+}
+
+/* Confirm dialog */
+html[data-theme="dark"] .sunny-confirm-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme="dark"] .sunny-confirm-dialog {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+html[data-theme="dark"] .sunny-confirm-title {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-confirm-message {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-confirm-btn-cancel {
+  background: transparent;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+html[data-theme="dark"] .sunny-confirm-btn-cancel:hover {
+  background: #1e293b;
+}
+
+html[data-theme="dark"] .sunny-confirm-btn-danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+/* Badge */
+html[data-theme="dark"] .sunny-agent-badge-ready {
+  background: rgba(34, 197, 94, 0.12);
+  color: #4ade80;
+}
+
+html[data-theme="dark"] .sunny-agent-badge-running {
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+}
+
+html[data-theme="dark"] .sunny-agent-badge-waiting {
+  background: rgba(250, 204, 21, 0.12);
+  color: #facc15;
+}
+
+html[data-theme="dark"] .sunny-thread-row-menu-trigger {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-thread-row-menu-trigger:hover {
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .sunny-codex-view-all {
+  color: #60a5fa;
+}
+
+html[data-theme="dark"] .sunny-codex-view-all:hover {
+  background: rgba(59, 130, 246, 0.1);
+}

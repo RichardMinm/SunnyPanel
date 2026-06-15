@@ -140,3 +140,59 @@
   text-align: center;
   padding: 2rem 0;
 }
+
+/* ═══ Dark Mode ═══ */
+
+html[data-theme="dark"] .sunny-memory-grid {
+  /* uses var(--foreground) etc — inherits from palette */
+}
+
+html[data-theme="dark"] .sunny-memory-card,
+html[data-theme="dark"] .sunny-memory-editor {
+  background: #1e293b;
+  border-color: #1f2937;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+html[data-theme="dark"] .sunny-memory-card h3 {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-memory-card p {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-memory-card span,
+html[data-theme="dark"] .sunny-memory-editor span {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-memory-card small {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-memory-card:hover {
+  border-color: #334155;
+  background: #273449;
+}
+
+html[data-theme="dark"] .sunny-memory-editor textarea {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] .sunny-memory-editor textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+html[data-theme="dark"] .sunny-memory-empty {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-memory-search input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}

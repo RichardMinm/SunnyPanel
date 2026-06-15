@@ -252,3 +252,29 @@
     border: 0;
   }
 }
+
+/* ═══ Dark Mode ═══ */
+
+html[data-theme="dark"] .sunny-admin-nav {
+  background: #111827;
+  border-right-color: #1f2937;
+}
+
+html[data-theme="dark"] .sunny-admin-nav a {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-admin-nav a:hover {
+  background: #1e293b;
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .sunny-admin-nav a.is-active {
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+}
+
+html[data-theme="dark"] .sunny-admin-topbar {
+  background: #111827;
+  border-bottom-color: #1f2937;
+}
