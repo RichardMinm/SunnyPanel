@@ -220,14 +220,16 @@ export function WritingEditorPane({
               >
                 预览
               </button>
-              <button
-                className="sunny-writing-secondary-button"
-                disabled={!isDirty || saveState === "saving"}
-                onClick={() => void onFlushSave()}
-                type="button"
-              >
-                保存
-              </button>
+              {(saveState !== "saved" || isDirty) ? (
+                <button
+                  className="sunny-writing-secondary-button"
+                  disabled={!isDirty || saveState === "saving"}
+                  onClick={() => void onFlushSave()}
+                  type="button"
+                >
+                  保存
+                </button>
+              ) : null}
             </>
           ) : null}
           <button
