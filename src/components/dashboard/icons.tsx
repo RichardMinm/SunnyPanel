@@ -7,6 +7,7 @@ export type DashboardIconName =
   | "archive"
   | "calendar"
   | "checklist"
+  | "chevronDown"
   | "command"
   | "debug"
   | "document"
@@ -23,6 +24,7 @@ export type DashboardIconName =
   | "schedule"
   | "search"
   | "settings"
+  | "sparkle"
   | "chevronLeft"
   | "chevronRight"
   | "clock"
@@ -170,6 +172,7 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
   ),
   chevronLeft: <path d="M13.5 4.5 7.5 10l6 5.5" />,
   chevronRight: <path d="M6.5 4.5 12.5 10l-6 5.5" />,
+  chevronDown: <path d="M5.5 7.5 10 13l4.5-5.5" />,
   clock: (
     <>
       <circle cx="10" cy="10" r="7.5" />
@@ -184,6 +187,9 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
     </>
   ),
   plus: <path d="M10 4.5v11M4.5 10h11" />,
+  sparkle: (
+    <path d="M10 2.5c.3 1.5.6 2.5 1.8 3.7C13 7.4 14 7.7 15.5 8c-1.5.3-2.5.6-3.7 1.8C10.6 11 10.3 12 10 13.5c-.3-1.5-.6-2.5-1.8-3.7C7 8.6 6 8.3 4.5 8c1.5-.3 2.5-.6 3.7-1.8C9.4 5 9.7 4 10 2.5Z" />
+  ),
 };
 
 const INSPECTOR_TAB_ICONS: Record<AgentInspectorTab, DashboardIconName> = {
