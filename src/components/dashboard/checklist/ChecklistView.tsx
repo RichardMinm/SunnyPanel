@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { DashboardIcon } from "@/components/dashboard/icons";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
 
 type ChecklistItem = { key: string; label: string; completed: boolean };
@@ -151,7 +152,17 @@ export function ChecklistView({
                       key={item.key}
                       className={item.completed ? "is-done" : ""}
                     >
-                      <span>{item.completed ? "✓" : "○"}</span>
+                      <span className={`sunny-checklist-item-icon${item.completed ? " is-done" : ""}`}>
+                        {item.completed ? (
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <path d="m5 11 3.5 3.5 6.5-6.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+                          </svg>
+                        )}
+                      </span>
                       <span>{item.label}</span>
                     </li>
                   ))}
