@@ -30,6 +30,28 @@ const dirname = path.dirname(filename);
 
 const serverURL = process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3000";
 
+// Validate PAYLOAD_SECRET at startup — must be a strong random string in production
+const payloadSecret = process.env.PAYLOAD_SECRET;
+if (!payloadSecret || payloadSecret === "change-this-before-production") {
+  throw new Error(
+    "PAYLOAD_SECRET environment variable must be set to a strong random string.\n" +
+    'Generate one with: openssl rand -base64 32'
+  );
+}
+// Minimum 16 bytes of entropy (base64 encoded → ~24 chars)
+if (Buffer.byteLength(payloadSecret, "utf8") < 24) {
+  throw new Error(
+    "PAYLOAD_SECRET is too short — must be at least 24 characters.\n" +
+    'Generate a strong one with: openssl rand -base64 32'
+  );
+}
+
+// Build CORS/CSRF allow list from serverURL + optional CORS_EXTRA_ORIGINS
+const extraOrigins = process.env.CORS_EXTRA_ORIGINS
+  ? process.env.CORS_EXTRA_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+  : [];
+const allowedOrigins = [serverURL, ...extraOrigins];
+
 export default buildConfig({
   admin: {
     suppressHydrationWarning: true,
@@ -73,13 +95,22 @@ export default buildConfig({
     },
   },
   collections: [Users, Media, Post, Note, Update, Checklist, TimelineEvent, Plan, ScheduleItem, PlanReview, AgentThread, AgentRun, AgentMemory, AgentSuggestion, Page],
-  cors: [serverURL],
-  csrf: [serverURL],
+  cors: allowedOrigins,
+  csrf: allowedOrigins,
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || "",
     },
-    push: process.env.PAYLOAD_DB_PUSH === "false" ? false : undefined,
+    // Production safety: never auto-push DDL unless explicitly enabled.
+    // PA locals dev defaults to push=true; production MUST use migrations.
+    push:
+      process.env.PAYLOAD_DB_PUSH === "true"
+        ? true
+        : process.env.PAYLOAD_DB_PUSH === "false"
+          ? false
+          : process.env.NODE_ENV === "production"
+            ? false
+            : undefined,
   }),
   globals: [AgentSettings],
   graphQL: {
@@ -95,7 +126,7 @@ export default buildConfig({
   routes: {
     admin: "/admin",
   },
-  secret: process.env.PAYLOAD_SECRET!,
+  secret: payloadSecret,
   sharp,
   typescript: {
     outputFile: path.resolve(dirname, "src/payload-types.ts"),

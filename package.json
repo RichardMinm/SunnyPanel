@@ -17,11 +17,16 @@
     "smoke:agent": "node scripts/agent-smoke.mjs",
     "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
     "payload": "payload",
+    "migrate": "payload migrate",
+    "migrate:create": "payload migrate:create",
     "generate:types": "payload generate:types",
     "generate:importmap": "payload generate:importmap",
-    "migrate:lexical-to-markdown": "node --import tsx scripts/migrate-lexical-to-markdown.ts"
+    "migrate:lexical-to-markdown": "node --import tsx scripts/migrate-lexical-to-markdown.ts",
+    "seed": "node --import tsx scripts/seed.mjs"
   },
   "dependencies": {
+    "@langchain/core": "1.1.48",
+    "@langchain/langgraph": "1.4.2",
     "@mdxeditor/editor": "^4.0.0",
     "@payloadcms/db-postgres": "^3.83.0",
     "@payloadcms/live-preview-react": "^3.83.0",
@@ -56,11 +61,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "dotenv": "^17.4.2"
+    "typescript": "^5"
   },
   "engines": {
     "node": ">=22.0.0"
