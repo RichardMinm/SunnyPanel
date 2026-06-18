@@ -4,6 +4,7 @@
  */
 
 :root {
+  --hover: color-mix(in srgb, var(--foreground) 5%, transparent);
   --site-scale: 1;
   --sunny-font-sans: "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   --sunny-font-mono: "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;

@@ -17,7 +17,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 ### 公开表达
 
 - `Home`、`Blog`、`Notes`、`Updates`、`Timeline`、`Checklists`、`About`、`Now`
-- **Markdown 所见即所得写作**：Typora / Obsidian 风格编辑器，Markdown 纯文本存库
+- **Markdown 所见即所得写作**：MDXEditor，Markdown 纯文本存库
 - **Timeline 作为长期记忆骨架**：公开写作、动态、项目进展自动形成时间线叙事
 
 ### 数据与工具
@@ -74,14 +74,15 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 - OpenAI Function Calling 支持，带 LLM → 启发式降级链路
 - 长期记忆系统：类型分类、向量检索、相关性评分
 - AgentRun 审计追溯、rollback API、token 统计
+- API 速率限制、结构化日志
 - Dashboard 全屏 Agent 工作台：对话、审批、追踪、产物、上下文字段
 
 ### 写作与内容
 - Markdown 纯文本存库，MDXEditor 所见即所得编辑
 - 公开站点与 Admin 共用 `sunny-prose` 渲染层与 CSS token
 - 浅色 / 深色主题兼容
-- Lexical JSON → Markdown 迁移脚本 + 幂等保护
-- 阅读时长、摘要提取（兼容 Lexical 存量）
+- Lexical JSON → Markdown 迁移脚本
+- 阅读时长、摘要提取
 
 ### 计划与日程
 - Plan 模型含阶段拆解、优先级、执行模式（manual / agent / hybrid）
@@ -93,6 +94,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 - 全站 `Cmd/Ctrl + K` 命令面板：导航、新建内容、进入后台
 - Live Preview：Payload Admin 内实时预览公开页面
 - Dashboard：Focus Hero、日程日历、计划跑道、内容队列、Timeline 缺口
+- 安全响应头（X-Content-Type-Options、X-Frame-Options 等）
 
 ## 技术栈
 
@@ -102,8 +104,6 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 - PostgreSQL
 - Tailwind CSS 4
 - TypeScript
-- MDXEditor v4
-- Docker Compose
 
 ## 数据模型
 
@@ -154,7 +154,8 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 |------|------|
 | `/dashboard` | Agent 工作台 Dashboard |
 | `/admin` | Payload 管理后台 |
-| `/api/...` | API 路由（含回滚端点） |
+| `/api/agent/...` | Agent API（聊天、回滚、日程、记忆等） |
+| `/api/health` | 健康检查（含数据库连通性） |
 | `/graphql` | GraphQL 端点 |
 | `/graphql-playground` | GraphQL 调试 |
 
@@ -166,7 +167,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 npm install
 ```
 
-2. 复制环境变量：
+2. 复制环境变量并填入实际值：
 
 ```bash
 cp .env.example .env
@@ -189,18 +190,22 @@ npm run dev
 - 前台：[http://localhost:3000](http://localhost:3000)
 - 后台：[http://localhost:3000/admin](http://localhost:3000/admin)
 
-首次进入后台时，如果还没有管理员用户，需要先按 Payload 的引导创建首个用户。
+首次进入后台时，如果还没有管理员用户，按 Payload 的引导创建首个用户，或运行 `npm run seed` 自动创建。
 
 ## 部署
 
-### Vercel（推荐）
+### Vercel
 
 1. 将项目推送到 GitHub
 2. 在 Vercel 导入仓库，框架选 Next.js
-3. 设置环境变量（DATABASE_URL 指向可访问的 PostgreSQL）
-4. 部署完成后，通过 `/admin` 创建管理员用户
+3. 设置环境变量：
+   - `PAYLOAD_SECRET` — `openssl rand -base64 32` 生成
+   - `DATABASE_URL` — 指向可访问的 PostgreSQL（Supabase、Neon、Railway 等）
+   - `PAYLOAD_DB_PUSH` — 设为 `false`
+   - `NEXT_PUBLIC_SERVER_URL` — 设为实际 HTTPS 域名
+4. 部署后运行 `npm run seed` 或通过 `/admin` 创建管理员用户
 
-需要外部 PostgreSQL（如 Supabase、Neon、Railway），或使用 `withPayload` 需要的持久化存储。
+生产环境还需在数据库上手动执行一次 Payload migration（`npx payload migrate`），确保 schema 与代码一致。
 
 ### Docker 完整部署
 
@@ -209,31 +214,24 @@ npm run dev
 docker compose up --build -d
 ```
 
-生产环境需要配置：
-- `PAYLOAD_SECRET` — 随机字符串（`openssl rand -base64 32`）
+生产环境需额外配置：
+
+- `PAYLOAD_SECRET` — 强随机字符串（`openssl rand -base64 32`）
+- `PAYLOAD_DB_PUSH` — 设为 `false`，通过 `npx payload migrate` 管理 schema
 - `DATABASE_URL` — PostgreSQL 连接串
-- `OPENAI_API_KEY` — LLM API（可选，未配置时 Agent 使用规则降级）
+- `NEXT_PUBLIC_SERVER_URL` — 实际 HTTPS 域名（Docker 部署需前置反向代理做 SSL 终止）
+- LLM API key — 可选，未配置时 Agent 使用规则降级
 
 ## 测试
 
-### Agent 单元测试（24 个测试文件）
-
 ```bash
-npm run test:agent
-
-# 冒烟测试
-npm run smoke:agent
+npm run test:agent     # Agent 单元测试
+npm run test:e2e       # E2E 测试（Playwright）
+npm run smoke:agent    # Agent 冒烟测试
+npm run test:agent:trace  # Pipeline trace 测试
 ```
 
-测试覆盖：意图识别、参数解析、安全校验、确认流程、记忆分类、工单执行等核心路径。测试文件位于 `tests/agent/`。
-
-### E2E 测试
-
-```bash
-npm run test:e2e
-```
-
-Playwright 驱动，测试文件位于 `tests/e2e/`。
+测试文件位于 `tests/agent/`、`tests/content/`、`tests/command/`、`tests/e2e/`。
 
 ### 类型检查
 
@@ -241,59 +239,41 @@ Playwright 驱动，测试文件位于 `tests/e2e/`。
 npm run typecheck
 ```
 
-## Docker（开发环境）
-
-只启动数据库：
-
-```bash
-docker compose up -d postgres
-```
-
-启动完整开发栈：
-
-```bash
-docker compose up --build
-```
-
 ## 常用命令
 
 ```bash
-npm run dev               # 启动开发服务
-npm run build             # 生产构建
-npm run test:agent        # Agent 单元测试（24 个测试文件）
-npm run test:e2e          # E2E 测试
-npm run smoke:agent       # Agent 冒烟测试
-npm run lint              # ESLint
-npm run typecheck         # TypeScript 类型检查
-npm run generate:types    # 生成 Payload 类型
-npm run generate:importmap # 生成 Payload importMap
+npm run dev                  # 启动开发服务
+npm run build                # 生产构建
+npm run start                # 启动生产服务
+npm run lint                 # ESLint + 排版检查
+
+npm run test:agent           # Agent 单元测试
+npm run test:e2e             # E2E 测试
+npm run typecheck            # TypeScript 类型检查
+
+npm run migrate              # 执行 Payload 数据库迁移
+npm run migrate:create       # 创建新的迁移文件
+npm run seed                 # 初始化管理员 + 默认配置
+npm run generate:types       # 生成 Payload TypeScript 类型
+npm run generate:importmap   # 生成 Payload importMap
 npm run migrate:lexical-to-markdown  # Lexical → Markdown 迁移
 ```
 
-## 改造指南
-
-项目正在持续演进，以下文档用于 Vibe Coding 上下文输入，指导分阶段改造：
-
-- **[EDITOR-GUIDE.md](EDITOR-GUIDE.md)**：Markdown 所见即所得写作编辑器改造（Lexical → Markdown 存库）
-- **[AGENT-GUIDE.md](AGENT-GUIDE.md)**：Agent 系统从规则驱动到 LLM 驱动的三阶段架构
-- **[AGENT-MULTI-V2-GUIDE.md](AGENT-MULTI-V2-GUIDE.md)**：Agent 多智能体协作改造（Agent 自主推理、编排器感知上下文、ReAct 循环）
-
 ## 环境变量
 
-`.env.example` 提供了本地开发所需的基础变量。宿主机开发时，`DATABASE_URL` 默认应指向本机 PostgreSQL：
+`.env.example` 包含完整的变量列表和说明。本地开发需至少配置：
 
 ```bash
-DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/sunny_panel
-```
+# 必需
+PAYLOAD_SECRET=<openssl rand -base64 32 生成的密钥>
+DATABASE_URL=postgresql://user:password@127.0.0.1:5432/sunnypanel
+NEXT_PUBLIC_SERVER_URL=http://localhost:3000
 
-Agent 需要配置 LLM API 才能工作（可选，未配置时使用规则降级）：
-
-```bash
+# 可选 — Agent LLM（未配置时使用规则降级）
 OPENAI_API_KEY=sk-...
-# 或其他兼容 API（智谱 GLM 等）
 ```
 
-如果通过 Docker Compose 启动完整栈，应用容器会使用内部数据库地址。
+生产环境还需设置 `PAYLOAD_DB_PUSH=false`，`NEXT_PUBLIC_SERVER_URL` 指向真实 HTTPS 域名。
 
 ## 使用建议
 
@@ -301,12 +281,12 @@ OPENAI_API_KEY=sk-...
 - 用自然语言告诉 Agent 你想做什么（制定计划、排日程、写周报、记偏好）
 - 维护 Timeline 节点，让它成为公开内容的长期记忆层
 - 用命令面板 `Cmd/Ctrl + K` 快速进入常用页面
-- 写作时直接在 Admin 编辑器中用 Markdown 快捷键，所见即所得
+- 写作时在 Admin 编辑器中使用 Markdown 快捷键，所见即所得
 
 ## 已知限制
 
-- **无多用户角色系统** — 当前权限模型为二元制（已登录 / 匿名），无管理员/编辑/访客分级
+- **无多用户角色系统** — 当前权限模型为二元制（已登录 / 匿名）
 - **Agent 依赖外部 LLM** — 未配置 LLM API 时降级为启发式规则，复合意图能力受限
-- **无 CI/CD 流水线** — 未配置 GitHub Actions 或其他自动化构建/测试管道
+- **无 CI/CD 流水线** — 需自行配置自动化构建/测试/部署管道
 - **仅支持 PostgreSQL** — 未适配 SQLite 或 MySQL
-- **夜间模式切换可能丢失 Payload Admin 样式** — 部分 Payload 内建组件未完全适配深色主题 token
+- **深色主题兼容** — 部分 Payload 内建组件在深色模式下样式未完全适配

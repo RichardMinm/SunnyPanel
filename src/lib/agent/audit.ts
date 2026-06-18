@@ -81,7 +81,7 @@ export const recordAgentRollbackExecuted = async ({
     affectedDocuments?: Array<{
       collection: string;
       documentId: number;
-      operation: "delete" | "update";
+      operation: "create" | "delete" | "update";
       visibility?: "unknown";
     }>;
     collection: string;

@@ -9,7 +9,6 @@ import {
   queryPattern,
   writeVerbsPattern,
 } from "./keywords";
-import { cleanupText } from "./shared-text";
 
 /* ── CREATE exclusion pattern (blocks query for create intents) ── */
 
@@ -117,7 +116,7 @@ export const parseQueryChecklistProgressIntent = (message: string): AgentIntent 
   const hasQueryKeyword = queryChecklistKeywords.some((kw) => message.includes(kw));
 
   const isChecklistQuery =
-    /(清单|完成|进度|还剩|做了多少|完成了|完成率)/.test(message) &&
+    /(清单|还剩|做了多少|完成了多少|完成率)/.test(message) &&
     queryPattern.test(message) &&
     !writeVerbsPattern.test(message);
 

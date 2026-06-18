@@ -4,8 +4,11 @@ import { getPendingAgentSuggestions, syncAgentSuggestionsFromWorkspaceSnapshot, 
 import { getCachedWorkspaceSnapshot } from "@/lib/payload/workspace-cache";
 
 export type DashboardSearchParams = {
-  threadId?: string;
-  week?: string;
+  collection?: string | string[];
+  id?: string | string[];
+  mode?: string | string[];
+  threadId?: string | string[];
+  week?: string | string[];
 };
 
 export type LoadedDashboardData = {
@@ -13,20 +16,25 @@ export type LoadedDashboardData = {
   initialSuggestions: AgentInboxSuggestion[];
 };
 
-export const parseDashboardThreadId = (value?: string) => {
-  if (!value) {
+export const parseDashboardThreadId = (value?: string | string[]) => {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+
+  if (!rawValue) {
     return undefined;
   }
 
-  const parsed = Number(value);
+  const parsed = Number(rawValue);
 
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-export const loadDashboardData = async (searchParams: DashboardSearchParams): Promise<LoadedDashboardData> => {
+export const loadDashboardData = async (
+  searchParams: DashboardSearchParams,
+  redirectPath?: string,
+): Promise<LoadedDashboardData> => {
   const initialThreadId = parseDashboardThreadId(searchParams.threadId);
 
-  const snapshot = await getCachedWorkspaceSnapshot();
+  const snapshot = await getCachedWorkspaceSnapshot(redirectPath);
 
   await syncAgentSuggestionsFromWorkspaceSnapshot(snapshot);
 

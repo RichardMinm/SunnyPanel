@@ -346,6 +346,7 @@ export function DashboardRightPanel({
           {activeInspectorTab === "context" ? (
             <AgentContextPanel
               contextPreferences={contextPreferences}
+              inputTokenEstimate={inputTokenEstimate}
               messages={messages}
               onToggleExclude={onToggleContextExclude}
               onTogglePin={onToggleContextPin}
@@ -357,6 +358,7 @@ export function DashboardRightPanel({
                   : statusLabel
               }
               threadId={threadId}
+              tokenUsage={tokenUsage}
               traceSteps={traceSteps}
               workbenchMode={workbenchMode}
             />

@@ -316,9 +316,17 @@ export function useAgentChatMessaging({
         }
         setStatusText(responseData.engine ? `最近一次：${engineLabelMap[responseData.engine]}` : "已完成");
         setStreamingState("idle");
-        void loadThread(typeof responseData.threadId === "number" ? responseData.threadId : undefined, {
-          preserveInspector: true,
-        });
+        const targetThreadId = typeof responseData.threadId === "number" ? responseData.threadId : undefined;
+        /* Await loadThread so that isSubmitting guards the next sendMessage
+         * until the message list is refreshed. Prevents a race where a second
+         * message is sent with stale history before the first reply is loaded. */
+        try {
+          await loadThread(targetThreadId, {
+            preserveInspector: true,
+          });
+        } catch {
+          // loadThread failure is non-fatal — messages are already displayed
+        }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
           setStatusText("已停止生成");

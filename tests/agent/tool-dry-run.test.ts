@@ -66,12 +66,12 @@ test("dry-run resolves target checklist", async () => {
     dryRunContext,
   );
 
-  assert.equal(result.type, "proposed_action");
+  assert.equal(result!.type, "proposed_action");
 
-  if (result.type === "proposed_action") {
-    assert.equal(result.action.changes[0]?.collection, "checklists");
-    assert.equal(result.action.changes[0]?.documentId, 101);
-    assert.equal(result.action.changes[0]?.operation, "update");
+  if (result!.type === "proposed_action") {
+    assert.equal(result!.action.changes[0]?.collection, "checklists");
+    assert.equal(result!.action.changes[0]?.documentId, 101);
+    assert.equal(result!.action.changes[0]?.operation, "update");
   }
 });
 
@@ -94,9 +94,9 @@ test("ambiguous checklist returns clarify", async () => {
     },
   );
 
-  assert.equal(result.type, "clarify");
+  assert.equal(result!.type, "clarify");
 
-  if (result.type === "clarify") {
+  if (result!.type === "clarify") {
     assert.equal(result.pendingAction?.type, "await_clarification");
     assert.match(result.assistantMessage, /多个分组/);
   }
@@ -124,14 +124,14 @@ test("semantic repair append can propose creating a missing checklist group", as
     },
   );
 
-  assert.equal(result.type, "proposed_action");
+  assert.equal(result!.type, "proposed_action");
 
-  if (result.type === "proposed_action") {
-    assert.equal(result.action.intent, "append_plan_item");
-    assert.equal(result.action.id, "append-missing-group-action");
-    assert.match(result.action.summary, /新建分组/);
-    assert.match(result.action.changes[0]?.preview ?? "", /新建分组「线性代数」/);
-    assert.deepEqual(result.action.afterSnapshot, {
+  if (result!.type === "proposed_action") {
+    assert.equal(result!.action.intent, "append_plan_item");
+    assert.equal(result!.action.id, "append-missing-group-action");
+    assert.match(result!.action.summary, /新建分组/);
+    assert.match(result!.action.changes[0]?.preview ?? "", /新建分组「线性代数」/);
+    assert.deepEqual(result!.action.afterSnapshot, {
       appendedItem: {
         description: "语义修复：先补建条目。",
         isCompleted: false,
@@ -156,12 +156,12 @@ test("dry-run preview includes collection and operation", async () => {
     dryRunContext,
   );
 
-  assert.equal(result.type, "proposed_action");
+  assert.equal(result!.type, "proposed_action");
 
-  if (result.type === "proposed_action") {
-    assert.equal(result.action.changes[0]?.collection, "plans");
-    assert.equal(result.action.changes[0]?.operation, "create");
-    assert.match(result.action.changes[0]?.preview ?? "", /创建私有草稿计划/);
+  if (result!.type === "proposed_action") {
+    assert.equal(result!.action.changes[0]?.collection, "plans");
+    assert.equal(result!.action.changes[0]?.operation, "create");
+    assert.match(result!.action.changes[0]?.preview ?? "", /创建私有草稿计划/);
   }
 });
 
@@ -180,12 +180,12 @@ test("complete item preview includes timeline impact", async () => {
     dryRunContext,
   );
 
-  assert.equal(result.type, "proposed_action");
+  assert.equal(result!.type, "proposed_action");
 
-  if (result.type === "proposed_action") {
-    assert.equal(result.action.riskLevel, "high");
+  if (result!.type === "proposed_action") {
+    assert.equal(result!.action.riskLevel, "high");
     assert.equal(
-      result.action.changes.some((change) => change.collection === "timeline-events" && change.timelineAffected),
+      result!.action.changes.some((change) => change.collection === "timeline-events" && change.timelineAffected),
       true,
     );
   }
@@ -206,16 +206,16 @@ test("complete item dry-run uses a rollback strategy that rollback.ts can execut
     dryRunContext,
   );
 
-  assert.equal(result.type, "proposed_action");
+  assert.equal(result!.type, "proposed_action");
 
-  if (result.type === "proposed_action") {
+  if (result!.type === "proposed_action") {
     // 之前误用了 rollback.ts 不支持的 restore_checklist_item_and_timeline。
     assert.equal(
-      (result.action.rollbackPayload as { strategy?: string }).strategy,
+      (result!.action.rollbackPayload as { strategy?: string }).strategy,
       "restore_checklist_groups_and_timeline",
     );
     assert.equal(
-      (result.action.rollbackPayload as { target?: { collection?: string } }).target?.collection,
+      (result!.action.rollbackPayload as { target?: { collection?: string } }).target?.collection,
       "checklists",
     );
   }
@@ -232,12 +232,12 @@ test("query_plan_progress dry-run is read-only and records no write changes", as
     },
   );
 
-  assert.equal(result.type, "proposed_action");
+  assert.equal(result!.type, "proposed_action");
 
-  if (result.type === "proposed_action") {
-    assert.equal(result.action.requiresConfirmation, false);
-    assert.deepEqual(result.action.changes, []);
-    assert.deepEqual(result.action.affectedDocuments, []);
+  if (result!.type === "proposed_action") {
+    assert.equal(result!.action.requiresConfirmation, false);
+    assert.deepEqual(result!.action.changes, []);
+    assert.deepEqual(result!.action.affectedDocuments, []);
   }
 });
 
@@ -261,15 +261,15 @@ test("reschedule dry-run captures the real before snapshot and an executable rol
     },
   );
 
-  assert.equal(result.type, "proposed_action");
+  assert.equal(result!.type, "proposed_action");
 
-  if (result.type === "proposed_action") {
-    const before = result.action.beforeSnapshot as Record<string, unknown>;
+  if (result!.type === "proposed_action") {
+    const before = result!.action.beforeSnapshot as Record<string, unknown>;
     assert.equal(before.date, "2026-06-14");
     assert.equal(before.startTime, "09:30");
     assert.equal(before.title, "复习线性代数");
     // 携带真实快照后，预览阶段的 rollbackPayload 应当可执行。
-    assert.equal(isRollbackPayloadExecutable(result.action.rollbackPayload), true);
+    assert.equal(isRollbackPayloadExecutable(result!.action.rollbackPayload), true);
   }
 });
 
@@ -290,12 +290,12 @@ test("cancel dry-run reflects the real current status instead of a hardcoded val
     },
   );
 
-  assert.equal(result.type, "proposed_action");
+  assert.equal(result!.type, "proposed_action");
 
-  if (result.type === "proposed_action") {
-    const before = result.action.beforeSnapshot as { status?: string };
+  if (result!.type === "proposed_action") {
+    const before = result!.action.beforeSnapshot as { status?: string };
     assert.equal(before.status, "done");
-    assert.match(result.action.changes[0]?.beforePreview ?? "", /done/);
-    assert.equal(isRollbackPayloadExecutable(result.action.rollbackPayload), true);
+    assert.match(result!.action.changes[0]?.beforePreview ?? "", /done/);
+    assert.equal(isRollbackPayloadExecutable(result!.action.rollbackPayload), true);
   }
 });

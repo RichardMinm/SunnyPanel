@@ -5,18 +5,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { DashboardIcon } from "@/components/dashboard/icons";
 import { uploadDashboardImage } from "@/lib/editor/upload-dashboard-image";
+import { promptLinkHref } from "@/lib/editor/prompt-link";
 
 type EditorToolbarProps = {
   editor: Editor | null;
   onAiAction?: (action: "continue" | "extract_tags" | "generate_outline" | "generate_summary") => void;
 };
 
-const askForHref = () => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  return window.prompt("链接地址")?.trim() || null;
-};
+const askForHref = () => promptLinkHref();
 
 const insertItems = [
   {

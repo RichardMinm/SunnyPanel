@@ -1,4 +1,5 @@
 import type { AgentMemory, AgentRun, AgentThread, Checklist, Plan, PlanReview, TimelineEvent } from "@/payload-types";
+import { isRecord } from "@/lib/shared/is-record";
 
 type AgentRunRelatedContent = NonNullable<AgentRun["relatedContent"]>;
 type AgentRunJsonField =
@@ -88,9 +89,6 @@ type AgentThreadWriteData = {
   title?: string;
   user?: number;
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const getString = (value: unknown, fieldName: string) => {
   if (typeof value !== "string" || value.trim().length === 0) {

@@ -1,7 +1,5 @@
 import type { EvaluatePlanArgs, QueryProgressArgs } from "@/lib/agent/schemas";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+import { isRecord } from "@/lib/shared/is-record";
 
 const parseNumber = (value: unknown) => {
   if (typeof value === "number" && Number.isFinite(value)) {

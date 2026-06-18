@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/shared/is-record";
 export type AgentChatMessage = {
   content: string;
   role: "assistant" | "user";
@@ -197,6 +198,8 @@ export type PendingAction = {
     | ComposePlanArgs
     | ComposeScheduleItemArgs
     | CreatePlanArgs
+    | DeleteRecordArgs
+    | ModifyRecordArgs
     | QueryPlanProgressArgs
     | RescheduleItemArgs
     | SaveMemoryArgs
@@ -621,8 +624,6 @@ const proposedActionRiskValues = ["high", "low", "medium"] as const;
 const proposedActionOperationValues = ["create", "delete", "update"] as const;
 const proposedActionVisibilityValues = ["private", "public", "unknown"] as const;
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const getOptionalEnum = <TOption extends readonly string[]>(
   value: unknown,

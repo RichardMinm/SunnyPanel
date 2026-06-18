@@ -2,17 +2,13 @@
 
 import type { Editor } from "@tiptap/core";
 
+import { promptLinkHref } from "@/lib/editor/prompt-link";
+
 type FloatingFormatMenuProps = {
   editor: Editor | null;
 };
 
-const askForHref = () => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window.prompt("链接地址")?.trim() || null;
-};
+const askForHref = () => promptLinkHref();
 
 export function FloatingFormatMenu({ editor }: FloatingFormatMenuProps) {
   if (!editor) {

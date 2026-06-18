@@ -4,4 +4,6 @@ import { assembleWorkspaceSnapshot, loadWorkspaceCore } from "@/lib/payload/work
 
 export const getCachedWorkspaceCore = cache(loadWorkspaceCore);
 
-export const getCachedWorkspaceSnapshot = cache(async () => assembleWorkspaceSnapshot(await getCachedWorkspaceCore()));
+export const getCachedWorkspaceSnapshot = cache(async (redirectPath?: string) =>
+  assembleWorkspaceSnapshot(await getCachedWorkspaceCore(redirectPath)),
+);

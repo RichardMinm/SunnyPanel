@@ -10,7 +10,6 @@ import type {
   AgentStreamProgressEvent,
   AgentStreamStageEvent,
 } from "@/lib/agent/stream-events";
-import { DashboardIcon } from "../icons";
 import { useDashboardMotion } from "../motion/dashboard-motion";
 
 type AgentThinkingPanelProps = {

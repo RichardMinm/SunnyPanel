@@ -1,14 +1,15 @@
 import type { AgentTraceStep } from "@/lib/agent/schemas";
+import type { DashboardIconName } from "@/components/dashboard/icons";
 
 import type { AgentInspectorTab } from "./types";
 
-export const inspectorTabs: Array<{ key: AgentInspectorTab; label: string }> = [
-  { key: "context", label: "上下文" },
-  { key: "approval", label: "审批" },
-  { key: "trace", label: "Trace" },
-  { key: "linked", label: "关联" },
-  { key: "memory", label: "记忆" },
-  { key: "inbox", label: "建议" },
+export const inspectorTabs: Array<{ key: AgentInspectorTab; label: string; icon: DashboardIconName }> = [
+  { key: "context", label: "上下文", icon: "thinking" },
+  { key: "approval", label: "审批", icon: "checklist" },
+  { key: "trace", label: "Trace", icon: "command" },
+  { key: "linked", label: "关联", icon: "project" },
+  { key: "memory", label: "记忆", icon: "memory" },
+  { key: "inbox", label: "建议", icon: "inbox" },
 ];
 
 export const traceKindLabelMap: Record<AgentTraceStep["kind"], string> = {

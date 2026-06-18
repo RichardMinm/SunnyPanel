@@ -264,8 +264,15 @@ export const executeAgentIntent = async (
     case "schedule_plan":
     case "weekly_review":
     case "delete_record":
-      return runWithAgentExecutionContext({ userId: options.userId }, () =>
+      const result = await runWithAgentExecutionContext({ userId: options.userId }, () =>
         executeAgentTool(intent, toolExecutors, onTrace),
+      );
+      return (
+        result ?? {
+          assistantMessage: "工具执行失败",
+          pendingAction: null,
+          status: "failed",
+        }
       );
     case "modify_record":
       onTrace?.({

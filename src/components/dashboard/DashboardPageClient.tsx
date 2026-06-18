@@ -2,22 +2,16 @@
 
 import { useCallback } from "react";
 
-import type { AgentInboxSuggestion } from "@/lib/agent/suggestions";
-import type { WorkbenchData } from "@/lib/dashboard/load-workbench-data";
 import { AgentWorkbench } from "@/components/dashboard/agent";
 import { useAgentDashboardChat } from "@/components/dashboard/agent-chat/use-agent-dashboard-chat";
 import { DashboardShell } from "./DashboardShell";
 
 export type DashboardPageClientProps = {
   initialThreadId?: number;
-  initialSuggestions: AgentInboxSuggestion[];
-  workbenchData: WorkbenchData;
 };
 
 export function DashboardPageClient({
   initialThreadId,
-  initialSuggestions,
-  workbenchData,
 }: DashboardPageClientProps) {
   const chat = useAgentDashboardChat({ initialThreadId });
 
@@ -46,38 +40,12 @@ export function DashboardPageClient({
     });
   }, [chat]);
 
-  const handleAcceptSuggestion = useCallback(async (id: number) => {
-    try {
-      await fetch("/api/agent/suggestions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action: "accept" }),
-      });
-    } catch {
-      // silent
-    }
-  }, []);
-
-  const handleDismissSuggestion = useCallback(async (id: number) => {
-    try {
-      await fetch("/api/agent/suggestions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action: "dismiss" }),
-      });
-    } catch {
-      // silent
-    }
-  }, []);
-
   return (
     <DashboardShell
       activeInspectorTab={chat.activeInspectorTab}
       artifactsRollbackBusy={chat.artifactsRollbackBusy}
       artifactsRollbackError={chat.artifactsRollbackError}
       contextPreferences={chat.contextPreferences}
-      initialSuggestions={initialSuggestions}
-      workbenchData={workbenchData}
       isSubmitting={chat.isSubmitting}
       inputTokenEstimate={chat.inputTokenEstimate}
       lastRollbackPayload={chat.lastRollbackPayload}
@@ -85,8 +53,6 @@ export function DashboardPageClient({
       messages={chat.messages}
       traceSteps={chat.traceSteps}
       tokenUsage={chat.tokenUsage}
-      onAcceptSuggestion={handleAcceptSuggestion}
-      onDismissSuggestion={handleDismissSuggestion}
       onArchiveThread={handleArchiveThread}
       onDeleteThread={handleDeleteThread}
       onArtifactsRollback={chat.runArtifactsRollback}

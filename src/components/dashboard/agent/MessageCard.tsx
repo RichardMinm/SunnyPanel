@@ -97,10 +97,10 @@ export function MessageCard({
           ) : null}
         </div>
       ) : null}
-      {role === "assistant" ? (
-        renderAssistantContent()
-      ) : (
+      {role === "user" ? (
         <p className="sunny-message-card-user-text">{content}</p>
+      ) : (
+        renderAssistantContent()
       )}
     </div>
   );

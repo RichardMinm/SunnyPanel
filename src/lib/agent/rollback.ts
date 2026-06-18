@@ -19,11 +19,12 @@ export type RollbackExecutionResult = {
 export type RollbackAffectedDocument = {
   collection: string;
   documentId: number;
-  operation: "delete" | "update";
+  operation: "create" | "delete" | "update";
   visibility: "unknown";
 };
 
 type RollbackPayloadClient = {
+  create: (args: unknown) => Promise<unknown>;
   delete: (args: unknown) => Promise<unknown>;
   update: (args: unknown) => Promise<unknown>;
 };
@@ -506,11 +507,11 @@ export const executeRollbackFromPayload = async (
       throw new Error("restore_deleted_plan 缺少有效的 beforeSnapshot（至少需要 title）。");
     }
 
-    const created = (await payload.create({
+    await (payload as RollbackPayloadClient).create({
       collection: "plans",
       data: {
-        agentBrief: snapshot.agentBrief ?? null,
-        description: snapshot.description ?? null,
+        agentBrief: (snapshot.agentBrief as string) ?? null,
+        description: (snapshot.description as string) ?? null,
         domain: snapshot.domain ?? null,
         dueDate: snapshot.dueDate ?? null,
         executionMode: snapshot.executionMode ?? "manual",
@@ -518,13 +519,13 @@ export const executeRollbackFromPayload = async (
         priority: snapshot.priority ?? "medium",
         progress: snapshot.progress ?? null,
         state: snapshot.state ?? "backlog",
-        title: snapshot.title as string,
+        title: snapshot.title,
         totalEstimatedDays: snapshot.totalEstimatedDays ?? null,
         visibility: snapshot.visibility ?? "private",
         weeklyRhythm: snapshot.weeklyRhythm ?? null,
       },
       overrideAccess: true,
-    })) as { id: number };
+    });
 
     const result = buildRollbackResult({
       affectedDocuments: [affectedDocument(collection, documentId, "create")],

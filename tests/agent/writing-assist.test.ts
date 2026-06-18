@@ -40,6 +40,23 @@ describe("writing assist API", () => {
     assert.match(pane, /自动生成摘要/);
   });
 
+  test("document-level AI outline results become editable heading blocks", () => {
+    const pane = read("src/components/dashboard/writing/WritingEditorPane.tsx");
+
+    assert.match(pane, /response\.outline/);
+    assert.match(pane, /type:\s*"heading"/);
+    assert.match(pane, /attrs:\s*\{\s*level:\s*item\.level/);
+    assert.match(pane, /contentRich:\s*nextContent/);
+  });
+
+  test("writing assist failures are visible in the editor pane", () => {
+    const pane = read("src/components/dashboard/writing/WritingEditorPane.tsx");
+
+    assert.match(pane, /error:\s*aiError/);
+    assert.match(pane, /AI 辅助失败/);
+    assert.match(pane, /sunny-writing-inline-error/);
+  });
+
   test("selection AI actions replace only the selected editor range", () => {
     const bubble = read("src/components/content-editor/EditorBubbleMenu.tsx");
     const pane = read("src/components/dashboard/writing/WritingEditorPane.tsx");

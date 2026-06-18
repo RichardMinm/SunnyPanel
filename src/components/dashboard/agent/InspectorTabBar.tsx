@@ -23,7 +23,7 @@ export function InspectorTabBar({
   const visibleTabs = inspectorTabs.filter((tab) => {
     if (tab.key === "context" || tab.key === "memory" || tab.key === "linked") return true;
     if (tab.key === "approval") return pendingAction != null;
-    if (tab.key === "trace" || tab.key === "review") return debugMode;
+    if (tab.key === "trace") return debugMode;
     return false;
   });
 

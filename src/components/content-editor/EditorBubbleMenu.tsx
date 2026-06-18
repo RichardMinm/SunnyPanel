@@ -3,6 +3,8 @@
 import type { Editor } from "@tiptap/core";
 import { BubbleMenu } from "@tiptap/react/menus";
 
+import { promptLinkHref } from "@/lib/editor/prompt-link";
+
 export type EditorBubbleAiAction = "condense" | "expand" | "polish" | "rewrite" | "summarize";
 
 export type EditorBubbleAiPayload = {
@@ -16,13 +18,7 @@ type EditorBubbleMenuProps = {
   onAiAction?: (payload: EditorBubbleAiPayload) => void;
 };
 
-const askForHref = () => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window.prompt("链接地址")?.trim() || null;
-};
+const askForHref = () => promptLinkHref();
 
 export function EditorBubbleMenu({ editor, onAiAction }: EditorBubbleMenuProps) {
   if (!editor) {

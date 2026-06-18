@@ -54,3 +54,6 @@ tsconfig.*.tsbuildinfo
 
 # payload uploads
 /media
+
+# database backups
+/backups

@@ -130,8 +130,7 @@ export const buildWritingAssistMessages = ({
   ];
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+import { isRecord } from "@/lib/shared/is-record";
 
 export const parseWritingAssistResult = (
   action: WritingAssistAction,

@@ -1,9 +1,7 @@
 import { createEmptyRichDocument } from "./defaults";
 import { ensureRichContentBlockIds } from "./ids";
 import type { RichContentDocument, RichContentNode } from "./types";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+import { isRecord } from "@/lib/shared/is-record";
 
 const supportedNodeTypes = new Set([
   "blockquote",

@@ -6,6 +6,7 @@ import {
 } from "@/lib/agent/llm/complete-structured";
 import type { AgentPromptContext } from "@/lib/agent/prompts";
 import type { AgentChatMessage, AgentTokenUsage, PendingAction } from "@/lib/agent/schemas";
+import { isRecord } from "@/lib/shared/is-record";
 
 export type AgentQuestionKind =
   | "decision_support"
@@ -202,9 +203,6 @@ const cleanup = (value: string) =>
     .replace(/\s+/g, " ")
     .replace(/^[\s，,。.!！?？:：;；、]+|[\s，,。.!！?？:：;；、]+$/g, "")
     .trim();
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const getString = (value: unknown) => {
   if (typeof value !== "string") {

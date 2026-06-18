@@ -5,8 +5,6 @@ import { getDashboardShell, navigateToScheduleView, startNewThread } from "./hel
 test.describe.configure({ mode: "serial" });
 
 test("创建的日程出现在 Dashboard 日历视图中", async ({ page }) => {
-  test.setTimeout(180_000);
-
   const shell = await getDashboardShell(page);
   await startNewThread(shell);
 
@@ -51,8 +49,6 @@ test("创建的日程出现在 Dashboard 日历视图中", async ({ page }) => {
 });
 
 test("日历视图空状态正常显示", async ({ page }) => {
-  test.setTimeout(60_000);
-
   const shell = await getDashboardShell(page);
   await startNewThread(shell);
 

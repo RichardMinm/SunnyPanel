@@ -1,5 +1,6 @@
 export const createPlanKeywords = ["帮我创建计划", "创建计划", "新建计划", "创建一个计划", "帮我新建计划", "创建一个.*计划"];
 export const composePlanKeywords = [
+  "学习计划草稿",
   "帮我制定计划",
   "制定计划",
   "帮我规划",

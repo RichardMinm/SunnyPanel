@@ -5,8 +5,6 @@ import { getDashboardShell, startNewThread } from "./helpers/dashboard-shell";
 test.describe.configure({ mode: "serial" });
 
 test("晚上五点钟创建日程：待确认与结果卡显示 17:00-18:30", async ({ page }) => {
-  test.setTimeout(120_000);
-
   const shell = await getDashboardShell(page);
   await startNewThread(shell);
 

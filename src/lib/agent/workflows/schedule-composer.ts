@@ -237,8 +237,8 @@ const hasSourceTime = (text: string) =>
 const inferTimeRange = (args: ComposeScheduleItemArgs) => {
   const source = normalizeText(args.sourceText);
   const trustSourceTime = sourceHasExplicitTimeExpression(source);
-  let explicitStart = trustSourceTime ? "" : normalizeText(args.startTime);
-  let explicitEnd = trustSourceTime ? "" : normalizeText(args.endTime);
+  const explicitStart = trustSourceTime ? "" : normalizeText(args.startTime);
+  const explicitEnd = trustSourceTime ? "" : normalizeText(args.endTime);
   const isAllDay = args.isAllDay === true || /全天|整天/.test(source);
 
   if (isAllDay) {

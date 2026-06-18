@@ -14,7 +14,7 @@ const requireAgentAuth = async () => {
   if (!authResult.user) {
     return NextResponse.json(
       {
-        assistantMessage: "当前会话没有登录，暂时不能评估计划。",
+        message: "当前会话没有登录，暂时不能评估计划。",
       },
       { status: 401 },
     );

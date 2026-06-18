@@ -3,9 +3,7 @@ import { NextResponse } from "next/server";
 import { executeTrustedRollbackRequest } from "@/lib/agent/rollback-request";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+import { isRecord } from "@/lib/shared/is-record";
 
 export async function POST(request: Request) {
   const authResult = await getPayloadAuthResult();

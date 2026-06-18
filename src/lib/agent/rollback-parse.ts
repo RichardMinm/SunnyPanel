@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/shared/is-record";
 export type RollbackPayload = {
   beforeSnapshot?: unknown;
   reason?: string;
@@ -13,8 +14,6 @@ export type RollbackPayload = {
   };
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const parseRollbackPayload = (value: unknown): null | RollbackPayload => {
   if (!isRecord(value)) {

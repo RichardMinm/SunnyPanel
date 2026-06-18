@@ -38,31 +38,7 @@ export type AgentProgressSnapshot = {
 
 const dayInMs = 1000 * 60 * 60 * 24;
 
-const normalizeForSearch = (value: string) =>
-  value.toLowerCase().replace(/[\s\-_/·，。！？、:：；;（）()]/g, "");
-
-const scoreTextMatch = (candidate: string, query: string) => {
-  const normalizedCandidate = normalizeForSearch(candidate);
-  const normalizedQuery = normalizeForSearch(query);
-
-  if (!normalizedCandidate || !normalizedQuery) {
-    return 0;
-  }
-
-  if (normalizedCandidate === normalizedQuery) {
-    return 100;
-  }
-
-  if (normalizedCandidate.startsWith(normalizedQuery) || normalizedQuery.startsWith(normalizedCandidate)) {
-    return 80;
-  }
-
-  if (normalizedCandidate.includes(normalizedQuery) || normalizedQuery.includes(normalizedCandidate)) {
-    return 60;
-  }
-
-  return 0;
-};
+import { scoreTextMatch } from "./tool-shared";
 
 const isOpenPlan = (plan: Plan) => plan.state !== "done";
 

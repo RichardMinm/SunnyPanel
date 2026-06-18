@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/shared/is-record";
 export type AgentRunImpactOperation = "create" | "delete" | "update";
 
 export type AgentRunSummaryAffectedDocument = {
@@ -69,8 +70,6 @@ const operationLabelMap: Record<AgentRunImpactOperation, string> = {
   update: "已恢复",
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const isImpactOperation = (value: unknown): value is AgentRunImpactOperation =>
   value === "create" || value === "delete" || value === "update";

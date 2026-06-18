@@ -7,6 +7,7 @@
 :root {
   --dashboard-sidebar-width: clamp(18rem, 18vw, 20.5rem);
   --dashboard-icon-bar-width: var(--dashboard-sidebar-width);
+  --dashboard-sidebar-collapsed-width: 56px;
   --dashboard-panel-width: clamp(20rem, 24vw, 22.5rem);
   --dashboard-status-height: 1.5rem;
   --dashboard-app-bg: #ffffff;
@@ -44,6 +45,20 @@
   grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr) 0px;
 }
 
+/* Sidebar auto-collapse */
+.sunny-dashboard-shell.is-sidebar-auto-collapsed {
+  --dashboard-icon-bar-width: var(--dashboard-sidebar-collapsed-width);
+}
+
+.sunny-dashboard-shell.is-sidebar-auto-collapsed .sunny-dashboard-icon-bar {
+  width: var(--dashboard-sidebar-collapsed-width);
+}
+
+/* When auto-collapsed sidebar is hovered, expand temporarily */
+.sunny-dashboard-shell.is-sidebar-auto-collapsed .sunny-dashboard-icon-bar.is-hover-expanded {
+  width: var(--dashboard-sidebar-width);
+}
+
 .sunny-dashboard-shell:not(.is-panel-expanded) .sunny-dashboard-right-panel {
   opacity: 0;
   transform: translateX(12px);
@@ -67,6 +82,57 @@
   gap: 0.35rem;
   z-index: 30;
   overflow: hidden;
+  transition: width 200ms ease;
+}
+
+/* Auto-collapsed sidebar visual state */
+.sunny-dashboard-icon-bar.is-auto-collapsed {
+  padding: 0.75rem 0.35rem;
+  align-items: center;
+}
+
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-label,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-project-row > span:last-child,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-section > p,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-search,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-thread-section,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-archive-section,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-collapse-toggle .sunny-codex-sidebar-label,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-project-row span:not(.sunny-codex-project-mark):not(.sunny-codex-sidebar-icon) {
+  display: none;
+}
+
+/* Center icons in collapsed mode */
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-project-row,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-action,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-mode-row {
+  justify-content: center;
+  padding: 0;
+}
+
+/* Pin button in sidebar footer */
+.sunny-sidebar-pin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 160ms, color 160ms;
+}
+
+.sunny-sidebar-pin-button:hover {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  color: var(--foreground);
+}
+
+.sunny-sidebar-pin-button.is-pinned {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .sunny-codex-sidebar {
@@ -306,15 +372,25 @@
   background: color-mix(in srgb, #dbeafe 70%, transparent);
 }
 
-.sunny-codex-thread-section {
+.sunny-codex-thread-section,
+.sunny-codex-archive-section {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
 }
 
-.sunny-codex-thread-section.is-collapsed {
+.sunny-codex-thread-section {
+  flex: 1 1 auto;
+}
+
+.sunny-codex-archive-section {
+  flex: 0 0 auto;
+  margin-top: 0.25rem;
+}
+
+.sunny-codex-thread-section.is-collapsed,
+.sunny-codex-archive-section.is-collapsed {
   flex: 0 0 auto;
 }
 
@@ -926,7 +1002,7 @@ html[data-theme="dark"] .sunny-agent-capability-card-icon {
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   line-height: 1;
 }
@@ -1091,10 +1167,17 @@ html[data-theme="dark"] .sunny-agent-capability-card-icon {
 .sunny-codex-archive-list {
   display: grid;
   gap: 0.22rem;
+  min-height: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 28%, transparent) transparent;
   /* match .sunny-codex-thread-list grid layout */
 }
 
 .sunny-codex-archive-thread {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1106,6 +1189,33 @@ html[data-theme="dark"] .sunny-agent-capability-card-icon {
 
 .sunny-codex-archive-thread:hover {
   background: color-mix(in srgb, var(--muted) 8%, transparent);
+}
+
+.sunny-codex-archive-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.sunny-codex-archive-restore-btn,
+.sunny-codex-archive-delete-btn {
+  padding: 0.15rem 0.45rem;
+  border: none;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+
+.sunny-codex-archive-restore-btn:hover {
+  background: color-mix(in srgb, var(--sunny-accent, #2563eb) 15%, transparent);
+  color: var(--sunny-accent, #2563eb);
+}
+
+.sunny-codex-archive-delete-btn:hover {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  color: #ef4444;
 }
 
 /* Archive thread content: title + time (matching thread-row layout) */
@@ -1148,6 +1258,16 @@ html[data-theme="dark"] .sunny-agent-capability-card-icon {
 
 .sunny-thread-row-menu-item.is-danger:hover {
   background: color-mix(in srgb, #ef4444 12%, transparent);
+}
+
+html[data-theme="dark"] .sunny-codex-archive-thread {
+  background: #1e293b;
+  border-color: #1f2937;
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] .sunny-codex-archive-thread:hover {
+  background: #273449;
 }
 
 /* ── Archive actions (from dashboard-content-studio) ── */
@@ -1223,6 +1343,21 @@ html[data-theme="dark"] .sunny-codex-sidebar-collapse-toggle {
 html[data-theme="dark"] .sunny-codex-sidebar-collapse-toggle:hover {
   color: #e5e7eb;
   background: #1e293b;
+}
+
+/* Pin button */
+html[data-theme="dark"] .sunny-sidebar-pin-button {
+  color: #64748b;
+}
+
+html[data-theme="dark"] .sunny-sidebar-pin-button:hover {
+  background: #1e293b;
+  color: #e5e7eb;
+}
+
+html[data-theme="dark"] .sunny-sidebar-pin-button.is-pinned {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.14);
 }
 
 /* Thread list */

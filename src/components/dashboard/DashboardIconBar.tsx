@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentThreadSummary } from "@/components/dashboard/agent/types";
 import { getPendingActionLabel } from "@/components/dashboard/agent/utils";
 import { filterDashboardThreads } from "@/lib/dashboard/filter-dashboard-threads";
@@ -68,6 +68,57 @@ export function DashboardIconBar({
   const [deleteTarget, setDeleteTarget] = useState<AgentThreadSummary | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Auto-collapse state
+  const [collapsed, setCollapsed] = useState(true);
+  const [pinned, setPinned] = useState(false);
+  const collapseTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const navRef = useRef<HTMLElement | null>(null);
+  const shellRef = useRef<Element | null>(null);
+
+  // Cleanup collapse timer on unmount
+  useEffect(() => () => {
+    if (collapseTimer.current) clearTimeout(collapseTimer.current);
+  }, []);
+
+  // Sync auto-collapse CSS class to shell element (controls grid column width)
+  useEffect(() => {
+    if (!navRef.current) return;
+    if (!shellRef.current) {
+      shellRef.current = navRef.current.closest(".sunny-dashboard-shell");
+    }
+    const actuallyCollapsed = collapsed && !pinned;
+    shellRef.current?.classList.toggle("is-sidebar-auto-collapsed", actuallyCollapsed);
+    navRef.current.classList.toggle("is-auto-collapsed", actuallyCollapsed);
+  }, [collapsed, pinned]);
+
+  // Hover handlers
+  const handleSidebarMouseEnter = useCallback(() => {
+    if (collapseTimer.current) clearTimeout(collapseTimer.current);
+    if (!pinned) {
+      setCollapsed(false);
+    }
+  }, [pinned]);
+
+  const handleSidebarMouseLeave = useCallback(() => {
+    if (pinned) return;
+    collapseTimer.current = setTimeout(() => {
+      setCollapsed(true);
+    }, 300);
+  }, [pinned]);
+
+  const handleTogglePin = useCallback(() => {
+    setPinned((prev) => {
+      if (prev) {
+        // Unpinning → collapse
+        setCollapsed(true);
+      } else {
+        // Pinning → expand permanently
+        setCollapsed(false);
+      }
+      return !prev;
+    });
+  }, []);
 
   const filteredThreads = useMemo(
     () => filterDashboardThreads(threads, searchQuery),
@@ -178,7 +229,13 @@ export function DashboardIconBar({
   }, [deleteTarget, onDeleteThread]);
 
   return (
-    <nav className="sunny-dashboard-icon-bar sunny-sidebar-nav sunny-codex-sidebar" aria-label="工作台导航">
+    <nav
+      ref={navRef}
+      className="sunny-dashboard-icon-bar sunny-sidebar-nav sunny-codex-sidebar"
+      aria-label="工作台导航"
+      onMouseEnter={handleSidebarMouseEnter}
+      onMouseLeave={handleSidebarMouseLeave}
+    >
       <div className="sunny-codex-sidebar-top">
         <Link
           href="/dashboard"
@@ -192,26 +249,17 @@ export function DashboardIconBar({
 
         <section className="sunny-codex-sidebar-section" aria-label="主操作">
           <p>主操作</p>
-        <div className="sunny-codex-sidebar-actions">
-          <button
-            type="button"
-            className="sunny-codex-sidebar-action"
-            aria-label="新对话"
-            onClick={onNewThread}
-          >
-            <span className="sunny-codex-sidebar-icon"><DashboardIcon name="new" /></span>
-            <span className="sunny-codex-sidebar-label">新对话</span>
-          </button>
-          <button
-            type="button"
-            className="sunny-codex-sidebar-action"
-            aria-label="命令中心"
-            onClick={() => onModeChange("agent", "打开命令中心")}
-          >
-            <span className="sunny-codex-sidebar-icon"><DashboardIcon name="command" /></span>
-            <span className="sunny-codex-sidebar-label">命令中心</span>
-          </button>
-        </div>
+          <div className="sunny-codex-sidebar-actions">
+            <button
+              type="button"
+              className="sunny-codex-sidebar-action"
+              aria-label="新对话"
+              onClick={onNewThread}
+            >
+              <span className="sunny-codex-sidebar-icon"><DashboardIcon name="new" /></span>
+              <span className="sunny-codex-sidebar-label">新对话</span>
+            </button>
+          </div>
         </section>
 
         <div className="sunny-codex-sidebar-search">
@@ -370,6 +418,15 @@ export function DashboardIconBar({
       </div>
 
       <div className="sunny-dashboard-icon-bar-bottom sunny-codex-sidebar-bottom">
+        <button
+          type="button"
+          className={`sunny-sidebar-pin-button${pinned ? " is-pinned" : ""}`}
+          aria-label={pinned ? "取消固定侧边栏" : "固定侧边栏"}
+          title={pinned ? "取消固定侧边栏" : "固定侧边栏"}
+          onClick={handleTogglePin}
+        >
+          <DashboardIcon name="pin" />
+        </button>
         <div className="sunny-dashboard-settings">
           <button
             type="button"

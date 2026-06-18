@@ -7,9 +7,7 @@ import {
   markSuggestionDone,
 } from "@/lib/agent/suggestions";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+import { isRecord } from "@/lib/shared/is-record";
 
 const parseId = (value: unknown) => {
   if (typeof value === "number" && Number.isFinite(value)) {

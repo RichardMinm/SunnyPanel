@@ -116,7 +116,6 @@ export function ContentEditor({
           <EditorBubbleMenu editor={editor} onAiAction={onAiBubbleAction} />
           {slashState.open ? (
             <SlashCommandList
-              editor={editor!}
               items={slashState.items}
               onSelect={slashState.selectItem}
               position={slashState.position}

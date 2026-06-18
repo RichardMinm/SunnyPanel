@@ -80,8 +80,8 @@ async function loadChecklistStats(): Promise<WorkbenchData["checklistStats"]> {
   return { todayCompleted, weekCompleted, weekTotal, remainingTotal };
 }
 
-export async function loadWorkbenchData(): Promise<WorkbenchData> {
-  const snapshot = await getCachedWorkspaceSnapshot();
+export async function loadWorkbenchData(redirectPath?: string): Promise<WorkbenchData> {
+  const snapshot = await getCachedWorkspaceSnapshot(redirectPath);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

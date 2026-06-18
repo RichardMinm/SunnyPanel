@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { DashboardIcon } from "@/components/dashboard/icons";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
 
 type ChecklistItem = { key: string; label: string; completed: boolean };

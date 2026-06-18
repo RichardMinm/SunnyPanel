@@ -16,6 +16,7 @@ import {
   upsertSuggestion,
   type AgentSuggestionDraft,
 } from "@/lib/agent/suggestions";
+import { isRecord } from "@/lib/shared/is-record";
 
 export type AgentLearningSignal =
   | "correction"
@@ -135,9 +136,6 @@ const memoryTypeLabelMap: Record<AgentMemoryType, string> = {
   workflow_rule: "工作流规则",
   writing_style: "写作风格",
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const getString = (value: unknown) => {
   if (typeof value !== "string") {

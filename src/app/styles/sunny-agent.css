@@ -2158,7 +2158,7 @@ html[data-theme="dark"] .sunny-agent-dock-v2-status {
   width: 1.15rem;
   height: 1.15rem;
   border-radius: 50%;
-  font-size: 0.55rem;
+  font-size: var(--text-3xs);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -4602,52 +4602,6 @@ html[data-theme="dark"] .sunny-context-filter-empty {
   position: relative;
 }
 
-/* 归档折叠区：不参与 sidebar 剩余高度分配，仅列表区域滚动 */
-.sunny-codex-sidebar-section.sunny-codex-archive-section {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  min-height: 0;
-  margin-top: 0.25rem;
-}
-
-.sunny-codex-archive-list {
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 50vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 28%, transparent) transparent;
-}
-
-.sunny-codex-archive-thread {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.3rem 0.75rem;
-  cursor: pointer;
-  font-size: var(--text-xs);
-}
-.sunny-codex-archive-thread:hover {
-  background: var(--sunny-bg-hover);
-}
-
-.sunny-codex-archive-restore-btn {
-  padding: 0.15rem 0.45rem;
-  border: none;
-  border-radius: 0.3rem;
-  background: transparent;
-  color: var(--muted);
-  font-size: var(--text-2xs);
-  cursor: pointer;
-}
-.sunny-codex-archive-restore-btn:hover {
-  background: color-mix(in srgb, var(--sunny-accent, #2563eb) 15%, transparent);
-  color: var(--sunny-accent, #2563eb);
-}
-
 /* ═══════════════════════════════════════════════════════════
    Workbench Homepage (工作台首页)
    ═══════════════════════════════════════════════════════════ */
@@ -5670,17 +5624,6 @@ html[data-theme="dark"] .sunny-context-filter-empty {
 html[data-theme="dark"] .sunny-schedule-result-card {
   background: #1e293b;
   border-color: #1f2937;
-}
-
-/* Archive */
-html[data-theme="dark"] .sunny-codex-archive-thread {
-  background: #1e293b;
-  border-color: #1f2937;
-  color: #94a3b8;
-}
-
-html[data-theme="dark"] .sunny-codex-archive-thread:hover {
-  background: #273449;
 }
 
 /* Layout switcher */
