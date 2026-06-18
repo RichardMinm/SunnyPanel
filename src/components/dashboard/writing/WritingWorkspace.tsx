@@ -271,6 +271,7 @@ export function WritingWorkspace() {
           ref={peekZoneRef}
           className="sunny-writing-inspector-peek-zone"
           onMouseEnter={handlePeekEnter}
+          onMouseLeave={handlePeekLeave}
         >
           <button
             aria-label="展开属性栏"

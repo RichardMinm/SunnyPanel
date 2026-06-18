@@ -1,0 +1,34 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import { scoreTextMatch } from "../../src/lib/agent/tool-shared";
+
+test("scoreTextMatch returns 100 for exact match (case-insensitive)", () => {
+  assert.equal(scoreTextMatch("高等数学", "高等数学"), 100);
+  assert.equal(scoreTextMatch("Linear Algebra", "linear algebra"), 100);
+});
+
+test("scoreTextMatch returns 80 for prefix match", () => {
+  assert.equal(scoreTextMatch("高等数学习题集", "高等数学"), 80);
+  assert.equal(scoreTextMatch("高等数学", "高等数学习题集"), 80);
+});
+
+test("scoreTextMatch returns 60 for substring match", () => {
+  assert.equal(scoreTextMatch("习题高等数学复习", "高等数学"), 60);
+});
+
+test("scoreTextMatch returns 0 for no match", () => {
+  assert.equal(scoreTextMatch("高等数学", "线性代数"), 0);
+});
+
+test("scoreTextMatch handles empty strings", () => {
+  assert.equal(scoreTextMatch("", "test"), 0);
+  assert.equal(scoreTextMatch("test", ""), 0);
+});
+
+test("scoreTextMatch normalizes whitespace, punctuation, and CJK separators", () => {
+  // Spaces, hyphens, CJK punctuation should be stripped
+  assert.equal(scoreTextMatch("高等 数学", "高等数学"), 100);
+  assert.equal(scoreTextMatch("高等-数学", "高等数学"), 100);
+  assert.equal(scoreTextMatch("高等·数学", "高等数学"), 100);
+});

@@ -6,6 +6,7 @@ import type {
 } from "@/lib/agent/schemas";
 
 import { riskLevelLabelMap } from "./constants";
+import { isRecord } from "@/lib/shared/is-record";
 
 export const getPendingActionLabel = (pendingAction: PendingAction) => {
   if (pendingAction.type === "await_completion_note") {
@@ -34,9 +35,6 @@ export const getPendingActionLabel = (pendingAction: PendingAction) => {
 
   return `等待澄清：${pendingAction.missingFields.join(" / ") || pendingAction.intent}`;
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const getDecomposedFromAction = (action: ProposedAgentAction) => {
   if (action.intent !== "compose_plan") {

@@ -134,7 +134,7 @@ const requiredFields: Partial<Record<AgentWriteIntentName, string[]>> = {
   modify_record: ["entityName", "entityType", "changeDescription"],
 };
 
-const writableIntents = Object.keys(agentToolRegistry) as AgentWriteIntentName[];
+const writableIntents = Object.keys(agentToolRegistry) as Array<keyof typeof agentToolRegistry>;
 
 const toOpenAIProperty = (hint: ParameterHint) => {
   const property: Record<string, unknown> = {

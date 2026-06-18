@@ -61,8 +61,7 @@ export const noopAgentStreamEmitters: AgentStreamEmitters = {
   emitStage: noop,
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+import { isRecord } from "@/lib/shared/is-record";
 
 const stageStatuses: AgentStreamStageStatus[] = ["done", "error", "queued", "running"];
 const streamPhases: AgentStreamPhase[] = [

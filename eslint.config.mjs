@@ -2,37 +2,42 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-const agentHandwrittenGlobs = [
-  "src/lib/agent/**/*.{ts,tsx}",
-  "src/components/dashboard/agent/**/*.{ts,tsx}",
-  "src/app/api/agent/**/*.ts",
-];
+/* Strict rules applied project-wide (was previously agent-only). */
+const strictRules = {
+  "@typescript-eslint/consistent-type-imports": [
+    "error",
+    {
+      disallowTypeAnnotations: false,
+      fixStyle: "separate-type-imports",
+      prefer: "type-imports",
+    },
+  ],
+  "@typescript-eslint/no-unused-vars": [
+    "error",
+    {
+      argsIgnorePattern: "^_",
+      caughtErrorsIgnorePattern: "^_",
+      varsIgnorePattern: "^_",
+    },
+  ],
+  "@typescript-eslint/no-explicit-any": "warn",
+  "@typescript-eslint/no-floating-promises": "warn",
+  eqeqeq: ["error", "always", { null: "ignore" }],
+  "no-console": ["warn", { allow: ["warn", "error"] }],
+};
 
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
-    files: agentHandwrittenGlobs,
-    rules: {
-      "@typescript-eslint/consistent-type-imports": [
-        "error",
-        {
-          disallowTypeAnnotations: false,
-          fixStyle: "separate-type-imports",
-          prefer: "type-imports",
-        },
-      ],
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        {
-          argsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-        },
-      ],
-      eqeqeq: ["error", "always", { null: "ignore" }],
-      "no-console": ["warn", { allow: ["warn", "error"] }],
+    files: ["src/**/*.{ts,tsx}"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
+    rules: strictRules,
   },
   {
     files: ["src/lib/agent/logger.ts"],

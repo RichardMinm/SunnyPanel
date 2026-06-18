@@ -2034,7 +2034,7 @@ export const agentToolRegistry = {
 } satisfies AgentToolRegistry;
 
 export const getAgentToolDefinition = (intent: AgentIntent["intent"]) =>
-  intent in agentToolRegistry ? agentToolRegistry[intent as AgentWriteIntentName] : null;
+  intent in agentToolRegistry ? agentToolRegistry[intent as keyof typeof agentToolRegistry] : null;
 
 export const dryRunAgentTool = async (intent: WritableAgentIntent, context: AgentToolDryRunContext = {}) => {
   switch (intent.intent) {
@@ -2066,6 +2066,8 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
       return agentToolRegistry.schedule_plan.dryRun(intent.args, context);
     case "weekly_review":
       return agentToolRegistry.weekly_review.dryRun(intent.args, context);
+    case "modify_record":
+      throw new Error(`意图 ${intent.intent} 尚未实现（registry 未注册 modify_record）。`);
   }
 };
 
@@ -2103,5 +2105,7 @@ export const executeAgentTool = async (
       return agentToolRegistry.schedule_plan.execute(intent.args, context, onTrace);
     case "weekly_review":
       return agentToolRegistry.weekly_review.execute(intent.args, context, onTrace);
+    case "modify_record":
+      throw new Error(`意图 ${intent.intent} 尚未实现（registry 未注册 modify_record）。`);
   }
 };

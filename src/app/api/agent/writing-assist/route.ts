@@ -7,6 +7,7 @@ import {
   runWritingAssist,
 } from "@/lib/agent/writing-assist-core";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
+import { checkRateLimit } from "@/lib/shared/rate-limit";
 
 const writingAssistActions = new Set<WritingAssistAction>([
   "condense",
@@ -26,6 +27,14 @@ export async function POST(request: Request) {
 
   if (!auth.user) {
     return NextResponse.json({ message: "未授权" }, { status: 401 });
+  }
+
+  const rateLimit = checkRateLimit(`writing-assist:${auth.user.id}`, 30, 60_000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { message: "请求过于频繁，请稍后再试。" },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)) } },
+    );
   }
 
   const body = (await request.json().catch(() => null)) as null | Record<string, unknown>;

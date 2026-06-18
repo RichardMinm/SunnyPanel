@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DashboardIcon } from "@/components/dashboard/icons";
-import { dashboardContentLabels } from "@/lib/dashboard/content/config";
+import { dashboardContentLabels, getDashboardEditHref } from "@/lib/dashboard/content/config";
 
 import type { WritingDocumentListItem } from "./writing-types";
 
@@ -57,7 +57,7 @@ export function WritingDocumentRow({
 
   const handleCopyLink = useCallback(async () => {
     setContextMenu(null);
-    const url = `${window.location.origin}/dashboard?content=${document.collection}:${document.id}`;
+    const url = `${window.location.origin}${getDashboardEditHref(document.collection, document.id)}`;
     try {
       await navigator.clipboard.writeText(url);
     } catch {

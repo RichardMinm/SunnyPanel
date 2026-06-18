@@ -25,9 +25,7 @@ import {
 } from "@/lib/agent/token-usage";
 import { getUserPreferences } from "@/lib/agent/user-preferences";
 import { getPayloadClient } from "@/lib/payload/client";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+import { isRecord } from "@/lib/shared/is-record";
 
 const parseThreadId = (value: unknown) => {
   if (typeof value === "number" && Number.isFinite(value)) {

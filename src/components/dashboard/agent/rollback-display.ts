@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/shared/is-record";
 export type AgentRollbackOperation = "delete" | "update";
 
 export type AgentRollbackAffectedDocument = {
@@ -52,8 +53,6 @@ const rollbackStrategyLabelMap: Record<string, string> = {
   restore_schedule_item_status: "恢复日程状态",
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const isRollbackOperation = (value: unknown): value is AgentRollbackOperation =>
   value === "delete" || value === "update";

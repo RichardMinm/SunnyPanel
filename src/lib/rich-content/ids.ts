@@ -1,4 +1,5 @@
 import type { RichContentDocument, RichContentNode } from "./types";
+import { isRecord } from "@/lib/shared/is-record";
 
 const blockNodeTypes = new Set([
   "blockquote",
@@ -15,9 +16,6 @@ const blockNodeTypes = new Set([
   "taskItem",
   "taskList",
 ]);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const hasStringId = (attrs: unknown): attrs is Record<string, unknown> & { id: string } =>
   isRecord(attrs) && typeof attrs.id === "string" && attrs.id.trim().length > 0;

@@ -12,6 +12,7 @@ import {
   type ProposedAgentAction,
 } from "./schemas";
 import type { UserPreferences } from "./user-preferences";
+import { isRecord } from "@/lib/shared/is-record";
 
 const riskLabelMap: Record<ProposedAgentAction["riskLevel"], string> = {
   high: "高风险",
@@ -42,9 +43,6 @@ const writeIntentValues = new Set<AgentWriteIntentName>([
   "schedule_plan",
   "weekly_review",
 ]);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const isWritableIntent = (intent: AgentIntent): intent is Extract<AgentIntent, { intent: AgentWriteIntentName }> =>
   writeIntentValues.has(intent.intent as AgentWriteIntentName);

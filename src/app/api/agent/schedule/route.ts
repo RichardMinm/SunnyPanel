@@ -83,6 +83,21 @@ export async function PUT(request: Request) {
   }
 
   const payload = await getPayloadClient();
+
+  /* Verify the schedule item belongs to the authenticated user before updating. */
+  const existing = await payload.findByID({
+    collection: "schedule-items",
+    id: body.id,
+    depth: 0,
+    overrideAccess: true,
+  });
+
+  const createdBy = existing.createdBy as { id?: number } | number | null | undefined;
+  const itemOwner = typeof createdBy === "number" ? createdBy : createdBy?.id;
+  if (itemOwner !== authResult.user.id) {
+    return NextResponse.json({ message: "无权修改此日程" }, { status: 403 });
+  }
+
   await payload.update({
     collection: "schedule-items",
     id: body.id,

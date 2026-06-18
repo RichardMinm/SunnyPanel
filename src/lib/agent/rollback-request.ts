@@ -3,6 +3,7 @@ import type { Payload } from "payload";
 import { executeRollbackFromPayload, type RollbackExecutionResult } from "./rollback";
 import { buildAgentRunOwnerWhere } from "./run-access";
 import { buildRollbackConsumedAgentRunPatch, canRollbackAgentRunDetail, toAgentRunDetail } from "./run-summary";
+import { isRecord } from "@/lib/shared/is-record";
 
 type RollbackPayloadStore = Pick<Payload, "find" | "update">;
 
@@ -19,9 +20,6 @@ export type TrustedRollbackRequestResult = {
   result: RollbackExecutionResult;
   sourceRunId: number;
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const stableStringify = (value: unknown): string => {
   if (Array.isArray(value)) {

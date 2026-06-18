@@ -500,7 +500,7 @@ export const executeOrchestrationGraph = async (
           const previouslyConfirmed = buildConfirmedIntentSet(autoApproval.pendingActionHistory, autoApproval.lastIntent);
           const prefs = autoApproval.userPreferences ?? null;
           const decision = shouldAutoApprove(dryRun.action, {
-            consecutiveAutoCount: getConsecutiveAutoCount(),
+            consecutiveAutoCount: getConsecutiveAutoCount(autoApproval.threadId),
             isFirstActionInThread: autoApproval.isFirstActionInThread,
             previouslyConfirmedIntents: previouslyConfirmed,
             userPreferences: prefs ?? {

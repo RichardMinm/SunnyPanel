@@ -210,7 +210,6 @@ const INSPECTOR_TAB_ICONS: Record<AgentInspectorTab, DashboardIconName> = {
   inbox: "inbox",
   linked: "project",
   memory: "memory",
-  review: "review",
   trace: "command",
 };
 

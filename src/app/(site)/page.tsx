@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { HomeHero, type HomeHeroFocus, type HomeHeroSignal } from "@/components/public/HomeHero";
 import { HomeModuleSwitcher } from "@/components/public/HomeModuleSwitcher";
 import { LatestWriting } from "@/components/public/LatestWriting";
@@ -31,6 +33,11 @@ type DatedHomeHeroSignal = {
   signal: HomeHeroSignal;
   sortDate: string;
 };
+
+export const generateMetadata = async (): Promise<Metadata> => ({
+  description: "个人工作台与知识管理 — SunnyPanel",
+  title: "SunnyPanel",
+});
 
 export default async function Home() {
   const locale = await getSiteLocale();

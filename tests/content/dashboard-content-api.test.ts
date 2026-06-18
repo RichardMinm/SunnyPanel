@@ -19,6 +19,23 @@ describe("dashboard content API contracts", () => {
     assert.equal(getDashboardEditHref("posts", 12), "/dashboard?mode=writing&collection=posts&id=12");
   });
 
+  test("writing document context menu copies the canonical Dashboard edit href", () => {
+    const row = read("src/components/dashboard/writing/WritingDocumentRow.tsx");
+
+    assert.match(row, /getDashboardEditHref/);
+    assert.doesNotMatch(row, /content=\$\{document\.collection\}:\$\{document\.id\}/);
+  });
+
+  test("dashboard auth redirect preserves writing workspace query params", () => {
+    const page = read("src/app/(site)/dashboard/page.tsx");
+    const workspace = read("src/lib/payload/workspace.ts");
+
+    assert.match(page, /buildDashboardRedirectPath/);
+    assert.match(page, /redirectPath/);
+    assert.match(workspace, /redirectPath/);
+    assert.doesNotMatch(workspace, /const dashboardPath = "\/dashboard"/);
+  });
+
   test("Dashboard href preserves non-agent workspace modes while syncing threads", () => {
     assert.equal(buildDashboardHref({ mode: "writing", threadId: 16 }), "/dashboard?mode=writing&threadId=16");
   });

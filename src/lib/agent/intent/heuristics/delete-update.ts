@@ -1,5 +1,4 @@
 import type { AgentIntent } from "../../schemas";
-import { writeVerbsPattern } from "./keywords";
 import { cleanupText } from "./shared-text";
 
 /* ── delete_record ────────────────────────────── */
@@ -71,7 +70,6 @@ const extractUpdateTarget = (message: string): { changeDescription: string; enti
   // Try quoted name first
   const quoted = extractQuotedName(message);
   let entityName = "";
-  let rest = message;
 
   if (quoted) {
     entityName = quoted;

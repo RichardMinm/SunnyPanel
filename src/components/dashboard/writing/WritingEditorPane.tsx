@@ -69,7 +69,7 @@ export function WritingEditorPane({
   onUpdateDraft,
   saveState,
 }: WritingEditorPaneProps) {
-  const { isLoading: aiLoading, rememberStyle, runAssist } = useWritingAssist();
+  const { error: aiError, isLoading: aiLoading, rememberStyle, runAssist } = useWritingAssist();
   const [publishError, setPublishError] = useState<null | string>(null);
 
   const headerLabel = useMemo(() => {
@@ -95,6 +95,22 @@ export function WritingEditorPane({
       });
 
       if (!response) {
+        return;
+      }
+
+      if (response.outline?.length) {
+        const nextContent = {
+          ...draft.contentRich,
+          content: [
+            ...(draft.contentRich.content ?? []),
+            ...response.outline.map((item) => ({
+              attrs: { level: item.level },
+              content: [{ text: item.text, type: "text" }],
+              type: "heading",
+            })),
+          ],
+        };
+        onUpdateDraft({ contentRich: nextContent });
         return;
       }
 
@@ -244,6 +260,7 @@ export function WritingEditorPane({
       </div>
 
       {publishError ? <p className="sunny-writing-inline-error">{publishError}</p> : null}
+      {aiError ? <p className="sunny-writing-inline-error">AI 辅助失败：{aiError}</p> : null}
 
       <div className="sunny-writing-editor-canvas">
         {canEditTitle(document) ? (

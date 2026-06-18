@@ -148,9 +148,6 @@ describe("Query Class (查询类)", () => {
       }
 
       // 2. Must NOT call any write tools
-      for (const tool of tc.expected.mustNotCallTools) {
-        // This is expected — we're checking the test case is correctly specified
-      }
       if (tc.expected.mustNotCallTools.length === 0 && tc.category === "查询类") {
         // Ensure at least write tools are excluded
         const writeToolsInMustCall = tc.expected.mustCallTools.filter((t) => hasWriteTool([t]));
@@ -233,8 +230,8 @@ describe("Modify Class (修改类)", () => {
         failures.push("Modify must search for target first");
       }
 
-      // 2. Must require confirmation (unless it's a clarification)
-      if (tc.expected.intent !== null && !tc.expected.requiresConfirmation) {
+      // 2. Must require confirmation only after the target has been found.
+      if (tc.expected.writeRequired && !tc.expected.requiresConfirmation) {
         failures.push("Modify must require confirmation when target is found");
       }
 
@@ -251,12 +248,12 @@ describe("Delete Class (删除/高风险操作)", () => {
       const failures: string[] = [];
 
       // 1. Must require confirmation
-      if (tc.expected.intent !== null && !tc.expected.requiresConfirmation) {
+      if (tc.expected.writeRequired && !tc.expected.requiresConfirmation) {
         failures.push("Delete must require confirmation");
       }
 
       // 2. Response must mention 不可撤销 or 确认
-      if (tc.expected.intent !== null) {
+      if (tc.expected.writeRequired) {
         const hasWarning = tc.expected.responseMustContain.some(
           (s) => s.includes("不可撤销") || s.includes("确认") || s.includes("删除"),
         );
@@ -267,7 +264,7 @@ describe("Delete Class (删除/高风险操作)", () => {
 
       // 3. Must NOT skip confirmation (forbidden behavior check)
       if (tc.expected.forbiddenBehavior?.includes("跳过") || tc.expected.forbiddenBehavior?.includes("未确认")) {
-        if (!tc.expected.requiresConfirmation) {
+        if (tc.expected.writeRequired && !tc.expected.requiresConfirmation) {
           failures.push("Delete with forbidden skip must require confirmation");
         }
       }
@@ -511,7 +508,7 @@ test("WRITE RESULTS FILE", () => {
     { label: "查询类只调用 read 工具", fn: () => cases.filter((c) => c.category === "查询类").every((c) => c.expected.mustCallTools.every((t) => READ_TOOLS.includes(t)) || c.expected.mustCallTools.length === 0) },
     { label: "创建类必须预览+确认", fn: () => cases.filter((c) => c.category === "创建类").every((c) => c.expected.requiresConfirmation && c.expected.writeRequired) },
     { label: "修改类必须定位目标", fn: () => cases.filter((c) => c.category === "修改类").every((c) => c.expected.mustCallTools.some((t) => t.startsWith("search_") || c.expected.intent === null)) },
-    { label: "删除类必须二次确认", fn: () => cases.filter((c) => c.category === "删除/高风险操作").every((c) => c.expected.intent === null || c.expected.requiresConfirmation) },
+    { label: "删除类找到目标后必须二次确认", fn: () => cases.filter((c) => c.category === "删除/高风险操作").every((c) => !c.expected.writeRequired || c.expected.requiresConfirmation) },
     { label: "功能咨询不触发写入预检", fn: () => cases.filter((c) => c.id === "query-010").every((c) => !c.expected.mustCallTools.includes("dry_run")) },
     { label: "模糊输入必须澄清", fn: () => cases.filter((c) => c.category === "模糊输入/澄清").every((c) => c.expected.intent === null || c.expected.responseMustContain.some((s) => containsAny(s, ["什么", "哪个", "具体", "哪天", "几点", "哪方面"]))) },
     { label: "多轮指代关联上轮对象", fn: () => cases.filter((c) => c.category === "多轮上下文").every((c) => Array.isArray(c.userInput) && c.userInput.length >= 2) },

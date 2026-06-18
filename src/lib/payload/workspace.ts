@@ -15,9 +15,10 @@ import { getPayloadClient } from "@/lib/payload/client";
 import { buildOnboardingChecklist, ensureInitialWorkspace, hasInitialWorkspaceSeed } from "@/lib/payload/onboarding";
 import { getTodaySchedule, getTomorrowSchedule, type ScheduleItemRecord } from "@/lib/schedule/items";
 
-const dashboardPath = "/dashboard";
+const defaultDashboardPath = "/dashboard";
 
-const buildAdminRoute = (path: string) => `${path}?redirect=${encodeURIComponent(dashboardPath)}`;
+const buildAdminRoute = (path: string, redirectPath = defaultDashboardPath) =>
+  `${path}?redirect=${encodeURIComponent(redirectPath)}`;
 
 const draftConstraint = {
   status: {
@@ -533,7 +534,7 @@ export const assembleWorkspaceSnapshot = (core: WorkspaceCoreData): WorkspaceSna
   };
 };
 
-export const loadWorkspaceCore = async (): Promise<WorkspaceCoreData> => {
+export const loadWorkspaceCore = async (redirectPath = defaultDashboardPath): Promise<WorkspaceCoreData> => {
   const payload = await getPayloadClient();
 
   const authResult = await getPayloadAuthResult();
@@ -548,10 +549,10 @@ export const loadWorkspaceCore = async (): Promise<WorkspaceCoreData> => {
     });
 
     if (existingUsers.totalDocs === 0) {
-      redirect(buildAdminRoute("/admin/create-first-user"));
+      redirect(buildAdminRoute("/admin/create-first-user", redirectPath));
     }
 
-    redirect(buildAdminRoute("/admin/login"));
+    redirect(buildAdminRoute("/admin/login", redirectPath));
   }
 
   const hasWorkspaceSeed = await hasInitialWorkspaceSeed(payload);

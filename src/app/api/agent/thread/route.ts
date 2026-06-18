@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   if (!authResult.user) {
     return NextResponse.json(
       {
-        assistantMessage: "当前会话没有登录，暂时不能读取 Agent 会话。",
+        message: "当前会话没有登录，暂时不能读取 Agent 会话。",
       },
       { status: 401 },
     );

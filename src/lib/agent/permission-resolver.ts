@@ -92,21 +92,22 @@ export const shouldAutoApprove = (
   return { approved: false, reason: "未匹配任何自动批准规则" };
 };
 
-let consecutiveAutoCount = 0;
-let lastThreadId: number | null = null;
+/* Per-thread auto-approval counters. Using a Map keyed by threadId avoids
+ * cross-request race conditions inherent in module-level mutable state. */
+const autoCountByThread = new Map<number, number>();
 
-export const getConsecutiveAutoCount = () => consecutiveAutoCount;
+export const getConsecutiveAutoCount = (threadId?: number) => {
+  if (threadId == null) return 0;
+  return autoCountByThread.get(threadId) ?? 0;
+};
 
 export const incrementAutoCount = (threadId: number) => {
-  if (lastThreadId !== threadId) {
-    consecutiveAutoCount = 1;
-    lastThreadId = threadId;
-  } else {
-    consecutiveAutoCount += 1;
-  }
+  const current = autoCountByThread.get(threadId) ?? 0;
+  const next = current + 1;
+  autoCountByThread.set(threadId, next);
 
   logAgentEvent("info", "permission.auto_approved", {
-    consecutiveCount: consecutiveAutoCount,
+    consecutiveCount: next,
     threadId,
   });
 };

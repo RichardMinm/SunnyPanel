@@ -65,10 +65,12 @@ describe("Dashboard layout contracts", () => {
   test("Sidebar navigation exposes grouped actions, project, workspace, and thread metadata", () => {
     const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
 
-    for (const label of ["主操作", "新对话", "搜索", "命令中心", "项目", "SunnyPanel", "工作区", "会话"]) {
+    for (const label of ["主操作", "新对话", "搜索", "项目", "SunnyPanel", "工作区", "会话"]) {
       assert.match(sidebar, new RegExp(label));
     }
 
+    assert.doesNotMatch(sidebar, /aria-label="命令中心"/);
+    assert.doesNotMatch(sidebar, /打开命令中心/);
     assert.doesNotMatch(sidebar, /aria-label="插件"/);
     assert.doesNotMatch(sidebar, /aria-label="自动化"/);
     assert.match(sidebar, /formatThreadMeta/);
@@ -77,6 +79,32 @@ describe("Dashboard layout contracts", () => {
     assert.match(sidebar, /filteredThreads\.slice/);
     assert.match(sidebar, /visibleThreads\.map/);
     assert.match(sidebar, /is-active/);
+  });
+
+  test("Sidebar auto-collapses to 56px icon strip with hover expand and pin lock", () => {
+    const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
+    const shellCss = read("src/app/styles/sunny-dashboard-shell.css");
+
+    // State
+    assert.match(sidebar, /collapsed.*useState/);
+    assert.match(sidebar, /pinned.*useState/);
+    assert.match(sidebar, /collapseTimer/);
+
+    // Mouse handlers
+    assert.match(sidebar, /onMouseEnter.*handleSidebarMouseEnter/);
+    assert.match(sidebar, /onMouseLeave.*handleSidebarMouseLeave/);
+
+    // Pin button
+    assert.match(sidebar, /sunny-sidebar-pin-button/);
+    assert.match(sidebar, /handleTogglePin/);
+
+    // CSS variables
+    assert.match(shellCss, /--dashboard-sidebar-collapsed-width:\s*56px/);
+    assert.match(shellCss, /is-sidebar-auto-collapsed/);
+    assert.match(shellCss, /is-auto-collapsed/);
+
+    // Transition
+    assert.match(shellCss, /transition:\s*width 200ms ease/);
   });
 
   test("Archived and thread sidebar controls share one collapse button contract", () => {

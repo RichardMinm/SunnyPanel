@@ -230,7 +230,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     const prefs = autoApproval.userPreferences ?? null;
     const previouslyConfirmed = buildConfirmedIntentSet(autoApproval.pendingActionHistory, autoApproval.lastIntent);
     const decision = shouldAutoApprove(proposedAction, {
-      consecutiveAutoCount: getConsecutiveAutoCount(),
+      consecutiveAutoCount: getConsecutiveAutoCount(autoApproval.threadId),
       isFirstActionInThread: autoApproval.isFirstActionInThread,
       previouslyConfirmedIntents: previouslyConfirmed,
       userPreferences: prefs ?? {

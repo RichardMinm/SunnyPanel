@@ -3,7 +3,6 @@
 import {
   dashboardContentCollections,
   dashboardContentLabels,
-  type DashboardContentCollection,
 } from "@/lib/dashboard/content/config";
 
 import type { WritingCollectionFilter } from "./writing-types";

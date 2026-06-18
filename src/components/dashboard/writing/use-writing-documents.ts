@@ -6,8 +6,6 @@ import {
   dashboardContentCollections,
   type DashboardContentCollection,
 } from "@/lib/dashboard/content/config";
-import { createEmptyRichDocument } from "@/lib/rich-content/defaults";
-
 import {
   buildMetadataDraft,
   canEditTitle,

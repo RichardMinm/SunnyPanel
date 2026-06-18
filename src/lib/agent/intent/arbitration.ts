@@ -14,6 +14,7 @@ import {
   isNegativeReply,
   parseKnowledgeAnswerIntent,
 } from "./heuristics";
+import { isRecord } from "@/lib/shared/is-record";
 
 export type AgentRouteClass =
   | "answer"
@@ -97,9 +98,6 @@ const pendingPolicyValues = new Set<PendingActionPolicy>([
   "keep_waiting",
   "start_new_intent",
 ]);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const confidenceOf = (intent: AgentIntent | null | undefined) => intent?.confidence ?? 0;
 

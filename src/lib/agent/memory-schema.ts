@@ -1,3 +1,4 @@
+import { isRecord } from "@/lib/shared/is-record";
 export type AgentMemoryType = "fact" | "preference" | "project_context" | "workflow_rule" | "writing_style";
 export type AgentMemoryStatus = "active" | "archived";
 type AgentMemoryRelation = null | number | { id?: number };
@@ -69,8 +70,6 @@ const memoryTypeAliasMap: Record<string, AgentMemoryType> = {
   写作风格: "writing_style",
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const normalizeWhitespace = (value: string) => value.trim().replace(/\s+/g, " ");
 

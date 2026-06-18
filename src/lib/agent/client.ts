@@ -10,8 +10,8 @@ import {
 import { createTokenUsageSnapshot, estimateTokenCount, mergeProviderTokenUsage } from "./token-usage";
 import { getPayloadClient } from "@/lib/payload/client";
 
-const defaultModelBaseUrl = "https://open.bigmodel.cn/api/paas/v4";
-const defaultModelName = "glm-5.1";
+const defaultModelBaseUrl = process.env.ZAI_BASE_URL || "https://api.openai.com/v1";
+const defaultModelName = process.env.ZAI_MODEL || "gpt-4o";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 

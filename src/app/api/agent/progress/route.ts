@@ -13,7 +13,7 @@ const requireAgentAuth = async () => {
   if (!authResult.user) {
     return NextResponse.json(
       {
-        assistantMessage: "当前会话没有登录，暂时不能查询 Agent 进度。",
+        message: "当前会话没有登录，暂时不能查询 Agent 进度。",
       },
       { status: 401 },
     );

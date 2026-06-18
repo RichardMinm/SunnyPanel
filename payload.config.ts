@@ -95,7 +95,7 @@ export default buildConfig({
   routes: {
     admin: "/admin",
   },
-  secret: process.env.PAYLOAD_SECRET || "change-this-before-production",
+  secret: process.env.PAYLOAD_SECRET!,
   sharp,
   typescript: {
     outputFile: path.resolve(dirname, "src/payload-types.ts"),

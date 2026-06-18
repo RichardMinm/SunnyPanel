@@ -84,7 +84,6 @@ const slashItems: SlashItem[] = [
 ];
 
 type SlashCommandListProps = {
-  editor: Editor;
   items: SlashItem[];
   onSelect: (item: SlashItem) => void;
   position: { left: number; top: number };
@@ -92,7 +91,6 @@ type SlashCommandListProps = {
 };
 
 export function SlashCommandList({
-  editor,
   items,
   onSelect,
   position,

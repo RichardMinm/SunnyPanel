@@ -143,9 +143,9 @@ export function ThreadHeader({
             disabled={saving}
             value={draftTitle}
             onChange={(e) => setDraftTitle(e.target.value)}
-            onBlur={saveTitle}
+            onBlur={() => void saveTitle()}
             onKeyDown={(e) => {
-              if (e.key === "Enter") saveTitle();
+              if (e.key === "Enter") void saveTitle();
               if (e.key === "Escape") cancelEditing();
             }}
           />

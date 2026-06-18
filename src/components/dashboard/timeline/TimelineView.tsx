@@ -99,7 +99,6 @@ export function TimelineView({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
 
     fetch(`/api/agent/timeline?month=${monthKey}&limit=50`)
       .then(async (res) => {
@@ -128,6 +127,7 @@ export function TimelineView({
   }, [filteredEvents]);
 
   const shiftMonth = (delta: number) => {
+    setLoading(true);
     setMonth((currentMonth) => {
       const nextMonth = currentMonth + delta;
       if (nextMonth < 1) { setYear((y) => y - 1); return 12; }

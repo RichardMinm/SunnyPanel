@@ -186,7 +186,6 @@ export function useFloatingCommandTrigger() {
 
   useEffect(() => {
     if (isTriggerHidden()) {
-      setPosition(null);
       return;
     }
 

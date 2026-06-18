@@ -1737,7 +1737,7 @@ html[data-theme="dark"] .sunny-panel {
   gap: 24px;
   height: 100%;
   padding: 24px 28px 20px;
-  background: #f8fafc;
+  background: var(--background);
   overflow: auto;
 }
 
@@ -1754,14 +1754,14 @@ html[data-theme="dark"] .sunny-panel {
   margin: 0;
   font-size: 22px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--foreground);
   line-height: 1.25;
 }
 
 .sunny-checklist-subtitle {
   margin: 2px 0 0;
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--muted);
   font-weight: 400;
 }
 
@@ -1777,10 +1777,10 @@ html[data-theme="dark"] .sunny-panel {
   align-items: center;
   height: 32px;
   padding: 0 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -1788,7 +1788,7 @@ html[data-theme="dark"] .sunny-panel {
 }
 
 .sunny-checklist-filter-bar button:hover {
-  background: #f8fafc;
+  background: var(--background);
 }
 
 .sunny-checklist-filter-bar button.is-active {
@@ -1842,7 +1842,7 @@ html[data-theme="dark"] .sunny-panel {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--foreground);
   line-height: 1.4;
 }
 
@@ -1850,7 +1850,7 @@ html[data-theme="dark"] .sunny-panel {
   display: block;
   margin-top: 2px;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 /* Status badge */
@@ -1875,8 +1875,8 @@ html[data-theme="dark"] .sunny-panel {
 }
 
 .sunny-checklist-status-badge.is-archived {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--surface-tint);
+  color: var(--muted);
 }
 
 /* Progress bar */
@@ -1884,7 +1884,7 @@ html[data-theme="dark"] .sunny-panel {
   height: 4px;
   margin-top: 12px;
   border-radius: 999px;
-  background: #f1f5f9;
+  background: var(--surface-tint);
   overflow: hidden;
 }
 
@@ -1899,7 +1899,7 @@ html[data-theme="dark"] .sunny-panel {
   display: block;
   margin-top: 4px;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 /* Items list */
@@ -1910,7 +1910,7 @@ html[data-theme="dark"] .sunny-panel {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--surface-tint);
   padding-top: 12px;
 }
 
@@ -1921,12 +1921,12 @@ html[data-theme="dark"] .sunny-panel {
   padding: 6px 8px;
   border-radius: 8px;
   font-size: 13px;
-  color: #334155;
+  color: var(--border);
   transition: background 0.1s ease;
 }
 
 .sunny-checklist-items-list li:hover {
-  background: #f8fafc;
+  background: var(--background);
 }
 
 .sunny-checklist-items-list li span:first-child {
@@ -1937,7 +1937,7 @@ html[data-theme="dark"] .sunny-panel {
   width: 20px;
   height: 20px;
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .sunny-checklist-item-icon {
@@ -1947,7 +1947,7 @@ html[data-theme="dark"] .sunny-panel {
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .sunny-checklist-item-icon.is-done {
@@ -1960,32 +1960,32 @@ html[data-theme="dark"] .sunny-panel {
 
 .sunny-checklist-items-list li.is-done span:last-child {
   text-decoration: line-through;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 /* ── Checklist (dark) ── */
 
 html[data-theme="dark"] .sunny-checklist-view {
-  background: #0f172a;
+  background: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-checklist-view-head h1 {
-  color: #f8fafc;
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-checklist-subtitle {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-checklist-filter-bar button {
   background: transparent;
-  border-color: #334155;
-  color: #94a3b8;
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-checklist-filter-bar button:hover {
-  background: #1e293b;
-  color: #cbd5e1;
+  background: var(--surface-strong);
+  color: color-mix(in srgb, var(--foreground) 78%, transparent);
 }
 
 html[data-theme="dark"] .sunny-checklist-filter-bar button.is-active {
@@ -2009,11 +2009,11 @@ html[data-theme="dark"] .sunny-checklist-card.is-expanded {
 }
 
 html[data-theme="dark"] .sunny-checklist-card-header h3 {
-  color: #f1f5f9;
+  color: var(--surface-tint);
 }
 
 html[data-theme="dark"] .sunny-checklist-card-header small {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-checklist-status-badge.is-active {
@@ -2028,15 +2028,15 @@ html[data-theme="dark"] .sunny-checklist-status-badge.is-done {
 
 html[data-theme="dark"] .sunny-checklist-status-badge.is-archived {
   background: rgba(100, 116, 139, 0.14);
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-checklist-progress-bar {
-  background: #1e293b;
+  background: var(--surface-strong);
 }
 
 html[data-theme="dark"] .sunny-checklist-progress-label {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list {
@@ -2044,7 +2044,7 @@ html[data-theme="dark"] .sunny-checklist-items-list {
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list li {
-  color: #cbd5e1;
+  color: color-mix(in srgb, var(--foreground) 78%, transparent);
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list li:hover {
@@ -2052,11 +2052,11 @@ html[data-theme="dark"] .sunny-checklist-items-list li:hover {
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list li span:first-child {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-checklist-item-icon {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-checklist-item-icon.is-done {
@@ -2068,7 +2068,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:first-child 
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* ── Timeline View ── */
@@ -2078,7 +2078,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   gap: 24px;
   height: 100%;
   padding: 24px 28px 20px;
-  background: #f8fafc;
+  background: var(--background);
   overflow: auto;
 }
 
@@ -2106,14 +2106,14 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   margin: 0;
   font-size: 22px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--foreground);
   line-height: 1.25;
 }
 
 .sunny-timeline-subtitle {
   margin: 2px 0 0;
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--muted);
   font-weight: 400;
 }
 
@@ -2127,7 +2127,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   min-width: 110px;
   font-size: 15px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--foreground);
   text-align: center;
   user-select: none;
 }
@@ -2159,14 +2159,14 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #cbd5e1;
+  background: color-mix(in srgb, var(--foreground) 78%, transparent);
   flex-shrink: 0;
 }
 
 .sunny-timeline-date-label {
   font-size: 13px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* Event rows */
@@ -2175,7 +2175,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   flex-direction: column;
   margin-left: 5px;
   padding-left: 16px;
-  border-left: 2px solid #f1f5f9;
+  border-left: 2px solid var(--surface-tint);
 }
 
 .sunny-timeline-event-row {
@@ -2195,7 +2195,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   top: 24px;
   width: 2px;
   height: calc(100% + 8px);
-  background: #f1f5f9;
+  background: var(--surface-tint);
 }
 
 /* Event card */
@@ -2206,7 +2206,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   margin-bottom: 8px;
   margin-left: 8px;
   border-radius: 16px;
-  border: 1px solid #f1f5f9;
+  border: 1px solid var(--surface-tint);
   background: #fff;
   cursor: pointer;
   text-align: left;
@@ -2216,12 +2216,12 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
 }
 
 .sunny-timeline-event-card:hover {
-  border-color: #e2e8f0;
+  border-color: var(--border);
   box-shadow: 0 2px 8px rgba(0,0,0,.04);
 }
 
 .sunny-timeline-event-card.is-expanded {
-  border-color: #e2e8f0;
+  border-color: var(--border);
   box-shadow: 0 2px 12px rgba(0,0,0,.06);
 }
 
@@ -2244,7 +2244,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
 }
 
 .sunny-timeline-event-dot.is-project {
-  background: #94a3b8;
+  background: var(--muted);
 }
 
 .sunny-timeline-event-dot.is-life {
@@ -2254,7 +2254,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
 .sunny-timeline-event-type {
   font-size: 10px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -2263,7 +2263,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--foreground);
   line-height: 1.4;
 }
 
@@ -2271,15 +2271,15 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   display: inline-block;
   margin-top: 4px;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .sunny-timeline-event-desc {
   margin: 8px 0 0;
   padding-top: 8px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--surface-tint);
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted);
   line-height: 1.5;
 }
 
@@ -2288,8 +2288,8 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   display: inline-block;
   padding: 1px 6px;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--surface-tint);
+  color: var(--muted);
   font-size: 10px;
   font-weight: 500;
   margin-left: auto;
@@ -2298,13 +2298,13 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
 .sunny-timeline-event-detail {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--surface-tint);
 }
 
 .sunny-timeline-event-detail p {
   margin: 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted);
   line-height: 1.5;
 }
 
@@ -2312,7 +2312,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   display: block;
   margin-top: 6px;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 /* ── Timeline: Filter Tabs ── */
@@ -2332,7 +2332,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   background: #fff;
-  color: #64748b;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -2340,7 +2340,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
 }
 
 .sunny-timeline-filter-btn:hover {
-  background: #f8fafc;
+  background: var(--background);
 }
 
 .sunny-timeline-filter-btn.is-active {
@@ -2370,12 +2370,12 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   width: 56px;
   height: 56px;
   border-radius: 14px;
-  background: #f1f5f9;
+  background: var(--surface-tint);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 20px;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .sunny-timeline-empty-icon svg {
@@ -2387,13 +2387,13 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   margin: 0 0 8px;
   font-size: 16px;
   font-weight: 650;
-  color: #334155;
+  color: var(--border);
 }
 
 .sunny-timeline-empty-desc {
   margin: 0 0 24px;
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--muted);
   line-height: 1.7;
 }
 
