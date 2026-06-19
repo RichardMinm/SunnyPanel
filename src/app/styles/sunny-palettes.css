@@ -23,6 +23,24 @@ html[data-palette="cobalt"] {
   --grid-line: rgba(26, 35, 50, 0.025);
   --agent-shadow-shell: 0 20px 48px rgba(26, 35, 50, 0.08);
   --agent-surface-elevated: rgba(255, 255, 255, 0.82);
+  --cat-course-dot: #2457aa;
+  --cat-course-bg: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  --cat-course-text: #183e7a;
+  --cat-study-dot: #7c3aed;
+  --cat-study-bg: #f5f3ff;
+  --cat-study-text: #6d28d9;
+  --cat-plan-dot: #16a34a;
+  --cat-plan-bg: #f0fdf4;
+  --cat-plan-text: #166534;
+  --cat-agent-dot: #ea580c;
+  --cat-agent-bg: #fff7ed;
+  --cat-agent-text: #9a3412;
+  --cat-exam-dot: #dc2626;
+  --cat-exam-bg: #fef2f2;
+  --cat-exam-text: #991b1b;
+  --cat-default-dot: #94a3b8;
+  --cat-default-bg: #f1f5f9;
+  --cat-default-text: #475569;
 }
 
 html[data-palette="forest"] {
@@ -44,6 +62,24 @@ html[data-palette="forest"] {
   --grid-line: rgba(27, 67, 50, 0.025);
   --agent-shadow-shell: 0 20px 48px rgba(27, 67, 50, 0.08);
   --agent-surface-elevated: rgba(255, 255, 253, 0.82);
+  --cat-course-dot: #2d6a4f;
+  --cat-course-bg: color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
+  --cat-course-text: #1b4332;
+  --cat-study-dot: #40916c;
+  --cat-study-bg: #d8f3dc;
+  --cat-study-text: #1b4332;
+  --cat-plan-dot: #52b788;
+  --cat-plan-bg: #e8f5e9;
+  --cat-plan-text: #2d6a4f;
+  --cat-agent-dot: #d97706;
+  --cat-agent-bg: #fff7ed;
+  --cat-agent-text: #92400e;
+  --cat-exam-dot: #b91c1c;
+  --cat-exam-bg: #fef2f2;
+  --cat-exam-text: #991b1b;
+  --cat-default-dot: #6b9080;
+  --cat-default-bg: #eef4ee;
+  --cat-default-text: #5c6f63;
 }
 
 html[data-palette="wine"] {
@@ -65,6 +101,24 @@ html[data-palette="wine"] {
   --grid-line: rgba(42, 31, 34, 0.024);
   --agent-shadow-shell: 0 20px 48px rgba(42, 31, 34, 0.08);
   --agent-surface-elevated: rgba(255, 252, 251, 0.82);
+  --cat-course-dot: #922b3e;
+  --cat-course-bg: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  --cat-course-text: #6b1f2e;
+  --cat-study-dot: #a8556a;
+  --cat-study-bg: #fce8ec;
+  --cat-study-text: #7a2e3e;
+  --cat-plan-dot: #6b8f71;
+  --cat-plan-bg: #f0f5f1;
+  --cat-plan-text: #3d5a44;
+  --cat-agent-dot: #c2410c;
+  --cat-agent-bg: #fff7ed;
+  --cat-agent-text: #9a3412;
+  --cat-exam-dot: #be123c;
+  --cat-exam-bg: #fff1f2;
+  --cat-exam-text: #9f1239;
+  --cat-default-dot: #9a8589;
+  --cat-default-bg: #f3ebe7;
+  --cat-default-text: #75666a;
 }
 
 html[data-palette="midnight"] {
@@ -86,6 +140,24 @@ html[data-palette="midnight"] {
   --grid-line: rgba(28, 26, 22, 0.024);
   --agent-shadow-shell: 0 20px 48px rgba(28, 26, 22, 0.08);
   --agent-surface-elevated: rgba(255, 255, 253, 0.82);
+  --cat-course-dot: #1a2744;
+  --cat-course-bg: color-mix(in srgb, var(--accent-cool) 80%, var(--surface-strong));
+  --cat-course-text: #1a2744;
+  --cat-study-dot: #9a7b2f;
+  --cat-study-bg: #f5f0e1;
+  --cat-study-text: #7a6020;
+  --cat-plan-dot: #5c7a4a;
+  --cat-plan-bg: #eef3ea;
+  --cat-plan-text: #3d5232;
+  --cat-agent-dot: #b45309;
+  --cat-agent-bg: #fef3c7;
+  --cat-agent-text: #92400e;
+  --cat-exam-dot: #b91c1c;
+  --cat-exam-bg: #fef2f2;
+  --cat-exam-text: #991b1b;
+  --cat-default-dot: #8a8578;
+  --cat-default-bg: #f2f0ea;
+  --cat-default-text: #6b665c;
 }
 
 html[data-palette="slate"] {
@@ -107,6 +179,24 @@ html[data-palette="slate"] {
   --grid-line: rgba(24, 24, 27, 0.024);
   --agent-shadow-shell: 0 20px 48px rgba(24, 24, 27, 0.08);
   --agent-surface-elevated: rgba(255, 255, 255, 0.82);
+  --cat-course-dot: #4f46e5;
+  --cat-course-bg: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  --cat-course-text: #3730a3;
+  --cat-study-dot: #7c3aed;
+  --cat-study-bg: #f5f3ff;
+  --cat-study-text: #6d28d9;
+  --cat-plan-dot: #059669;
+  --cat-plan-bg: #ecfdf5;
+  --cat-plan-text: #047857;
+  --cat-agent-dot: #ea580c;
+  --cat-agent-bg: #fff7ed;
+  --cat-agent-text: #9a3412;
+  --cat-exam-dot: #dc2626;
+  --cat-exam-bg: #fef2f2;
+  --cat-exam-text: #991b1b;
+  --cat-default-dot: #71717a;
+  --cat-default-bg: #f4f4f5;
+  --cat-default-text: #52525b;
 }
 
 html[data-palette="cobalt"][data-theme="dark"],
@@ -129,6 +219,24 @@ html[data-theme="dark"]:not([data-palette]) {
   --grid-line: rgba(148, 163, 184, 0.04);
   --agent-shadow-shell: 0 20px 48px rgba(0, 0, 0, 0.4);
   --agent-surface-elevated: #1e293b;
+  --cat-course-dot: #60a5fa;
+  --cat-course-bg: rgba(59, 130, 246, 0.14);
+  --cat-course-text: #93c5fd;
+  --cat-study-dot: #a78bfa;
+  --cat-study-bg: rgba(167, 139, 250, 0.14);
+  --cat-study-text: #c4b5fd;
+  --cat-plan-dot: #4ade80;
+  --cat-plan-bg: rgba(34, 197, 94, 0.12);
+  --cat-plan-text: #86efac;
+  --cat-agent-dot: #fb923c;
+  --cat-agent-bg: rgba(251, 146, 60, 0.12);
+  --cat-agent-text: #fdba74;
+  --cat-exam-dot: #f87171;
+  --cat-exam-bg: rgba(248, 113, 113, 0.14);
+  --cat-exam-text: #fca5a5;
+  --cat-default-dot: #94a3b8;
+  --cat-default-bg: rgba(148, 163, 184, 0.1);
+  --cat-default-text: #cbd5e1;
 }
 
 html[data-palette="forest"][data-theme="dark"] {
@@ -150,6 +258,24 @@ html[data-palette="forest"][data-theme="dark"] {
   --grid-line: rgba(183, 228, 199, 0.04);
   --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.35);
   --agent-surface-elevated: rgba(24, 32, 28, 0.92);
+  --cat-course-dot: #74c69d;
+  --cat-course-bg: rgba(116, 198, 157, 0.14);
+  --cat-course-text: #b7e4c7;
+  --cat-study-dot: #95d5b2;
+  --cat-study-bg: rgba(149, 213, 178, 0.12);
+  --cat-study-text: #d8f3dc;
+  --cat-plan-dot: #52b788;
+  --cat-plan-bg: rgba(82, 183, 136, 0.12);
+  --cat-plan-text: #95d5b2;
+  --cat-agent-dot: #fb923c;
+  --cat-agent-bg: rgba(251, 146, 60, 0.12);
+  --cat-agent-text: #fdba74;
+  --cat-exam-dot: #f87171;
+  --cat-exam-bg: rgba(248, 113, 113, 0.14);
+  --cat-exam-text: #fca5a5;
+  --cat-default-dot: #8fa89a;
+  --cat-default-bg: rgba(143, 168, 154, 0.1);
+  --cat-default-text: #b5c9bc;
 }
 
 html[data-palette="wine"][data-theme="dark"] {
@@ -171,6 +297,24 @@ html[data-palette="wine"][data-theme="dark"] {
   --grid-line: rgba(245, 179, 189, 0.04);
   --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.35);
   --agent-surface-elevated: rgba(32, 24, 27, 0.92);
+  --cat-course-dot: #e07a8a;
+  --cat-course-bg: rgba(224, 122, 138, 0.14);
+  --cat-course-text: #f5b3bd;
+  --cat-study-dot: #f0a0b0;
+  --cat-study-bg: rgba(240, 160, 176, 0.12);
+  --cat-study-text: #f5c6d0;
+  --cat-plan-dot: #86b392;
+  --cat-plan-bg: rgba(134, 179, 146, 0.12);
+  --cat-plan-text: #b8d4be;
+  --cat-agent-dot: #fb923c;
+  --cat-agent-bg: rgba(251, 146, 60, 0.12);
+  --cat-agent-text: #fdba74;
+  --cat-exam-dot: #fb7185;
+  --cat-exam-bg: rgba(251, 113, 133, 0.14);
+  --cat-exam-text: #fda4af;
+  --cat-default-dot: #b89a9f;
+  --cat-default-bg: rgba(184, 154, 159, 0.1);
+  --cat-default-text: #d0b8b3;
 }
 
 html[data-palette="midnight"][data-theme="dark"] {
@@ -192,6 +336,24 @@ html[data-palette="midnight"][data-theme="dark"] {
   --grid-line: rgba(212, 175, 55, 0.04);
   --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.38);
   --agent-surface-elevated: rgba(22, 27, 40, 0.92);
+  --cat-course-dot: #6b8fd4;
+  --cat-course-bg: rgba(107, 143, 212, 0.14);
+  --cat-course-text: #9bb5e8;
+  --cat-study-dot: #d4af37;
+  --cat-study-bg: rgba(212, 175, 55, 0.12);
+  --cat-study-text: #f0cc55;
+  --cat-plan-dot: #7cb87a;
+  --cat-plan-bg: rgba(124, 184, 122, 0.12);
+  --cat-plan-text: #a8d4a6;
+  --cat-agent-dot: #fb923c;
+  --cat-agent-bg: rgba(251, 146, 60, 0.12);
+  --cat-agent-text: #fdba74;
+  --cat-exam-dot: #f87171;
+  --cat-exam-bg: rgba(248, 113, 113, 0.14);
+  --cat-exam-text: #fca5a5;
+  --cat-default-dot: #a8a296;
+  --cat-default-bg: rgba(168, 162, 150, 0.1);
+  --cat-default-text: #c5bfb2;
 }
 
 html[data-palette="slate"][data-theme="dark"] {
@@ -213,6 +375,24 @@ html[data-palette="slate"][data-theme="dark"] {
   --grid-line: rgba(228, 228, 231, 0.04);
   --agent-shadow-shell: 0 24px 56px rgba(0, 0, 0, 0.35);
   --agent-surface-elevated: rgba(28, 28, 32, 0.92);
+  --cat-course-dot: #818cf8;
+  --cat-course-bg: rgba(129, 140, 248, 0.14);
+  --cat-course-text: #a5b4fc;
+  --cat-study-dot: #c084fc;
+  --cat-study-bg: rgba(192, 132, 252, 0.12);
+  --cat-study-text: #d8b4fe;
+  --cat-plan-dot: #34d399;
+  --cat-plan-bg: rgba(52, 211, 153, 0.12);
+  --cat-plan-text: #6ee7b7;
+  --cat-agent-dot: #fb923c;
+  --cat-agent-bg: rgba(251, 146, 60, 0.12);
+  --cat-agent-text: #fdba74;
+  --cat-exam-dot: #f87171;
+  --cat-exam-bg: rgba(248, 113, 113, 0.14);
+  --cat-exam-text: #fca5a5;
+  --cat-default-dot: #a1a1aa;
+  --cat-default-bg: rgba(161, 161, 170, 0.1);
+  --cat-default-text: #d4d4d8;
 }
 
 /* 由 accent 派生的光晕 / 阴影 / 语义 accent tone */

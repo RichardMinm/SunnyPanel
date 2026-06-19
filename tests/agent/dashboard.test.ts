@@ -83,11 +83,21 @@ describe("Dashboard layout contracts", () => {
 
   test("Sidebar auto-collapses to 56px icon strip with hover expand and pin lock", () => {
     const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
+    const shell = read("src/components/dashboard/DashboardShell.tsx");
+    const appShell = read("src/components/dashboard/AppShell.tsx");
     const shellCss = read("src/app/styles/sunny-dashboard-shell.css");
 
     // State
-    assert.match(sidebar, /collapsed.*useState/);
-    assert.match(sidebar, /pinned.*useState/);
+    assert.match(sidebar, /hoverExpanded/);
+    assert.match(sidebar, /onHoverExpandedChange/);
+    assert.match(sidebar, /pinned/);
+    assert.match(sidebar, /onPinnedChange/);
+    assert.match(shell, /sidebarPinned.*useState/);
+    assert.match(shell, /sidebarHoverExpanded.*useState/);
+    assert.match(shell, /sidebarExpanded/);
+    assert.match(appShell, /is-sidebar-auto-collapsed/);
+    assert.match(appShell, /is-sidebar-expanded/);
+    assert.match(appShell, /is-sidebar-pinned/);
     assert.match(sidebar, /collapseTimer/);
 
     // Mouse handlers
@@ -100,11 +110,21 @@ describe("Dashboard layout contracts", () => {
 
     // CSS variables
     assert.match(shellCss, /--dashboard-sidebar-collapsed-width:\s*56px/);
+    assert.match(shellCss, /--dashboard-app-bg:\s*var\(--background\)/);
     assert.match(shellCss, /is-sidebar-auto-collapsed/);
+    assert.match(shellCss, /is-sidebar-expanded/);
     assert.match(shellCss, /is-auto-collapsed/);
+    assert.doesNotMatch(shellCss, /is-hover-expanded[\s\S]*position:\s*fixed/);
 
-    // Transition
-    assert.match(shellCss, /transition:\s*width 200ms ease/);
+    // Push layout: grid column width animates with sidebar expand/collapse
+    assert.match(
+      shellCss,
+      /\.sunny-dashboard-shell[\s\S]*transition:\s*grid-template-columns var\(--motion-duration-layout\)/,
+    );
+    assert.match(
+      shellCss,
+      /\.sunny-dashboard-shell\.is-sidebar-expanded[\s\S]*grid-template-columns:\s*var\(--dashboard-sidebar-width\)/,
+    );
   });
 
   test("Archived and thread sidebar controls share one collapse button contract", () => {
@@ -131,11 +151,10 @@ describe("Dashboard layout contracts", () => {
     assert.match(sidebar, /icon:\s*"memory"/);
     assert.doesNotMatch(sidebar, /sunny-codex-sidebar-window-controls/);
     assert.doesNotMatch(sidebar, /sunny-codex-panel-toggle/);
-    assert.doesNotMatch(sidebar, /panelOpen/);
     assert.doesNotMatch(sidebar, /onTogglePanel/);
     assert.doesNotMatch(sidebar, /📅|📋|🧠|⚙|⌘/);
     assert.doesNotMatch(sidebarNavCall, /onTogglePanel=/);
-    assert.doesNotMatch(sidebarNavCall, /panelOpen=/);
+    assert.match(shell, /panelOpen=\{activeMode !== "writing" && panelOpen\}/);
   });
 
   test("Dashboard CSS uses Codex-like desktop geometry with floating inspector and composer", () => {
@@ -148,8 +167,9 @@ describe("Dashboard layout contracts", () => {
     assert.match(shellCss, /grid-template-columns:\s*var\(--dashboard-icon-bar-width\)/);
     assert.match(shellCss, /\.sunny-codex-sidebar/);
     assert.match(shellCss, /\.sunny-dashboard-right-panel/);
-    assert.match(rightPanelCss, /\.sunny-dashboard-right-panel[\s\S]*grid-column:\s*3/);
+    assert.match(rightPanelCss, /\.sunny-dashboard-right-panel[\s\S]*position:\s*fixed/);
     assert.match(rightPanelCss, /\.sunny-dashboard-right-panel[\s\S]*max-height:/);
+    assert.match(shellCss, /\.sunny-dashboard-shell\.is-panel-expanded \.sunny-dashboard-main[\s\S]*padding-right:\s*var\(--dashboard-panel-width\)/);
     assert.match(agentCss, /\.sunny-agent-center-surface[\s\S]*box-shadow:\s*none/);
     assert.match(agentCss, /\.sunny-agent-composer[\s\S]*position:\s*sticky/);
     assert.match(agentCss, /\.sunny-message-card-body[\s\S]*border:\s*none/);
@@ -235,6 +255,29 @@ describe("Dashboard layout contracts", () => {
     assert.doesNotMatch(constants, /label:\s*"记录"/);
   });
 
+  test("Right Inspector search is an icon toggle with styled expandable field", () => {
+    const rightPanel = read("src/components/dashboard/DashboardRightPanel.tsx");
+    const searchToolbar = read("src/components/dashboard/agent/InspectorSearchToolbar.tsx");
+    const tabBar = read("src/components/dashboard/agent/InspectorTabBar.tsx");
+    const rightCss = read("src/app/styles/sunny-dashboard-right-panel.css");
+
+    assert.match(rightPanel, /InspectorSearchToolbar/);
+    assert.match(rightPanel, /inspectorSearchOpen/);
+    assert.match(rightPanel, /setInspectorSearchOpen/);
+    assert.doesNotMatch(rightPanel, /sunny-agent-inspector-search/);
+    assert.match(searchToolbar, /DashboardIcon name="search"/);
+    assert.match(searchToolbar, /aria-expanded=\{searchOpen\}/);
+    assert.match(searchToolbar, /sunny-dashboard-inspector-search/);
+    assert.match(searchToolbar, /sunny-codex-search-wrapper/);
+    assert.match(searchToolbar, /Escape/);
+    assert.match(tabBar, /bare\?: boolean/);
+    assert.match(rightCss, /\.sunny-dashboard-inspector-toolbar/);
+    assert.match(
+      rightCss,
+      /\.sunny-dashboard-inspector-search[\s\S]*transition:[\s\S]*max-height var\(--motion-duration-layout\)/,
+    );
+  });
+
   test("Agent Inbox tab surfaces suggestions and accept prefills the composer through a safe gate", () => {
     const rightPanel = read("src/components/dashboard/DashboardRightPanel.tsx");
     const inboxPanel = read("src/components/dashboard/agent/AgentInboxPanel.tsx");
@@ -280,13 +323,23 @@ describe("Dashboard layout contracts", () => {
     assert.match(composer, /modeMenuOpen/);
     assert.match(composer, /quickMenuOpen/);
     assert.match(composer, /aria-label="选择工作模式"/);
-    assert.match(composer, /aria-label="打开快捷操作"/);
+    assert.match(composer, /aria-label="添加上下文 \/ 文件 \/ 命令"/);
+    assert.match(composer, /打开当前上下文/);
+    assert.match(composer, /sunny-agent-composer-actions/);
+    assert.match(composer, /调试模式/);
     assert.match(composer, /QUICK_ACTIONS/);
+    assert.match(composer, /Sunny 会自动判断如何处理/);
+    assert.match(composer, /title=\{sendTitle\}/);
     assert.match(composer, /生成 DryRun/);
     assert.doesNotMatch(composer, /sunny-agent-composer-mode-copy/);
     assert.doesNotMatch(composer, /当前模式：/);
     assert.match(workbenchMode, /"answer"/);
     assert.match(chatRoute, /"answer"/);
+    assert.match(composer, /useDashboardInspectorControl/);
+    assert.match(composer, /panelOpen/);
+    assert.match(composer, /togglePanel/);
+    assert.match(read("src/components/dashboard/DashboardInspectorControlContext.tsx"), /togglePanel/);
+    assert.match(read("src/components/dashboard/DashboardShell.tsx"), /togglePanel: handleTogglePanel/);
   });
 
   test("Thread header is a single product status line while approval card owns write and risk detail", () => {
@@ -312,9 +365,10 @@ describe("Dashboard layout contracts", () => {
     assert.match(agentCss, /\.sunny-agent-thread-header[\s\S]*width:\s*min\(100%, 860px\)/);
     assert.match(threadHeader, /MODE_LABEL/);
     assert.match(threadHeader, /Thread #/);
-    assert.match(threadHeader, /onOpenDetails/);
     assert.match(threadHeader, /debugMode/);
-    assert.match(threadHeader, /onDebugModeChange/);
+    assert.doesNotMatch(threadHeader, /onOpenDetails/);
+    assert.doesNotMatch(threadHeader, /onDebugModeChange/);
+    assert.doesNotMatch(threadHeader, /aria-label="调试"/);
     assert.doesNotMatch(threadHeader, /formatTokenCount/);
     assert.doesNotMatch(threadHeader, /sunny-agent-thread-status-strip/);
     assert.doesNotMatch(threadHeader, /写入状态/);

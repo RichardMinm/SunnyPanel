@@ -75,7 +75,7 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 .sunny-memory-card.is-expanded {
-  border-color: var(--sunny-accent, #2563eb);
+  border-color: var(--accent);
 }
 
 .sunny-memory-card-header {
@@ -92,15 +92,15 @@
   color: var(--sunny-fg-secondary);
 }
 .sunny-memory-type-badge.is-preference {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--tone-info-bg);
+  color: var(--accent-strong);
 }
 .sunny-memory-type-badge.is-project_context {
-  background: #dcfce7;
+  background: var(--tone-success-bg);
   color: #15803d;
 }
 .sunny-memory-type-badge.is-writing_style {
-  background: #fef3c7;
+  background: var(--tone-warning-bg);
   color: #b45309;
 }
 .sunny-memory-type-badge.is-workflow_rule {
@@ -113,7 +113,7 @@
 }
 
 .sunny-memory-star {
-  color: #f59e0b;
+  color: var(--tone-warning-text);
   font-size: var(--text-xs);
 }
 .sunny-memory-card-title {
@@ -149,50 +149,50 @@ html[data-theme="dark"] .sunny-memory-grid {
 
 html[data-theme="dark"] .sunny-memory-card,
 html[data-theme="dark"] .sunny-memory-editor {
-  background: #1e293b;
-  border-color: #1f2937;
+  background: var(--surface-strong);
+  border-color: var(--border);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
 }
 
 html[data-theme="dark"] .sunny-memory-card h3 {
-  color: #f8fafc;
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-memory-card p {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-memory-card span,
 html[data-theme="dark"] .sunny-memory-editor span {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-memory-card small {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-memory-card:hover {
-  border-color: #334155;
-  background: #273449;
+  border-color: var(--border);
+  background: var(--surface-strong);
 }
 
 html[data-theme="dark"] .sunny-memory-editor textarea {
-  background: #0f172a;
-  border-color: #334155;
-  color: #f8fafc;
+  background: var(--foreground);
+  border-color: var(--border);
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-memory-editor textarea:focus {
-  border-color: #3b82f6;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
 
 html[data-theme="dark"] .sunny-memory-empty {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-memory-search input {
-  background: #0f172a;
-  border-color: #334155;
-  color: #f8fafc;
+  background: var(--foreground);
+  border-color: var(--border);
+  color: var(--background);
 }

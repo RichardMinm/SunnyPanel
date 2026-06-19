@@ -1,16 +1,16 @@
 /* Dashboard Writing Studio */
 
 .sunny-writing-workspace {
-  --writing-page-bg: #f8fafc;
-  --writing-card-bg: #ffffff;
-  --writing-border: #e5e7eb;
-  --writing-text: #0f172a;
-  --writing-muted: #64748b;
-  --writing-accent: #2563eb;
-  --writing-active-bg: #eff6ff;
-  --writing-rail-bg: #ffffff;
-  --writing-panel-bg: #ffffff;
-  --writing-control-bg: #ffffff;
+  --writing-page-bg: var(--background);
+  --writing-card-bg: var(--surface-strong);
+  --writing-border: var(--foreground);
+  --writing-text: var(--foreground);
+  --writing-muted: var(--muted);
+  --writing-accent: var(--accent);
+  --writing-active-bg: var(--tone-info-bg);
+  --writing-rail-bg: var(--surface-strong);
+  --writing-panel-bg: var(--surface-strong);
+  --writing-control-bg: var(--surface-strong);
   --writing-rule: var(--writing-border);
   --writing-rule-strong: color-mix(in srgb, var(--writing-text) 14%, var(--writing-border));
   --writing-hover: color-mix(in srgb, var(--writing-text) 5%, transparent);
@@ -383,13 +383,13 @@
 .sunny-writing-workspace .ProseMirror p.is-editor-empty:first-child::before {
   float: left;
   height: 0;
-  color: #64748b;
+  color: var(--muted);
   content: attr(data-placeholder);
   pointer-events: none;
 }
 
 html[data-theme="dark"] .sunny-writing-workspace .ProseMirror p.is-editor-empty:first-child::before {
-  color: #64748b;
+  color: var(--muted);
 }
 
 .sunny-writing-workspace .sunny-rich-editor-content:focus,
@@ -717,43 +717,43 @@ html[data-theme="dark"] .sunny-writing-workspace .ProseMirror p.is-editor-empty:
 
 html[data-theme="dark"] .sunny-writing-workspace {
   /* ── Core tokens ── */
-  --writing-page-bg: #0f172a;
-  --writing-card-bg: #1e293b;
-  --writing-border: #334155;
-  --writing-text: #f8fafc;
-  --writing-muted: #64748b;
-  --writing-accent: #3b82f6;
+  --writing-page-bg: var(--foreground);
+  --writing-card-bg: var(--surface-strong);
+  --writing-border: var(--border);
+  --writing-text: var(--background);
+  --writing-muted: var(--muted);
+  --writing-accent: var(--accent);
   --writing-active-bg: rgba(59, 130, 246, 0.14);
-  --writing-rail-bg: #111827;
-  --writing-panel-bg: #111827;
-  --writing-control-bg: #0f172a;
-  --writing-rule: #1f2937;
-  --writing-rule-strong: #334155;
-  --writing-hover: #273449;
+  --writing-rail-bg: var(--surface);
+  --writing-panel-bg: var(--surface);
+  --writing-control-bg: var(--foreground);
+  --writing-rule: var(--border);
+  --writing-rule-strong: var(--border);
+  --writing-hover: var(--surface-strong);
   --writing-active: rgba(59, 130, 246, 0.14);
-  --writing-active-text: #93c5fd;
+  --writing-active-text: var(--accent-strong);
   --writing-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
-  background: #0f172a;
+  background: var(--foreground);
 }
 
 /* ── Topbar ── */
 
 html[data-theme="dark"] .sunny-writing-editor-topbar {
-  background: #1e293b;
-  border-bottom-color: #1f2937;
+  background: var(--surface-strong);
+  border-bottom-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-editor-topbar > span {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-focus-title {
-  color: #f8fafc;
+  color: var(--background);
 }
 
 /* Save state */
 html[data-theme="dark"] .sunny-writing-save-state {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-save-state[data-state="error"] {
@@ -762,20 +762,20 @@ html[data-theme="dark"] .sunny-writing-save-state[data-state="error"] {
 
 /* Primary button — publish */
 html[data-theme="dark"] .sunny-writing-primary-button {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--agent-text-on-accent);
 }
 
 html[data-theme="dark"] .sunny-writing-primary-button:hover {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 html[data-theme="dark"] .sunny-writing-primary-button:disabled {
   background: #1e3a5f;
   border-color: #1e3a5f;
-  color: #64748b;
+  color: var(--muted);
   opacity: 0.6;
 }
 
@@ -784,16 +784,16 @@ html[data-theme="dark"] .sunny-writing-secondary-button,
 html[data-theme="dark"] .sunny-writing-icon-button,
 html[data-theme="dark"] .sunny-writing-ai-inline-button {
   background: transparent;
-  border-color: #334155;
-  color: #cbd5e1;
+  border-color: var(--border);
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-secondary-button:hover,
 html[data-theme="dark"] .sunny-writing-icon-button:hover,
 html[data-theme="dark"] .sunny-writing-ai-inline-button:hover {
-  background: #1e293b;
-  border-color: #475569;
-  color: #f1f5f9;
+  background: var(--surface-strong);
+  border-color: var(--muted);
+  color: var(--surface-tint);
 }
 
 html[data-theme="dark"] .sunny-writing-secondary-button:disabled,
@@ -804,95 +804,95 @@ html[data-theme="dark"] .sunny-writing-ai-inline-button:disabled {
 }
 
 html[data-theme="dark"] .sunny-writing-title-ai-ghost {
-  color: #cbd5e1;
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-title-ai-ghost:hover {
-  background: #1e293b;
-  color: #f1f5f9;
+  background: var(--surface-strong);
+  color: var(--surface-tint);
 }
 
 html[data-theme="dark"] .sunny-writing-summary-ai-ghost {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-summary-ai-ghost:hover {
-  background: #1e293b;
-  color: #cbd5e1;
+  background: var(--surface-strong);
+  color: var(--border);
 }
 
 /* ── Library sidebar ── */
 
 html[data-theme="dark"] .sunny-writing-library {
-  border-right-color: #1f2937;
+  border-right-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-library-head h2 {
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-writing-library-count {
-  background: #1e293b;
-  border-color: #334155;
-  color: #94a3b8;
+  background: var(--surface-strong);
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 /* Search */
 html[data-theme="dark"] .sunny-writing-library-search input {
-  background: #0f172a;
-  border-color: #334155;
-  color: #f8fafc;
+  background: var(--foreground);
+  border-color: var(--border);
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-writing-library-search input::placeholder {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-library-search input:focus {
-  border-color: #3b82f6;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
 
 /* Filter pills */
 html[data-theme="dark"] .sunny-writing-filter {
   background: transparent;
-  border-color: #334155;
-  color: #94a3b8;
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-filter:hover {
-  background: #1e293b;
-  color: #cbd5e1;
+  background: var(--surface-strong);
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-filter.is-active {
   background: rgba(59, 130, 246, 0.14);
   border-color: rgba(96, 165, 250, 0.3);
-  color: #93c5fd;
+  color: var(--accent-strong);
 }
 
 /* Create buttons */
 html[data-theme="dark"] .sunny-writing-create-button {
   background: transparent;
-  border-color: #334155;
-  color: #cbd5e1;
+  border-color: var(--border);
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-create-button:hover {
-  background: #1e293b;
+  background: var(--surface-strong);
 }
 
 html[data-theme="dark"] .sunny-writing-create-menu {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-create-menu button {
-  color: #cbd5e1;
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-create-menu button:hover {
-  background: #273449;
+  background: var(--surface-strong);
 }
 
 /* Document rows */
@@ -902,7 +902,7 @@ html[data-theme="dark"] .sunny-writing-document-row {
 }
 
 html[data-theme="dark"] .sunny-writing-document-row:hover {
-  background: #1e293b;
+  background: var(--surface-strong);
 }
 
 html[data-theme="dark"] .sunny-writing-document-row.is-active {
@@ -911,44 +911,44 @@ html[data-theme="dark"] .sunny-writing-document-row.is-active {
 }
 
 html[data-theme="dark"] .sunny-writing-document-type {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-document-status {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-document-status.is-published {
-  color: #22c55e;
+  color: var(--cat-plan-dot);
 }
 
 html[data-theme="dark"] .sunny-writing-document-title {
-  color: #f8fafc;
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-writing-document-row time {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* Document rename input */
 html[data-theme="dark"] .sunny-writing-document-rename {
-  background: #1e293b;
+  background: var(--surface-strong);
   border-color: rgba(96, 165, 250, 0.5);
-  color: #f8fafc;
+  color: var(--background);
 }
 
 /* Document menu */
 html[data-theme="dark"] .sunny-writing-document-menu {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-document-menu button {
-  color: #cbd5e1;
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-document-menu button:hover {
-  background: #273449;
+  background: var(--surface-strong);
 }
 
 html[data-theme="dark"] .sunny-writing-document-menu .is-danger {
@@ -956,7 +956,7 @@ html[data-theme="dark"] .sunny-writing-document-menu .is-danger {
 }
 
 html[data-theme="dark"] .sunny-writing-empty {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* ── Editor pane ── */
@@ -966,58 +966,58 @@ html[data-theme="dark"] .sunny-writing-editor-pane {
 }
 
 html[data-theme="dark"] .sunny-writing-title-input {
-  color: #f8fafc;
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-writing-title-input::placeholder {
-  color: #475569;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-summary-input {
-  color: #e5e7eb;
-  border-bottom-color: #1f2937;
+  color: var(--foreground);
+  border-bottom-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-summary-input::placeholder {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* Rich editor body */
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content {
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 /* Headings */
-html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content h1 { color: #f8fafc; }
-html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content h2 { color: #f1f5f9; }
-html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content h3 { color: #e2e8f0; }
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content h1 { color: var(--background); }
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content h2 { color: var(--surface-tint); }
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content h3 { color: var(--border); }
 
 /* Links */
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content a {
-  color: #60a5fa;
+  color: var(--accent-strong);
 }
 
 /* Blockquote */
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content blockquote {
-  border-left-color: #3b82f6;
-  color: #94a3b8;
+  border-left-color: var(--accent);
+  color: var(--muted);
 }
 
 /* Inline code */
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content code {
   background: rgba(255, 255, 255, 0.08);
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 /* Code block */
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content pre {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content pre code {
   background: transparent;
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 /* Table */
@@ -1027,30 +1027,30 @@ html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content th {
 
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content th,
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-content td {
-  border-color: #334155;
+  border-color: var(--border);
 }
 
 /* Image placeholder */
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-image-placeholder {
   border-color: rgba(96, 165, 250, 0.3);
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* Empty state */
 html[data-theme="dark"] .sunny-writing-empty-state {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-empty-state h2 {
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 /* ── Toolbar (floating / bubble / slash menus) ── */
 
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-floating-menu,
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-slash-menu {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
   border-radius: 16px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
   padding: 0.35rem;
@@ -1061,155 +1061,155 @@ html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-slash-menu b
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-image-action {
   background: transparent;
   border-color: transparent;
-  color: #cbd5e1;
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-floating-menu button:hover,
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-slash-menu button:hover,
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-image-action:hover {
-  background: #334155;
-  color: #f1f5f9;
+  background: var(--border);
+  color: var(--surface-tint);
 }
 
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-floating-menu button[aria-pressed="true"] {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--agent-text-on-accent);
 }
 
 /* ── Editor toolbar ── */
 
 html[data-theme="dark"] .sunny-rich-editor-toolbar {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-toolbar button,
 html[data-theme="dark"] .sunny-rich-editor-style-select {
-  color: #cbd5e1;
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-toolbar button:hover,
 html[data-theme="dark"] .sunny-rich-editor-toolbar button[aria-pressed="true"] {
-  background: #334155;
-  color: #f1f5f9;
+  background: var(--border);
+  color: var(--surface-tint);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-toolbar-divider {
-  background: #334155;
+  background: var(--border);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-ai-menu {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-ai-menu button {
-  color: #cbd5e1;
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-ai-menu button:hover {
-  background: #273449;
+  background: var(--surface-strong);
 }
 
 /* ── Meta panel ── */
 
 html[data-theme="dark"] .sunny-writing-meta-panel {
-  border-left-color: #1f2937;
+  border-left-color: var(--border);
 }
 
 /* Section headers */
 html[data-theme="dark"] .sunny-writing-meta-head h3,
 html[data-theme="dark"] .sunny-writing-side-section h3 {
-  color: #e5e7eb;
+  color: var(--foreground);
   font-size: 13px;
   font-weight: 600;
 }
 
 html[data-theme="dark"] .sunny-writing-meta-head p,
 html[data-theme="dark"] .sunny-writing-side-muted {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* Section dividers */
 html[data-theme="dark"] .sunny-writing-side-section {
-  border-bottom-color: #1f2937;
+  border-bottom-color: var(--border);
 }
 
 /* Field labels */
 html[data-theme="dark"] .sunny-writing-field span,
 html[data-theme="dark"] .sunny-writing-checkbox span {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* Inputs / selects / textareas */
 html[data-theme="dark"] .sunny-writing-field input,
 html[data-theme="dark"] .sunny-writing-field select,
 html[data-theme="dark"] .sunny-writing-field textarea {
-  background: #0f172a;
-  border-color: #334155;
-  color: #f8fafc;
+  background: var(--foreground);
+  border-color: var(--border);
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-writing-field input::placeholder,
 html[data-theme="dark"] .sunny-writing-field textarea::placeholder {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-field input:focus,
 html[data-theme="dark"] .sunny-writing-field select:focus,
 html[data-theme="dark"] .sunny-writing-field textarea:focus {
-  border-color: #3b82f6;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
 
 /* Publish section */
 html[data-theme="dark"] .sunny-writing-publish-head span {
   background: rgba(250, 204, 21, 0.12);
-  color: #facc15;
+  color: var(--tone-warning-text);
 }
 
 html[data-theme="dark"] .sunny-writing-publish-head span[data-status="published"] {
   background: rgba(34, 197, 94, 0.12);
-  color: #22c55e;
+  color: var(--cat-plan-dot);
 }
 
 html[data-theme="dark"] .sunny-writing-publish-actions button,
 html[data-theme="dark"] .sunny-writing-publish-actions a {
   background: transparent;
-  border-color: #334155;
-  color: #cbd5e1;
+  border-color: var(--border);
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-publish-actions button:hover,
 html[data-theme="dark"] .sunny-writing-publish-actions a:hover {
-  background: #1e293b;
+  background: var(--surface-strong);
 }
 
 /* Checkbox */
 html[data-theme="dark"] .sunny-writing-checkbox input {
-  accent-color: #3b82f6;
+  accent-color: var(--accent);
 }
 
 /* Outline list */
 html[data-theme="dark"] .sunny-writing-outline-list a {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-outline-list a:hover {
-  color: #93c5fd;
+  color: var(--accent-strong);
 }
 
 /* Admin / advanced links */
 html[data-theme="dark"] .sunny-writing-admin-link {
-  background: #1e293b;
-  border-color: #334155;
-  color: #94a3b8;
+  background: var(--surface-strong);
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-admin-link:hover {
-  background: #273449;
-  color: #cbd5e1;
+  background: var(--surface-strong);
+  color: var(--border);
 }
 
 /* ── Inspector sections ── */
@@ -1219,21 +1219,21 @@ html[data-theme="dark"] .sunny-writing-inspector-section summary:hover {
 }
 
 html[data-theme="dark"] .sunny-writing-inspector-chevron {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* ── Panel toggle ── */
 
 html[data-theme="dark"] .sunny-writing-panel-toggle {
-  background: #1e293b;
-  border-color: #334155;
-  color: #94a3b8;
+  background: var(--surface-strong);
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-panel-toggle:hover {
-  background: #273449;
-  border-color: #475569;
-  color: #cbd5e1;
+  background: var(--surface-strong);
+  border-color: var(--muted);
+  color: var(--border);
 }
 
 /* ── Preview pane ── */
@@ -1243,40 +1243,40 @@ html[data-theme="dark"] .sunny-writing-preview-pane {
 }
 
 html[data-theme="dark"] .sunny-writing-preview-article h1 {
-  color: #f8fafc;
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-writing-preview-summary {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-preview-rich {
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-writing-preview-rich h1,
 html[data-theme="dark"] .sunny-writing-preview-rich h2,
 html[data-theme="dark"] .sunny-writing-preview-rich h3 {
-  color: #f1f5f9;
+  color: var(--surface-tint);
 }
 
 html[data-theme="dark"] .sunny-writing-preview-rich a {
-  color: #60a5fa;
+  color: var(--accent-strong);
 }
 
 html[data-theme="dark"] .sunny-writing-preview-rich blockquote {
-  border-left-color: #334155;
-  color: #94a3b8;
+  border-left-color: var(--border);
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-preview-rich code {
   background: rgba(255, 255, 255, 0.08);
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-writing-preview-rich pre {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 /* ── Inline error ── */
@@ -1288,28 +1288,28 @@ html[data-theme="dark"] .sunny-writing-inline-error {
 /* ── Switch actions ── */
 
 html[data-theme="dark"] .sunny-writing-switch-actions {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-switch-actions button {
-  color: #cbd5e1;
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-switch-actions button:hover {
-  color: #f1f5f9;
+  color: var(--surface-tint);
 }
 
 /* ── Library empty state ── */
 
 html[data-theme="dark"] .sunny-writing-empty-state.is-library {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* ── Eyebrow / subtle labels ── */
 
 html[data-theme="dark"] .sunny-writing-eyebrow {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* ── Advanced links container ── */
@@ -1323,34 +1323,34 @@ html[data-theme="dark"] .sunny-writing-advanced-links {
 html[data-theme="dark"] .sunny-writing-meta-head button,
 html[data-theme="dark"] .sunny-writing-meta-head button:hover {
   background: transparent;
-  border-color: #334155;
-  color: #94a3b8;
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-meta-head button:hover {
-  background: #1e293b;
-  color: #cbd5e1;
+  background: var(--surface-strong);
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-tag-chip {
-  background: #1e293b;
-  color: #cbd5e1;
+  background: var(--surface-strong);
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-writing-tag-chip-add {
-  border-color: #334155;
-  color: #64748b;
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-writing-tag-chip-add:hover {
-  border-color: #60a5fa;
-  color: #93c5fd;
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
 }
 
 html[data-theme="dark"] .sunny-writing-tag-chip-input {
-  background: #0f172a;
-  border-color: #3b82f6;
-  color: #f8fafc;
+  background: var(--foreground);
+  border-color: var(--accent);
+  color: var(--background);
 }
 
 /* Tags chip row */
@@ -1428,48 +1428,48 @@ html[data-theme="dark"] .sunny-writing-tag-chip-input {
 /* ── Bubble menu (dark) ── */
 
 html[data-theme="dark"] .sunny-rich-editor-bubble-menu {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-bubble-menu button {
-  color: #cbd5e1;
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-bubble-menu button:hover,
 html[data-theme="dark"] .sunny-rich-editor-bubble-menu button[aria-pressed="true"] {
-  background: #334155;
-  color: #f1f5f9;
+  background: var(--border);
+  color: var(--surface-tint);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-bubble-divider {
-  background: #334155;
+  background: var(--border);
 }
 
 /* ── Insert menu (dark) ── */
 
 html[data-theme="dark"] .sunny-rich-editor-insert-menu {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-insert-menu button {
-  color: #cbd5e1;
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-insert-menu button:hover {
-  background: #273449;
+  background: var(--surface-strong);
 }
 
 /* ── AI trigger button (dark) ── */
 
 html[data-theme="dark"] .sunny-rich-editor-ai-trigger {
-  color: #cbd5e1;
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-rich-editor-ai-trigger:hover {
-  color: #f1f5f9;
+  color: var(--surface-tint);
 }
 
 /* ── Pin button icon color (dark) ── */
@@ -2304,12 +2304,12 @@ html[data-theme="dark"] .sunny-writing-meta-pin-button .sunny-dashboard-nav-icon
   gap: 1rem;
   margin: 0;
   padding: 0.6rem 0 2rem;
-  color: #64748b;
+  color: var(--muted);
   font-size: var(--text-xs);
 }
 
 html[data-theme="dark"] .sunny-writing-stats {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* ── Keyboard shortcut hints ── */

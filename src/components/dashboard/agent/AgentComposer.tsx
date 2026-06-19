@@ -1,16 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { PendingAction } from "@/lib/agent/schemas";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
-import { DashboardIcon } from "../icons";
 
+import { useDashboardInspectorControl } from "../DashboardInspectorControlContext";
+import { DashboardIcon, InspectorPanelIcon } from "../icons";
 
 type QuickMenuItem = {
   label: string;
   children?: QuickMenuItem[];
-  action?: "context" | "plan" | "memory" | "file" | "slash";
+  action?: "context" | "plan" | "memory" | "file" | "slash" | "debug";
 };
 
 const QUICK_ACTIONS: QuickMenuItem[] = [
@@ -43,6 +44,7 @@ const QUICK_ACTIONS: QuickMenuItem[] = [
   },
   { label: "添加文件", action: "file" },
   { label: "斜杠命令", action: "slash" },
+  { label: "调试模式", action: "debug" },
 ];
 
 const MODE_OPTIONS: Array<{
@@ -55,7 +57,7 @@ const MODE_OPTIONS: Array<{
     key: "ask",
     label: "自动",
     description: "系统会判断回答或规划，执行前需要确认。",
-    placeholder: "输入问题或任务，系统会自动判断回答或规划",
+    placeholder: "输入问题或任务，Sunny 会自动判断如何处理...",
   },
   {
     key: "answer",
@@ -114,6 +116,8 @@ type AgentComposerProps = {
   workbenchMode: AgentWorkbenchMode;
 };
 
+const COMPOSER_INPUT_MAX_HEIGHT_PX = 120;
+
 export function AgentComposer({
   disabled,
   input,
@@ -126,10 +130,13 @@ export function AgentComposer({
   placeholder,
   workbenchMode,
 }: AgentComposerProps) {
+  const { debugMode, openInspector, panelOpen, setDebugMode, togglePanel } =
+    useDashboardInspectorControl();
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
   const [expandedMenuIndex, setExpandedMenuIndex] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const activeMode = MODE_OPTIONS.find((mode) => mode.key === workbenchMode) ?? MODE_OPTIONS[0];
 
   const handleMenuClose = useCallback(() => {
@@ -148,6 +155,13 @@ export function AgentComposer({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [modeMenuOpen, quickMenuOpen, handleMenuClose]);
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, COMPOSER_INPUT_MAX_HEIGHT_PX)}px`;
+  }, [input]);
 
   // @mention state
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -187,7 +201,17 @@ export function AgentComposer({
     },
     [onInputChange],
   );
+
   const sendLabel = workbenchMode === "execute" ? "生成 DryRun" : "发送";
+  const sendTitle =
+    disabled && onStop
+      ? "停止"
+      : disabled
+        ? "运行中"
+        : workbenchMode === "execute"
+          ? "生成 DryRun"
+          : "发送任务";
+  const panelLabel = panelOpen ? "收起当前上下文" : "打开当前上下文";
 
   return (
     <form
@@ -211,8 +235,11 @@ export function AgentComposer({
               setQuickMenuOpen(false);
             }}
           >
-            <span>{activeMode.label} <span className="sunny-agent-composer-model-name">· {modelName}</span></span>
-            <span aria-hidden="true">⌄</span>
+            <span>
+              <span className="sunny-agent-composer-mode-label">{activeMode.label}</span>{" "}
+              <span className="sunny-agent-composer-model-name">· {modelName}</span>
+            </span>
+            <DashboardIcon name="chevronDown" />
           </button>
           {modeMenuOpen ? (
             <div className="sunny-agent-composer-mode-menu" role="menu" aria-label="工作模式">
@@ -236,6 +263,7 @@ export function AgentComposer({
         </div>
         <div className="sunny-agent-composer-input-wrap">
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={(event) => handleInputChange(event.target.value)}
             onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -248,139 +276,166 @@ export function AgentComposer({
             }}
             rows={1}
             aria-label={
-            pendingAction?.type === "await_confirmation"
-              ? "待确认：可输入「确认」或「取消」，或使用上方按钮"
-              : pendingAction?.type === "await_queue_resume"
-                ? "待继续：可输入「继续」或「取消」"
-                : pendingAction?.type === "await_learning_followup"
-                  ? `学习咨询上下文：${pendingAction.subject}`
-                : "输入要交给 Agent 的话"
-          }
-          placeholder={
-            pendingAction?.type === "await_confirmation"
-              ? "回复“确认”执行，或“取消”放弃。"
-              : pendingAction?.type === "await_queue_resume"
-                ? "回复“继续”恢复延后队列，或“取消”放弃。"
-                : pendingAction?.type === "await_learning_followup"
-                  ? "可以继续说“拆成学习计划”或“取消”。"
-                : activeMode.placeholder || placeholder
-          }
-          className="sunny-agent-composer-input"
-        />
-        {mentionOpen && mentionResults.length > 0 ? (
-          <div
-            className="sunny-agent-composer-mention-dropdown"
-            role="listbox"
-            aria-label="上下文引用建议"
-          >
-            {mentionResults.map((r, i) => (
-              <button
-                key={`${r.collection}-${r.id}-${i}`}
-                type="button"
-                role="option"
-                aria-selected={false}
-                onClick={() => {
-                  const newValue = input.replace(/@[^\s@]*$/, `@${r.title} `);
-                  onInputChange(newValue);
-                  setMentionOpen(false);
-                }}
-              >
-                <span>{r.title}</span>
-                <small>{r.collection}</small>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        </div>
-        <div className="sunny-agent-composer-plus-menu">
-          <button
-            type="button"
-            className="sunny-agent-composer-plus-button"
-            aria-label="打开快捷操作"
-            aria-haspopup="menu"
-            aria-expanded={quickMenuOpen}
-            title="添加上下文 / 附件"
-            onClick={() => {
-              setQuickMenuOpen((open) => !open);
-              setExpandedMenuIndex(null);
-              setModeMenuOpen(false);
-            }}
-          >
-            <span aria-hidden="true">+</span>
-          </button>
-          {quickMenuOpen ? (
-            <div className="sunny-agent-composer-quick-menu" role="menu" aria-label="快捷操作">
-              {QUICK_ACTIONS.map((item, index) => (
-                <div key={item.label}>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={expandedMenuIndex === index ? "is-active" : ""}
-                    onClick={() => {
-                      if (item.children && item.children.length > 0) {
-                        setExpandedMenuIndex((prev) => (prev === index ? null : index));
-                      } else if (item.action === "slash") {
-                        onInputChange("/");
-                        handleMenuClose();
-                      } else if (item.action === "file") {
-                        handleMenuClose();
-                      }
-                    }}
-                  >
-                    <span>{item.label}</span>
-                    {item.children && item.children.length > 0 ? (
-                      <DashboardIcon name="chevronRight" />
-                    ) : null}
-                  </button>
-                  {item.children && expandedMenuIndex === index ? (
-                    <div className="sunny-agent-composer-quick-submenu" role="menu">
-                      {item.children.map((child) => (
-                        <button
-                          key={child.label}
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            if (item.action === "context") {
-                              onInputChange(`${input} @${child.label} `);
-                            } else if (item.action === "plan") {
-                              onInputChange(child.label === "起草新计划" ? "/plan " : "/plan 关联当前计划 ");
-                            } else if (item.action === "memory") {
-                              onInputChange(`/memory ${child.label} `);
-                            }
-                            handleMenuClose();
-                          }}
-                        >
-                          {child.label}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+              pendingAction?.type === "await_confirmation"
+                ? "待确认：可输入「确认」或「取消」，或使用上方按钮"
+                : pendingAction?.type === "await_queue_resume"
+                  ? "待继续：可输入「继续」或「取消」"
+                  : pendingAction?.type === "await_learning_followup"
+                    ? `学习咨询上下文：${pendingAction.subject}`
+                    : "输入要交给 Agent 的话"
+            }
+            placeholder={
+              pendingAction?.type === "await_confirmation"
+                ? "回复“确认”执行，或“取消”放弃。"
+                : pendingAction?.type === "await_queue_resume"
+                  ? "回复“继续”恢复延后队列，或“取消”放弃。"
+                  : pendingAction?.type === "await_learning_followup"
+                    ? "可以继续说“拆成学习计划”或“取消”。"
+                    : activeMode.placeholder || placeholder
+            }
+            className="sunny-agent-composer-input"
+          />
+          {mentionOpen && mentionResults.length > 0 ? (
+            <div
+              className="sunny-agent-composer-mention-dropdown"
+              role="listbox"
+              aria-label="上下文引用建议"
+            >
+              {mentionResults.map((r, i) => (
+                <button
+                  key={`${r.collection}-${r.id}-${i}`}
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  onClick={() => {
+                    const newValue = input.replace(/@[^\s@]*$/, `@${r.title} `);
+                    onInputChange(newValue);
+                    setMentionOpen(false);
+                  }}
+                >
+                  <span>{r.title}</span>
+                  <small>{r.collection}</small>
+                </button>
               ))}
             </div>
           ) : null}
         </div>
-        {disabled && onStop ? (
+        <div className="sunny-agent-composer-actions">
+          <div className="sunny-agent-composer-plus-menu">
+            <button
+              type="button"
+              className={`sunny-agent-composer-icon-button sunny-agent-composer-plus-button${quickMenuOpen ? " is-active" : ""}`}
+              aria-label="添加上下文 / 文件 / 命令"
+              aria-haspopup="menu"
+              aria-expanded={quickMenuOpen}
+              title="添加上下文 / 文件 / 命令"
+              onClick={() => {
+                setQuickMenuOpen((open) => !open);
+                setExpandedMenuIndex(null);
+                setModeMenuOpen(false);
+              }}
+            >
+              <DashboardIcon name="plus" />
+            </button>
+            {quickMenuOpen ? (
+              <div className="sunny-agent-composer-quick-menu" role="menu" aria-label="快捷操作">
+                {QUICK_ACTIONS.map((item, index) => (
+                  <div key={item.label}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={expandedMenuIndex === index ? "is-active" : ""}
+                      onClick={() => {
+                        if (item.children && item.children.length > 0) {
+                          setExpandedMenuIndex((prev) => (prev === index ? null : index));
+                        } else if (item.action === "slash") {
+                          onInputChange("/");
+                          handleMenuClose();
+                        } else if (item.action === "file") {
+                          handleMenuClose();
+                        } else if (item.action === "debug") {
+                          setDebugMode(!debugMode);
+                          handleMenuClose();
+                        }
+                      }}
+                    >
+                      <span>{item.label}</span>
+                      {item.children && item.children.length > 0 ? (
+                        <DashboardIcon name="chevronRight" />
+                      ) : null}
+                    </button>
+                    {item.children && expandedMenuIndex === index ? (
+                      <div className="sunny-agent-composer-quick-submenu" role="menu">
+                        {item.children.map((child) => (
+                          <button
+                            key={child.label}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              if (item.action === "context") {
+                                onInputChange(`${input} @${child.label} `);
+                              } else if (item.action === "plan") {
+                                onInputChange(
+                                  child.label === "起草新计划" ? "/plan " : "/plan 关联当前计划 ",
+                                );
+                              } else if (item.action === "memory") {
+                                onInputChange(`/memory ${child.label} `);
+                              }
+                              handleMenuClose();
+                            }}
+                          >
+                            {child.label}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <button
             type="button"
-            onClick={onStop}
-            className="sunny-agent-run-button"
-            aria-label="停止"
-            title="停止"
+            className={`sunny-agent-composer-icon-button sunny-agent-composer-panel-button${panelOpen ? " is-active" : ""}`}
+            aria-label={panelLabel}
+            aria-pressed={panelOpen}
+            title={panelLabel}
+            onClick={() => {
+              if (panelOpen) {
+                togglePanel();
+              } else {
+                openInspector("context");
+              }
+            }}
           >
-            <span className="sunny-agent-run-spinner" aria-hidden="true" />
+            <InspectorPanelIcon open={panelOpen} />
           </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={disabled || input.trim().length === 0}
-            className="sunny-agent-run-button"
-            aria-label={disabled ? "运行中" : sendLabel}
-            title={disabled ? "运行中" : sendLabel}
-          >
-            {disabled ? <span className="sunny-agent-run-spinner" aria-hidden="true" /> : <span aria-hidden="true">{workbenchMode === "execute" ? sendLabel : "↑"}</span>}
-          </button>
-        )}
+          {disabled && onStop ? (
+            <button
+              type="button"
+              onClick={onStop}
+              className="sunny-agent-run-button sunny-agent-composer-send"
+              aria-label="停止"
+              title="停止"
+            >
+              <span className="sunny-agent-run-spinner" aria-hidden="true" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={disabled || input.trim().length === 0}
+              className="sunny-agent-run-button sunny-agent-composer-send"
+              aria-label={disabled ? "运行中" : sendLabel}
+              title={sendTitle}
+            >
+              {disabled ? (
+                <span className="sunny-agent-run-spinner" aria-hidden="true" />
+              ) : (
+                <span aria-hidden="true">{workbenchMode === "execute" ? sendLabel : "↑"}</span>
+              )}
+            </button>
+          )}
+        </div>
       </div>
     </form>
   );

@@ -1779,7 +1779,7 @@ html[data-theme="dark"] .sunny-panel {
   padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-strong);
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
@@ -1792,9 +1792,9 @@ html[data-theme="dark"] .sunny-panel {
 }
 
 .sunny-checklist-filter-bar button.is-active {
-  background: #1d4ed8;
-  border-color: #1d4ed8;
-  color: #fff;
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--agent-text-on-accent);
 }
 
 /* Card list */
@@ -1807,8 +1807,8 @@ html[data-theme="dark"] .sunny-panel {
 }
 
 .sunny-checklist-card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--surface-strong);
+  border: 1px solid var(--foreground);
   border-radius: 20px;
   padding: 16px 18px;
   box-shadow: 0 1px 3px rgba(0,0,0,.04);
@@ -1865,13 +1865,13 @@ html[data-theme="dark"] .sunny-panel {
 }
 
 .sunny-checklist-status-badge.is-active {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--tone-info-bg);
+  color: var(--accent-strong);
 }
 
 .sunny-checklist-status-badge.is-done {
-  background: #dcfce7;
-  color: #16a34a;
+  background: var(--tone-success-bg);
+  color: var(--tone-success-text);
 }
 
 .sunny-checklist-status-badge.is-archived {
@@ -1891,7 +1891,7 @@ html[data-theme="dark"] .sunny-panel {
 .sunny-checklist-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: #22c55e;
+  background: var(--cat-plan-dot);
   transition: width 0.3s ease;
 }
 
@@ -1951,11 +1951,11 @@ html[data-theme="dark"] .sunny-panel {
 }
 
 .sunny-checklist-item-icon.is-done {
-  color: #22c55e;
+  color: var(--cat-plan-dot);
 }
 
 .sunny-checklist-items-list li.is-done span:first-child {
-  color: #22c55e;
+  color: var(--cat-plan-dot);
 }
 
 .sunny-checklist-items-list li.is-done span:last-child {
@@ -1991,12 +1991,12 @@ html[data-theme="dark"] .sunny-checklist-filter-bar button:hover {
 html[data-theme="dark"] .sunny-checklist-filter-bar button.is-active {
   background: rgba(59, 130, 246, 0.14);
   border-color: rgba(96, 165, 250, 0.3);
-  color: #93c5fd;
+  color: var(--accent-strong);
 }
 
 html[data-theme="dark"] .sunny-checklist-card {
-  background: #111827;
-  border-color: #1f2937;
+  background: var(--surface);
+  border-color: var(--border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
@@ -2018,12 +2018,12 @@ html[data-theme="dark"] .sunny-checklist-card-header small {
 
 html[data-theme="dark"] .sunny-checklist-status-badge.is-active {
   background: rgba(59, 130, 246, 0.14);
-  color: #93c5fd;
+  color: var(--accent-strong);
 }
 
 html[data-theme="dark"] .sunny-checklist-status-badge.is-done {
   background: rgba(34, 197, 94, 0.14);
-  color: #4ade80;
+  color: var(--tone-success-text);
 }
 
 html[data-theme="dark"] .sunny-checklist-status-badge.is-archived {
@@ -2040,7 +2040,7 @@ html[data-theme="dark"] .sunny-checklist-progress-label {
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list {
-  border-top-color: #1f2937;
+  border-top-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list li {
@@ -2060,11 +2060,11 @@ html[data-theme="dark"] .sunny-checklist-item-icon {
 }
 
 html[data-theme="dark"] .sunny-checklist-item-icon.is-done {
-  color: #4ade80;
+  color: var(--tone-success-text);
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:first-child {
-  color: #4ade80;
+  color: var(--tone-success-text);
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
@@ -2207,7 +2207,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   margin-left: 8px;
   border-radius: 16px;
   border: 1px solid var(--surface-tint);
-  background: #fff;
+  background: var(--surface-strong);
   cursor: pointer;
   text-align: left;
   font: inherit;
@@ -2240,7 +2240,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
 }
 
 .sunny-timeline-event-dot.is-milestone {
-  background: #22c55e;
+  background: var(--cat-plan-dot);
 }
 
 .sunny-timeline-event-dot.is-project {
@@ -2248,7 +2248,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
 }
 
 .sunny-timeline-event-dot.is-life {
-  background: #f59e0b;
+  background: var(--tone-warning-text);
 }
 
 .sunny-timeline-event-type {
@@ -2329,9 +2329,9 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   gap: 5px;
   height: 30px;
   padding: 0 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--foreground);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-strong);
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
@@ -2344,9 +2344,9 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
 }
 
 .sunny-timeline-filter-btn.is-active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--agent-text-on-accent);
 }
 
 .sunny-timeline-filter-dot {

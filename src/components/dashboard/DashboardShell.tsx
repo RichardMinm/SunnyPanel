@@ -116,7 +116,10 @@ export function DashboardShell({
   const [activeMode, setActiveMode] = useState<DashboardIconMode>("agent");
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelWidth, setPanelWidth] = useState(340);
+  const [sidebarPinned, setSidebarPinned] = useState(false);
+  const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
   const [writingFocusMode, setWritingFocusMode] = useState(false);
+  const sidebarExpanded = sidebarPinned || sidebarHoverExpanded;
   const [debugMode, setDebugMode] = useState(false);
   const [lastExecutedAction, setLastExecutedAction] = useState<ProposedAgentAction | null>(null);
   const suppressAutoOpenRef = useRef(false);
@@ -257,13 +260,21 @@ export function DashboardShell({
     };
   }, [autoInspectorTab, openInspector]);
 
+  useEffect(() => {
+    if (panelOpen) {
+      setSidebarHoverExpanded(false);
+    }
+  }, [panelOpen]);
+
   const inspectorControl = useMemo(
     () => ({
       debugMode,
       openInspector,
+      panelOpen,
       setDebugMode,
+      togglePanel: handleTogglePanel,
     }),
-    [debugMode, openInspector],
+    [debugMode, handleTogglePanel, openInspector, panelOpen],
   );
 
   const handleResizeStart = useCallback(
@@ -296,14 +307,20 @@ export function DashboardShell({
       panelOpen={activeMode !== "writing" && panelOpen}
       panelWidth={panelWidth}
       sidebarCollapsed={activeMode === "writing" && writingFocusMode}
+      sidebarExpanded={sidebarExpanded}
+      sidebarPinned={sidebarPinned}
     >
       <SidebarNav
         activeMode={activeMode}
+        hoverExpanded={sidebarHoverExpanded}
         onArchiveThread={onArchiveThread}
         onDeleteThread={onDeleteThread}
+        onHoverExpandedChange={setSidebarHoverExpanded}
         onLoadThread={onLoadThread}
         onModeChange={handleModeChange}
         onNewThread={handleNewThread}
+        onPinnedChange={setSidebarPinned}
+        pinned={sidebarPinned}
         threadId={threadId}
         threadListMode={activeMode === "writing" ? "compact" : "full"}
         threads={threads}
@@ -378,7 +395,7 @@ export function DashboardShell({
         workbenchMode={workbenchMode}
         />
       ) : null}
-      {activeMode !== "writing" ? (
+      {activeMode !== "writing" && activeMode !== "agent" ? (
         <button
           type="button"
           className="sunny-dashboard-inspector-toggle"

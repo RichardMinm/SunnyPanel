@@ -6,6 +6,7 @@ import { AgentApprovalPanel } from "@/components/dashboard/agent/AgentApprovalPa
 import { AgentContextPanel } from "@/components/dashboard/agent/AgentContextPanel";
 import { AgentInboxPanel } from "@/components/dashboard/agent/AgentInboxPanel";
 import { AgentTracePanel } from "@/components/dashboard/agent/AgentTracePanel";
+import { InspectorSearchToolbar } from "@/components/dashboard/agent/InspectorSearchToolbar";
 import { InspectorTabBar } from "@/components/dashboard/agent/InspectorTabBar";
 import { inspectorTabs } from "@/components/dashboard/agent/constants";
 import { COLLECTION_ICON_MAP, DashboardIcon, DEFAULT_COLLECTION_ICON, InspectorPanelIcon } from "./icons";
@@ -182,7 +183,7 @@ function MemoryInspectorPanel({ debugMode, traceSteps }: { debugMode: boolean; t
             <li key={title}>{title}</li>
           ))}
         </ul>
-        <p className="sunny-agent-inspector-hint" style={{ fontSize: "10px", color: "#555", marginTop: "8px" }}>
+        <p className="sunny-agent-inspector-hint sunny-agent-inspector-hint--compact">
           开启 debug 模式可查看详细匹配信息
         </p>
       </div>
@@ -251,6 +252,7 @@ export function DashboardRightPanel({
   const displayAction = action ?? lastExecutedAction;
 
   const [inspectorSearch, setInspectorSearch] = useState("");
+  const [inspectorSearchOpen, setInspectorSearchOpen] = useState(false);
   const [inspectorSearchResults, setInspectorSearchResults] = useState<
     Array<{ collection: string; id: number; title: string; href?: string }>
   >([]);
@@ -307,41 +309,21 @@ export function DashboardRightPanel({
             </button>
           </div>
         </div>
-        {/* Inspector search */}
-        <div className="sunny-agent-inspector-search">
-          <input
-            type="text"
-            placeholder="搜索关联的计划、日程、笔记..."
-            value={inspectorSearch}
-            onChange={(e) => handleInspectorSearch(e.target.value)}
-            aria-label="搜索关联对象"
+        <InspectorSearchToolbar
+          onQueryChange={handleInspectorSearch}
+          onSearchOpenChange={setInspectorSearchOpen}
+          query={inspectorSearch}
+          results={inspectorSearchResults}
+          searchOpen={inspectorSearchOpen}
+          searching={inspectorSearching}
+        >
+          <InspectorTabBar
+            activeTab={activeInspectorTab}
+            bare
+            onTabChange={onInspectorTabChange}
+            pendingAction={pendingAction}
           />
-          {inspectorSearch.trim() && inspectorSearchResults.length > 0 ? (
-            <ul className="sunny-agent-inspector-search-results">
-              {inspectorSearchResults.map((r, i) => (
-                <li key={`${r.collection}-${r.id}-${i}`}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (r.href) window.open(r.href, "_blank");
-                    }}
-                  >
-                    <span>{r.title}</span>
-                    <small>{r.collection}</small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {inspectorSearch.trim() && !inspectorSearching && inspectorSearchResults.length === 0 ? (
-            <p className="sunny-agent-inspector-search-empty">未找到匹配结果</p>
-          ) : null}
-        </div>
-        <InspectorTabBar
-          activeTab={activeInspectorTab}
-          onTabChange={onInspectorTabChange}
-          pendingAction={pendingAction}
-        />
+        </InspectorSearchToolbar>
         <div className="sunny-dashboard-right-panel-body">
           {activeInspectorTab === "context" ? (
             <AgentContextPanel

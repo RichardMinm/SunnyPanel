@@ -8,6 +8,7 @@ import type { AgentInspectorTab } from "./types";
 
 type InspectorTabBarProps = {
   activeTab: AgentInspectorTab;
+  bare?: boolean;
   debugMode?: boolean;
   onTabChange: (tab: AgentInspectorTab) => void;
   pendingAction?: null | PendingAction;
@@ -15,6 +16,7 @@ type InspectorTabBarProps = {
 
 export function InspectorTabBar({
   activeTab,
+  bare = false,
   debugMode = false,
   onTabChange,
   pendingAction,
@@ -27,27 +29,33 @@ export function InspectorTabBar({
     return false;
   });
 
+  const tabButtons = visibleTabs.map((tab) => {
+    const isActive = activeTab === tab.key;
+    const showBadge = tab.key === "approval" && hasApprovalBadge;
+
+    return (
+      <button
+        aria-label={tab.label}
+        aria-selected={isActive}
+        className={[isActive ? "active is-active" : "", showBadge ? "has-badge" : ""].filter(Boolean).join(" ")}
+        key={tab.key}
+        onClick={() => onTabChange(tab.key)}
+        role="tab"
+        title={tab.label}
+        type="button"
+      >
+        <DashboardIcon name={tab.icon} />
+      </button>
+    );
+  });
+
+  if (bare) {
+    return tabButtons;
+  }
+
   return (
     <div className="sunny-inspector-tab-bar sunny-agent-inspector-tabs sunny-dashboard-right-tabs" role="tablist" aria-label="上下文面板导航">
-      {visibleTabs.map((tab) => {
-        const isActive = activeTab === tab.key;
-        const showBadge = tab.key === "approval" && hasApprovalBadge;
-
-        return (
-          <button
-            aria-label={tab.label}
-            aria-selected={isActive}
-            className={[isActive ? "active is-active" : "", showBadge ? "has-badge" : ""].filter(Boolean).join(" ")}
-            key={tab.key}
-            onClick={() => onTabChange(tab.key)}
-            role="tab"
-            title={tab.label}
-            type="button"
-          >
-            <DashboardIcon name={tab.icon} />
-          </button>
-        );
-      })}
+      {tabButtons}
     </div>
   );
 }

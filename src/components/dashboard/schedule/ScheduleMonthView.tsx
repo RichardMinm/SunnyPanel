@@ -33,13 +33,13 @@ type ScheduleMonthViewProps = {
 
 type ScheduleCategory = "agent" | "course" | "default" | "exam" | "plan_action" | "study";
 
-const CATEGORY_CONFIG: Record<ScheduleCategory, { label: string; dotColor: string; chipBg: string; chipText: string }> = {
-  course:      { label: "课程",  dotColor: "#3b82f6", chipBg: "#eff6ff", chipText: "#1e40af" },
-  study:       { label: "学习",  dotColor: "#8b5cf6", chipBg: "#f5f3ff", chipText: "#6d28d9" },
-  plan_action: { label: "计划",  dotColor: "#22c55e", chipBg: "#f0fdf4", chipText: "#166534" },
-  agent:       { label: "Agent", dotColor: "#f97316", chipBg: "#fff7ed", chipText: "#9a3412" },
-  exam:        { label: "截止",  dotColor: "#ef4444", chipBg: "#fef2f2", chipText: "#991b1b" },
-  default:     { label: "",       dotColor: "#94a3b8", chipBg: "#f1f5f9", chipText: "#475569" },
+const CATEGORY_LABELS: Record<ScheduleCategory, string> = {
+  course: "课程",
+  study: "学习",
+  plan_action: "计划",
+  agent: "Agent",
+  exam: "截止",
+  default: "",
 };
 
 const WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
@@ -137,7 +137,7 @@ function pickDefaultDateForMonth(days: Date[], todayKey: string, targetMonth: nu
 }
 
 function inferCategory(item: ScheduleItemSummary): ScheduleCategory {
-  if (item.category && item.category in CATEGORY_CONFIG) {
+  if (item.category && item.category in CATEGORY_LABELS) {
     return item.category as ScheduleCategory;
   }
   if (item.sourceType === "agent") return "agent";

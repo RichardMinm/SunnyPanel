@@ -36,11 +36,15 @@ function formatThreadMeta(thread: AgentThreadSummary) {
 
 export type DashboardIconBarProps = {
   activeMode: DashboardIconMode;
+  hoverExpanded: boolean;
   onArchiveThread: (id: number) => Promise<boolean>;
   onDeleteThread: (id: number) => Promise<boolean>;
+  onHoverExpandedChange: (expanded: boolean) => void;
   onModeChange: (mode: DashboardIconMode, prompt: string) => void;
   onLoadThread: (threadId: number) => void;
   onNewThread: () => void;
+  onPinnedChange: (pinned: boolean) => void;
+  pinned: boolean;
   threadId: null | number;
   threadListMode?: "compact" | "full" | "hidden";
   threads: AgentThreadSummary[];
@@ -48,11 +52,15 @@ export type DashboardIconBarProps = {
 
 export function DashboardIconBar({
   activeMode,
+  hoverExpanded,
   onArchiveThread,
   onDeleteThread,
+  onHoverExpandedChange,
   onModeChange,
   onLoadThread,
   onNewThread,
+  onPinnedChange,
+  pinned,
   threadId,
   threadListMode = "full",
   threads,
@@ -69,56 +77,43 @@ export function DashboardIconBar({
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Auto-collapse state
-  const [collapsed, setCollapsed] = useState(true);
-  const [pinned, setPinned] = useState(false);
+  // Auto-collapse: unpinned sidebar stays a 56px grid strip; hover expands in-grid
   const collapseTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const navRef = useRef<HTMLElement | null>(null);
-  const shellRef = useRef<Element | null>(null);
 
   // Cleanup collapse timer on unmount
   useEffect(() => () => {
     if (collapseTimer.current) clearTimeout(collapseTimer.current);
   }, []);
 
-  // Sync auto-collapse CSS class to shell element (controls grid column width)
+  const stripCollapsed = !pinned;
+
+  // Nav-only classes; shell layout classes live on AppShell to survive panel re-renders
   useEffect(() => {
     if (!navRef.current) return;
-    if (!shellRef.current) {
-      shellRef.current = navRef.current.closest(".sunny-dashboard-shell");
-    }
-    const actuallyCollapsed = collapsed && !pinned;
-    shellRef.current?.classList.toggle("is-sidebar-auto-collapsed", actuallyCollapsed);
-    navRef.current.classList.toggle("is-auto-collapsed", actuallyCollapsed);
-  }, [collapsed, pinned]);
+    navRef.current.classList.toggle("is-auto-collapsed", stripCollapsed && !hoverExpanded);
+    navRef.current.classList.toggle("is-hover-expanded", stripCollapsed && hoverExpanded);
+  }, [hoverExpanded, pinned, stripCollapsed]);
 
-  // Hover handlers
+  // Hover handlers — in-grid push expand via DashboardShell → AppShell
   const handleSidebarMouseEnter = useCallback(() => {
     if (collapseTimer.current) clearTimeout(collapseTimer.current);
     if (!pinned) {
-      setCollapsed(false);
+      onHoverExpandedChange(true);
     }
-  }, [pinned]);
+  }, [onHoverExpandedChange, pinned]);
 
   const handleSidebarMouseLeave = useCallback(() => {
     if (pinned) return;
     collapseTimer.current = setTimeout(() => {
-      setCollapsed(true);
+      onHoverExpandedChange(false);
     }, 300);
-  }, [pinned]);
+  }, [onHoverExpandedChange, pinned]);
 
   const handleTogglePin = useCallback(() => {
-    setPinned((prev) => {
-      if (prev) {
-        // Unpinning → collapse
-        setCollapsed(true);
-      } else {
-        // Pinning → expand permanently
-        setCollapsed(false);
-      }
-      return !prev;
-    });
-  }, []);
+    onHoverExpandedChange(false);
+    onPinnedChange(!pinned);
+  }, [onHoverExpandedChange, onPinnedChange, pinned]);
 
   const filteredThreads = useMemo(
     () => filterDashboardThreads(threads, searchQuery),

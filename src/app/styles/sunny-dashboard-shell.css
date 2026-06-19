@@ -10,16 +10,16 @@
   --dashboard-sidebar-collapsed-width: 56px;
   --dashboard-panel-width: clamp(20rem, 24vw, 22.5rem);
   --dashboard-status-height: 1.5rem;
-  --dashboard-app-bg: #ffffff;
-  --dashboard-card-shadow: 0 12px 32px rgba(15, 23, 42, 0.07);
+  --dashboard-app-bg: var(--background);
+  --dashboard-card-shadow: 0 12px 32px var(--card-shadow);
   --dashboard-card-border: color-mix(in srgb, var(--border) 82%, transparent);
-  --dashboard-blue-soft: #e8f1ff;
+  --dashboard-blue-soft: var(--tone-info-bg);
 }
 
 /* ── Shell 网格容器 ── */
 .sunny-dashboard-shell {
   display: grid;
-  grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr) var(--dashboard-panel-width);
+  grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr);
   grid-template-rows: 1fr var(--dashboard-status-height);
   height: 100vh;
   height: 100dvh;
@@ -34,40 +34,33 @@
   grid-column: 2;
 }
 
-.sunny-dashboard-shell .sunny-dashboard-right-panel {
-  grid-column: 3;
-  visibility: visible;
-  transition: opacity var(--motion-duration-panel) var(--motion-ease-out), transform var(--motion-duration-panel) var(--motion-ease-standard);
-}
-
-/* Collapsed: right panel hidden */
-.sunny-dashboard-shell:not(.is-panel-expanded) {
-  grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr) 0px;
-}
-
-/* Sidebar auto-collapse */
+/* Sidebar collapsed — 56px icon strip in grid */
 .sunny-dashboard-shell.is-sidebar-auto-collapsed {
   --dashboard-icon-bar-width: var(--dashboard-sidebar-collapsed-width);
+  grid-template-columns: var(--dashboard-sidebar-collapsed-width) minmax(0, 1fr);
 }
 
-.sunny-dashboard-shell.is-sidebar-auto-collapsed .sunny-dashboard-icon-bar {
+/* Sidebar expanded — pin or hover push layout */
+.sunny-dashboard-shell.is-sidebar-expanded {
+  --dashboard-icon-bar-width: var(--dashboard-sidebar-width);
+  grid-template-columns: var(--dashboard-sidebar-width) minmax(0, 1fr);
+}
+
+.sunny-dashboard-shell.is-sidebar-auto-collapsed .sunny-dashboard-icon-bar,
+.sunny-dashboard-shell.is-sidebar-auto-collapsed .sunny-dashboard-icon-bar.sunny-codex-sidebar {
   width: var(--dashboard-sidebar-collapsed-width);
+  min-width: var(--dashboard-sidebar-collapsed-width);
+  max-width: var(--dashboard-sidebar-collapsed-width);
 }
 
-/* When auto-collapsed sidebar is hovered, expand temporarily */
-.sunny-dashboard-shell.is-sidebar-auto-collapsed .sunny-dashboard-icon-bar.is-hover-expanded {
+.sunny-dashboard-shell.is-sidebar-expanded .sunny-dashboard-icon-bar,
+.sunny-dashboard-shell.is-sidebar-expanded .sunny-dashboard-icon-bar.sunny-codex-sidebar {
   width: var(--dashboard-sidebar-width);
+  min-width: var(--dashboard-sidebar-width);
+  max-width: min(var(--dashboard-sidebar-width), calc(100vw - 3rem));
 }
 
-.sunny-dashboard-shell:not(.is-panel-expanded) .sunny-dashboard-right-panel {
-  opacity: 0;
-  transform: translateX(12px);
-  visibility: hidden;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-/* ── 图标栏 ── */
+/* Right panel is a fixed overlay — grid tracks never change when it opens/closes */
 .sunny-dashboard-icon-bar {
   position: relative;
   display: flex;
@@ -76,13 +69,17 @@
   width: var(--dashboard-icon-bar-width);
   grid-row: 1 / -1;
   grid-column: 1;
-  background: rgba(255, 255, 255, 0.88);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
   border-right: 1px solid var(--dashboard-card-border);
   padding: 0.75rem 0;
   gap: 0.35rem;
   z-index: 30;
   overflow: hidden;
-  transition: width 200ms ease;
+  transition:
+    width var(--motion-duration-layout) var(--motion-ease-standard),
+    min-width var(--motion-duration-layout) var(--motion-ease-standard),
+    max-width var(--motion-duration-layout) var(--motion-ease-standard),
+    padding var(--motion-duration-ui) var(--motion-ease-standard);
 }
 
 /* Auto-collapsed sidebar visual state */
@@ -91,15 +88,55 @@
   align-items: center;
 }
 
+.sunny-dashboard-icon-bar .sunny-codex-sidebar-label,
+.sunny-dashboard-icon-bar .sunny-codex-project-row > span:last-child,
+.sunny-dashboard-icon-bar .sunny-codex-sidebar-section > p,
+.sunny-dashboard-icon-bar .sunny-codex-sidebar-collapse-toggle .sunny-codex-sidebar-label,
+.sunny-dashboard-icon-bar .sunny-codex-project-row span:not(.sunny-codex-project-mark):not(.sunny-codex-sidebar-icon) {
+  opacity: 1;
+  max-width: 16rem;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    opacity var(--motion-duration-ui) var(--motion-ease-out),
+    max-width var(--motion-duration-layout) var(--motion-ease-standard);
+  transition-delay: 80ms;
+}
+
+.sunny-dashboard-icon-bar .sunny-codex-sidebar-search,
+.sunny-dashboard-icon-bar .sunny-codex-thread-section,
+.sunny-dashboard-icon-bar .sunny-codex-archive-section {
+  opacity: 1;
+  max-height: 40rem;
+  overflow: hidden;
+  transition:
+    opacity var(--motion-duration-ui) var(--motion-ease-out),
+    max-height var(--motion-duration-layout) var(--motion-ease-standard);
+  transition-delay: 80ms;
+}
+
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-label,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-project-row > span:last-child,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-section > p,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-search,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-thread-section,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-archive-section,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-collapse-toggle .sunny-codex-sidebar-label,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-project-row span:not(.sunny-codex-project-mark):not(.sunny-codex-sidebar-icon) {
-  display: none;
+  opacity: 0;
+  max-width: 0;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  transition-delay: 0ms;
+}
+
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-search,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-thread-section,
+.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-archive-section {
+  opacity: 0;
+  max-height: 0;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  transition-delay: 0ms;
 }
 
 /* Center icons in collapsed mode */
@@ -131,7 +168,7 @@
 }
 
 .sunny-sidebar-pin-button.is-pinned {
-  color: #2563eb;
+  color: var(--accent);
   background: rgba(37, 99, 235, 0.08);
 }
 
@@ -139,7 +176,7 @@
   align-items: stretch;
   width: var(--dashboard-sidebar-width);
   padding: 0.9rem 0.65rem;
-  background: color-mix(in srgb, #f7f9fc 88%, #fff);
+  background: color-mix(in srgb, var(--surface-tint) 88%, #fff);
   border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   color: var(--foreground);
 }
@@ -203,8 +240,8 @@
   height: 1.35rem;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 0.42rem;
-  background: #fff;
-  color: #2563eb;
+  background: var(--surface-strong);
+  color: var(--accent);
   font-size: var(--text-2xs);
   font-weight: 800;
   flex: 0 0 auto;
@@ -250,8 +287,8 @@
 .sunny-codex-project-icon {
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 0.42rem;
-  background: #fff;
-  color: #2563eb;
+  background: var(--surface-strong);
+  color: var(--accent);
 }
 
 .sunny-codex-sidebar-section {
@@ -348,7 +385,7 @@
   position: absolute;
   inset: 0;
   border-radius: 0.55rem;
-  background: color-mix(in srgb, #dbeafe 70%, transparent);
+  background: color-mix(in srgb, var(--tone-info-bg) 70%, transparent);
   pointer-events: none;
 }
 
@@ -359,7 +396,7 @@
 }
 
 .sunny-codex-thread-row.is-active {
-  color: #1d4ed8;
+  color: var(--accent-strong);
 }
 
 .sunny-codex-mode-row.is-active {
@@ -369,7 +406,7 @@
 }
 
 .sunny-codex-thread-row.is-active {
-  background: color-mix(in srgb, #dbeafe 70%, transparent);
+  background: color-mix(in srgb, var(--tone-info-bg) 70%, transparent);
 }
 
 .sunny-codex-thread-section,
@@ -477,8 +514,8 @@ html[data-theme="dark"] .sunny-dashboard-icon-bar {
   width: 2.35rem;
   height: 2.35rem;
   border-radius: 0.75rem;
-  background: #1f5eff;
-  color: #fff;
+  background: var(--accent);
+  color: var(--agent-text-on-accent);
   font-size: var(--text-sm);
   font-weight: var(--font-weight-title);
   font-family: var(--sunny-font-sans);
@@ -511,7 +548,7 @@ html[data-theme="dark"] .sunny-dashboard-icon-brand {
 }
 
 .sunny-dashboard-icon-btn:hover {
-  background: color-mix(in srgb, #eef4ff 88%, transparent);
+  background: color-mix(in srgb, var(--tone-info-bg) 88%, transparent);
   color: var(--foreground);
 }
 
@@ -520,8 +557,8 @@ html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
 }
 
 .sunny-dashboard-icon-btn.is-active {
-  color: #1d4ed8;
-  background: var(--dashboard-blue-soft);
+  color: var(--accent-strong);
+  background: var(--tone-info-bg);
 }
 
 .sunny-dashboard-icon-btn.is-active::before {
@@ -532,7 +569,7 @@ html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
   width: 3px;
   height: 1.45rem;
   border-radius: 0 2px 2px 0;
-  background: #2563eb;
+  background: var(--accent);
   content: "";
 }
 
@@ -546,8 +583,8 @@ html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
   opacity: 0;
   padding: 0.28rem 0.5rem;
   border-radius: 0.45rem;
-  background: #111827;
-  color: #fff;
+  background: var(--surface);
+  color: var(--agent-text-on-accent);
   content: attr(data-tooltip);
   font-size: var(--text-2xs);
   line-height: 1;
@@ -574,7 +611,7 @@ html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
   padding: 0.75rem;
   border: 1px solid var(--dashboard-card-border);
   border-radius: 0.9rem;
-  background: #fff;
+  background: var(--surface-strong);
   box-shadow: var(--dashboard-card-shadow);
 }
 
@@ -614,7 +651,7 @@ html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
   bottom: 0;
   width: 2px;
   border-radius: 999px;
-  background: color-mix(in srgb, #2563eb 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 42%, transparent);
   content: "";
   opacity: 0;
   transition: opacity 140ms ease;
@@ -643,7 +680,7 @@ html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
   height: 2.6rem;
   border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
   border-radius: 0.75rem 0 0 0.75rem;
-  background: color-mix(in srgb, #ffffff 92%, var(--surface));
+  background: color-mix(in srgb, var(--surface-strong) 92%, var(--surface));
   color: color-mix(in srgb, var(--foreground) 76%, var(--muted));
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
   cursor: pointer;
@@ -653,8 +690,8 @@ html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
 
 .sunny-dashboard-inspector-toggle:hover,
 .sunny-dashboard-inspector-toggle:focus-visible {
-  border-color: color-mix(in srgb, #93c5fd 70%, var(--border));
-  color: #1d4ed8;
+  border-color: color-mix(in srgb, var(--accent-strong) 70%, var(--border));
+  color: var(--accent-strong);
 }
 
 .sunny-dashboard-shell.is-panel-expanded .sunny-dashboard-inspector-toggle {
@@ -768,13 +805,13 @@ html[data-theme="dark"] .sunny-dashboard-status-bar {
 }
 
 .sunny-thread-status-badge.is-warning {
-  background: color-mix(in srgb, #f59e0b 15%, transparent);
-  color: #d97706;
+  background: color-mix(in srgb, var(--tone-warning-text) 15%, transparent);
+  color: var(--tone-warning-text);
 }
 
 .sunny-thread-status-badge.is-danger {
-  background: color-mix(in srgb, #ef4444 15%, transparent);
-  color: #dc2626;
+  background: color-mix(in srgb, var(--tone-danger-text) 15%, transparent);
+  color: var(--tone-danger-text);
 }
 
 /* ── 主区域 ── */
@@ -786,9 +823,14 @@ html[data-theme="dark"] .sunny-dashboard-status-bar {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: #f8fafc;
+  background: var(--background);
   padding: 0;
   gap: 0;
+  transition: padding-right var(--motion-duration-panel) var(--motion-ease-standard);
+}
+
+.sunny-dashboard-shell.is-panel-expanded .sunny-dashboard-main {
+  padding-right: var(--dashboard-panel-width);
 }
 
 .sunny-dashboard-view-transition {
@@ -898,6 +940,14 @@ html[data-theme="dark"] .sunny-agent-capability-card-icon {
 /* ── 减少动画 ── */
 @media (prefers-reduced-motion: reduce) {
   .sunny-dashboard-shell {
+    transition: none;
+  }
+
+  .sunny-dashboard-icon-bar,
+  .sunny-dashboard-icon-bar .sunny-codex-sidebar-label,
+  .sunny-dashboard-icon-bar .sunny-codex-sidebar-search,
+  .sunny-dashboard-icon-bar .sunny-codex-thread-section,
+  .sunny-dashboard-icon-bar .sunny-codex-archive-section {
     transition: none;
   }
 
@@ -1137,30 +1187,30 @@ html[data-theme="dark"] .sunny-agent-capability-card-icon {
   padding: 0.4rem 0.9rem;
   border: none;
   border-radius: 0.4rem;
-  background: #f59e0b;
-  color: #fff;
+  background: var(--tone-warning-text);
+  color: var(--agent-text-on-accent);
   font-size: var(--text-xs);
   font-weight: 560;
   cursor: pointer;
 }
 
 .sunny-confirm-btn-warning:hover {
-  background: #d97706;
+  background: var(--tone-warning-text);
 }
 
 .sunny-confirm-btn-danger {
   padding: 0.4rem 0.9rem;
   border: none;
   border-radius: 0.4rem;
-  background: #ef4444;
-  color: #fff;
+  background: var(--tone-danger-text);
+  color: var(--agent-text-on-accent);
   font-size: var(--text-xs);
   font-weight: 560;
   cursor: pointer;
 }
 
 .sunny-confirm-btn-danger:hover {
-  background: #dc2626;
+  background: var(--tone-danger-text);
 }
 
 /* ── Archive section ── */
@@ -1209,13 +1259,13 @@ html[data-theme="dark"] .sunny-agent-capability-card-icon {
 }
 
 .sunny-codex-archive-restore-btn:hover {
-  background: color-mix(in srgb, var(--sunny-accent, #2563eb) 15%, transparent);
-  color: var(--sunny-accent, #2563eb);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
 }
 
 .sunny-codex-archive-delete-btn:hover {
-  background: color-mix(in srgb, #ef4444 12%, transparent);
-  color: #ef4444;
+  background: color-mix(in srgb, var(--tone-danger-text) 12%, transparent);
+  color: var(--tone-danger-text);
 }
 
 /* Archive thread content: title + time (matching thread-row layout) */
@@ -1253,21 +1303,21 @@ html[data-theme="dark"] .sunny-agent-capability-card-icon {
 }
 
 .sunny-thread-row-menu-item.is-danger {
-  color: #ef4444;
+  color: var(--tone-danger-text);
 }
 
 .sunny-thread-row-menu-item.is-danger:hover {
-  background: color-mix(in srgb, #ef4444 12%, transparent);
+  background: color-mix(in srgb, var(--tone-danger-text) 12%, transparent);
 }
 
 html[data-theme="dark"] .sunny-codex-archive-thread {
-  background: #1e293b;
-  border-color: #1f2937;
-  color: #94a3b8;
+  background: var(--surface-strong);
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-codex-archive-thread:hover {
-  background: #273449;
+  background: var(--surface-strong);
 }
 
 /* ── Archive actions (from dashboard-content-studio) ── */
@@ -1276,146 +1326,146 @@ html[data-theme="dark"] .sunny-codex-archive-thread:hover {
 /* ═══ Dark Mode ═══ */
 
 html[data-theme="dark"] .sunny-dashboard-shell {
-  background: #0f172a;
+  background: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-dashboard-main {
-  background: #0f172a;
+  background: var(--foreground);
 }
 
 /* Sidebar / nav */
 html[data-theme="dark"] .sunny-dashboard-icon-bar,
 html[data-theme="dark"] .sunny-codex-sidebar {
-  background: #111827;
-  border-right-color: #1f2937;
+  background: var(--surface);
+  border-right-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-codex-project-row {
-  color: #f8fafc;
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-codex-project-row:hover {
-  background: #1e293b;
+  background: var(--surface-strong);
 }
 
 html[data-theme="dark"] .sunny-codex-project-mark {
-  background: #3b82f6;
-  color: #fff;
+  background: var(--accent);
+  color: var(--agent-text-on-accent);
 }
 
 /* Sidebar sections */
 html[data-theme="dark"] .sunny-codex-sidebar-section p {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-codex-sidebar-action,
 html[data-theme="dark"] .sunny-codex-mode-row,
 html[data-theme="dark"] .sunny-codex-thread-row {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-codex-sidebar-action:hover,
 html[data-theme="dark"] .sunny-codex-mode-row:hover,
 html[data-theme="dark"] .sunny-codex-thread-row:hover {
-  background: #1e293b;
-  color: #e5e7eb;
+  background: var(--surface-strong);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-codex-mode-row.is-active,
 html[data-theme="dark"] .sunny-codex-thread-row.is-active {
   background: rgba(59, 130, 246, 0.14);
-  color: #93c5fd;
+  color: var(--accent-strong);
 }
 
 html[data-theme="dark"] .sunny-codex-sidebar-icon {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-codex-sidebar-label {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 /* Collapse */
 html[data-theme="dark"] .sunny-codex-sidebar-collapse-toggle {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-codex-sidebar-collapse-toggle:hover {
-  color: #e5e7eb;
-  background: #1e293b;
+  color: var(--foreground);
+  background: var(--surface-strong);
 }
 
 /* Pin button */
 html[data-theme="dark"] .sunny-sidebar-pin-button {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-sidebar-pin-button:hover {
-  background: #1e293b;
-  color: #e5e7eb;
+  background: var(--surface-strong);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-sidebar-pin-button.is-pinned {
-  color: #60a5fa;
+  color: var(--accent-strong);
   background: rgba(59, 130, 246, 0.14);
 }
 
 /* Thread list */
 html[data-theme="dark"] .sunny-codex-thread-row-btn {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-codex-thread-row-btn:hover {
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-codex-thread-row small {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* Search */
 html[data-theme="dark"] .sunny-codex-sidebar-search-input {
-  background: #0f172a;
-  border-color: #334155;
-  color: #f8fafc;
+  background: var(--foreground);
+  border-color: var(--border);
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-codex-sidebar-search-input::placeholder {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* Status bar */
 html[data-theme="dark"] .sunny-dashboard-status-bar {
-  background: #111827;
-  border-top-color: #1f2937;
-  color: #64748b;
+  background: var(--surface);
+  border-top-color: var(--border);
+  color: var(--muted);
 }
 
 /* Thread header */
 html[data-theme="dark"] .sunny-agent-thread-header {
-  background: #0f172a;
-  border-bottom-color: #1f2937;
+  background: var(--foreground);
+  border-bottom-color: var(--border);
 }
 
 /* Mode pills */
 html[data-theme="dark"] .sunny-codex-mode-pill {
-  background: #1e293b;
-  color: #94a3b8;
+  background: var(--surface-strong);
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-codex-mode-pill.is-active {
   background: rgba(59, 130, 246, 0.14);
-  color: #93c5fd;
+  color: var(--accent-strong);
 }
 
 /* Dashboard settings */
 html[data-theme="dark"] .sunny-dashboard-settings-popover {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-dashboard-settings-popover p {
-  color: #64748b;
+  color: var(--muted);
 }
 
 /* Confirm dialog */
@@ -1424,59 +1474,59 @@ html[data-theme="dark"] .sunny-confirm-overlay {
 }
 
 html[data-theme="dark"] .sunny-confirm-dialog {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-confirm-title {
-  color: #f8fafc;
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-confirm-message {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-confirm-btn-cancel {
   background: transparent;
-  border-color: #334155;
-  color: #cbd5e1;
+  border-color: var(--border);
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-confirm-btn-cancel:hover {
-  background: #1e293b;
+  background: var(--surface-strong);
 }
 
 html[data-theme="dark"] .sunny-confirm-btn-danger {
-  background: #dc2626;
-  color: #fff;
+  background: var(--tone-danger-text);
+  color: var(--agent-text-on-accent);
 }
 
 /* Badge */
 html[data-theme="dark"] .sunny-agent-badge-ready {
   background: rgba(34, 197, 94, 0.12);
-  color: #4ade80;
+  color: var(--tone-success-text);
 }
 
 html[data-theme="dark"] .sunny-agent-badge-running {
   background: rgba(59, 130, 246, 0.14);
-  color: #93c5fd;
+  color: var(--accent-strong);
 }
 
 html[data-theme="dark"] .sunny-agent-badge-waiting {
   background: rgba(250, 204, 21, 0.12);
-  color: #facc15;
+  color: var(--tone-warning-text);
 }
 
 html[data-theme="dark"] .sunny-thread-row-menu-trigger {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-thread-row-menu-trigger:hover {
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-codex-view-all {
-  color: #60a5fa;
+  color: var(--accent-strong);
 }
 
 html[data-theme="dark"] .sunny-codex-view-all:hover {

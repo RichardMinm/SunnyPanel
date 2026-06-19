@@ -14,8 +14,6 @@ type ThreadHeaderProps = {
   displayTitle: string;
   isSubmitting: boolean;
   onArchiveThread?: () => void;
-  onDebugModeChange: (next: boolean) => void;
-  onOpenDetails: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
   pendingAction: null | PendingAction;
   statusLabel: string;
@@ -50,8 +48,6 @@ export function ThreadHeader({
   displayTitle,
   isSubmitting,
   onArchiveThread,
-  onDebugModeChange,
-  onOpenDetails,
   onRenameThread,
   pendingAction,
   statusLabel,
@@ -103,25 +99,6 @@ export function ThreadHeader({
       <div className="sunny-agent-thread-header-top">
         <p className="sunny-agent-thread-header-subtitle">告诉 Sunny 你想推进什么，它会帮你整理成计划、清单、日程或进度动作。</p>
         <div className="sunny-agent-thread-header-actions" aria-label="Thread 操作">
-          <button
-            type="button"
-            className={`sunny-agent-thread-header-icon-button${debugMode ? " is-active" : ""}`}
-            aria-pressed={debugMode}
-            aria-label="调试"
-            title={debugMode ? "关闭调试" : "开启调试"}
-            onClick={() => onDebugModeChange(!debugMode)}
-          >
-            <DashboardIcon name="debug" />
-          </button>
-          <button
-            type="button"
-            className="sunny-agent-thread-header-icon-button"
-            aria-label="查看详情"
-            title="查看详情"
-            onClick={onOpenDetails}
-          >
-            <DashboardIcon name="inspectorPanel" />
-          </button>
           {onArchiveThread && threadId !== null ? (
             <button
               type="button"

@@ -5,16 +5,21 @@ import { getDashboardShell, startNewThread } from "./helpers/dashboard-shell";
 test.describe.configure({ mode: "serial" });
 
 async function openInspector(shell: Locator) {
-  const inspector = shell.getByRole("complementary", { name: "当前上下文面板" });
-  const debugButton = shell.getByRole("button", { name: "调试" });
+  const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
+  const panelButton = shell.getByRole("button", { name: "打开当前上下文" });
 
   if (await inspector.isVisible()) {
     return inspector;
   }
 
-  await debugButton.click();
+  await panelButton.click();
   await expect(inspector).toBeVisible();
   return inspector;
+}
+
+async function enableDebugMode(shell: Locator) {
+  await shell.getByRole("button", { name: "添加上下文 / 文件 / 命令" }).click();
+  await shell.getByRole("menuitem", { name: "调试模式" }).click();
 }
 
 test("Dashboard 默认展示 Agent Workspace，而不是旧统计卡片首页", async ({ page }) => {
@@ -27,7 +32,7 @@ test("Dashboard 默认展示 Agent Workspace，而不是旧统计卡片首页", 
   await expect(page.getByText("计划跑道")).toHaveCount(0);
   await expect(page.getByText("阶段时间线")).toHaveCount(0);
   await expect(shell.getByRole("alert")).toHaveCount(0);
-  await expect(shell.getByRole("complementary", { name: "当前上下文面板" })).toBeHidden();
+  await expect(shell.getByRole("complementary", { name: "右侧检查器" })).toBeHidden();
   await expect(page.getByText("加载失败")).toHaveCount(0);
 });
 
@@ -35,7 +40,7 @@ test("Agent Workspace 左侧只负责导航，右侧检查器默认隐藏", asyn
   const shell = await getDashboardShell(page);
   await startNewThread(shell);
   const nav = shell.getByRole("navigation", { name: "工作台导航" });
-  const inspector = shell.getByRole("complementary", { name: "当前上下文面板" });
+  const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
 
   await expect(nav).toBeVisible();
   await expect(nav.locator(".sunny-codex-sidebar-window-controls")).toHaveCount(0);
@@ -58,8 +63,9 @@ test("展开检查器后右侧展示上下文 Icon 页签", async ({ page }) => 
   const shell = await getDashboardShell(page);
   await startNewThread(shell);
   const inspector = await openInspector(shell);
+  await enableDebugMode(shell);
 
-  await expect(inspector.getByRole("button", { name: "收起上下文面板" })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "收起检查器" })).toBeVisible();
   // Primary tabs always visible
   await expect(inspector.getByRole("tab", { name: "上下文" })).toBeVisible();
   await expect(inspector.getByRole("tab", { name: "关联" })).toBeVisible();
@@ -76,7 +82,7 @@ test("展开检查器后右侧展示上下文 Icon 页签", async ({ page }) => 
   await expect(inspector.getByRole("tab", { name: "产物" })).toHaveCount(0);
 });
 
-test("Agent Composer 默认收敛为模式下拉、输入框、加号和发送", async ({ page }) => {
+test("Agent Composer 默认收敛为模式下拉、输入框、加号、面板和发送", async ({ page }) => {
   const shell = await getDashboardShell(page);
   await startNewThread(shell);
   const textarea = shell.getByLabel("输入要交给 Agent 的话");
@@ -84,7 +90,8 @@ test("Agent Composer 默认收敛为模式下拉、输入框、加号和发送",
   await expect(textarea).toBeVisible();
   await expect(shell.getByRole("tablist", { name: "Agent 工作台模式" })).toHaveCount(0);
   await expect(shell.getByRole("button", { name: "选择工作模式" })).toBeVisible();
-  await expect(shell.getByRole("button", { name: "打开快捷操作" })).toBeVisible();
+  await expect(shell.getByRole("button", { name: "添加上下文 / 文件 / 命令" })).toBeVisible();
+  await expect(shell.getByRole("button", { name: "打开当前上下文" })).toBeVisible();
   await expect(shell.locator(".sunny-agent-composer-mode-copy")).toHaveCount(0);
   await expect(shell.getByRole("button", { name: "引用上下文" })).toHaveCount(0);
   await expect(shell.getByRole("button", { name: "发送" })).toBeVisible();
@@ -95,10 +102,11 @@ test("Agent Composer 默认收敛为模式下拉、输入框、加号和发送",
   await shell.getByRole("menuitem", { name: /只回答/ }).click();
   await expect(shell.getByRole("button", { name: "选择工作模式" })).toContainText("只回答");
 
-  await shell.getByRole("button", { name: "打开快捷操作" }).click();
+  await shell.getByRole("button", { name: "添加上下文 / 文件 / 命令" }).click();
   await expect(shell.getByRole("menuitem", { name: "引用上下文" })).toBeVisible();
   await expect(shell.getByRole("menuitem", { name: "添加计划" })).toBeVisible();
   await expect(shell.getByRole("menuitem", { name: "斜杠命令" })).toBeVisible();
+  await expect(shell.getByRole("menuitem", { name: "调试模式" })).toBeVisible();
 });
 
 test("Dashboard 使用成熟 SaaS Agent 工作台视觉层级", async ({ page }) => {
@@ -124,7 +132,7 @@ test("Dashboard 使用成熟 SaaS Agent 工作台视觉层级", async ({ page })
   await expect(contextPanel.getByRole("tab", { name: "关联" })).toBeVisible();
   await expect(contextPanel.getByRole("tab", { name: "记忆" })).toBeVisible();
   await expect(contextPanel.getByRole("button", { name: "调整右侧面板宽度" })).toBeVisible();
-  await expect(contextPanel.getByRole("button", { name: "收起上下文面板" })).toBeVisible();
+  await expect(contextPanel.getByRole("button", { name: "收起检查器" })).toBeVisible();
 
   await expect(shell.getByRole("button", { name: "选择工作模式" })).toBeVisible();
   await expect(shell.getByRole("button", { name: "引用上下文" })).toHaveCount(0);
@@ -143,7 +151,7 @@ test("移动端 Dashboard 优先展示主 Agent Workspace 且不横向溢出", a
 
   await expect(shell).toBeVisible();
   await expect(composerInput).toBeVisible();
-  await expect(shell.getByRole("complementary", { name: "当前上下文面板" })).toBeHidden();
+  await expect(shell.getByRole("complementary", { name: "右侧检查器" })).toBeHidden();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   const layoutStyles = await shell.evaluate((element) => {
@@ -161,27 +169,25 @@ test("移动端 Dashboard 优先展示主 Agent Workspace 且不横向溢出", a
   expect(layoutStyles.panelDisplay).toBe("none");
 
   await openInspector(shell);
-  await expect(shell.getByRole("complementary", { name: "当前上下文面板" })).toBeVisible();
-  await shell.getByRole("button", { name: "收起上下文面板" }).click();
-  await expect(shell.getByRole("complementary", { name: "当前上下文面板" })).toBeHidden();
+  await expect(shell.getByRole("complementary", { name: "右侧检查器" })).toBeVisible();
+  await shell.getByRole("button", { name: "收起当前上下文" }).click();
+  await expect(shell.getByRole("complementary", { name: "右侧检查器" })).toBeHidden();
 });
 
-test("桌面端 Inspector 可通过调试模式展开并在面板头收起", async ({ page }) => {
+test("桌面端 Inspector 可通过 Composer 面板按钮展开并在面板头收起", async ({ page }) => {
   const shell = await getDashboardShell(page);
   await startNewThread(shell);
-  const inspector = shell.getByRole("complementary", { name: "当前上下文面板" });
-  const debugButton = shell.getByRole("button", { name: "调试" });
+  const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
 
   await expect(inspector).toBeHidden();
   await openInspector(shell);
   await expect(inspector).toBeVisible();
-  await expect(shell.getByRole("navigation", { name: "工作台导航" }).getByRole("button", { name: "收起上下文面板" })).toHaveCount(0);
-  await inspector.getByRole("button", { name: "收起上下文面板" }).click();
+  await expect(shell.getByRole("navigation", { name: "工作台导航" }).getByRole("button", { name: "收起检查器" })).toHaveCount(0);
+  await inspector.getByRole("button", { name: "收起检查器" }).click();
   await expect(inspector).toBeHidden();
   await expect(shell.getByRole("button", { name: "展开检查器" })).toHaveCount(0);
 
-  await debugButton.click();
-  await debugButton.click();
+  await shell.getByRole("button", { name: "打开当前上下文" }).click();
   await expect(inspector).toBeVisible();
-  await expect(inspector.getByRole("button", { name: "收起上下文面板" })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "收起检查器" })).toBeVisible();
 });

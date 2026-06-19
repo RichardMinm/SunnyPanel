@@ -4,16 +4,39 @@
  */
 
 .sunny-dashboard-right-panel {
-  position: relative;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: var(--dashboard-status-height);
+  z-index: 35;
   display: flex;
   flex-direction: column;
-  grid-column: 3;
-  grid-row: 1;
+  width: var(--dashboard-panel-width);
   min-width: 0;
   max-height: calc(100dvh - var(--dashboard-status-height));
   border-left: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
-  background: color-mix(in srgb, #ffffff 96%, var(--surface));
+  background: color-mix(in srgb, var(--surface-strong) 96%, var(--surface));
   overflow: hidden;
+  box-shadow: -12px 0 32px rgba(15, 23, 42, 0.06);
+  transform: translateX(100%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform var(--motion-duration-panel) var(--motion-ease-standard),
+    opacity var(--motion-duration-panel) var(--motion-ease-out),
+    visibility 0s linear var(--motion-duration-panel);
+}
+
+.sunny-dashboard-shell.is-panel-expanded .sunny-dashboard-right-panel {
+  transform: translateX(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform var(--motion-duration-panel) var(--motion-ease-standard),
+    opacity var(--motion-duration-panel) var(--motion-ease-out),
+    visibility 0s;
 }
 
 .sunny-dashboard-right-panel-head {
@@ -51,10 +74,10 @@
 
 .sunny-dashboard-right-panel-actions > span {
   flex: 0 0 auto;
-  border: 1px solid color-mix(in srgb, #bfdbfe 58%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone-info-border) 58%, transparent);
   border-radius: 999px;
-  background: #eef6ff;
-  color: #1d4ed8;
+  background: var(--tone-info-bg);
+  color: var(--accent-strong);
   padding: 0.16rem 0.55rem;
   font-size: var(--text-2xs);
   font-weight: 700;
@@ -68,14 +91,14 @@
   height: 1.85rem;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 0.58rem;
-  background: color-mix(in srgb, #ffffff 88%, var(--surface));
+  background: color-mix(in srgb, var(--surface-strong) 88%, var(--surface));
   color: color-mix(in srgb, var(--foreground) 78%, var(--muted));
   cursor: pointer;
 }
 
 .sunny-dashboard-right-panel-toggle:hover {
-  border-color: color-mix(in srgb, #93c5fd 70%, var(--border));
-  color: #1d4ed8;
+  border-color: color-mix(in srgb, var(--accent-strong) 70%, var(--border));
+  color: var(--accent-strong);
 }
 
 .sunny-dashboard-right-panel-toggle svg {
@@ -84,7 +107,122 @@
 }
 
 .sunny-dashboard-right-tabs {
+  margin: 0;
+}
+
+.sunny-dashboard-inspector-toolbar {
+  display: grid;
+  gap: 0;
   margin: 0.75rem 0.85rem 0;
+}
+
+.sunny-dashboard-inspector-toolbar .sunny-inspector-tab-bar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+.sunny-inspector-tab-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.sunny-inspector-tab-divider {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 1px;
+  min-height: 1.35rem;
+  margin: 0.45rem 0.15rem;
+  background: color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.sunny-dashboard-inspector-search {
+  overflow: hidden;
+  max-height: 24rem;
+  opacity: 1;
+  transition:
+    max-height var(--motion-duration-layout) var(--motion-ease-standard),
+    opacity var(--motion-duration-ui) var(--motion-ease-out);
+}
+
+.sunny-dashboard-inspector-search .sunny-codex-search-wrapper {
+  margin-top: 0.55rem;
+}
+
+.sunny-dashboard-inspector-search-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--muted);
+}
+
+.sunny-dashboard-inspector-search-icon .sunny-dashboard-nav-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.sunny-dashboard-inspector-search-results {
+  margin: 0.35rem 0 0;
+  padding: 0.2rem 0;
+  list-style: none;
+  border-top: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.sunny-dashboard-inspector-search-results li button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  padding: 0.4rem 0.45rem;
+  font: inherit;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  text-align: left;
+}
+
+.sunny-dashboard-inspector-search-results li button:hover {
+  background: color-mix(in srgb, var(--surface-tint, var(--muted)) 18%, transparent);
+}
+
+.sunny-dashboard-inspector-search-results li button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-ring-strong, var(--accent)) 45%, transparent);
+  outline-offset: 1px;
+}
+
+.sunny-dashboard-inspector-search-results li button small {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  flex-shrink: 0;
+}
+
+.sunny-dashboard-inspector-search-empty {
+  margin: 0.45rem 0 0;
+  padding: 0.55rem 0.45rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sunny-dashboard-inspector-search {
+    transition: none;
+  }
 }
 
 .sunny-dashboard-right-panel-body {
@@ -118,7 +256,7 @@
 .sunny-agent-memory-inspector-list li {
   border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
   border-radius: 0.65rem;
-  background: color-mix(in srgb, #f8fafc 92%, transparent);
+  background: color-mix(in srgb, var(--background) 92%, transparent);
   color: var(--foreground);
   padding: 0.55rem 0.65rem;
   font-size: var(--text-xs);
@@ -130,7 +268,7 @@ html[data-theme="dark"] .sunny-dashboard-right-panel {
 }
 
 html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span {
-  background: color-mix(in srgb, var(--surface-strong) 88%, #2563eb 8%);
+  background: color-mix(in srgb, var(--surface-strong) 88%, var(--accent) 8%);
 }
 
 @media (max-width: 1200px) {
@@ -153,63 +291,62 @@ html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span {
 /* ═══ Dark Mode ═══ */
 
 html[data-theme="dark"] .sunny-dashboard-right-panel {
-  background: #111827;
-  border-left-color: #1f2937;
+  background: var(--surface);
+  border-left-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-dashboard-right-panel h3 {
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-dashboard-right-panel p {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-context-card,
 html[data-theme="dark"] .sunny-history-card,
 html[data-theme="dark"] .sunny-pending-card {
-  background: #1e293b;
-  border-color: #1f2937;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-context-card:hover,
 html[data-theme="dark"] .sunny-history-card:hover {
-  background: #273449;
+  background: var(--surface-strong);
 }
 
 html[data-theme="dark"] .sunny-context-card h4,
 html[data-theme="dark"] .sunny-history-card h4 {
-  color: #f8fafc;
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-context-card span,
 html[data-theme="dark"] .sunny-history-card time {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-pending-card .sunny-pending-badge {
-  color: #64748b;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span {
-  color: #64748b;
+  color: var(--muted);
 }
 
-html[data-theme="dark"] .sunny-inspector-search input {
-  background: #0f172a;
-  border-color: #334155;
-  color: #f8fafc;
+html[data-theme="dark"] .sunny-dashboard-inspector-search .sunny-codex-search-wrapper {
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  border-color: var(--border);
 }
 
-html[data-theme="dark"] .sunny-inspector-search input:focus {
-  border-color: #3b82f6;
+html[data-theme="dark"] .sunny-dashboard-inspector-search-results li button:hover {
+  background: color-mix(in srgb, var(--surface-strong) 92%, var(--accent) 6%);
 }
 
 html[data-theme="dark"] .sunny-inspector-tab {
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 html[data-theme="dark"] .sunny-inspector-tab.is-active {
-  color: #93c5fd;
-  border-bottom-color: #3b82f6;
+  color: var(--accent-strong);
+  border-bottom-color: var(--accent);
 }

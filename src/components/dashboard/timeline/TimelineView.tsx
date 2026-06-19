@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { categoryDotClass, type CategoryId } from "@/lib/category-styles";
 import { DashboardIcon } from "../icons";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
 
@@ -25,13 +26,13 @@ type TimelineViewProps = {
 
 type TimelineType = "agent" | "exam" | "life" | "milestone" | "project" | "study";
 
-const TYPE_CONFIG: Record<TimelineType, { label: string; dotColor: string }> = {
-  study:     { label: "学习",   dotColor: "#3b82f6" },
-  project:   { label: "项目",   dotColor: "#8b5cf6" },
-  life:      { label: "生活",   dotColor: "#22c55e" },
-  exam:      { label: "考试",   dotColor: "#ef4444" },
-  agent:     { label: "Agent",  dotColor: "#f97316" },
-  milestone: { label: "里程碑", dotColor: "#94a3b8" },
+const TYPE_CONFIG: Record<TimelineType, { label: string; category: CategoryId }> = {
+  study: { label: "学习", category: "study" },
+  project: { label: "项目", category: "plan" },
+  life: { label: "生活", category: "default" },
+  exam: { label: "考试", category: "exam" },
+  agent: { label: "Agent", category: "agent" },
+  milestone: { label: "里程碑", category: "default" },
 };
 
 const ALL_TYPE_FILTERS: Array<{ key: string; label: string }> = [
@@ -75,7 +76,7 @@ function formatDateLabel(dateKey: string): string {
   return `${Number(m)}月${Number(d)}日`;
 }
 
-function getTypeConfig(type: string): { label: string; dotColor: string } {
+function getTypeConfig(type: string): { label: string; category: CategoryId } {
   return TYPE_CONFIG[type as TimelineType] ?? TYPE_CONFIG.milestone;
 }
 
@@ -160,8 +161,8 @@ export function TimelineView({
               >
                 <div className="sunny-timeline-event-head">
                   <span
-                    className="sunny-timeline-event-dot"
-                    style={{ background: typeCfg.dotColor }}
+                    className={`sunny-timeline-event-dot ${categoryDotClass}`}
+                    data-category={typeCfg.category}
                   />
                   <span className="sunny-timeline-event-type">{typeCfg.label}</span>
                   {event.sourceType && (
@@ -223,7 +224,7 @@ export function TimelineView({
             onClick={() => setTypeFilter(f.key)}
           >
             {f.key !== "all" && (
-              <span className="sunny-timeline-filter-dot" style={{ background: getTypeConfig(f.key).dotColor }} />
+              <span className={`sunny-timeline-filter-dot ${categoryDotClass}`} data-category={f.key === "all" ? "default" : getTypeConfig(f.key).category} />
             )}
             {f.label}
           </button>

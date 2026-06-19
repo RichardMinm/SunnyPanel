@@ -153,48 +153,48 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
 /* ═══ Dark Mode ═══ */
 
 html[data-theme="dark"] .sunny-prose {
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-prose h1,
 html[data-theme="dark"] .sunny-prose h2,
 html[data-theme="dark"] .sunny-prose h3,
 html[data-theme="dark"] .sunny-prose h4 {
-  color: #f8fafc;
+  color: var(--background);
 }
 
 html[data-theme="dark"] .sunny-prose a {
-  color: #60a5fa;
+  color: var(--accent-strong);
 }
 
 html[data-theme="dark"] .sunny-prose blockquote {
-  border-left-color: #3b82f6;
-  color: #94a3b8;
+  border-left-color: var(--accent);
+  color: var(--muted);
   background: rgba(59, 130, 246, 0.06);
 }
 
 html[data-theme="dark"] .sunny-prose code {
   background: rgba(255, 255, 255, 0.08);
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-prose pre {
-  background: #1e293b;
-  border-color: #334155;
+  background: var(--surface-strong);
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-prose table th {
   background: rgba(255, 255, 255, 0.04);
-  color: #e5e7eb;
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-prose table td {
-  border-color: #1f2937;
-  color: #cbd5e1;
+  border-color: var(--border);
+  color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-prose hr {
-  border-color: #1f2937;
+  border-color: var(--border);
 }
 
 html[data-theme="dark"] .sunny-prose img {
