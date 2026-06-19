@@ -121,18 +121,6 @@
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --tone-success-bg: rgba(34, 197, 94, 0.12);
-  --tone-success-border: rgba(34, 197, 94, 0.24);
-  --tone-success-text: #4ade80;
-  --tone-warning-bg: rgba(250, 204, 21, 0.12);
-  --tone-warning-border: rgba(250, 204, 21, 0.24);
-  --tone-warning-text: #facc15;
-  --tone-danger-bg: rgba(248, 113, 113, 0.14);
-  --tone-danger-border: rgba(248, 113, 113, 0.24);
-  --tone-danger-text: #f87171;
-  --tone-neutral-bg: rgba(148, 163, 184, 0.1);
-  --tone-neutral-border: rgba(148, 163, 184, 0.14);
-  --tone-neutral-text: #94a3b8;
   --agent-text-on-accent: #fff;
   --agent-panel-bg: var(--surface);
   --agent-control-bg: var(--surface-strong);

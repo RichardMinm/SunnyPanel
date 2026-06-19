@@ -104,4 +104,89 @@ describe("Color token unification", () => {
     assert.match(timeline, /data-category=\{typeCfg\.category\}/);
     assert.match(schedule, /cat-\$\{cat\}/);
   });
+
+  test("each palette dark block has depth, semantic tones, and distinct category accents", () => {
+    const paletteCss = read("src/app/styles/sunny-palettes.css");
+    const lightPaperHex = /#f2f4f7|#fff7ed|#f0fdf4|#fef2f2|#f5f3ff|#ecfdf5|#fff1f2/i;
+    const agentDots: string[] = [];
+
+    for (const palette of palettes) {
+      const darkBlock = paletteCss.match(
+        new RegExp(`html\\[data-palette="${palette}"\\]\\[data-theme="dark"\\][\\s\\S]*?\\}`, "m"),
+      );
+      assert.ok(darkBlock, `missing dark block for ${palette}`);
+
+      const top = darkBlock![0].match(/--page-gradient-top:\s*([^;]+);/)?.[1]?.trim();
+      const bottom = darkBlock![0].match(/--page-gradient-bottom:\s*([^;]+);/)?.[1]?.trim();
+      assert.ok(top && bottom, `${palette} dark missing page gradient tokens`);
+      assert.notEqual(top, bottom, `${palette} dark page gradient should have depth`);
+
+      assert.doesNotMatch(darkBlock![0], lightPaperHex, `${palette} dark contains light-only paper hex`);
+
+      for (const token of ["--tone-success-text", "--tone-danger-text", "--tone-neutral-text"]) {
+        assert.match(darkBlock![0], new RegExp(`${token}:`), `${palette} dark missing ${token}`);
+      }
+
+      const agentDot = darkBlock![0].match(/--cat-agent-dot:\s*([^;]+);/)?.[1]?.trim();
+      assert.ok(agentDot, `${palette} dark missing --cat-agent-dot`);
+      agentDots.push(agentDot!);
+
+      const lightAccent = paletteCss
+        .match(new RegExp(`html\\[data-palette="${palette}"\\][\\s\\S]*?--accent:\\s*([^;]+);`, "m"))?.[1]
+        ?.trim();
+      const darkAccent = darkBlock![0].match(/--accent:\s*([^;]+);/)?.[1]?.trim();
+      assert.ok(lightAccent && darkAccent, `${palette} missing accent tokens`);
+      assert.notEqual(lightAccent, darkAccent, `${palette} dark accent should differ from light accent`);
+    }
+
+    assert.ok(new Set(agentDots).size >= 3, "dark cat-agent-dot values should vary across palettes");
+  });
+
+  test("palette options expose dark preview swatches", () => {
+    const sitePalette = read("src/lib/site-palette.ts");
+    const paletteToggle = read("src/components/public/PaletteToggle.tsx");
+
+    assert.match(sitePalette, /darkPrimary/);
+    assert.match(sitePalette, /swatchDark/);
+    assert.match(paletteToggle, /swatchDark/);
+    assert.match(paletteToggle, /resolvedTheme/);
+  });
+
+  test("agent conversation dark mode avoids legacy hardcoded colors and inverted text tokens", () => {
+    const agentCss = read("src/app/styles/sunny-agent.css");
+    const userCardBlock =
+      agentCss.match(/\.sunny-message-card-user \.sunny-message-card-body[\s\S]*?\}/)?.[0] ?? "";
+
+    assert.doesNotMatch(userCardBlock, /#f4f5f7/);
+    assert.match(userCardBlock, /--agent-bubble-user-bg/);
+    assert.match(userCardBlock, /--agent-bubble-user-border/);
+    assert.doesNotMatch(agentCss, /#0b1120/);
+    assert.doesNotMatch(agentCss, /rgba\(59,130,246/);
+    assert.doesNotMatch(agentCss, /html\[data-theme="dark"\][\s\S]*?color:\s*var\(--background\)/);
+    assert.match(
+      agentCss,
+      /html\[data-theme="dark"\] \.sunny-agent-composer-input[\s\S]*color:\s*var\(--foreground\)/,
+    );
+  });
+
+  test("dashboard shell dark mode keeps semantic foreground/background tokens", () => {
+    const shellCss = read("src/app/styles/sunny-dashboard-shell.css");
+    const darkBlock = shellCss.match(/\/\* ═══ Dark Mode ═══ \*\/[\s\S]*/)?.[0] ?? "";
+
+    assert.match(darkBlock, /html\[data-theme="dark"\] \.sunny-dashboard-shell[\s\S]*background:\s*var\(--background\)/);
+    assert.match(darkBlock, /html\[data-theme="dark"\] \.sunny-dashboard-main[\s\S]*background:\s*var\(--background\)/);
+    assert.doesNotMatch(
+      darkBlock,
+      /html\[data-theme="dark"\] \.sunny-dashboard-shell[\s\S]*?background:\s*var\(--foreground\)/,
+    );
+    assert.doesNotMatch(
+      darkBlock,
+      /html\[data-theme="dark"\] \.sunny-codex-project-row[\s\S]*?color:\s*var\(--background\)/,
+    );
+    assert.doesNotMatch(
+      darkBlock,
+      /html\[data-theme="dark"\] \.sunny-codex-sidebar-search-input[\s\S]*?background:\s*var\(--foreground\)/,
+    );
+    assert.doesNotMatch(darkBlock, /html\[data-theme="dark"\] \.sunny-agent-thread-header/);
+  });
 });

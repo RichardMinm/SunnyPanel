@@ -723,14 +723,14 @@ html[data-theme="dark"] .sunny-writing-workspace {
   --writing-text: var(--background);
   --writing-muted: var(--muted);
   --writing-accent: var(--accent);
-  --writing-active-bg: rgba(59, 130, 246, 0.14);
+  --writing-active-bg: color-mix(in srgb, var(--accent) 14%, transparent);
   --writing-rail-bg: var(--surface);
   --writing-panel-bg: var(--surface);
   --writing-control-bg: var(--foreground);
   --writing-rule: var(--border);
   --writing-rule-strong: var(--border);
   --writing-hover: var(--surface-strong);
-  --writing-active: rgba(59, 130, 246, 0.14);
+  --writing-active: color-mix(in srgb, var(--accent) 14%, transparent);
   --writing-active-text: var(--accent-strong);
   --writing-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
   background: var(--foreground);
@@ -850,7 +850,7 @@ html[data-theme="dark"] .sunny-writing-library-search input::placeholder {
 
 html[data-theme="dark"] .sunny-writing-library-search input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 /* Filter pills */
@@ -866,7 +866,7 @@ html[data-theme="dark"] .sunny-writing-filter:hover {
 }
 
 html[data-theme="dark"] .sunny-writing-filter.is-active {
-  background: rgba(59, 130, 246, 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   border-color: rgba(96, 165, 250, 0.3);
   color: var(--accent-strong);
 }
@@ -906,7 +906,7 @@ html[data-theme="dark"] .sunny-writing-document-row:hover {
 }
 
 html[data-theme="dark"] .sunny-writing-document-row.is-active {
-  background: rgba(59, 130, 246, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   border-color: rgba(96, 165, 250, 0.25);
 }
 
@@ -1160,7 +1160,7 @@ html[data-theme="dark"] .sunny-writing-field input:focus,
 html[data-theme="dark"] .sunny-writing-field select:focus,
 html[data-theme="dark"] .sunny-writing-field textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 /* Publish section */
@@ -2254,8 +2254,8 @@ html[data-theme="dark"] .sunny-writing-meta-pin-button .sunny-dashboard-nav-icon
 
 .sunny-writing-meta-pin-button.is-pinned {
   color: var(--writing-accent);
-  border-color: rgba(59, 130, 246, 0.3);
-  background: rgba(59, 130, 246, 0.12);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 /* ── Section collapse ── */

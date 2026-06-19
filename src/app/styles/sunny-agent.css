@@ -1371,7 +1371,7 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div {
 }
 
 html[data-theme="dark"] .sunny-agent-memory-entry {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
 }
 
 .sunny-agent-memory-source {
@@ -3189,7 +3189,7 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 0.45rem;
-  background: #f6f7f9;
+  background: color-mix(in srgb, var(--foreground) 8%, var(--surface-strong));
   color: color-mix(in srgb, var(--foreground) 72%, var(--muted));
   font-size: var(--text-2xs);
   font-weight: 750;
@@ -3213,6 +3213,13 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   line-height: 1.72;
 }
 
+.sunny-message-card-assistant .sunny-message-card-body {
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+  border-radius: 0.85rem;
+  padding: 0.65rem 0.8rem;
+}
+
 .sunny-message-card-assistant .sunny-message-card-body .sunny-agent-bubble-plain,
 .sunny-message-card-assistant .sunny-message-card-body .sunny-agent-bubble-markdown {
   border: none;
@@ -3221,8 +3228,8 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 }
 
 .sunny-message-card-user .sunny-message-card-body {
-  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
-  background: #f4f5f7;
+  border: 1px solid var(--agent-bubble-user-border);
+  background: var(--agent-bubble-user-bg);
   border-radius: 0.65rem;
   padding: 0.65rem 0.8rem;
 }
@@ -3243,13 +3250,13 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   gap: 0.55rem;
   border: 1px solid color-mix(in srgb, var(--cat-plan-dot) 24%, var(--border));
   border-radius: 0.9rem;
-  background: color-mix(in srgb, var(--cat-plan-bg) 72%, #fff);
+  background: color-mix(in srgb, var(--cat-plan-bg) 72%, var(--surface-strong));
   padding: 0.8rem 0.9rem;
 }
 
 .sunny-agent-result-card-kicker {
   margin: 0;
-  color: #15803d;
+  color: var(--cat-plan-text);
   font-size: var(--text-2xs);
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -3418,6 +3425,14 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
     width: calc(100% - 1rem);
     margin-bottom: 0.45rem;
     padding: 0 var(--composer-padding-x);
+    border-radius: var(--composer-radius);
+  }
+
+  .sunny-agent-thread-header {
+    top: 0.55rem;
+    width: calc(100% - 1rem);
+    margin: 0.55rem auto 0.45rem;
+    padding: 1rem var(--composer-padding-x) 0.65rem;
     border-radius: var(--composer-radius);
   }
 
@@ -3680,7 +3695,7 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 .sunny-agent-stage-title-row span {
   padding: 0.08rem 0.32rem;
   border-radius: 999px;
-  background: #eef2f7;
+  background: color-mix(in srgb, var(--foreground) 6%, var(--surface-strong));
   font-weight: 700;
 }
 
@@ -3704,7 +3719,7 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
   min-height: 1.25rem;
   border: 1px solid color-mix(in srgb, var(--tone-info-border) 55%, transparent);
   border-radius: 999px;
-  background: #f8fbff;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
   padding: 0 0.45rem;
   color: var(--accent-strong);
   font-size: var(--text-2xs);
@@ -3728,14 +3743,19 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 
 .sunny-agent-thread-header {
   position: sticky;
-  top: 0;
+  top: 0.75rem;
   z-index: 10;
-  width: min(100%, 860px);
-  margin: 0 auto;
-  padding: 1rem 1rem 0.65rem;
-  background: color-mix(in srgb, var(--agent-panel-bg, #fff) 92%, transparent);
+  width: min(100% - 2rem, 860px);
+  margin: 0.75rem auto 0.5rem;
+  padding: 1rem var(--composer-padding-x) 0.65rem;
+  background: var(--surface);
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 54%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: var(--composer-radius);
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .sunny-agent-thread-header-top {
@@ -3936,7 +3956,7 @@ html[data-theme="dark"] .sunny-agent-workbench-layout {
 
 .sunny-context-filter-search input:focus {
   background: var(--surface-strong);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .sunny-context-filter-divider {
@@ -4028,7 +4048,7 @@ html[data-theme="dark"] .sunny-context-filter-search input {
 
 html[data-theme="dark"] .sunny-context-filter-search input:focus {
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+  box-shadow: 0 0 0 3px var(--accent-ring-strong);
 }
 
 html[data-theme="dark"] .sunny-context-filter-divider {
@@ -4165,7 +4185,7 @@ html[data-theme="dark"] .sunny-context-filter-empty {
   margin-top: 0.85rem;
   border: 1px solid color-mix(in srgb, var(--tone-info-border) 54%, transparent);
   border-radius: 0.8rem;
-  background: #f8fbff;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-strong));
   padding: 0.75rem 0.85rem;
 }
 
@@ -4665,19 +4685,7 @@ html[data-theme="dark"] .sunny-context-filter-empty {
   margin-bottom: 0.5rem;
 }
 
-.sunny-codex-sidebar-search-input {
-  width: 100%;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--sunny-border);
-  border-radius: 6px;
-  font-size: var(--text-xs);
-  background: var(--sunny-bg);
-  color: var(--sunny-fg);
-  outline: none;
-}
-.sunny-codex-sidebar-search-input:focus {
-  border-color: var(--accent);
-}
+/* Sidebar search input styling lives in sunny-dashboard-shell.css (.sunny-codex-search-wrapper) */
 
 .sunny-codex-sidebar-search-clear {
   position: absolute;
@@ -5288,24 +5296,23 @@ html[data-theme="dark"] .sunny-workbench-composer {
 
 /* Center surface */
 html[data-theme="dark"] .sunny-agent-center-surface {
-  background: #0b1120;
+  background: var(--background);
   border-color: var(--border);
 }
 
 /* Composer */
 html[data-theme="dark"] .sunny-agent-composer {
-  background: var(--surface-strong);
   border-color: var(--border);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 32px var(--card-shadow);
 }
 
 html[data-theme="dark"] .sunny-agent-composer:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.12), 0 8px 32px rgba(0,0,0,0.3);
+  box-shadow: 0 0 0 3px var(--accent-ring), 0 8px 32px var(--card-shadow);
 }
 
 html[data-theme="dark"] .sunny-agent-composer-input {
-  color: var(--background);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-agent-composer-input::placeholder {
@@ -5314,13 +5321,13 @@ html[data-theme="dark"] .sunny-agent-composer-input::placeholder {
 
 /* Composer mode trigger */
 html[data-theme="dark"] .sunny-agent-composer-mode-trigger {
-  color: var(--border);
+  color: var(--muted);
   border-right-color: var(--composer-divider);
 }
 
 html[data-theme="dark"] .sunny-agent-composer-mode-trigger:hover {
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
-  color: var(--surface-tint);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-agent-composer-model-name {
@@ -5334,7 +5341,7 @@ html[data-theme="dark"] .sunny-agent-composer-icon-button {
 
 html[data-theme="dark"] .sunny-agent-composer-icon-button:hover {
   background: color-mix(in srgb, var(--foreground) 6%, transparent);
-  color: var(--surface-tint);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-agent-composer-icon-button.is-active {
@@ -5344,7 +5351,7 @@ html[data-theme="dark"] .sunny-agent-composer-icon-button.is-active {
 
 html[data-theme="dark"] {
   --composer-aux-hover-bg: color-mix(in srgb, var(--foreground) 6%, transparent);
-  --composer-aux-icon-hover: var(--surface-tint);
+  --composer-aux-icon-hover: var(--foreground);
   --composer-placeholder: var(--muted);
 }
 
@@ -5371,7 +5378,7 @@ html[data-theme="dark"] .sunny-agent-composer-quick-menu {
 }
 
 html[data-theme="dark"] .sunny-agent-composer-mode-menu button {
-  color: var(--border);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-agent-composer-mode-menu button:hover,
@@ -5380,7 +5387,7 @@ html[data-theme="dark"] .sunny-agent-composer-mode-menu button.is-active {
 }
 
 html[data-theme="dark"] .sunny-agent-composer-mode-menu button strong {
-  color: var(--background);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-agent-composer-mode-menu button span {
@@ -5388,7 +5395,7 @@ html[data-theme="dark"] .sunny-agent-composer-mode-menu button span {
 }
 
 html[data-theme="dark"] .sunny-agent-composer-quick-menu button {
-  color: var(--border);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-agent-composer-quick-menu button:hover {
@@ -5411,7 +5418,7 @@ html[data-theme="dark"] .sunny-agent-composer-mention-dropdown {
 }
 
 html[data-theme="dark"] .sunny-agent-composer-mention-dropdown button {
-  color: var(--border);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-agent-composer-mention-dropdown button:hover {
@@ -5432,31 +5439,26 @@ html[data-theme="dark"] .sunny-agent-conversation-scroll {
   /* inherits */
 }
 
-/* Message bubbles */
-html[data-theme="dark"] .sunny-message-card-assistant {
-  background: var(--surface-strong);
-  border-color: var(--border);
-}
-
-html[data-theme="dark"] .sunny-agent-bubble-user {
-  background: rgba(59,130,246,0.18);
-  border-color: rgba(59,130,246,0.3);
-}
-
 /* Thinking panel */
 html[data-theme="dark"] .sunny-agent-thinking-panel {
-  background: rgba(59,130,246,0.06);
-  border-color: rgba(59,130,246,0.14);
+  background: var(--agent-thinking-bg);
+  border-color: var(--agent-thinking-border);
 }
 
 /* Thread header */
 html[data-theme="dark"] .sunny-agent-thread-header {
-  background: #0b1120;
-  border-bottom-color: var(--border);
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: 0 8px 32px var(--card-shadow);
+}
+
+html[data-theme="dark"] .sunny-agent-thread-header-subtitle,
+html[data-theme="dark"] .sunny-agent-thread-header-top > p {
+  color: var(--muted) !important;
 }
 
 html[data-theme="dark"] .sunny-agent-thread-header-title-text {
-  color: var(--background);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-agent-thread-header-meta {
@@ -5478,7 +5480,7 @@ html[data-theme="dark"] .sunny-agent-edit-button,
 html[data-theme="dark"] .sunny-agent-cancel-button-v2 {
   background: var(--surface-strong);
   border-color: var(--border);
-  color: var(--border);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-agent-edit-button:hover {
@@ -5494,7 +5496,7 @@ html[data-theme="dark"] .sunny-agent-approval-card,
 html[data-theme="dark"] .sunny-agent-proposal-card {
   background: var(--surface-strong);
   border-color: var(--border);
-  color: var(--border);
+  color: var(--foreground);
 }
 
 /* Risk badge */
@@ -5543,7 +5545,7 @@ html[data-theme="dark"] .sunny-agent-suggestion-chip {
 
 html[data-theme="dark"] .sunny-agent-suggestion-chip:hover {
   background: var(--surface-strong);
-  color: var(--border);
+  color: var(--foreground);
   border-color: var(--muted);
 }
 
@@ -5572,7 +5574,7 @@ html[data-theme="dark"] .sunny-agent-empty-state strong {
 
 /* Debug details */
 html[data-theme="dark"] .sunny-agent-debug-details {
-  background: rgba(255,255,255,0.03);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
   border-color: var(--border);
 }
 
@@ -5600,7 +5602,7 @@ html[data-theme="dark"] .sunny-agent-welcome {
 }
 
 html[data-theme="dark"] .sunny-agent-welcome-head h2 {
-  color: var(--background);
+  color: var(--foreground);
 }
 
 /* Capability card */
@@ -5707,16 +5709,16 @@ html[data-theme="dark"] .sunny-agent-result-card-checklist {
 
 /* Search */
 html[data-theme="dark"] .sunny-agent-thread-search-input {
-  background: var(--foreground);
+  background: var(--surface-strong);
   border-color: var(--border);
-  color: var(--background);
+  color: var(--foreground);
 }
 
 /* Context filter */
 html[data-theme="dark"] .sunny-context-filter-search input {
-  background: var(--foreground);
+  background: var(--surface-strong);
   border-color: var(--border);
-  color: var(--background);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-context-filter-card {

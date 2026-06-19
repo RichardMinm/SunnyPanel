@@ -834,7 +834,7 @@ html[data-theme="dark"] .sunny-calendar-day:hover {
 }
 
 html[data-theme="dark"] .sunny-calendar-day.is-today {
-  background: rgba(59, 130, 246, 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent-strong);
   border-color: rgba(96, 165, 250, 0.3);
 }
@@ -858,13 +858,13 @@ html[data-theme="dark"] .sunny-calendar-nav button:hover {
 }
 
 html[data-theme="dark"] .sunny-schedule-event-chip {
-  background: rgba(59, 130, 246, 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent-strong);
   border-color: rgba(96, 165, 250, 0.2);
 }
 
 html[data-theme="dark"] .sunny-schedule-event-chip:hover {
-  background: rgba(59, 130, 246, 0.22);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 html[data-theme="dark"] .sunny-schedule-month-header {

@@ -362,6 +362,7 @@ describe("Dashboard layout contracts", () => {
     assert.doesNotMatch(read("src/components/dashboard/agent/AgentWorkbench.tsx"), /<AgentApprovalCard/);
     assert.match(agentCss, /\.sunny-message-card[\s\S]*display:\s*grid/);
     assert.match(agentCss, /\.sunny-message-card-user[\s\S]*width:\s*fit-content/);
+    assert.match(agentCss, /\.sunny-message-card-user \.sunny-message-card-body[\s\S]*--agent-bubble-user-bg/);
     assert.match(agentCss, /\.sunny-agent-thread-header[\s\S]*width:\s*min\(100%, 860px\)/);
     assert.match(threadHeader, /MODE_LABEL/);
     assert.match(threadHeader, /Thread #/);

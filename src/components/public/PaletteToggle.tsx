@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { useTransition, type CSSProperties } from "react";
 
 import { applySitePalette, getPaletteOptions, type SitePalette } from "@/lib/site-palette";
@@ -16,10 +17,12 @@ type PaletteToggleProps = {
 
 export function PaletteToggle({ currentPalette, locale, onPaletteChange, variant = "site" }: PaletteToggleProps) {
   const router = useRouter();
+  const { resolvedTheme } = useTheme();
   const [isPending, startTransition] = useTransition();
   const copy = getSiteCopy(locale);
   const options = getPaletteOptions(locale);
   const classes = getPaletteSwitchClasses(variant);
+  const isDark = resolvedTheme === "dark";
 
   const switchPalette = (palette: SitePalette) => {
     if (palette === currentPalette) {
@@ -57,8 +60,8 @@ export function PaletteToggle({ currentPalette, locale, onPaletteChange, variant
             role="option"
             style={
               {
-                "--palette-preview": option.swatch,
-                "--palette-preview-secondary": option.swatchSecondary,
+                "--palette-preview": isDark ? option.swatchDark : option.swatch,
+                "--palette-preview-secondary": isDark ? option.swatchDarkSecondary : option.swatchSecondary,
               } as CSSProperties
             }
             type="button"
