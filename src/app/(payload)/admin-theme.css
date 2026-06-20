@@ -13,15 +13,11 @@
   .popup__content,
   .drawer__content,
   .list-selection {
-    border: 1px solid var(--theme-border-color);
-    border-radius: var(--style-radius-m);
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 88%, transparent), color-mix(in srgb, var(--surface) 64%, transparent)),
-      color-mix(in srgb, var(--surface-tint) 82%, transparent);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--foreground) 4%, transparent),
-      0 10px 28px var(--card-shadow);
-    backdrop-filter: blur(14px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-panel);
+    background: var(--surface);
+    box-shadow: 0 2px 8px var(--card-shadow);
+    backdrop-filter: blur(8px);
   }
 
   html[data-theme="dark"] .app-header,
@@ -34,12 +30,9 @@
   html[data-theme="dark"] .popup__content,
   html[data-theme="dark"] .drawer__content,
   html[data-theme="dark"] .list-selection {
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 92%, transparent), color-mix(in srgb, var(--surface) 84%, transparent)),
-      color-mix(in srgb, var(--surface) 90%, transparent);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, var(--foreground) 6%, transparent),
-      0 10px 24px var(--card-shadow);
+    border-color: color-mix(in srgb, var(--border) 120%, transparent);
+    background: var(--surface);
+    box-shadow: 0 2px 8px var(--card-shadow);
   }
 
   .app-header {

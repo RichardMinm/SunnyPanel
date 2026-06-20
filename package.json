@@ -25,12 +25,14 @@
     "seed": "node --import tsx scripts/seed.mjs"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.7.6",
     "@langchain/core": "1.1.48",
     "@langchain/langgraph": "1.4.2",
     "@mdxeditor/editor": "^4.0.0",
     "@payloadcms/db-postgres": "^3.83.0",
     "@payloadcms/live-preview-react": "^3.83.0",
     "@payloadcms/next": "^3.83.0",
+    "@payloadcms/richtext-lexical": "3.83.0",
     "@tiptap/extension-image": "^3.26.0",
     "@tiptap/extension-link": "^3.26.0",
     "@tiptap/extension-placeholder": "^3.26.0",

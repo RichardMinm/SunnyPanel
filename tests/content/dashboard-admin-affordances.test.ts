@@ -20,4 +20,23 @@ describe("Dashboard and Admin writing affordances", () => {
     assert.match(metaPanel, /advancedAdminHref/);
     assert.match(controls, /advancedAdminHref/);
   });
+
+  test("Admin header reuses PublicSiteHeader with admin variant", () => {
+    const header = read("src/components/admin/SunnyAdminHeader.tsx");
+    const publicHeader = read("src/components/public/site-chrome/PublicSiteHeader.tsx");
+
+    assert.match(header, /PublicSiteHeader/);
+    assert.match(header, /variant="admin"/);
+    assert.doesNotMatch(header, /sunny-chrome-header/);
+    assert.match(publicHeader, /variant\?: "site" \| "admin"/);
+    assert.match(publicHeader, /inAdmin: true/);
+  });
+
+  test("Admin providers read locale and palette from server cookies", () => {
+    const providers = read("src/components/admin/SunnyAdminProviders.tsx");
+
+    assert.match(providers, /getSiteLocale/);
+    assert.match(providers, /getSitePalette/);
+    assert.doesNotMatch(providers, /"use client"/);
+  });
 });

@@ -1,24 +1,19 @@
-"use client";
-
 import type { ReactNode } from "react";
 
-import { SunnyAppProviders } from "@/components/shared/SunnyAppProviders";
-import { defaultSiteLocale } from "@/lib/site-copy";
-import { defaultSitePalette } from "@/lib/site-palette";
+import { SunnyAdminProvidersClient } from "@/components/admin/SunnyAdminProvidersClient";
+import { getSiteLocale } from "@/lib/site-locale";
+import { getSitePalette } from "@/lib/site-palette-server";
 
 type SunnyAdminProvidersProps = {
   children: ReactNode;
 };
 
-export function SunnyAdminProviders({ children }: SunnyAdminProvidersProps) {
+export async function SunnyAdminProviders({ children }: SunnyAdminProvidersProps) {
+  const [initialLocale, initialPalette] = await Promise.all([getSiteLocale(), getSitePalette()]);
+
   return (
-    <SunnyAppProviders
-      hydrateFromCookies
-      initialLocale={defaultSiteLocale}
-      initialPalette={defaultSitePalette}
-      withPreferences
-    >
+    <SunnyAdminProvidersClient initialLocale={initialLocale} initialPalette={initialPalette}>
       {children}
-    </SunnyAppProviders>
+    </SunnyAdminProvidersClient>
   );
 }

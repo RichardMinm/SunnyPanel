@@ -88,10 +88,43 @@
 
   html {
     background: var(--background);
+    position: relative;
   }
 
   html[data-theme="dark"] {
     background: var(--background);
+  }
+
+  html::before {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    content: "";
+    pointer-events: none;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.12));
+  }
+
+  html::after {
+    position: fixed;
+    inset: auto 0 0 auto;
+    z-index: -1;
+    width: min(28rem, 40vw);
+    height: min(28rem, 40vw);
+    content: "";
+    pointer-events: none;
+    border-radius: var(--radius-pill);
+    background:
+      radial-gradient(circle, var(--accent-glow) 0%, var(--accent-glow-soft) 42%, transparent 72%);
+    filter: blur(12px);
+    transform: translate(18%, 18%);
+  }
+
+  html[data-theme="dark"]::after {
+    background: radial-gradient(circle, var(--accent-glow-strong) 0%, var(--accent-glow-soft) 42%, transparent 72%);
   }
 
   body,

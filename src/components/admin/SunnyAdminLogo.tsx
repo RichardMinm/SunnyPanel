@@ -11,7 +11,7 @@ export function SunnyAdminLogo() {
 
   return (
     <div className="sunny-admin-login-logo">
-      <span className="sunny-admin-header-mark" aria-hidden="true">
+      <span className="sunny-brand-mark sunny-brand-mark-lg" aria-hidden="true">
         S
       </span>
       <strong>SunnyPanel</strong>

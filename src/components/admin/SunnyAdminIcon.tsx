@@ -2,7 +2,7 @@ import React from "react";
 
 export function SunnyAdminIcon() {
   return (
-    <span className="sunny-admin-header-mark" aria-hidden="true">
+    <span className="sunny-brand-mark" aria-hidden="true">
       S
     </span>
   );

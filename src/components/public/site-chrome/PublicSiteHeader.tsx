@@ -14,22 +14,30 @@ import type { SitePalette } from "@/lib/site-palette";
 type PublicSiteHeaderProps = {
   locale?: SiteLocale;
   palette?: SitePalette;
+  variant?: "site" | "admin";
 };
 
-export function PublicSiteHeader({ locale: localeProp, palette: paletteProp }: PublicSiteHeaderProps) {
+export function PublicSiteHeader({
+  locale: localeProp,
+  palette: paletteProp,
+  variant = "site",
+}: PublicSiteHeaderProps) {
   const preferences = useOptionalSitePreferences();
   const locale = localeProp ?? preferences?.locale ?? "zh";
   const palette = paletteProp ?? preferences?.palette ?? "cobalt";
   const pathname = usePathname();
   const navigation = getPublicNavItems(locale);
-  const workspaceItems = getWorkspaceNavItems(locale);
-  const workspaceActive = workspaceItems.some((item) => isNavActive(pathname, item.href));
+  const workspaceItems = getWorkspaceNavItems(locale, variant === "admin" ? { inAdmin: true } : undefined);
+  const workspaceActive =
+    variant === "admin"
+      ? pathname.startsWith("/admin") || workspaceItems.some((item) => isNavActive(pathname, item.href))
+      : workspaceItems.some((item) => isNavActive(pathname, item.href));
 
   return (
     <header className="sunny-public-header relative z-40 overflow-visible rounded-lg px-3 py-3 md:px-5 md:py-3.5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
-          <SiteBrand locale={locale} variant="site" />
+          <SiteBrand locale={locale} />
 
           <div className="flex shrink-0 items-center gap-2 lg:hidden">
             <HeaderWorkspaceActions

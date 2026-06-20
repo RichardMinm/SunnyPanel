@@ -9,6 +9,7 @@ import { defaultSiteLocale } from "@/lib/site-copy";
 import type { SiteLocale } from "@/lib/site-copy";
 import { defaultSitePalette, type SitePalette } from "@/lib/site-palette";
 import { SUNNY_THEME_STORAGE_KEY } from "@/lib/site-theme";
+import { useSystemThemeSync } from "@/lib/site-theme-sync";
 
 type SunnyAppProvidersProps = {
   children: ReactNode;
@@ -33,6 +34,7 @@ export function SunnyAppProviders({
       enableSystem
       storageKey={SUNNY_THEME_STORAGE_KEY}
     >
+      <ThemeSync />
       <SitePaletteSync initialPalette={initialPalette} />
       {children}
     </ThemeProvider>
@@ -51,4 +53,10 @@ export function SunnyAppProviders({
       {content}
     </SitePreferencesProvider>
   );
+}
+
+/** Bridges next-themes' deprecated addListener with modern matchMedia API. */
+function ThemeSync() {
+  useSystemThemeSync();
+  return null;
 }

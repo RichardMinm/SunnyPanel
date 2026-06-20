@@ -44,6 +44,34 @@ html[data-theme="dark"] .sunny-shell::after {
   background: radial-gradient(circle, var(--accent-glow-strong) 0%, var(--accent-glow-soft) 42%, transparent 72%);
 }
 
+.sunny-brand-mark {
+  display: flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-chrome);
+  background: var(--accent);
+  color: var(--agent-text-on-accent, #fff);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  transition: transform 160ms ease;
+}
+
+@media (min-width: 768px) {
+  .sunny-brand-mark {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+}
+
+.sunny-brand-mark-lg {
+  width: 2.75rem;
+  height: 2.75rem;
+  font-size: var(--text-lg);
+}
+
 .sunny-card {
   position: relative;
   overflow: hidden;
