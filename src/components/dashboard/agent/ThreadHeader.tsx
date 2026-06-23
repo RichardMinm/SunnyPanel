@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from "react";
 import type { PendingAction } from "@/lib/agent/schemas";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
+import { AppIconButton } from "@/components/primitives/AppIconButton";
 import { getPendingActionLabel } from "./utils";
 import { DashboardIcon } from "../icons";
 
@@ -100,15 +101,15 @@ export function ThreadHeader({
         <p className="sunny-agent-thread-header-subtitle">告诉 Sunny 你想推进什么，它会帮你整理成计划、清单、日程或进度动作。</p>
         <div className="sunny-agent-thread-header-actions" aria-label="Thread 操作">
           {onArchiveThread && threadId !== null ? (
-            <button
-              type="button"
-              className="sunny-agent-thread-header-icon-button"
+            <AppIconButton
               aria-label="归档会话"
-              title="归档会话"
+              className="sunny-agent-thread-header-icon-button"
+              icon={<DashboardIcon name="archive" />}
               onClick={() => setArchiveConfirmOpen(true)}
-            >
-              <DashboardIcon name="archive" />
-            </button>
+              tooltip="归档会话"
+              type="button"
+              variant="ghost"
+            />
           ) : null}
         </div>
       </div>

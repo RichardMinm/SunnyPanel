@@ -22,8 +22,10 @@ import { Checklist } from "./src/collections/Checklist.ts";
 import { TimelineEvent } from "./src/collections/TimelineEvent.ts";
 import { Update } from "./src/collections/Update.ts";
 import { Users } from "./src/collections/Users.ts";
+import { WritingCategory } from "./src/collections/WritingCategory.ts";
 import { AgentSettings } from "./src/globals/AgentSettings.ts";
 import { buildLivePreviewPath, isPreviewCollectionSlug, livePreviewBreakpoints } from "./src/lib/payload/preview.ts";
+import { migrations } from "./src/migrations/index.ts";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -94,23 +96,16 @@ export default buildConfig({
       importMapFile: path.resolve(dirname, "src/app/(payload)/admin/importMap.js"),
     },
   },
-  collections: [Users, Media, Post, Note, Update, Checklist, TimelineEvent, Plan, ScheduleItem, PlanReview, AgentThread, AgentRun, AgentMemory, AgentSuggestion, Page],
+  collections: [Users, Media, Post, Note, Update, Checklist, TimelineEvent, Plan, ScheduleItem, PlanReview, AgentThread, AgentRun, AgentMemory, AgentSuggestion, Page, WritingCategory],
   cors: allowedOrigins,
   csrf: allowedOrigins,
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || "",
     },
-    // Production safety: never auto-push DDL unless explicitly enabled.
-    // PA locals dev defaults to push=true; production MUST use migrations.
-    push:
-      process.env.PAYLOAD_DB_PUSH === "true"
-        ? true
-        : process.env.PAYLOAD_DB_PUSH === "false"
-          ? false
-          : process.env.NODE_ENV === "production"
-            ? false
-            : undefined,
+    prodMigrations: migrations,
+    // Never auto-push unless explicitly enabled; use `npm run migrate` instead.
+    push: process.env.PAYLOAD_DB_PUSH === "true",
   }),
   globals: [AgentSettings],
   graphQL: {

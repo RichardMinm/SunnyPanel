@@ -5,12 +5,21 @@ import { useCallback, useMemo, useState } from "react";
 import { ContentEditor } from "@/components/content-editor/ContentEditor";
 import { DashboardIcon } from "@/components/dashboard/icons";
 import type { EditorBubbleAiPayload } from "@/components/content-editor/EditorBubbleMenu";
-import { dashboardContentLabels } from "@/lib/dashboard/content/config";
+import {
+  AppDropdownMenu,
+  AppDropdownMenuItem,
+  AppDropdownMenuLabel,
+} from "@/components/primitives/AppDropdownMenu";
+import {
+  dashboardContentCollections,
+  dashboardContentLabels,
+  type DashboardContentCollection,
+} from "@/lib/dashboard/content/config";
 import { createEmptyRichDocument } from "@/lib/rich-content/defaults";
 
 import { useWritingAssist, type WritingAssistAction } from "./use-writing-assist";
-import { canEditTitle, showsSummaryField } from "./writing-metadata";
-import { WritingStats } from "./WritingStats";
+import { canEditTitle } from "./writing-metadata";
+import { WritingPublishDialog, type WritingPublishVisibility } from "./WritingPublishDialog";
 import type { WritingDocument, WritingDraft, WritingSaveState } from "./writing-types";
 
 type WritingEditorPaneProps = {
@@ -19,37 +28,56 @@ type WritingEditorPaneProps = {
   error: null | string;
   focusMode: boolean;
   isDirty: boolean;
+  onCreateDocument?: (collection: DashboardContentCollection) => void;
   onFlushSave: () => Promise<null | WritingDocument>;
-  onPublish: (document: WritingDocument) => Promise<null | WritingDocument>;
+  onOpenInspector?: () => void;
+  onPublish: (
+    document: WritingDocument,
+    options?: { visibility?: WritingPublishVisibility },
+  ) => Promise<null | WritingDocument>;
   onToggleFocusMode: () => void;
   onTogglePreviewMode: () => void;
   onUpdateDraft: (patch: Partial<WritingDraft>) => void;
   saveState: WritingSaveState;
 };
 
-const saveStateLabel = (saveState: WritingSaveState, isDirty: boolean, error: null | string) => {
-  if (error) {
-    return error;
+const formatRelativeUpdate = (value: string) => {
+  const updated = new Date(value).getTime();
+  const diffMs = Date.now() - updated;
+
+  if (Number.isNaN(updated)) {
+    return "未知时间";
   }
 
-  if (saveState === "saving") {
-    return "保存中...";
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) {
+    return "刚刚";
+  }
+  if (minutes < 60) {
+    return `${minutes} 分钟前`;
   }
 
-  if (saveState === "saved") {
-    return "已保存";
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} 小时前`;
   }
 
-  if (saveState === "error") {
-    return "保存失败";
+  const days = Math.floor(hours / 24);
+  if (days < 30) {
+    return `${days} 天前`;
   }
 
-  if (isDirty || saveState === "dirty") {
-    return "有未保存修改";
-  }
-
-  return "已保存";
+  return new Intl.DateTimeFormat("zh-CN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
 };
+
+const createOptions = dashboardContentCollections.map((collection) => ({
+  collection,
+  label: `新${dashboardContentLabels[collection]}`,
+}));
 
 type WritingAssistExtra = {
   replaceSelection?: EditorBubbleAiPayload["replaceSelection"];
@@ -62,7 +90,9 @@ export function WritingEditorPane({
   error,
   focusMode,
   isDirty,
+  onCreateDocument,
   onFlushSave,
+  onOpenInspector,
   onPublish,
   onToggleFocusMode,
   onTogglePreviewMode,
@@ -71,6 +101,8 @@ export function WritingEditorPane({
 }: WritingEditorPaneProps) {
   const { error: aiError, isLoading: aiLoading, rememberStyle, runAssist } = useWritingAssist();
   const [publishError, setPublishError] = useState<null | string>(null);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [publishBusy, setPublishBusy] = useState(false);
 
   const headerLabel = useMemo(() => {
     if (!document) {
@@ -142,7 +174,6 @@ export function WritingEditorPane({
 
         if (extra?.text && extra.replaceSelection) {
           extra.replaceSelection(response.result);
-          // 选区改写被应用回文档即视为用户显式采纳 → 沉淀为 writing_style 记忆。
           if (["condense", "expand", "polish", "rewrite"].includes(action)) {
             void rememberStyle(action, response.result, {
               collection: document.collection,
@@ -164,7 +195,7 @@ export function WritingEditorPane({
     [document, draft, onUpdateDraft, rememberStyle, runAssist],
   );
 
-  const handlePublish = useCallback(async () => {
+  const openPublishDialog = useCallback(() => {
     if (!document || !draft) {
       return;
     }
@@ -175,8 +206,43 @@ export function WritingEditorPane({
     }
 
     setPublishError(null);
-    await onPublish(document);
-  }, [document, draft, onPublish]);
+    setPublishDialogOpen(true);
+  }, [document, draft]);
+
+  const handlePublishConfirm = useCallback(
+    async (visibility: WritingPublishVisibility) => {
+      if (!document) {
+        return;
+      }
+
+      setPublishBusy(true);
+      const result = await onPublish(document, { visibility });
+      setPublishBusy(false);
+
+      if (result) {
+        setPublishDialogOpen(false);
+      }
+    },
+    [document, onPublish],
+  );
+
+  const documentByline = useMemo(() => {
+    if (!document) {
+      return "";
+    }
+
+    const parts = [
+      `更新于 ${formatRelativeUpdate(document.updatedAt)}`,
+      document.status === "published" ? "已发布" : "草稿",
+      document.visibility === "public" ? "公开" : "仅自己可见",
+    ];
+
+    if (aiLoading) {
+      parts.push("AI 处理中");
+    }
+
+    return parts.join(" · ");
+  }, [aiLoading, document]);
 
   if (!document || !draft) {
     return (
@@ -190,7 +256,7 @@ export function WritingEditorPane({
     );
   }
 
-  const statusLabel = saveStateLabel(saveState, isDirty, error);
+  const showManualSave = isDirty && saveState !== "saving";
 
   return (
     <section
@@ -199,112 +265,113 @@ export function WritingEditorPane({
     >
       <div className="sunny-writing-editor-topbar">
         {focusMode ? (
-          <button
-            className="sunny-writing-secondary-button"
-            onClick={onToggleFocusMode}
-            type="button"
-          >
-            ← 退出专注
-          </button>
+          <>
+            <button
+              className="sunny-writing-secondary-button"
+              onClick={onToggleFocusMode}
+              type="button"
+            >
+              ← 退出专注
+            </button>
+            <strong className="sunny-writing-focus-title">{draft.title || "未命名内容"}</strong>
+          </>
         ) : (
-          <span>{headerLabel}</span>
+          <nav aria-label="文档路径" className="sunny-writing-editor-breadcrumbs">
+            <span className="sunny-writing-breadcrumb-root">内容</span>
+            <span aria-hidden className="sunny-writing-breadcrumb-sep">
+              /
+            </span>
+            <span className="sunny-writing-breadcrumb-segment">
+              {dashboardContentLabels[document.collection]}
+            </span>
+            <span aria-hidden className="sunny-writing-breadcrumb-sep">
+              /
+            </span>
+            <span className="sunny-writing-breadcrumb-current">{draft.title || "未命名内容"}</span>
+          </nav>
         )}
 
-        {focusMode ? (
-          <strong className="sunny-writing-focus-title">{draft.title || "未命名内容"}</strong>
-        ) : null}
-
         <div className="sunny-writing-topbar-actions">
-          <div className="sunny-writing-save-state" data-state={saveState}>
-            {aiLoading ? "AI 处理中..." : statusLabel}
-          </div>
-          {!focusMode ? (
-            <>
-              <button
-                className="sunny-writing-secondary-button"
-                onClick={onToggleFocusMode}
-                title="专注写作模式"
-                type="button"
-              >
-                专注
-              </button>
-              <button
-                className="sunny-writing-secondary-button"
-                onClick={onTogglePreviewMode}
-                title="预览"
-                type="button"
-              >
-                预览
-              </button>
-              {(saveState !== "saved" || isDirty) ? (
-                <button
-                  className="sunny-writing-secondary-button"
-                  disabled={!isDirty || saveState === "saving"}
-                  onClick={() => void onFlushSave()}
-                  type="button"
-                >
-                  保存
-                </button>
-              ) : null}
-            </>
+          {showManualSave ? (
+            <button
+              className="sunny-writing-primary-button"
+              onClick={() => void onFlushSave()}
+              type="button"
+            >
+              保存编辑
+            </button>
           ) : null}
-          <button
-            className="sunny-writing-primary-button"
-            disabled={saveState === "saving"}
-            onClick={() => void handlePublish()}
-            type="button"
-          >
-            发布
-          </button>
+          {onCreateDocument && !focusMode ? (
+            <AppDropdownMenu
+              align="end"
+              className="sunny-writing-menu"
+              side="bottom"
+              sideOffset={6}
+              trigger="+ 新建"
+              triggerAriaLabel="新建内容"
+              triggerClassName="sunny-writing-secondary-button"
+            >
+              <AppDropdownMenuLabel>新建</AppDropdownMenuLabel>
+              {createOptions.map((option) => (
+                <AppDropdownMenuItem
+                  key={option.collection}
+                  onSelect={() => onCreateDocument(option.collection)}
+                >
+                  {option.label}
+                </AppDropdownMenuItem>
+              ))}
+            </AppDropdownMenu>
+          ) : null}
+          {!focusMode ? (
+            <AppDropdownMenu
+              align="end"
+              className="sunny-writing-menu"
+              side="bottom"
+              sideOffset={6}
+              trigger="···"
+              triggerAriaLabel="更多操作"
+              triggerClassName="sunny-writing-secondary-button sunny-writing-topbar-overflow"
+            >
+              <AppDropdownMenuItem onSelect={onToggleFocusMode}>专注写作</AppDropdownMenuItem>
+              <AppDropdownMenuItem onSelect={onTogglePreviewMode}>预览</AppDropdownMenuItem>
+              {onOpenInspector ? (
+                <AppDropdownMenuItem onSelect={onOpenInspector}>打开属性</AppDropdownMenuItem>
+              ) : null}
+              <AppDropdownMenuItem onSelect={openPublishDialog}>发布</AppDropdownMenuItem>
+            </AppDropdownMenu>
+          ) : null}
         </div>
       </div>
 
       {publishError ? <p className="sunny-writing-inline-error">{publishError}</p> : null}
+      {error ? <p className="sunny-writing-inline-error">{error}</p> : null}
       {aiError ? <p className="sunny-writing-inline-error">AI 辅助失败：{aiError}</p> : null}
 
       <div className="sunny-writing-editor-canvas">
-        {canEditTitle(document) ? (
-          <div className="sunny-writing-title-row">
-            <input
-              aria-label="标题"
-              className="sunny-writing-title-input"
-              onChange={(event) => onUpdateDraft({ title: event.target.value })}
-              placeholder="输入标题..."
-              value={draft.title}
-            />
-            <button
-              className="sunny-writing-title-ai-ghost"
-              data-title-empty={!draft.title.trim() ? "true" : "false"}
-              disabled={aiLoading}
-              onClick={() => void handleAssist("generate_title")}
-              type="button"
-            >
-              生成标题
-            </button>
-          </div>
-        ) : null}
+        <div className="sunny-writing-document-header">
+          {canEditTitle(document) ? (
+            <div className="sunny-writing-title-row">
+              <input
+                aria-label="标题"
+                className="sunny-writing-title-input"
+                onChange={(event) => onUpdateDraft({ title: event.target.value })}
+                placeholder="输入标题..."
+                value={draft.title}
+              />
+              <button
+                className="sunny-writing-title-ai-ghost"
+                data-title-empty={!draft.title.trim() ? "true" : "false"}
+                disabled={aiLoading}
+                onClick={() => void handleAssist("generate_title")}
+                type="button"
+              >
+                ✨ 生成标题
+              </button>
+            </div>
+          ) : null}
 
-        {showsSummaryField(document.collection) ? (
-          <div className="sunny-writing-summary-row">
-            <textarea
-              aria-label="摘要"
-              className="sunny-writing-summary-input"
-              onChange={(event) => onUpdateDraft({ summary: event.target.value })}
-              placeholder="添加一句简短摘要..."
-              rows={2}
-              value={draft.summary}
-            />
-            <button
-              className="sunny-writing-summary-ai-ghost"
-              disabled={aiLoading}
-              onClick={() => void handleAssist("generate_summary")}
-              title="自动生成摘要"
-              type="button"
-            >
-              <DashboardIcon name="sparkle" />
-            </button>
-          </div>
-        ) : null}
+          <p className="sunny-writing-document-byline">{documentByline}</p>
+        </div>
 
         <ContentEditor
           autoFocus
@@ -317,16 +384,20 @@ export function WritingEditorPane({
               text: payload.selectedText,
             })
           }
-          onAiToolbarAction={(action) => void handleAssist(action)}
           onChange={(contentRich) => onUpdateDraft({ contentRich })}
           variant="writing"
         />
-        <WritingStats
-          contentJson={draft.contentRich}
-          lastEdited={document.updatedAt}
-          title={draft.title}
-        />
       </div>
+
+      {document ? (
+        <WritingPublishDialog
+          busy={publishBusy}
+          collectionLabel={dashboardContentLabels[document.collection]}
+          onCancel={() => setPublishDialogOpen(false)}
+          onConfirm={(visibility) => void handlePublishConfirm(visibility)}
+          open={publishDialogOpen}
+        />
+      ) : null}
     </section>
   );
 }

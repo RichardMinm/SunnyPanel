@@ -1,11 +1,10 @@
 /**
- * 全局样式入口：Tailwind → 设计令牌 → @theme → 基础 → 站点 UI → Agent。
- * 分片见 src/app/styles/。
+ * Site global styles: Tailwind + core + site surface bundle.
+ * Dashboard routes add sunny-dashboard.css via (site)/dashboard/layout.tsx.
+ * Admin uses admin-globals.css instead.
  */
 @import "tailwindcss";
-
-@import "./styles/sunny-tokens.css";
-@import "./styles/sunny-palettes.css";
+@import "katex/dist/katex.min.css";
 
 @theme inline {
   --color-background: var(--background);
@@ -17,6 +16,15 @@
   --color-accent: var(--accent);
   --color-accent-strong: var(--accent-strong);
   --color-muted: var(--muted);
+  --color-bg-app: var(--bg-app);
+  --color-bg-panel: var(--bg-panel);
+  --color-bg-card: var(--bg-card);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border-default: var(--border-default);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
   --font-sans: var(--sunny-font-sans);
   --font-mono: var(--sunny-font-mono);
   --font-display: var(--sunny-font-display);
@@ -33,17 +41,5 @@
   --text-3xl: var(--text-3xl);
 }
 
-@import "./styles/sunny-typography.css";
-@import "./styles/sunny-chrome.css";
-@import "./styles/sunny-base.css";
-@import "./styles/sunny-ui.css";
-@import "./styles/sunny-markdown.css";
-@import "./styles/sunny-prose.css";
-@import "./styles/sunny-agent.css";
-@import "./styles/sunny-dashboard-shell.css";
-@import "./styles/sunny-dashboard-right-panel.css";
-@import "./styles/sunny-dashboard-schedule.css";
-@import "./styles/sunny-dashboard-memory.css";
-@import "./styles/sunny-dashboard-writing.css";
-@import "./styles/sunny-category.css";
-@import "./styles/sunny-settings.css";
+@import "./styles/sunny-core.css";
+@import "./styles/sunny-site.css";

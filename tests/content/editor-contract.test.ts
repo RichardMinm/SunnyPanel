@@ -7,15 +7,37 @@ const read = (path: string) => readFileSync(path, "utf8");
 describe("content editor contracts", () => {
   test("ContentEditor uses Tiptap and wires paste/drop upload", () => {
     const editor = read("src/components/content-editor/ContentEditor.tsx");
+    const extensions = read("src/components/content-editor/editor-extensions.ts");
     assert.match(editor, /useEditor/);
-    assert.match(editor, /SlashCommandMenu/);
-    assert.match(editor, /FloatingFormatMenu/);
-    assert.match(editor, /PasteImageUpload/);
+    assert.match(editor, /buildContentEditorExtensions/);
+    assert.match(editor, /SlashCommandList/);
+    assert.match(extensions, /PasteImageUpload/);
   });
 
-  test("slash menu includes required blocks", () => {
-    const slash = read("src/components/content-editor/SlashCommandMenu.tsx");
-    for (const label of ["文本", "标题 1", "标题 2", "标题 3", "项目列表", "有序列表", "任务列表", "引用", "代码块", "分割线", "图片", "表格", "Callout"]) {
+  test("slash commands include required blocks", () => {
+    const slash = read("src/components/content-editor/slash-commands.ts");
+    for (const label of [
+      "正文",
+      "标题 1",
+      "任务列表",
+      "无序列表",
+      "有序列表",
+      "图片",
+      "视频",
+      "PDF",
+      "附件",
+      "表格",
+      "引用",
+      "数学块",
+      "切换块",
+      "分割线",
+      "分页符",
+      "当前日期",
+      "提示信息",
+      "成功通知",
+      "警告信息",
+      "代码块",
+    ]) {
       assert.match(slash, new RegExp(label));
     }
   });
@@ -24,5 +46,11 @@ describe("content editor contracts", () => {
     const helper = read("src/lib/editor/upload-dashboard-image.ts");
     assert.match(helper, /\/api\/editor\/upload-media/);
     assert.match(helper, /FormData/);
+  });
+
+  test("publish route accepts visibility in request body", () => {
+    const route = read("src/app/api/dashboard/content/[collection]/[id]/publish/route.ts");
+    assert.match(route, /visibility/);
+    assert.match(route, /parsePublishBody/);
   });
 });

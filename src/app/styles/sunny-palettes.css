@@ -478,3 +478,64 @@ html[data-palette] {
   --tone-info-border: color-mix(in srgb, var(--accent) 20%, transparent);
   --tone-info-text: var(--accent-strong);
 }
+
+/* Palette toggle preview — scoped per option, independent of active palette */
+.sunny-palette-option[data-palette-id="cobalt"],
+.sunny-admin-palette-option[data-palette-id="cobalt"] {
+  --palette-preview: #2457aa;
+  --palette-preview-secondary: #183e7a;
+}
+
+.sunny-palette-option[data-palette-id="forest"],
+.sunny-admin-palette-option[data-palette-id="forest"] {
+  --palette-preview: #2d6a4f;
+  --palette-preview-secondary: #1b4332;
+}
+
+.sunny-palette-option[data-palette-id="wine"],
+.sunny-admin-palette-option[data-palette-id="wine"] {
+  --palette-preview: #922b3e;
+  --palette-preview-secondary: #6b1f2e;
+}
+
+.sunny-palette-option[data-palette-id="midnight"],
+.sunny-admin-palette-option[data-palette-id="midnight"] {
+  --palette-preview: #9a7b2f;
+  --palette-preview-secondary: #1a2744;
+}
+
+.sunny-palette-option[data-palette-id="slate"],
+.sunny-admin-palette-option[data-palette-id="slate"] {
+  --palette-preview: #4f46e5;
+  --palette-preview-secondary: #3730a3;
+}
+
+html[data-theme="dark"] .sunny-palette-option[data-palette-id="cobalt"],
+html[data-theme="dark"] .sunny-admin-palette-option[data-palette-id="cobalt"] {
+  --palette-preview: #5b9cf5;
+  --palette-preview-secondary: #0c1220;
+}
+
+html[data-theme="dark"] .sunny-palette-option[data-palette-id="forest"],
+html[data-theme="dark"] .sunny-admin-palette-option[data-palette-id="forest"] {
+  --palette-preview: #6ecf9a;
+  --palette-preview-secondary: #0a100d;
+}
+
+html[data-theme="dark"] .sunny-palette-option[data-palette-id="wine"],
+html[data-theme="dark"] .sunny-admin-palette-option[data-palette-id="wine"] {
+  --palette-preview: #d48494;
+  --palette-preview-secondary: #140e11;
+}
+
+html[data-theme="dark"] .sunny-palette-option[data-palette-id="midnight"],
+html[data-theme="dark"] .sunny-admin-palette-option[data-palette-id="midnight"] {
+  --palette-preview: #c9a227;
+  --palette-preview-secondary: #080a10;
+}
+
+html[data-theme="dark"] .sunny-palette-option[data-palette-id="slate"],
+html[data-theme="dark"] .sunny-admin-palette-option[data-palette-id="slate"] {
+  --palette-preview: #9498f5;
+  --palette-preview-secondary: #0c0c0f;
+}

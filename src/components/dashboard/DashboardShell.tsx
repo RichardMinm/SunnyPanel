@@ -19,7 +19,10 @@ import { ScheduleMonthView } from "./schedule/ScheduleMonthView";
 import { MemoryCardGrid } from "./memory/MemoryCardGrid";
 import { TimelineView } from "./timeline/TimelineView";
 import { WritingWorkspace } from "./writing/WritingWorkspace";
+import { WritingDocumentsProvider } from "./writing/WritingDocumentsContext";
+import { WritingLibraryFiltersProvider } from "./writing/WritingLibraryFiltersContext";
 import { WritingLayoutProvider } from "./writing/WritingLayoutContext";
+import type { WritingSaveStatusSnapshot } from "./writing/writing-types";
 
 
 type DashboardShellProps = {
@@ -70,6 +73,37 @@ const dashboardUrlModes = new Set<DashboardIconMode>([
 const parseDashboardUrlMode = (value: null | string): DashboardIconMode =>
   dashboardUrlModes.has(value as DashboardIconMode) ? (value as DashboardIconMode) : "agent";
 
+const SIDEBAR_PINNED_STORAGE_KEY = "sunny-dashboard-sidebar-pinned";
+
+const readSidebarPinned = () => {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_PINNED_STORAGE_KEY);
+    if (raw === null) {
+      return true;
+    }
+
+    return raw === "true";
+  } catch {
+    return true;
+  }
+};
+
+const persistSidebarPinned = (pinned: boolean) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(SIDEBAR_PINNED_STORAGE_KEY, String(pinned));
+  } catch {
+    // ignore storage failures
+  }
+};
+
 export function DashboardShell({
   activeInspectorTab,
   artifactsRollbackBusy,
@@ -116,9 +150,10 @@ export function DashboardShell({
   const [activeMode, setActiveMode] = useState<DashboardIconMode>("agent");
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelWidth, setPanelWidth] = useState(340);
-  const [sidebarPinned, setSidebarPinned] = useState(false);
+  const [sidebarPinned, setSidebarPinned] = useState(true);
   const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
   const [writingFocusMode, setWritingFocusMode] = useState(false);
+  const [writingSaveStatus, setWritingSaveStatus] = useState<null | WritingSaveStatusSnapshot>(null);
   const sidebarExpanded = sidebarPinned || sidebarHoverExpanded;
   const [debugMode, setDebugMode] = useState(false);
   const [lastExecutedAction, setLastExecutedAction] = useState<ProposedAgentAction | null>(null);
@@ -141,8 +176,20 @@ export function DashboardShell({
     if (mode !== "agent") {
       setActiveMode(mode);
     }
+    setSidebarPinned(readSidebarPinned());
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
+
+  const handleSidebarPinnedChange = useCallback((pinned: boolean) => {
+    setSidebarPinned(pinned);
+    persistSidebarPinned(pinned);
+  }, []);
+
+  useEffect(() => {
+    if (activeMode !== "writing") {
+      setWritingSaveStatus(null);
+    }
+  }, [activeMode]);
 
   // Wrap the inspector tab change to clear the persisted action when the user
   // navigates away from the linked tab.
@@ -309,108 +356,137 @@ export function DashboardShell({
       sidebarCollapsed={activeMode === "writing" && writingFocusMode}
       sidebarExpanded={sidebarExpanded}
       sidebarPinned={sidebarPinned}
+      writingMode={activeMode === "writing"}
     >
-      <SidebarNav
-        activeMode={activeMode}
-        hoverExpanded={sidebarHoverExpanded}
-        onArchiveThread={onArchiveThread}
-        onDeleteThread={onDeleteThread}
-        onHoverExpandedChange={setSidebarHoverExpanded}
-        onLoadThread={onLoadThread}
-        onModeChange={handleModeChange}
-        onNewThread={handleNewThread}
-        onPinnedChange={setSidebarPinned}
-        pinned={sidebarPinned}
-        threadId={threadId}
-        threadListMode={activeMode === "writing" ? "compact" : "full"}
-        threads={threads}
-      />
+      {activeMode === "writing" ? (
+        <WritingLayoutProvider onFocusModeChange={setWritingFocusMode}>
+          <WritingDocumentsProvider>
+            <WritingLibraryFiltersProvider>
+            <SidebarNav
+              activeMode={activeMode}
+              hoverExpanded={sidebarHoverExpanded}
+              onArchiveThread={onArchiveThread}
+              onDeleteThread={onDeleteThread}
+              onHoverExpandedChange={setSidebarHoverExpanded}
+              onLoadThread={onLoadThread}
+              onModeChange={handleModeChange}
+              onNewThread={handleNewThread}
+              onPinnedChange={handleSidebarPinnedChange}
+              pinned={sidebarPinned}
+              threadId={threadId}
+              threadListMode="hidden"
+              threads={threads}
+            />
 
-      <MainWorkspace>
-        {activeMode === "schedule" ? (
-          <ScheduleMonthView
-            onBackToWorkbench={() => setActiveMode("agent")}
-            threadId={threadId}
-            isSubmitting={isSubmitting}
-          />
-        ) : activeMode === "memory" ? (
-          <MemoryCardGrid
-            onBackToWorkbench={() => setActiveMode("agent")}
-            threadId={threadId}
-          />
-        ) : activeMode === "checklist" ? (
-          <ChecklistView
-            onBackToWorkbench={() => setActiveMode("agent")}
-            threadId={threadId}
-          />
-        ) : activeMode === "timeline" ? (
-          <TimelineView
-            onBackToWorkbench={() => setActiveMode("agent")}
-            threadId={threadId}
-          />
-        ) : activeMode === "writing" ? (
-          <WritingLayoutProvider onFocusModeChange={setWritingFocusMode}>
-            <WritingWorkspace />
-          </WritingLayoutProvider>
-        ) : (
-          <DashboardInspectorControlProvider value={inspectorControl}>
-            <DashboardModeProvider value={activeMode}>
-              {children}
-            </DashboardModeProvider>
-          </DashboardInspectorControlProvider>
-        )}
-      </MainWorkspace>
+            <MainWorkspace>
+              <WritingWorkspace onSaveStatusChange={setWritingSaveStatus} />
+            </MainWorkspace>
 
-      {activeMode !== "writing" ? (
-        <DashboardRightPanel
-        action={confirmationAction}
-        lastExecutedAction={lastExecutedAction}
-        activeInspectorTab={activeInspectorTab}
-        artifactsRollbackBusy={artifactsRollbackBusy}
-        artifactsRollbackError={artifactsRollbackError}
-        contextPreferences={contextPreferences}
-        debugMode={debugMode}
-        inputTokenEstimate={inputTokenEstimate}
-        latestAssistantMessage={latestAssistantMessage}
-        lastRollbackPayload={lastRollbackPayload}
-        lastRollbackResult={lastRollbackResult}
-        messages={messages}
-        onResizeStart={handleResizeStart}
-        onArtifactsRollback={onArtifactsRollback}
-        onInspectorTabChange={handleInspectorTabChange}
-        onPrefillComposer={onPrefillComposer}
-        onTogglePanel={handleTogglePanel}
-        panelOpen={panelOpen}
-        onRollbackSelectedRun={onRollbackSelectedRun}
-        onToggleContextExclude={onToggleContextExclude}
-        onToggleContextPin={onToggleContextPin}
-        pendingAction={pendingAction}
-        selectedRunDetail={selectedRunDetail}
-        selectedRunRollbackBusy={selectedRunRollbackBusy}
-        selectedRunRollbackError={selectedRunRollbackError}
-        statusLabel={statusLabel}
-        threadId={threadId}
-        tokenUsage={tokenUsage}
-        traceSteps={traceSteps}
-        workbenchMode={workbenchMode}
-        />
-      ) : null}
-      {activeMode !== "writing" && activeMode !== "agent" ? (
-        <button
-          type="button"
-          className="sunny-dashboard-inspector-toggle"
-          aria-label={panelOpen ? "收起检查器" : "展开检查器"}
-          title={panelOpen ? "收起检查器" : "展开检查器"}
-          onClick={handleTogglePanel}
-        >
-          <InspectorPanelIcon open={panelOpen} />
-        </button>
-      ) : null}
+            <DashboardStatusBar
+              statusLabel={statusLabel}
+              writingStatus={writingSaveStatus}
+            />
+            </WritingLibraryFiltersProvider>
+          </WritingDocumentsProvider>
+        </WritingLayoutProvider>
+      ) : (
+        <>
+          <SidebarNav
+            activeMode={activeMode}
+            hoverExpanded={sidebarHoverExpanded}
+            onArchiveThread={onArchiveThread}
+            onDeleteThread={onDeleteThread}
+            onHoverExpandedChange={setSidebarHoverExpanded}
+            onLoadThread={onLoadThread}
+            onModeChange={handleModeChange}
+            onNewThread={handleNewThread}
+            onPinnedChange={handleSidebarPinnedChange}
+            pinned={sidebarPinned}
+            threadId={threadId}
+            threadListMode={activeMode === "agent" ? "full" : "hidden"}
+            threads={threads}
+          />
 
-      {activeMode !== "schedule" && (
-        <DashboardStatusBar
-          statusLabel={statusLabel}
-        />
+          <MainWorkspace>
+            {activeMode === "schedule" ? (
+              <ScheduleMonthView
+                onBackToWorkbench={() => setActiveMode("agent")}
+                threadId={threadId}
+                isSubmitting={isSubmitting}
+              />
+            ) : activeMode === "memory" ? (
+              <MemoryCardGrid
+                onBackToWorkbench={() => setActiveMode("agent")}
+                threadId={threadId}
+              />
+            ) : activeMode === "checklist" ? (
+              <ChecklistView
+                onBackToWorkbench={() => setActiveMode("agent")}
+                threadId={threadId}
+              />
+            ) : activeMode === "timeline" ? (
+              <TimelineView
+                onBackToWorkbench={() => setActiveMode("agent")}
+                threadId={threadId}
+              />
+            ) : (
+              <DashboardInspectorControlProvider value={inspectorControl}>
+                <DashboardModeProvider value={activeMode}>
+                  {children}
+                </DashboardModeProvider>
+              </DashboardInspectorControlProvider>
+            )}
+          </MainWorkspace>
+
+          <DashboardRightPanel
+            action={confirmationAction}
+            lastExecutedAction={lastExecutedAction}
+            activeInspectorTab={activeInspectorTab}
+            artifactsRollbackBusy={artifactsRollbackBusy}
+            artifactsRollbackError={artifactsRollbackError}
+            contextPreferences={contextPreferences}
+            debugMode={debugMode}
+            inputTokenEstimate={inputTokenEstimate}
+            latestAssistantMessage={latestAssistantMessage}
+            lastRollbackPayload={lastRollbackPayload}
+            lastRollbackResult={lastRollbackResult}
+            messages={messages}
+            onResizeStart={handleResizeStart}
+            onArtifactsRollback={onArtifactsRollback}
+            onInspectorTabChange={handleInspectorTabChange}
+            onPrefillComposer={onPrefillComposer}
+            onTogglePanel={handleTogglePanel}
+            panelOpen={panelOpen}
+            onRollbackSelectedRun={onRollbackSelectedRun}
+            onToggleContextExclude={onToggleContextExclude}
+            onToggleContextPin={onToggleContextPin}
+            pendingAction={pendingAction}
+            selectedRunDetail={selectedRunDetail}
+            selectedRunRollbackBusy={selectedRunRollbackBusy}
+            selectedRunRollbackError={selectedRunRollbackError}
+            statusLabel={statusLabel}
+            threadId={threadId}
+            tokenUsage={tokenUsage}
+            traceSteps={traceSteps}
+            workbenchMode={workbenchMode}
+          />
+
+          {activeMode !== "agent" ? (
+            <button
+              type="button"
+              className="sunny-dashboard-inspector-toggle"
+              aria-label={panelOpen ? "收起检查器" : "展开检查器"}
+              title={panelOpen ? "收起检查器" : "展开检查器"}
+              onClick={handleTogglePanel}
+            >
+              <InspectorPanelIcon open={panelOpen} />
+            </button>
+          ) : null}
+
+          {activeMode !== "schedule" ? (
+            <DashboardStatusBar statusLabel={statusLabel} />
+          ) : null}
+        </>
       )}
     </AppShell>
   );

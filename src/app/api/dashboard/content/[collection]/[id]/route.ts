@@ -18,10 +18,10 @@ type DashboardContentDetailContext = {
 };
 
 const mutableKeysByCollection: Record<DashboardContentCollection, Set<string>> = {
-  notes: new Set(["category", "contentRich", "coverImage", "mood", "pinned", "status", "visibility"]),
-  pages: new Set(["contentRich", "coverImage", "slug", "status", "title", "visibility"]),
-  posts: new Set(["contentRich", "coverImage", "publishedAt", "slug", "status", "summary", "tags", "title", "visibility"]),
-  updates: new Set(["contentRich", "coverImage", "link", "status", "type", "visibility"]),
+  notes: new Set(["category", "contentRich", "coverImage", "mood", "pinned", "status", "visibility", "writingCategory"]),
+  pages: new Set(["contentRich", "coverImage", "slug", "status", "title", "visibility", "writingCategory"]),
+  posts: new Set(["contentRich", "coverImage", "publishedAt", "slug", "status", "summary", "tags", "title", "visibility", "writingCategory"]),
+  updates: new Set(["contentRich", "coverImage", "link", "status", "type", "visibility", "writingCategory"]),
 };
 
 const resolveTarget = async (context: DashboardContentDetailContext) => {

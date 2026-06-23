@@ -4,6 +4,7 @@ import { adminsOnly, adminsOrPublished, canAccessAdmin } from "../lib/payload/ac
 import { statusField, visibilityField } from "../lib/payload/fields.ts";
 import { richContentFields } from "../lib/payload/rich-content-fields.ts";
 import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
+import { writingCategoryField } from "../lib/payload/writing-category-field.ts";
 
 export const Note: CollectionConfig = {
   slug: "notes",
@@ -64,6 +65,7 @@ export const Note: CollectionConfig = {
     },
     statusField,
     visibilityField(),
+    writingCategoryField,
   ],
   labels: {
     plural: {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AppButton } from "@/components/primitives/AppButton";
 import type { ProposedAgentAction } from "@/lib/agent/schemas";
 
 import {
@@ -345,41 +346,44 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
         aria-orientation="horizontal"
         onKeyDown={onActionsKeyDown}
       >
-        <button
+        <AppButton
           ref={setButtonRef(0)}
-          type="button"
+          className="sunny-agent-confirm-button"
           disabled={confirmDisabled}
-          tabIndex={rovingIndex === 0 ? 0 : -1}
-          onFocus={() => setRovingIndex(0)}
           onClick={onConfirm}
-          className="sunny-agent-confirm-button disabled:cursor-not-allowed disabled:opacity-60"
+          onFocus={() => setRovingIndex(0)}
+          tabIndex={rovingIndex === 0 ? 0 : -1}
+          type="button"
+          variant="primary"
         >
           {confirmLabel}
-        </button>
+        </AppButton>
         {onEdit ? (
-          <button
+          <AppButton
             ref={setButtonRef(1)}
-            type="button"
+            className="sunny-agent-edit-button"
             disabled={disabled}
-            tabIndex={rovingIndex === 1 ? 0 : -1}
-            onFocus={() => setRovingIndex(1)}
             onClick={() => onEdit(planProposal ? "plan" : scheduleProposal ? "schedule" : "generic")}
-            className="sunny-agent-edit-button disabled:cursor-not-allowed disabled:opacity-60"
+            onFocus={() => setRovingIndex(1)}
+            tabIndex={rovingIndex === 1 ? 0 : -1}
+            type="button"
+            variant="outline"
           >
             {editLabel}
-          </button>
+          </AppButton>
         ) : null}
-        <button
+        <AppButton
           ref={setButtonRef(onEdit ? 2 : 1)}
-          type="button"
+          className="sunny-agent-cancel-button-v2"
           disabled={disabled}
-          tabIndex={rovingIndex === (onEdit ? 2 : 1) ? 0 : -1}
-          onFocus={() => setRovingIndex(onEdit ? 2 : 1)}
           onClick={onCancel}
-          className="sunny-agent-cancel-button-v2 disabled:cursor-not-allowed disabled:opacity-60"
+          onFocus={() => setRovingIndex(onEdit ? 2 : 1)}
+          tabIndex={rovingIndex === (onEdit ? 2 : 1) ? 0 : -1}
+          type="button"
+          variant="secondary"
         >
           取消
-        </button>
+        </AppButton>
       </div>
     </section>
   );

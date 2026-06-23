@@ -15,7 +15,20 @@ type DashboardContentPublishContext = {
   }>;
 };
 
-export async function POST(_request: Request, context: DashboardContentPublishContext) {
+const parsePublishBody = async (request: Request) => {
+  try {
+    const body = (await request.json()) as { visibility?: unknown };
+    if (body.visibility === "public" || body.visibility === "private") {
+      return body.visibility;
+    }
+  } catch {
+    // Empty body is allowed — keep existing visibility.
+  }
+
+  return null;
+};
+
+export async function POST(request: Request, context: DashboardContentPublishContext) {
   const authResult = await getPayloadAuthResult();
 
   if (!authResult.user) {
@@ -45,9 +58,15 @@ export async function POST(_request: Request, context: DashboardContentPublishCo
     return NextResponse.json({ message: "内容不存在" }, { status: 404 });
   }
 
+  const requestedVisibility = await parsePublishBody(request);
+
   const data: Record<string, unknown> = {
     status: "published",
   };
+
+  if (requestedVisibility) {
+    data.visibility = requestedVisibility;
+  }
 
   if ("publishedAt" in existing) {
     data.publishedAt = existing.publishedAt ?? new Date().toISOString();

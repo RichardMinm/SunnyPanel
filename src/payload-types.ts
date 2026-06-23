@@ -82,6 +82,7 @@ export interface Config {
     'agent-memories': AgentMemory;
     'agent-suggestions': AgentSuggestion;
     pages: Page;
+    'writing-categories': WritingCategory;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -104,6 +105,7 @@ export interface Config {
     'agent-memories': AgentMemoriesSelect<false> | AgentMemoriesSelect<true>;
     'agent-suggestions': AgentSuggestionsSelect<false> | AgentSuggestionsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
+    'writing-categories': WritingCategoriesSelect<false> | WritingCategoriesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -274,6 +276,21 @@ export interface Post {
    */
   publishedAt?: string | null;
   visibility: 'public' | 'private';
+  writingCategory?: (number | null) | WritingCategory;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "writing-categories".
+ */
+export interface WritingCategory {
+  id: number;
+  title: string;
+  icon: 'post' | 'note' | 'sparkle' | 'document' | 'pencil' | 'layers' | 'archive';
+  tint: 'accent' | 'info' | 'warning' | 'success' | 'muted';
+  sortOrder?: number | null;
+  archived?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -317,6 +334,7 @@ export interface Note {
   coverImage?: (number | null) | Media;
   status: 'draft' | 'published';
   visibility: 'public' | 'private';
+  writingCategory?: (number | null) | WritingCategory;
   updatedAt: string;
   createdAt: string;
 }
@@ -365,6 +383,7 @@ export interface Update {
   coverImage?: (number | null) | Media;
   status: 'draft' | 'published';
   visibility: 'public' | 'private';
+  writingCategory?: (number | null) | WritingCategory;
   updatedAt: string;
   createdAt: string;
 }
@@ -614,6 +633,7 @@ export interface Page {
   coverImage?: (number | null) | Media;
   status: 'draft' | 'published';
   visibility: 'public' | 'private';
+  writingCategory?: (number | null) | WritingCategory;
   updatedAt: string;
   createdAt: string;
 }
@@ -1092,6 +1112,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'pages';
         value: number | Page;
+      } | null)
+    | ({
+        relationTo: 'writing-categories';
+        value: number | WritingCategory;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1220,6 +1244,7 @@ export interface PostsSelect<T extends boolean = true> {
   status?: T;
   publishedAt?: T;
   visibility?: T;
+  writingCategory?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1240,6 +1265,7 @@ export interface NotesSelect<T extends boolean = true> {
   coverImage?: T;
   status?: T;
   visibility?: T;
+  writingCategory?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1259,6 +1285,7 @@ export interface UpdatesSelect<T extends boolean = true> {
   coverImage?: T;
   status?: T;
   visibility?: T;
+  writingCategory?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1514,6 +1541,20 @@ export interface PagesSelect<T extends boolean = true> {
   coverImage?: T;
   status?: T;
   visibility?: T;
+  writingCategory?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "writing-categories_select".
+ */
+export interface WritingCategoriesSelect<T extends boolean = true> {
+  title?: T;
+  icon?: T;
+  tint?: T;
+  sortOrder?: T;
+  archived?: T;
   updatedAt?: T;
   createdAt?: T;
 }

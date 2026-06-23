@@ -5,6 +5,7 @@ import type { WritingMetadataDraft } from "./writing-metadata";
 
 export type WritingDocumentListItem = {
   advancedAdminHref: string;
+  categoryId: null | number;
   collection: DashboardContentCollection;
   editHref: string;
   excerpt: string;
@@ -37,6 +38,7 @@ export type WritingDocumentPatch = {
   title?: string;
   type?: "life" | "project" | "work";
   visibility?: "private" | "public";
+  writingCategory?: null | number;
 };
 
 export type WritingCollectionFilter = "all" | DashboardContentCollection;
@@ -49,3 +51,9 @@ export type WritingDraft = {
 };
 
 export type WritingSaveState = "dirty" | "error" | "idle" | "saving" | "saved";
+
+export type WritingSaveStatusSnapshot = {
+  error: null | string;
+  isDirty: boolean;
+  saveState: WritingSaveState;
+};

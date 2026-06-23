@@ -4,11 +4,12 @@ import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent }
 
 import { AgentApprovalPanel } from "@/components/dashboard/agent/AgentApprovalPanel";
 import { AgentContextPanel } from "@/components/dashboard/agent/AgentContextPanel";
+import { AgentDebugPanel } from "@/components/dashboard/agent/AgentDebugPanel";
 import { AgentInboxPanel } from "@/components/dashboard/agent/AgentInboxPanel";
 import { AgentTracePanel } from "@/components/dashboard/agent/AgentTracePanel";
+import { ContextInspector, getInspectorTabLabel } from "@/components/dashboard/agent/ContextInspector";
 import { InspectorSearchToolbar } from "@/components/dashboard/agent/InspectorSearchToolbar";
-import { InspectorTabBar } from "@/components/dashboard/agent/InspectorTabBar";
-import { inspectorTabs } from "@/components/dashboard/agent/constants";
+import { AppIconButton } from "@/components/primitives/AppIconButton";
 import { COLLECTION_ICON_MAP, DashboardIcon, DEFAULT_COLLECTION_ICON, InspectorPanelIcon } from "./icons";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
 import type { AgentInspectorTab, AgentRunDetail, ContextPreferences } from "@/components/dashboard/agent/types";
@@ -295,18 +296,17 @@ export function DashboardRightPanel({
         <div className="sunny-dashboard-right-panel-head">
           <div>
             <p>检查器</p>
-            <h2>{inspectorTabs.find((tab) => tab.key === activeInspectorTab)?.label ?? "上下文"}</h2>
+            <h2>{getInspectorTabLabel(activeInspectorTab)}</h2>
           </div>
           <div className="sunny-dashboard-right-panel-actions">
-            <button
-              type="button"
-              className="sunny-dashboard-right-panel-toggle"
+            <AppIconButton
               aria-label={panelOpen ? "收起检查器" : "展开检查器"}
-              title={panelOpen ? "收起检查器" : "展开检查器"}
+              className="sunny-dashboard-right-panel-toggle"
+              icon={<InspectorPanelIcon open={panelOpen} />}
               onClick={onTogglePanel}
-            >
-              <InspectorPanelIcon open={panelOpen} />
-            </button>
+              size="sm"
+              tooltip={panelOpen ? "收起检查器" : "展开检查器"}
+            />
           </div>
         </div>
         <InspectorSearchToolbar
@@ -317,9 +317,10 @@ export function DashboardRightPanel({
           searchOpen={inspectorSearchOpen}
           searching={inspectorSearching}
         >
-          <InspectorTabBar
+          <ContextInspector
             activeTab={activeInspectorTab}
             bare
+            debugMode={debugMode}
             onTabChange={onInspectorTabChange}
             pendingAction={pendingAction}
           />
@@ -327,20 +328,8 @@ export function DashboardRightPanel({
         <div className="sunny-dashboard-right-panel-body">
           {activeInspectorTab === "context" ? (
             <AgentContextPanel
-              contextPreferences={contextPreferences}
-              inputTokenEstimate={inputTokenEstimate}
-              messages={messages}
-              onToggleExclude={onToggleContextExclude}
-              onTogglePin={onToggleContextPin}
               pendingAction={pendingAction}
-              debugMode={debugMode}
-              statusLabel={
-                debugMode
-                  ? `${statusLabel} · ${modeLabelMap[workbenchMode]} · 上下文约 ${tokenUsage.contextTokens} tokens · 输入约 ${inputTokenEstimate} tokens`
-                  : statusLabel
-              }
-              threadId={threadId}
-              tokenUsage={tokenUsage}
+              statusLabel={statusLabel}
               traceSteps={traceSteps}
               workbenchMode={workbenchMode}
             />
@@ -367,6 +356,21 @@ export function DashboardRightPanel({
           {activeInspectorTab === "linked" ? <LinkedObjectsPanel action={displayAction} debugMode={debugMode} selectedRunDetail={selectedRunDetail} /> : null}
           {activeInspectorTab === "memory" ? <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} /> : null}
           {activeInspectorTab === "inbox" ? <AgentInboxPanel onPrefillComposer={onPrefillComposer} /> : null}
+          {activeInspectorTab === "debug" ? (
+            <AgentDebugPanel
+              contextPreferences={contextPreferences}
+              inputTokenEstimate={inputTokenEstimate}
+              messages={messages}
+              onToggleExclude={onToggleContextExclude}
+              onTogglePin={onToggleContextPin}
+              pendingAction={pendingAction}
+              statusLabel={`${statusLabel} · ${modeLabelMap[workbenchMode]} · 上下文约 ${tokenUsage.contextTokens} tokens · 输入约 ${inputTokenEstimate} tokens`}
+              threadId={threadId}
+              tokenUsage={tokenUsage}
+              traceSteps={traceSteps}
+              workbenchMode={workbenchMode}
+            />
+          ) : null}
         </div>
       </aside>
   );

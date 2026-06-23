@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { AdminPaletteBootstrap } from "@/components/admin/AdminPaletteBootstrap";
 import { SunnyAdminProvidersClient } from "@/components/admin/SunnyAdminProvidersClient";
 import { getSiteLocale } from "@/lib/site-locale";
 import { getSitePalette } from "@/lib/site-palette-server";
@@ -13,6 +14,7 @@ export async function SunnyAdminProviders({ children }: SunnyAdminProvidersProps
 
   return (
     <SunnyAdminProvidersClient initialLocale={initialLocale} initialPalette={initialPalette}>
+      <AdminPaletteBootstrap palette={initialPalette} />
       {children}
     </SunnyAdminProvidersClient>
   );

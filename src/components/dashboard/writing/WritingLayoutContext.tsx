@@ -21,7 +21,9 @@ export function WritingLayoutProvider({
     onFocusModeChange?.(value.layout.focusMode);
   }, [onFocusModeChange, value.layout.focusMode]);
 
-  return <WritingLayoutContext.Provider value={value}>{children}</WritingLayoutContext.Provider>;
+  return (
+    <WritingLayoutContext.Provider value={value}>{children}</WritingLayoutContext.Provider>
+  );
 }
 
 export function useWritingLayoutContext() {

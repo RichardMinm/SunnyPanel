@@ -20,31 +20,31 @@
 
   :root,
   html[data-theme="light"] {
-    --color-base-0: rgb(255, 255, 255);
-    --color-base-50: rgb(248, 250, 252);
-    --color-base-100: rgb(241, 245, 249);
-    --color-base-150: rgb(232, 237, 244);
-    --color-base-200: rgb(220, 227, 236);
-    --color-base-250: rgb(206, 214, 224);
-    --color-base-300: rgb(186, 196, 208);
-    --color-base-350: rgb(165, 176, 190);
-    --color-base-400: rgb(144, 156, 172);
-    --color-base-450: rgb(125, 137, 154);
-    --color-base-500: rgb(106, 118, 134);
-    --color-base-550: rgb(90, 101, 116);
-    --color-base-600: rgb(75, 86, 100);
-    --color-base-650: rgb(63, 73, 86);
-    --color-base-700: rgb(52, 61, 73);
-    --color-base-750: rgb(43, 51, 62);
-    --color-base-800: rgb(35, 42, 52);
-    --color-base-850: rgb(29, 35, 44);
-    --color-base-900: rgb(24, 30, 38);
-    --color-base-950: rgb(19, 24, 31);
-    --color-base-1000: rgb(26, 35, 50);
+    --color-base-0: var(--payload-base-0);
+    --color-base-50: var(--payload-base-50);
+    --color-base-100: var(--payload-base-100);
+    --color-base-150: var(--payload-base-150);
+    --color-base-200: var(--payload-base-200);
+    --color-base-250: var(--payload-base-250);
+    --color-base-300: var(--payload-base-300);
+    --color-base-350: var(--payload-base-350);
+    --color-base-400: var(--payload-base-400);
+    --color-base-450: var(--payload-base-450);
+    --color-base-500: var(--payload-base-500);
+    --color-base-550: var(--payload-base-550);
+    --color-base-600: var(--payload-base-600);
+    --color-base-650: var(--payload-base-650);
+    --color-base-700: var(--payload-base-700);
+    --color-base-750: var(--payload-base-750);
+    --color-base-800: var(--payload-base-800);
+    --color-base-850: var(--payload-base-850);
+    --color-base-900: var(--payload-base-900);
+    --color-base-950: var(--payload-base-950);
+    --color-base-1000: var(--payload-base-1000);
 
-    --color-warning-400: rgb(180, 132, 38);
-    --color-warning-450: rgb(161, 118, 32);
-    --color-warning-500: rgb(142, 104, 28);
+    --color-warning-400: var(--payload-warning-400);
+    --color-warning-450: var(--payload-warning-450);
+    --color-warning-500: var(--payload-warning-500);
 
     --theme-border-color: var(--border);
     --theme-input-bg: color-mix(in srgb, var(--surface-strong) 88%, transparent);
@@ -83,7 +83,7 @@
     --theme-input-bg: color-mix(in srgb, var(--surface) 82%, transparent);
     --theme-bg: var(--background);
     --theme-text: var(--foreground);
-    --theme-overlay: rgba(8, 8, 8, 0.55);
+    --theme-overlay: var(--overlay-theme);
   }
 
   html {
@@ -105,7 +105,7 @@
       linear-gradient(var(--grid-line) 1px, transparent 1px),
       linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 40px 40px;
-    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.12));
+    mask-image: var(--mask-gradient-vertical);
   }
 
   html::after {

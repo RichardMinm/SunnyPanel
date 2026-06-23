@@ -8,6 +8,7 @@ import {
 } from "../lib/payload/fields.ts";
 import { richContentFields } from "../lib/payload/rich-content-fields.ts";
 import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
+import { writingCategoryField } from "../lib/payload/writing-category-field.ts";
 
 export const Page: CollectionConfig = {
   slug: "pages",
@@ -50,6 +51,7 @@ export const Page: CollectionConfig = {
     },
     statusField,
     visibilityField(),
+    writingCategoryField,
   ],
   labels: {
     plural: {

@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
 const palettes = ["cobalt", "forest", "wine", "midnight", "slate"] as const;
+
+const tokenSourceFiles = new Set([
+  "src/app/styles/sunny-palettes.css",
+  "src/app/styles/sunny-tokens.css",
+]);
+
+const literalColorPattern = /#[0-9a-fA-F]{3,8}\b|rgba?\(|rgb\(/;
 
 const requiredCategoryTokens = [
   "--cat-course-dot",
@@ -38,13 +45,115 @@ const guardedCssFiles = [
   "src/app/styles/sunny-dashboard-memory.css",
   "src/app/styles/sunny-agent.css",
   "src/app/styles/sunny-category.css",
+  "src/app/styles/sunny-ui.css",
+  "src/app/styles/sunny-settings.css",
+  "src/app/styles/sunny-base.css",
+  "src/app/styles/sunny-chrome.css",
+  "src/app/styles/sunny-markdown.css",
+  "src/app/styles/sunny-prose.css",
+  "src/app/styles/sunny-payload-bridge.css",
+  "src/app/(payload)/admin-theme.css",
 ];
+
+const collectSourceFiles = (dir: string, extensions: string[]): string[] => {
+  const entries = readdirSync(dir, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectSourceFiles(fullPath, extensions));
+      continue;
+    }
+
+    if (extensions.some((ext) => entry.name.endsWith(ext))) {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
+};
 
 const dashboardTsxFiles = readdirSync("src/components/dashboard", { recursive: true })
   .filter((entry): entry is string => typeof entry === "string" && entry.endsWith(".tsx"))
   .map((entry) => join("src/components/dashboard", entry));
 
+const publicTsxFiles = collectSourceFiles("src/components/public", [".tsx"]);
+const uiTsxFiles = collectSourceFiles("src/components/ui", [".tsx"]);
+
 describe("Color token unification", () => {
+  test("consumer source files do not contain literal hex or rgb/rgba colors", () => {
+    const files = [
+      ...collectSourceFiles("src/app/styles", [".css"]),
+      ...collectSourceFiles("src/components", [".tsx", ".ts"]),
+      ...collectSourceFiles("src/lib", [".ts"]),
+      ...collectSourceFiles("src/app", [".tsx", ".ts"]),
+    ].filter((file) => !tokenSourceFiles.has(file.replace(/\\/g, "/")));
+
+    const offenders: string[] = [];
+
+    for (const file of files) {
+      if (!statSync(file).isFile()) {
+        continue;
+      }
+
+      const source = read(file);
+      if (literalColorPattern.test(source)) {
+        offenders.push(file);
+      }
+    }
+
+    assert.deepEqual(offenders, [], `literal colors found outside token sources: ${offenders.join(", ")}`);
+  });
+
+  test("semantic role aliases are defined in sunny-tokens.css", () => {
+    const tokensCss = read("src/app/styles/sunny-tokens.css");
+
+    for (const token of [
+      "--bg-app:",
+      "--bg-panel:",
+      "--bg-card:",
+      "--text-primary:",
+      "--text-secondary:",
+      "--border-subtle:",
+      "--border-default:",
+      "--danger:",
+      "--warning:",
+      "--success:",
+      "--radius-sm:",
+      "--radius-md:",
+      "--radius-lg:",
+      "--space-1:",
+      "--space-8:",
+      "--shadow-popover:",
+      "--height-button:",
+      "--height-menu-item:",
+      "--settings-width:",
+    ]) {
+      assert.match(tokensCss, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
+  });
+
+  test("semantic color tokens are defined in sunny-tokens.css", () => {
+    const tokensCss = read("src/app/styles/sunny-tokens.css");
+
+    for (const token of [
+      "--destructive:",
+      "--mode-review-bg:",
+      "--mode-timeline-bg:",
+      "--surface-glass-70:",
+      "--shadow-soft:",
+      "--shadow-elevated:",
+      "--settings-bg:",
+      "--writing-editor-bg:",
+      "--writing-rail-bg:",
+      "--writing-canvas-bg:",
+      "--writing-drawer-shadow:",
+    ]) {
+      assert.match(tokensCss, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    }
+  });
+
   test("each palette defines full category token sets for light and dark", () => {
     const paletteCss = read("src/app/styles/sunny-palettes.css");
 
@@ -65,11 +174,12 @@ describe("Color token unification", () => {
     }
   });
 
-  test("dashboard and agent CSS do not hardcode legacy Tailwind accent blues", () => {
+  test("guarded CSS files do not hardcode legacy Tailwind accent blues or literal colors", () => {
     for (const file of guardedCssFiles) {
       const css = read(file);
-      const matches = css.match(forbiddenAccentHex);
-      assert.equal(matches, null, `${file} still contains forbidden accent hex: ${matches?.join(", ")}`);
+      const accentMatches = css.match(forbiddenAccentHex);
+      assert.equal(accentMatches, null, `${file} still contains forbidden accent hex: ${accentMatches?.join(", ")}`);
+      assert.doesNotMatch(css, literalColorPattern, `${file} contains literal colors`);
     }
   });
 
@@ -83,7 +193,7 @@ describe("Color token unification", () => {
     const tokensCss = read("src/app/styles/sunny-tokens.css");
     assert.match(tokensCss, /--composer-placeholder:\s*var\(--muted\)/);
     assert.match(tokensCss, /--composer-aux-icon:\s*var\(--muted\)/);
-    assert.match(tokensCss, /--agent-panel-bg:\s*var\(--surface\)/);
+    assert.match(tokensCss, /--agent-panel-bg:[\s\S]*var\(--surface\)/);
   });
 
   test("dashboard TSX components avoid inline hex colors", () => {
@@ -92,6 +202,24 @@ describe("Color token unification", () => {
     for (const file of dashboardTsxFiles) {
       const source = read(file);
       assert.doesNotMatch(source, inlineHex, `${file} contains inline hex color styling`);
+    }
+  });
+
+  test("public and ui TSX avoid inline hex/rgba and Tailwind color literals", () => {
+    const forbiddenPatterns = [
+      /#[0-9a-fA-F]{3,8}/,
+      /rgba?\(/,
+      /bg-white\//,
+      /emerald-\d+/,
+      /shadow-\[[^\]]*rgba/,
+      /bg-\[[^\]]*rgba/,
+    ];
+
+    for (const file of [...publicTsxFiles, ...uiTsxFiles]) {
+      const source = read(file);
+      for (const pattern of forbiddenPatterns) {
+        assert.doesNotMatch(source, pattern, `${file} contains forbidden color literal: ${pattern}`);
+      }
     }
   });
 
@@ -142,14 +270,19 @@ describe("Color token unification", () => {
     assert.ok(new Set(agentDots).size >= 3, "dark cat-agent-dot values should vary across palettes");
   });
 
-  test("palette options expose dark preview swatches", () => {
+  test("palette preview swatches are CSS-driven via data-palette-id", () => {
+    const paletteCss = read("src/app/styles/sunny-palettes.css");
     const sitePalette = read("src/lib/site-palette.ts");
     const paletteToggle = read("src/components/public/PaletteToggle.tsx");
 
-    assert.match(sitePalette, /darkPrimary/);
-    assert.match(sitePalette, /swatchDark/);
-    assert.match(paletteToggle, /swatchDark/);
-    assert.match(paletteToggle, /resolvedTheme/);
+    assert.doesNotMatch(sitePalette, /#/);
+    assert.doesNotMatch(paletteToggle, /swatchDark|resolvedTheme|--palette-preview/);
+    assert.match(paletteToggle, /data-palette-id=\{option\.id\}/);
+
+    for (const palette of palettes) {
+      assert.match(paletteCss, new RegExp(`data-palette-id="${palette}"`));
+      assert.match(paletteCss, new RegExp(`--palette-preview:`));
+    }
   });
 
   test("agent conversation dark mode avoids legacy hardcoded colors and inverted text tokens", () => {
@@ -160,8 +293,7 @@ describe("Color token unification", () => {
     assert.doesNotMatch(userCardBlock, /#f4f5f7/);
     assert.match(userCardBlock, /--agent-bubble-user-bg/);
     assert.match(userCardBlock, /--agent-bubble-user-border/);
-    assert.doesNotMatch(agentCss, /#0b1120/);
-    assert.doesNotMatch(agentCss, /rgba\(59,130,246/);
+    assert.doesNotMatch(agentCss, literalColorPattern);
     assert.doesNotMatch(agentCss, /html\[data-theme="dark"\][\s\S]*?color:\s*var\(--background\)/);
     assert.match(
       agentCss,
@@ -181,12 +313,21 @@ describe("Color token unification", () => {
     );
     assert.doesNotMatch(
       darkBlock,
-      /html\[data-theme="dark"\] \.sunny-codex-project-row[\s\S]*?color:\s*var\(--background\)/,
+      /html\[data-theme="dark"\] \.sunny-dashboard-project-row[\s\S]*?color:\s*var\(--background\)/,
     );
     assert.doesNotMatch(
       darkBlock,
-      /html\[data-theme="dark"\] \.sunny-codex-sidebar-search-input[\s\S]*?background:\s*var\(--foreground\)/,
+      /html\[data-theme="dark"\] \.sunny-dashboard-sidebar-search-input[\s\S]*?background:\s*var\(--foreground\)/,
     );
     assert.doesNotMatch(darkBlock, /html\[data-theme="dark"\] \.sunny-agent-thread-header/);
+  });
+
+  test("sunny-core.css defines font tokens independent of Tailwind", () => {
+    const core = read("src/app/styles/sunny-core.css");
+
+    assert.match(core, /--font-sans:\s*var\(--sunny-font-sans\)/);
+    assert.match(core, /--font-mono:\s*var\(--sunny-font-mono\)/);
+    assert.match(core, /sunny-primitives\.css/);
+    assert.match(core, /sunny-settings\.css/);
   });
 });

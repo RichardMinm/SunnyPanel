@@ -9,9 +9,9 @@ type SurfaceCardElement = "article" | "aside" | "div" | "section";
 const surfaceCardClassMap: Record<SurfaceCardVariant, string> = {
   default: "sunny-card rounded-xl p-5 md:rounded-xl md:p-6",
   interactive:
-    "block rounded-lg border border-border bg-white/60 px-4 py-4 transition hover:bg-white/72 md:px-5 md:py-5",
+    "block rounded-lg border border-border sunny-surface-glass-60 px-4 py-4 transition sunny-surface-glass-hover md:px-5 md:py-5",
   strong: "sunny-card sunny-card-strong rounded-xl p-5 md:rounded-xl md:p-7",
-  subtle: "rounded-lg border border-border bg-white/45 px-4 py-4 md:px-5 md:py-5",
+  subtle: "rounded-lg border border-border sunny-surface-glass-45 px-4 py-4 md:px-5 md:py-5",
 };
 
 export function SurfaceCard({

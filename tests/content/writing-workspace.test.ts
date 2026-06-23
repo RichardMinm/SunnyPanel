@@ -12,18 +12,28 @@ describe("Dashboard Writing workspace", () => {
     assert.match(sidebar, /label: "写作"/);
   });
 
-  test("DashboardShell renders WritingWorkspace", () => {
+  test("DashboardShell wraps writing mode with document and layout providers", () => {
     const shell = read("src/components/dashboard/DashboardShell.tsx");
 
     assert.match(shell, /WritingWorkspace/);
-    assert.match(shell, /activeMode === "writing"/);
+    assert.match(shell, /WritingDocumentsProvider/);
+    assert.match(shell, /WritingLayoutProvider/);
+    assert.match(shell, /threadListMode="hidden"/);
+    assert.match(shell, /writingMode=\{activeMode === "writing"\}/);
   });
 
-  test("WritingWorkspace contains library, editor, and metadata panel", () => {
+  test("WritingWorkspace is editor-only and uses shared document context", () => {
     const workspace = read("src/components/dashboard/writing/WritingWorkspace.tsx");
 
-    assert.match(workspace, /WritingLibrary/);
+    assert.match(workspace, /useWritingDocumentsContext/);
     assert.match(workspace, /WritingEditorPane/);
     assert.match(workspace, /WritingMetaPanel/);
+    assert.doesNotMatch(workspace, /WritingLibrary/);
+  });
+
+  test("Dashboard sidebar embeds writing library rail below workspace modes", () => {
+    const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
+
+    assert.match(sidebar, /WritingLibraryRail/);
   });
 });

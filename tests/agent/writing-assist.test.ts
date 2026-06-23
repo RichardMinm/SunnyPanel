@@ -30,12 +30,11 @@ describe("writing assist API", () => {
   });
 
   test("editor exposes lightweight AI entry points", () => {
-    const toolbar = read("src/components/content-editor/EditorToolbar.tsx");
     const bubble = read("src/components/content-editor/EditorBubbleMenu.tsx");
     const pane = read("src/components/dashboard/writing/WritingEditorPane.tsx");
 
-    assert.match(toolbar, /续写/);
     assert.match(bubble, /改写/);
+    assert.match(bubble, /润色/);
     assert.match(pane, /生成标题/);
     assert.match(pane, /自动生成摘要/);
   });

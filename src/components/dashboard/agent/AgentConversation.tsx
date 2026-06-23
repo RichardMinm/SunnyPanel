@@ -3,6 +3,7 @@
 import { type RefObject, useEffect, useMemo } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
+import { AppButton } from "@/components/primitives/AppButton";
 import type { AgentChatMessage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
 import type {
   AgentStreamChangeEvent,
@@ -76,12 +77,12 @@ function BatchConfirmationCard({
         ))}
       </ul>
       <div className="sunny-agent-approval-banner-actions" role="toolbar" aria-label="确认或取消批量操作">
-        <button type="button" className="sunny-agent-confirm-button" disabled={disabled} onClick={onConfirm}>
+        <AppButton className="sunny-agent-confirm-button" disabled={disabled} onClick={onConfirm} type="button" variant="primary">
           全部确认
-        </button>
-        <button type="button" className="sunny-agent-cancel-button-v2" disabled={disabled} onClick={onCancel}>
+        </AppButton>
+        <AppButton className="sunny-agent-cancel-button-v2" disabled={disabled} onClick={onCancel} type="button" variant="secondary">
           全部取消
-        </button>
+        </AppButton>
       </div>
     </section>
   );

@@ -38,7 +38,7 @@ export function SectionIntro({ actions, description, eyebrow, stats, title }: Se
             {stats.map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-md border border-border bg-white/68 px-3.5 py-2 text-sm"
+                className="rounded-md border border-border sunny-surface-glass-68 px-3.5 py-2 text-sm"
               >
                 <span className="text-muted">{stat.label}</span>
                 <span className="ml-2 font-semibold text-foreground">{stat.value}</span>

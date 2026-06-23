@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { AppDialog } from "@/components/primitives/AppDialog";
 
 export type ConfirmDialogProps = {
   open: boolean;
@@ -23,66 +23,16 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  const cancelRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      requestAnimationFrame(() => cancelRef.current?.focus());
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [open, onCancel]);
-
-  if (!open) return null;
-
-  const confirmClass =
-    variant === "danger"
-      ? "sunny-confirm-btn-danger"
-      : "sunny-confirm-btn-warning";
-
   return (
-    <div
-      className="sunny-confirm-overlay"
-      onClick={onCancel}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
-      <div
-        className="sunny-confirm-dialog"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className="sunny-confirm-title">{title}</p>
-        <p className="sunny-confirm-message">{message}</p>
-        <div className="sunny-confirm-actions">
-          <button
-            ref={cancelRef}
-            type="button"
-            className="sunny-confirm-btn-cancel"
-            disabled={busy}
-            onClick={onCancel}
-          >
-            取消
-          </button>
-          <button
-            type="button"
-            className={confirmClass}
-            disabled={busy}
-            onClick={onConfirm}
-          >
-            {busy ? "处理中..." : confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+    <AppDialog
+      confirmLabel={confirmLabel}
+      confirmVariant={variant === "danger" ? "danger" : "primary"}
+      description={message}
+      loading={busy}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+      open={open}
+      title={title}
+    />
   );
 }

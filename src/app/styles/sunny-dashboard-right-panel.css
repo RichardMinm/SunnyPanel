@@ -3,7 +3,7 @@
  * The right side is auxiliary context, not a second conversation sidebar.
  */
 
-.sunny-dashboard-right-panel {
+.sunny-dashboard-right-panel{
   position: fixed;
   top: 0;
   right: 0;
@@ -17,7 +17,7 @@
   border-left: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
   background: color-mix(in srgb, var(--surface-strong) 96%, var(--surface));
   overflow: hidden;
-  box-shadow: -12px 0 32px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--shadow-panel-left);
   transform: translateX(100%);
   opacity: 0;
   visibility: hidden;
@@ -26,9 +26,7 @@
     transform var(--motion-duration-panel) var(--motion-ease-standard),
     opacity var(--motion-duration-panel) var(--motion-ease-out),
     visibility 0s linear var(--motion-duration-panel);
-}
-
-.sunny-dashboard-shell.is-panel-expanded .sunny-dashboard-right-panel {
+}.sunny-dashboard-shell.is-panel-expanded .sunny-dashboard-right-panel{
   transform: translateX(0);
   opacity: 1;
   visibility: visible;
@@ -37,42 +35,32 @@
     transform var(--motion-duration-panel) var(--motion-ease-standard),
     opacity var(--motion-duration-panel) var(--motion-ease-out),
     visibility 0s;
-}
-
-.sunny-dashboard-right-panel-head {
+}.sunny-dashboard-right-panel-head{
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   padding: 1rem 1rem 0.7rem;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
-}
-
-.sunny-dashboard-right-panel-head p {
+}.sunny-dashboard-right-panel-head p{
   margin: 0 0 0.15rem;
   color: var(--muted);
   font-size: var(--text-3xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.sunny-dashboard-right-panel-head h2 {
+}.sunny-dashboard-right-panel-head h2{
   margin: 0;
   color: var(--foreground);
   font-size: var(--text-md);
   font-weight: 750;
   line-height: 1.2;
-}
-
-.sunny-dashboard-right-panel-actions {
+}.sunny-dashboard-right-panel-actions{
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   flex: 0 0 auto;
-}
-
-.sunny-dashboard-right-panel-actions > span {
+}.sunny-dashboard-right-panel-actions > span{
   flex: 0 0 auto;
   border: 1px solid color-mix(in srgb, var(--tone-info-border) 58%, transparent);
   border-radius: 999px;
@@ -81,9 +69,7 @@
   padding: 0.16rem 0.55rem;
   font-size: var(--text-2xs);
   font-weight: 700;
-}
-
-.sunny-dashboard-right-panel-toggle {
+}.sunny-dashboard-right-panel-toggle{
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -94,68 +80,48 @@
   background: color-mix(in srgb, var(--surface-strong) 88%, var(--surface));
   color: color-mix(in srgb, var(--foreground) 78%, var(--muted));
   cursor: pointer;
-}
-
-.sunny-dashboard-right-panel-toggle:hover {
+}.sunny-dashboard-right-panel-toggle:hover{
   border-color: color-mix(in srgb, var(--accent-strong) 70%, var(--border));
   color: var(--accent-strong);
-}
-
-.sunny-dashboard-right-panel-toggle svg {
+}.sunny-dashboard-right-panel-toggle svg{
   width: 1.05rem;
   height: 1.05rem;
-}
-
-.sunny-dashboard-right-tabs {
+}.sunny-dashboard-right-tabs{
   margin: 0;
-}
-
-.sunny-dashboard-inspector-toolbar {
+}.sunny-dashboard-inspector-toolbar{
   display: grid;
   gap: 0;
   margin: 0.75rem 0.85rem 0;
-}
-
-.sunny-dashboard-inspector-toolbar .sunny-inspector-tab-bar {
+}.sunny-dashboard-inspector-toolbar .sunny-inspector-tab-bar{
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.25rem;
   width: 100%;
-}
-
-.sunny-inspector-tab-list {
+}.sunny-inspector-tab-list{
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.25rem;
   min-width: 0;
   flex: 1 1 auto;
-}
-
-.sunny-inspector-tab-divider {
+}.sunny-inspector-tab-divider{
   flex: 0 0 auto;
   align-self: stretch;
   width: 1px;
   min-height: 1.35rem;
   margin: 0.45rem 0.15rem;
   background: color-mix(in srgb, var(--border) 72%, transparent);
-}
-
-.sunny-dashboard-inspector-search {
+}.sunny-dashboard-inspector-search{
   overflow: hidden;
   max-height: 24rem;
   opacity: 1;
   transition:
     max-height var(--motion-duration-layout) var(--motion-ease-standard),
     opacity var(--motion-duration-ui) var(--motion-ease-out);
-}
-
-.sunny-dashboard-inspector-search .sunny-codex-search-wrapper {
+}.sunny-dashboard-inspector-search .sunny-codex-search-wrapper{
   margin-top: 0.55rem;
-}
-
-.sunny-dashboard-inspector-search-icon {
+}.sunny-dashboard-inspector-search-icon{
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -163,23 +129,17 @@
   width: 1.05rem;
   height: 1.05rem;
   color: var(--muted);
-}
-
-.sunny-dashboard-inspector-search-icon .sunny-dashboard-nav-icon {
+}.sunny-dashboard-inspector-search-icon .sunny-dashboard-nav-icon{
   width: 1.05rem;
   height: 1.05rem;
-}
-
-.sunny-dashboard-inspector-search-results {
+}.sunny-dashboard-inspector-search-results{
   margin: 0.35rem 0 0;
   padding: 0.2rem 0;
   list-style: none;
   border-top: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   max-height: 12rem;
   overflow-y: auto;
-}
-
-.sunny-dashboard-inspector-search-results li button {
+}.sunny-dashboard-inspector-search-results li button{
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -194,38 +154,26 @@
   font-size: var(--text-xs);
   cursor: pointer;
   text-align: left;
-}
-
-.sunny-dashboard-inspector-search-results li button:hover {
+}.sunny-dashboard-inspector-search-results li button:hover{
   background: color-mix(in srgb, var(--surface-tint, var(--muted)) 18%, transparent);
-}
-
-.sunny-dashboard-inspector-search-results li button:focus-visible {
+}.sunny-dashboard-inspector-search-results li button:focus-visible{
   outline: 2px solid color-mix(in srgb, var(--accent-ring-strong, var(--accent)) 45%, transparent);
   outline-offset: 1px;
-}
-
-.sunny-dashboard-inspector-search-results li button small {
+}.sunny-dashboard-inspector-search-results li button small{
   color: var(--muted);
   font-size: var(--text-2xs);
   flex-shrink: 0;
-}
-
-.sunny-dashboard-inspector-search-empty {
+}.sunny-dashboard-inspector-search-empty{
   margin: 0.45rem 0 0;
   padding: 0.55rem 0.45rem;
   color: var(--muted);
   font-size: var(--text-xs);
   text-align: center;
-}
-
-@media (prefers-reduced-motion: reduce) {
+}@media (prefers-reduced-motion: reduce){
   .sunny-dashboard-inspector-search {
     transition: none;
   }
-}
-
-.sunny-dashboard-right-panel-body {
+}.sunny-dashboard-right-panel-body{
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -233,27 +181,19 @@
   padding: 0.85rem;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--muted) 32%, transparent) transparent;
-}
-
-.sunny-dashboard-inspector-transition {
+}.sunny-dashboard-inspector-transition{
   min-height: 0;
-}
-
-.sunny-agent-linked-panel,
-.sunny-agent-memory-inspector-panel {
+}.sunny-agent-linked-panel,
+.sunny-agent-memory-inspector-panel{
   display: grid;
   gap: 0.75rem;
-}
-
-.sunny-agent-memory-inspector-list {
+}.sunny-agent-memory-inspector-list{
   display: grid;
   gap: 0.45rem;
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.sunny-agent-memory-inspector-list li {
+}.sunny-agent-memory-inspector-list li{
   border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
   border-radius: 0.65rem;
   background: color-mix(in srgb, var(--background) 92%, transparent);
@@ -261,17 +201,11 @@
   padding: 0.55rem 0.65rem;
   font-size: var(--text-xs);
   line-height: 1.45;
-}
-
-html[data-theme="dark"] .sunny-dashboard-right-panel {
+}html[data-theme="dark"] .sunny-dashboard-right-panel{
   background: var(--surface);
-}
-
-html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span {
+}html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span{
   background: color-mix(in srgb, var(--surface-strong) 88%, var(--accent) 8%);
-}
-
-@media (max-width: 1200px) {
+}@media (max-width: 1200px){
   .sunny-dashboard-right-panel {
     display: none;
   }
@@ -284,69 +218,43 @@ html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span {
     max-height: none;
     border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
     border-radius: 0.9rem;
-    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.14);
+    box-shadow: var(--shadow-panel-mobile);
   }
-}
+}/* ═══ Dark Mode ═══ */
 
-/* ═══ Dark Mode ═══ */
-
-html[data-theme="dark"] .sunny-dashboard-right-panel {
+html[data-theme="dark"] .sunny-dashboard-right-panel{
   background: var(--surface);
   border-left-color: var(--border);
-}
-
-html[data-theme="dark"] .sunny-dashboard-right-panel h3 {
+}html[data-theme="dark"] .sunny-dashboard-right-panel h3{
   color: var(--foreground);
-}
-
-html[data-theme="dark"] .sunny-dashboard-right-panel p {
+}html[data-theme="dark"] .sunny-dashboard-right-panel p{
   color: var(--muted);
-}
-
-html[data-theme="dark"] .sunny-context-card,
+}html[data-theme="dark"] .sunny-context-card,
 html[data-theme="dark"] .sunny-history-card,
-html[data-theme="dark"] .sunny-pending-card {
+html[data-theme="dark"] .sunny-pending-card{
   background: var(--surface-strong);
   border-color: var(--border);
-}
-
-html[data-theme="dark"] .sunny-context-card:hover,
-html[data-theme="dark"] .sunny-history-card:hover {
+}html[data-theme="dark"] .sunny-context-card:hover,
+html[data-theme="dark"] .sunny-history-card:hover{
   background: var(--surface-strong);
-}
-
-html[data-theme="dark"] .sunny-context-card h4,
-html[data-theme="dark"] .sunny-history-card h4 {
+}html[data-theme="dark"] .sunny-context-card h4,
+html[data-theme="dark"] .sunny-history-card h4{
   color: var(--background);
-}
-
-html[data-theme="dark"] .sunny-context-card span,
-html[data-theme="dark"] .sunny-history-card time {
+}html[data-theme="dark"] .sunny-context-card span,
+html[data-theme="dark"] .sunny-history-card time{
   color: var(--muted);
-}
-
-html[data-theme="dark"] .sunny-pending-card .sunny-pending-badge {
+}html[data-theme="dark"] .sunny-pending-card .sunny-pending-badge{
   color: var(--muted);
-}
-
-html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span {
+}html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span{
   color: var(--muted);
-}
-
-html[data-theme="dark"] .sunny-dashboard-inspector-search .sunny-codex-search-wrapper {
+}html[data-theme="dark"] .sunny-dashboard-inspector-search .sunny-codex-search-wrapper{
   background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
   border-color: var(--border);
-}
-
-html[data-theme="dark"] .sunny-dashboard-inspector-search-results li button:hover {
+}html[data-theme="dark"] .sunny-dashboard-inspector-search-results li button:hover{
   background: color-mix(in srgb, var(--surface-strong) 92%, var(--accent) 6%);
-}
-
-html[data-theme="dark"] .sunny-inspector-tab {
+}html[data-theme="dark"] .sunny-inspector-tab{
   color: var(--muted);
-}
-
-html[data-theme="dark"] .sunny-inspector-tab.is-active {
+}html[data-theme="dark"] .sunny-inspector-tab.is-active{
   color: var(--accent-strong);
   border-bottom-color: var(--accent);
 }

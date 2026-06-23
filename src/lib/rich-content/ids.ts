@@ -3,14 +3,17 @@ import { isRecord } from "@/lib/shared/is-record";
 
 const blockNodeTypes = new Set([
   "blockquote",
+  "blockMath",
   "bulletList",
   "callout",
   "codeBlock",
+  "details",
   "heading",
   "horizontalRule",
   "image",
-  "listItem",
+  "mediaEmbed",
   "orderedList",
+  "pageBreak",
   "paragraph",
   "table",
   "taskItem",

@@ -20,8 +20,8 @@ export function UpdateCard({ locale, update, variant = "feed" }: UpdateCardProps
     <article
       className={
         isHomeCard
-          ? "rounded-lg border border-border bg-white/60 px-4 py-4 md:rounded-lg md:px-5 md:py-5"
-          : "relative rounded-xl border border-border bg-white/60 p-4 sm:p-5 md:ml-12 md:rounded-xl md:p-6"
+          ? "rounded-lg border border-border sunny-surface-glass-60 px-4 py-4 md:rounded-lg md:px-5 md:py-5"
+          : "relative rounded-xl border border-border sunny-surface-glass-60 p-4 sm:p-5 md:ml-12 md:rounded-xl md:p-6"
       }
     >
       {!isHomeCard ? (

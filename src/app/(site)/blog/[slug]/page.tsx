@@ -101,7 +101,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 {post.tags.map((tag) => (
                   <span
                     key={`${post.id}-${tag}`}
-                    className="rounded-full border border-border bg-white/70 px-3 py-1 text-xs text-accent-strong"
+                    className="rounded-full border border-border sunny-surface-glass-70 px-3 py-1 text-xs text-accent-strong"
                   >
                     {tag}
                   </span>
@@ -129,7 +129,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             ) : null}
 
             <div className="p-8 md:p-10">
-              <div className="mb-8 rounded-[1.65rem] border border-border bg-white/45 p-5 text-sm leading-8 text-muted">
+              <div className="mb-8 rounded-[1.65rem] border border-border sunny-surface-glass-45 p-5 text-sm leading-8 text-muted">
                 {copy.blogPost.articleLayer}
               </div>
 

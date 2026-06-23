@@ -6,6 +6,7 @@ import {
   getPublicContentHref,
   type DashboardContentCollection,
 } from "./config";
+import { resolveWritingCategoryId } from "../writing-categories/normalize";
 
 type DashboardDoc = Note | Page | Post | Update;
 
@@ -26,6 +27,7 @@ export const normalizeDashboardContentListItem = (collection: DashboardContentCo
 
   return {
     advancedAdminHref: getAdvancedAdminHref(collection, doc.id),
+    categoryId: resolveWritingCategoryId(doc.writingCategory),
     collection,
     editHref: getDashboardEditHref(collection, doc.id),
     excerpt: doc.contentExcerpt ?? "",

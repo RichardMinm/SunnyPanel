@@ -89,7 +89,7 @@
     border: 0;
     background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
     box-shadow: 0 10px 24px var(--accent-shadow);
-    color: var(--agent-text-on-accent, #fffaf3);
+    color: var(--text-on-accent);
   }
 
   .btn--style-primary:hover,
@@ -226,7 +226,7 @@
     border: 0;
     background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
     box-shadow: 0 10px 24px var(--accent-shadow);
-    color: var(--agent-text-on-accent, #fffaf3);
+    color: var(--text-on-accent);
   }
 
   .popup__footer .btn--style-secondary,
@@ -238,7 +238,7 @@
   .modal__footer .btn--style-subtle,
   .confirmation-modal__controls .btn--style-subtle {
     border: 1px solid var(--theme-border-color);
-    background: rgba(255, 255, 255, 0.56);
+    background: var(--overlay-surface-56);
     color: var(--theme-text);
   }
 
@@ -250,13 +250,13 @@
   html[data-theme="dark"] .drawer__footer .btn--style-subtle,
   html[data-theme="dark"] .modal__footer .btn--style-subtle,
   html[data-theme="dark"] .confirmation-modal__controls .btn--style-subtle {
-    background: rgba(29, 35, 42, 0.94);
+    background: var(--overlay-surface-94);
   }
 
   .btn--style-secondary,
   .btn--style-subtle {
     border: 1px solid var(--theme-border-color);
-    background: rgba(255, 255, 255, 0.56);
+    background: var(--overlay-surface-56);
     transition:
       transform 180ms ease,
       background 180ms ease,
@@ -265,7 +265,7 @@
 
   html[data-theme="dark"] .btn--style-secondary,
   html[data-theme="dark"] .btn--style-subtle {
-    background: rgba(29, 35, 42, 0.94);
+    background: var(--overlay-surface-94);
   }
 
   .btn--style-secondary:hover,
@@ -273,14 +273,14 @@
   .btn--style-secondary:focus-visible,
   .btn--style-subtle:focus-visible {
     transform: translateY(-1px);
-    background: rgba(255, 255, 255, 0.82);
+    background: var(--overlay-surface-82);
   }
 
   html[data-theme="dark"] .btn--style-secondary:hover,
   html[data-theme="dark"] .btn--style-subtle:hover,
   html[data-theme="dark"] .btn--style-secondary:focus-visible,
   html[data-theme="dark"] .btn--style-subtle:focus-visible {
-    background: rgba(39, 46, 54, 0.98);
+    background: var(--overlay-surface-98);
   }
 
   .popup__content,

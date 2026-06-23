@@ -1,0 +1,10 @@
+/**
+ * Dashboard surface bundle — Agent workbench and dashboard layout styles.
+ */
+
+@import "./sunny-agent.css";
+@import "./sunny-dashboard-shell.css";
+@import "./sunny-dashboard-right-panel.css";
+@import "./sunny-dashboard-schedule.css";
+@import "./sunny-dashboard-memory.css";
+@import "./sunny-dashboard-writing.css";

@@ -1,48 +1,7 @@
 /**
- * Admin / Dashboard / Site 共享 chrome：顶栏、导航、面板、分区标签。
+ * Admin / Dashboard / Site 共享 chrome：面板、分区标签、控件。
+ * 公开站顶栏样式见 sunny-ui.css 中的 .sunny-public-header*。
  */
-
-.sunny-chrome-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
-  border-radius: var(--radius-chrome);
-  background: var(--surface-strong);
-  box-shadow: 0 2px 8px var(--card-shadow);
-  backdrop-filter: blur(8px);
-  padding: var(--chrome-padding-y) var(--chrome-padding-x);
-  font-size: var(--text-base);
-  line-height: var(--leading-normal);
-}
-
-html[data-theme="dark"] .sunny-chrome-header {
-  background: var(--surface-strong);
-}
-
-.sunny-chrome-header-inner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem 1rem;
-}
-
-.sunny-chrome-header-nav {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.sunny-chrome-header-actions {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 0.45rem;
-}
 
 .sunny-chrome-nav-link {
   display: inline-flex;
@@ -123,7 +82,7 @@ html[data-theme="dark"] .sunny-chrome-workspace-link.is-active {
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
   background: var(--agent-panel-bg);
-  box-shadow: var(--agent-shadow-shell, 0 20px 48px rgba(24, 34, 44, 0.07));
+  box-shadow: var(--agent-shadow-shell);
 }
 
 html[data-theme="dark"] .sunny-chrome-panel {

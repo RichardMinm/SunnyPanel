@@ -106,7 +106,14 @@ describe("Dashboard layout contracts", () => {
 
     // Pin button
     assert.match(sidebar, /sunny-sidebar-pin-button/);
+    assert.match(sidebar, /sunny-sidebar-pin-button is-square/);
+    assert.match(sidebar, /sunny-codex-sidebar-brand-row/);
     assert.match(sidebar, /handleTogglePin/);
+    assert.doesNotMatch(
+      sidebar,
+      /sunny-dashboard-icon-bar-bottom[\s\S]*?sunny-sidebar-pin-button/,
+    );
+    assert.match(sidebar, /sunny-codex-sidebar-settings-trigger/);
 
     // CSS variables
     assert.match(shellCss, /--dashboard-sidebar-collapsed-width:\s*56px/);
@@ -114,6 +121,9 @@ describe("Dashboard layout contracts", () => {
     assert.match(shellCss, /is-sidebar-auto-collapsed/);
     assert.match(shellCss, /is-sidebar-expanded/);
     assert.match(shellCss, /is-auto-collapsed/);
+    assert.match(shellCss, /\.sunny-codex-sidebar-brand-row/);
+    assert.match(shellCss, /\.sunny-sidebar-pin-button\.is-square/);
+    assert.match(shellCss, /\.sunny-codex-sidebar-settings-trigger[\s\S]*min-height:\s*2\.75rem/);
     assert.doesNotMatch(shellCss, /is-hover-expanded[\s\S]*position:\s*fixed/);
 
     // Push layout: grid column width animates with sidebar expand/collapse
@@ -125,6 +135,19 @@ describe("Dashboard layout contracts", () => {
       shellCss,
       /\.sunny-dashboard-shell\.is-sidebar-expanded[\s\S]*grid-template-columns:\s*var\(--dashboard-sidebar-width\)/,
     );
+  });
+
+  test("Session sidebar is limited to workbench mode", () => {
+    const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
+    const shell = read("src/components/dashboard/DashboardShell.tsx");
+
+    assert.match(sidebar, /const isWritingMode = activeMode === "writing"/);
+    assert.match(sidebar, /const showSessionSidebar = activeMode === "agent"/);
+    assert.match(sidebar, /showSessionSidebar \? \([\s\S]*sunny-codex-sidebar-search/);
+    assert.match(sidebar, /showSessionSidebar \? \([\s\S]*aria-label="会话"/);
+    assert.match(sidebar, /showSessionSidebar \? \([\s\S]*aria-label="已归档"/);
+    assert.match(sidebar, /isWritingMode \? <WritingLibraryRail/);
+    assert.match(shell, /threadListMode=\{activeMode === "agent" \? "full" : "hidden"\}/);
   });
 
   test("Archived and thread sidebar controls share one collapse button contract", () => {
@@ -247,8 +270,8 @@ describe("Dashboard layout contracts", () => {
     assert.match(rightPanel, /LinkedObjectsPanel/);
     assert.match(rightPanel, /MemoryInspectorPanel/);
     assert.doesNotMatch(rightPanel, /会话历史/);
-    assert.match(types, /AgentInspectorTab = "approval" \| "context" \| "linked" \| "memory" \| "trace" \| "inbox"/);
-    for (const label of ["上下文", "审批", "Trace", "关联", "记忆", "建议"]) {
+    assert.match(types, /AgentInspectorTab = "approval" \| "context" \| "debug" \| "linked" \| "memory" \| "trace" \| "inbox"/);
+    for (const label of ["上下文", "进度", "详细", "关联", "记忆", "建议", "调试"]) {
       assert.match(constants, new RegExp(label));
     }
     assert.doesNotMatch(constants, /label:\s*"确认"/);
@@ -258,7 +281,7 @@ describe("Dashboard layout contracts", () => {
   test("Right Inspector search is an icon toggle with styled expandable field", () => {
     const rightPanel = read("src/components/dashboard/DashboardRightPanel.tsx");
     const searchToolbar = read("src/components/dashboard/agent/InspectorSearchToolbar.tsx");
-    const tabBar = read("src/components/dashboard/agent/InspectorTabBar.tsx");
+    const contextInspector = read("src/components/dashboard/agent/ContextInspector.tsx");
     const rightCss = read("src/app/styles/sunny-dashboard-right-panel.css");
 
     assert.match(rightPanel, /InspectorSearchToolbar/);
@@ -270,7 +293,8 @@ describe("Dashboard layout contracts", () => {
     assert.match(searchToolbar, /sunny-dashboard-inspector-search/);
     assert.match(searchToolbar, /sunny-codex-search-wrapper/);
     assert.match(searchToolbar, /Escape/);
-    assert.match(tabBar, /bare\?: boolean/);
+    assert.match(rightPanel, /ContextInspector/);
+    assert.match(contextInspector, /bare\?: boolean/);
     assert.match(rightCss, /\.sunny-dashboard-inspector-toolbar/);
     assert.match(
       rightCss,
@@ -318,17 +342,17 @@ describe("Dashboard layout contracts", () => {
     assert.match(workbench, /workbenchMode=\{workbenchMode\}/);
     assert.match(workbench, /onWorkbenchModeChange=\{onWorkbenchModeChange\}/);
     assert.match(pageClient, /onWorkbenchModeChange=\{chat\.setWorkbenchMode\}/);
-    assert.match(composer, /MODE_OPTIONS/);
-    assert.match(composer, /label:\s*"只回答"/);
+    assert.match(composer, /ComposerModeSelect/);
+    assert.match(composer, /ComposerAddMenu/);
     assert.match(composer, /modeMenuOpen/);
     assert.match(composer, /quickMenuOpen/);
-    assert.match(composer, /aria-label="选择工作模式"/);
-    assert.match(composer, /aria-label="添加上下文 \/ 文件 \/ 命令"/);
+    assert.match(composer, /triggerAriaLabel="选择工作模式"/);
+    assert.match(composer, /triggerAriaLabel="添加上下文 \/ 文件 \/ 命令"/);
+    assert.match(read("src/components/dashboard/agent/ComposerModeSelect.tsx"), /label:\s*"只回答"/);
     assert.match(composer, /打开当前上下文/);
     assert.match(composer, /sunny-agent-composer-actions/);
-    assert.match(composer, /调试模式/);
-    assert.match(composer, /QUICK_ACTIONS/);
-    assert.match(composer, /Sunny 会自动判断如何处理/);
+    assert.match(read("src/components/dashboard/agent/ComposerAddMenu.tsx"), /调试模式/);
+    assert.match(read("src/components/dashboard/agent/ComposerModeSelect.tsx"), /Sunny 会自动判断如何处理/);
     assert.match(composer, /title=\{sendTitle\}/);
     assert.match(composer, /生成 DryRun/);
     assert.doesNotMatch(composer, /sunny-agent-composer-mode-copy/);
@@ -384,6 +408,9 @@ describe("Dashboard layout contracts", () => {
     assert.doesNotMatch(approvalCard, /记录 AgentRun/);
     assert.match(approvalCard, /请输入“确认执行”/);
     assert.match(approvalCard, /confirmPhrase/);
+    assert.match(approvalCard, /AppButton/);
+    assert.match(read("src/components/dashboard/agent/ThreadHeader.tsx"), /AppIconButton/);
+    assert.match(read("src/components/dashboard/agent/AgentComposer.tsx"), /AppIconButton/);
   });
 
   test("Dashboard syncs learning suggestions server-side without client inbox state", () => {
@@ -412,7 +439,7 @@ describe("Dashboard layout contracts", () => {
 
   test("Debug-only Inspector copy is gated behind debugMode", () => {
     const rightPanel = read("src/components/dashboard/DashboardRightPanel.tsx");
-    const contextPanel = read("src/components/dashboard/agent/AgentContextPanel.tsx");
+    const debugPanel = read("src/components/dashboard/agent/AgentDebugPanel.tsx");
     const tracePanel = read("src/components/dashboard/agent/AgentTracePanel.tsx");
     const agentCss = read("src/app/styles/sunny-agent.css");
     const rightCss = read("src/app/styles/sunny-dashboard-right-panel.css");
@@ -422,10 +449,12 @@ describe("Dashboard layout contracts", () => {
     assert.match(rightPanel, /当本轮操作关联计划、日程、笔记或文章时/);
     assert.match(rightPanel, /function MemoryInspectorPanel/);
     assert.match(rightPanel, /debugMode/);
+    assert.match(rightPanel, /AgentDebugPanel/);
+    assert.match(rightPanel, /activeInspectorTab === "debug"/);
     assert.match(rightPanel, /当前对话未使用长期记忆/);
     assert.match(rightPanel, /命中记忆：/);
-    assert.match(contextPanel, /debugMode/);
-    assert.match(contextPanel, /sunny-agent-debug-only/);
+    assert.match(debugPanel, /sunny-agent-debug-only/);
+    assert.match(debugPanel, /Thread ID/);
     assert.match(tracePanel, /debugMode/);
     assert.match(tracePanel, /showDebugTrace/);
     assert.doesNotMatch(agentCss, /\.sunny-agent-thread-status-strip/);

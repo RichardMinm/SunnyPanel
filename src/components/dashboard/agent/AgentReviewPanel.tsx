@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { AppButton } from "@/components/primitives/AppButton";
+
 type ReviewSummary = {
   id: number;
   planTitle: string;
@@ -66,14 +68,15 @@ export function AgentReviewPanel({
           </p>
         </div>
         {onGenerateReview ? (
-          <button
-            type="button"
+          <AppButton
             className="sunny-agent-confirm-button"
             onClick={onGenerateReview}
             style={{ marginTop: "12px" }}
+            type="button"
+            variant="primary"
           >
             + 对当前计划生成新复盘
-          </button>
+          </AppButton>
         ) : null}
       </div>
     );
@@ -128,14 +131,15 @@ export function AgentReviewPanel({
         ))}
       </ul>
       {onGenerateReview ? (
-        <button
-          type="button"
+        <AppButton
           className="sunny-agent-confirm-button"
           onClick={onGenerateReview}
           style={{ marginTop: "12px" }}
+          type="button"
+          variant="primary"
         >
           + 生成新复盘
-        </button>
+        </AppButton>
       ) : null}
     </div>
   );

@@ -9,6 +9,7 @@ import {
 } from "../lib/payload/fields.ts";
 import { richContentFields } from "../lib/payload/rich-content-fields.ts";
 import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
+import { writingCategoryField } from "../lib/payload/writing-category-field.ts";
 
 export const Post: CollectionConfig = {
   slug: "posts",
@@ -72,6 +73,7 @@ export const Post: CollectionConfig = {
     statusField,
     publishedAtField,
     visibilityField(),
+    writingCategoryField,
   ],
   labels: {
     plural: {

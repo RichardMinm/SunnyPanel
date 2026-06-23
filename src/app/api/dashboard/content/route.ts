@@ -20,11 +20,19 @@ const createDraftSlug = (collection: DashboardContentCollection) => `draft-${col
 
 const buildCreateData = (collection: DashboardContentCollection, body: Record<string, unknown>) => {
   const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : null;
+  const writingCategoryId =
+    typeof body.writingCategoryId === "number" && body.writingCategoryId > 0
+      ? body.writingCategoryId
+      : null;
   const data: Record<string, unknown> = {
     contentRich: createEmptyRichDocument(),
     status: "draft",
     visibility: "private",
   };
+
+  if (writingCategoryId) {
+    data.writingCategory = writingCategoryId;
+  }
 
   if (collection === "posts") {
     data.title = title ?? "未命名文章";

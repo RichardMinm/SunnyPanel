@@ -140,6 +140,8 @@ test("Dashboard 使用成熟 SaaS Agent 工作台视觉层级", async ({ page })
   await sidebar.getByRole("button", { name: "记忆库" }).click();
   await expect(shell.getByRole("heading", { name: "记忆库" })).toBeVisible();
   await expect(shell.getByText("来源会话")).toBeVisible();
+  await expect(sidebar.getByRole("region", { name: "会话" })).toHaveCount(0);
+  await expect(sidebar.getByRole("textbox", { name: "搜索会话" })).toHaveCount(0);
 });
 
 test("移动端 Dashboard 优先展示主 Agent Workspace 且不横向溢出", async ({ page }) => {

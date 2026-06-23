@@ -1,91 +1,20 @@
 "use client";
 
 import type { Editor } from "@tiptap/core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-type SlashItem = {
-  command: (editor: Editor) => void;
-  keywords: string[];
-  label: string;
-};
-
-const slashItems: SlashItem[] = [
-  {
-    command: (editor) => editor.chain().focus().setParagraph().run(),
-    keywords: ["paragraph", "text", "正文"],
-    label: "正文",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-    keywords: ["h1", "heading", "标题"],
-    label: "标题 1",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-    keywords: ["h2", "heading", "标题"],
-    label: "标题 2",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run(),
-    keywords: ["h3", "heading", "标题"],
-    label: "标题 3",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleBulletList().run(),
-    keywords: ["list", "bullet", "列表"],
-    label: "项目列表",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleOrderedList().run(),
-    keywords: ["ordered", "列表"],
-    label: "有序列表",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleTaskList().run(),
-    keywords: ["task", "todo", "任务"],
-    label: "任务列表",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleBlockquote().run(),
-    keywords: ["quote", "引用"],
-    label: "引用",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleCodeBlock().run(),
-    keywords: ["code", "代码"],
-    label: "代码块",
-  },
-  {
-    command: (editor) => editor.chain().focus().setHorizontalRule().run(),
-    keywords: ["divider", "hr", "分割线"],
-    label: "分割线",
-  },
-  {
-    command: (editor) =>
-      editor.chain().focus().insertTable({ cols: 3, rows: 3, withHeaderRow: true }).run(),
-    keywords: ["table", "表格"],
-    label: "表格",
-  },
-  {
-    command: (editor) =>
-      editor
-        .chain()
-        .focus()
-        .insertContent({
-          attrs: { tone: "note" },
-          content: [{ type: "paragraph" }],
-          type: "callout",
-        })
-        .run(),
-    keywords: ["callout", "提示"],
-    label: "Callout",
-  },
-];
+import {
+  filterSlashCommandItems,
+  groupSlashCommandItems,
+  slashCommandGroupLabels,
+  type SlashCommandItem,
+} from "./slash-commands";
+import { SlashCommandIcon } from "./SlashCommandIcon";
 
 type SlashCommandListProps = {
-  items: SlashItem[];
-  onSelect: (item: SlashItem) => void;
+  items: SlashCommandItem[];
+  onSelect: (item: SlashCommandItem) => void;
   position: { left: number; top: number };
   selectedIndex: number;
 };
@@ -96,9 +25,13 @@ export function SlashCommandList({
   position,
   selectedIndex,
 }: SlashCommandListProps) {
+  const groups = useMemo(() => groupSlashCommandItems(items), [items]);
+
   if (!items.length || typeof document === "undefined") {
     return null;
   }
+
+  let runningIndex = 0;
 
   return createPortal(
     <div
@@ -106,20 +39,39 @@ export function SlashCommandList({
       role="listbox"
       style={{ left: position.left, top: position.top }}
     >
-      {items.map((item, index) => (
-        <button
-          aria-selected={index === selectedIndex}
-          className={index === selectedIndex ? "is-active" : ""}
-          key={item.label}
-          onMouseDown={(event) => {
-            event.preventDefault();
-            onSelect(item);
-          }}
-          role="option"
-          type="button"
-        >
-          {item.label}
-        </button>
+      {groups.map((group, groupIndex) => (
+        <div className="sunny-rich-editor-slash-group" key={group.group}>
+          {groupIndex > 0 ? <div className="sunny-rich-editor-slash-divider" role="separator" /> : null}
+          <span className="sunny-rich-editor-slash-group-label">
+            {slashCommandGroupLabels[group.group]}
+          </span>
+          {group.items.map((item) => {
+            const itemIndex = runningIndex;
+            runningIndex += 1;
+
+            return (
+              <button
+                aria-selected={itemIndex === selectedIndex}
+                className={itemIndex === selectedIndex ? "is-active" : ""}
+                key={item.id}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  onSelect(item);
+                }}
+                role="option"
+                type="button"
+              >
+                <span aria-hidden className="sunny-rich-editor-slash-icon">
+                  <SlashCommandIcon name={item.icon} />
+                </span>
+                <span className="sunny-rich-editor-slash-label">{item.label}</span>
+                {item.shortcut ? (
+                  <span className="sunny-rich-editor-slash-shortcut">{item.shortcut}</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
       ))}
     </div>,
     document.body,
@@ -127,16 +79,7 @@ export function SlashCommandList({
 }
 
 export function filterSlashItems(query: string) {
-  const normalized = query.trim().toLowerCase();
-
-  if (!normalized) {
-    return slashItems;
-  }
-
-  return slashItems.filter((item) => {
-    const haystack = [item.label, ...item.keywords].join(" ").toLowerCase();
-    return haystack.includes(normalized);
-  });
+  return filterSlashCommandItems(query);
 }
 
 export function useSlashCommandState(editor: Editor | null) {
@@ -156,18 +99,13 @@ export function useSlashCommandState(editor: Editor | null) {
   }, []);
 
   const selectItem = useCallback(
-    (item: SlashItem) => {
+    (item: SlashCommandItem) => {
       if (!editor || !rangeRef.current) {
         return;
       }
 
-      editor
-        .chain()
-        .focus()
-        .deleteRange(rangeRef.current)
-        .run();
-
-      item.command(editor);
+      editor.chain().focus().deleteRange(rangeRef.current).run();
+      void Promise.resolve(item.command(editor));
       close();
     },
     [close, editor],

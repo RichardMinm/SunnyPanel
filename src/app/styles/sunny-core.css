@@ -1,0 +1,20 @@
+/**
+ * Core design system layer — tokens, typography, base, primitives, settings.
+ * Surface-specific bundles (site, dashboard, admin) import this file.
+ * Font tokens are defined here so they work without Tailwind @theme.
+ */
+
+@import "./sunny-tokens.css";
+@import "./sunny-palettes.css";
+
+:root {
+  --font-sans: var(--sunny-font-sans);
+  --font-mono: var(--sunny-font-mono);
+  --font-display: var(--sunny-font-display);
+}
+
+@import "./sunny-typography.css";
+@import "./sunny-chrome.css";
+@import "./sunny-base.css";
+@import "./sunny-primitives.css";
+@import "./sunny-settings.css";

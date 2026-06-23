@@ -1,0 +1,7 @@
+/**
+ * Payload Admin surface bundle — bridge tokens and admin shell overrides.
+ */
+
+@import "./sunny-payload-bridge.css";
+@import "./sunny-admin-shell.css";
+@import "./sunny-admin-unified.css";

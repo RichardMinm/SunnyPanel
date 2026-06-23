@@ -1,6 +1,5 @@
 import { DashboardPageClient } from "@/components/dashboard/DashboardPageClient";
 import { loadDashboardData } from "@/lib/dashboard/load-dashboard-data";
-import { loadWorkbenchData } from "@/lib/dashboard/load-workbench-data";
 
 export const dynamic = "force-dynamic";
 
@@ -32,10 +31,7 @@ export const buildDashboardRedirectPath = (params: DashboardPageSearchParams) =>
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const params = await searchParams;
   const redirectPath = buildDashboardRedirectPath(params);
-  const [{ initialThreadId }] = await Promise.all([
-    loadDashboardData(params, redirectPath),
-    loadWorkbenchData(redirectPath),
-  ]);
+  const { initialThreadId } = await loadDashboardData(params, redirectPath);
 
   return (
     <DashboardPageClient

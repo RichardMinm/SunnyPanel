@@ -1,9 +1,13 @@
 "use client";
 
 import type { Editor } from "@tiptap/core";
-import { useEffect, useRef, useState } from "react";
 
 import { DashboardIcon } from "@/components/dashboard/icons";
+import {
+  AppDropdownMenu,
+  AppDropdownMenuItem,
+  AppDropdownMenuLabel,
+} from "@/components/primitives/AppDropdownMenu";
 import { uploadDashboardImage } from "@/lib/editor/upload-dashboard-image";
 import { promptLinkHref } from "@/lib/editor/prompt-link";
 
@@ -63,35 +67,12 @@ const aiActions = [
 ];
 
 export function EditorToolbar({ editor, onAiAction }: EditorToolbarProps) {
-  const [insertOpen, setInsertOpen] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
-  const insertRef = useRef<HTMLDivElement>(null);
-  const aiRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdowns on outside click
-  useEffect(() => {
-    if (!insertOpen && !aiOpen) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (insertOpen && insertRef.current && !insertRef.current.contains(event.target as Node)) {
-        setInsertOpen(false);
-      }
-      if (aiOpen && aiRef.current && !aiRef.current.contains(event.target as Node)) {
-        setAiOpen(false);
-      }
-    };
-
-    window.addEventListener("mousedown", handlePointerDown);
-    return () => window.removeEventListener("mousedown", handlePointerDown);
-  }, [insertOpen, aiOpen]);
-
   if (!editor) {
     return null;
   }
 
   return (
     <div className="sunny-rich-editor-toolbar" aria-label="编辑器工具栏">
-      {/* Group 1: Text style */}
       <div className="sunny-rich-editor-toolbar-group">
         <select
           aria-label="文本样式"
@@ -150,10 +131,8 @@ export function EditorToolbar({ editor, onAiAction }: EditorToolbarProps) {
         </button>
       </div>
 
-      {/* Divider */}
       <div className="sunny-rich-editor-toolbar-divider" />
 
-      {/* Group 2: Inline format */}
       <div className="sunny-rich-editor-toolbar-group">
         <button
           aria-pressed={editor.isActive("bold")}
@@ -186,10 +165,8 @@ export function EditorToolbar({ editor, onAiAction }: EditorToolbarProps) {
         </button>
       </div>
 
-      {/* Divider */}
       <div className="sunny-rich-editor-toolbar-divider" />
 
-      {/* Group 3: Block actions + Insert */}
       <div className="sunny-rich-editor-toolbar-group">
         <button
           aria-pressed={editor.isActive("bulletList")}
@@ -225,65 +202,45 @@ export function EditorToolbar({ editor, onAiAction }: EditorToolbarProps) {
           />
         </label>
 
-        <div className="sunny-rich-editor-insert-dropdown" ref={insertRef}>
-          <button
-            aria-expanded={insertOpen}
-            onClick={() => setInsertOpen((value) => !value)}
-            title="插入更多内容块"
-            type="button"
-          >
-            + 插入
-          </button>
-          {insertOpen ? (
-            <div className="sunny-rich-editor-insert-menu" role="menu">
-              {insertItems.map((item) => (
-                <button
-                  key={item.label}
-                  onClick={() => {
-                    item.run(editor);
-                    setInsertOpen(false);
-                  }}
-                  role="menuitem"
-                  type="button"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <AppDropdownMenu
+          align="start"
+          side="bottom"
+          trigger="+ 插入"
+          triggerAriaLabel="插入更多内容块"
+          triggerClassName="sunny-rich-editor-insert-trigger"
+        >
+          <AppDropdownMenuLabel>插入</AppDropdownMenuLabel>
+          {insertItems.map((item) => (
+            <AppDropdownMenuItem key={item.label} onSelect={() => item.run(editor)}>
+              {item.label}
+            </AppDropdownMenuItem>
+          ))}
+        </AppDropdownMenu>
       </div>
 
-      {/* AI dropdown — right aligned */}
       {onAiAction ? (
-        <div className="sunny-rich-editor-ai-dropdown" ref={aiRef}>
-          <button
-            aria-expanded={aiOpen}
-            className="sunny-rich-editor-ai-trigger"
-            onClick={() => setAiOpen((value) => !value)}
-            title="AI 辅助"
-            type="button"
+        <div className="sunny-rich-editor-toolbar-ai">
+          <div aria-hidden="true" className="sunny-rich-editor-toolbar-divider" />
+          <AppDropdownMenu
+            align="end"
+            className="sunny-rich-editor-ai-dropdown"
+            side="bottom"
+            trigger={
+              <>
+                AI
+                <DashboardIcon name="chevronDown" />
+              </>
+            }
+            triggerAriaLabel="AI 辅助"
+            triggerClassName="sunny-rich-editor-ai-trigger"
           >
-            AI
-            <DashboardIcon name="chevronDown" />
-          </button>
-          {aiOpen ? (
-            <div className="sunny-rich-editor-ai-menu" role="menu">
-              {aiActions.map((item) => (
-                <button
-                  key={item.action}
-                  onClick={() => {
-                    onAiAction(item.action);
-                    setAiOpen(false);
-                  }}
-                  role="menuitem"
-                  type="button"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
+            <AppDropdownMenuLabel>AI</AppDropdownMenuLabel>
+            {aiActions.map((item) => (
+              <AppDropdownMenuItem key={item.action} onSelect={() => onAiAction(item.action)}>
+                {item.label}
+              </AppDropdownMenuItem>
+            ))}
+          </AppDropdownMenu>
         </div>
       ) : null}
     </div>

@@ -13,12 +13,12 @@ describe("Dashboard and Admin writing affordances", () => {
     assert.match(copy, /writingStudio/);
   });
 
-  test("Dashboard writing inspector keeps an advanced Admin escape hatch", () => {
+  test("Dashboard writing inspector keeps advanced Admin in advanced settings only", () => {
     const metaPanel = read("src/components/dashboard/writing/WritingMetaPanel.tsx");
     const controls = read("src/components/dashboard/writing/WritingPublishControls.tsx");
 
     assert.match(metaPanel, /advancedAdminHref/);
-    assert.match(controls, /advancedAdminHref/);
+    assert.doesNotMatch(controls, /advancedAdminHref/);
   });
 
   test("Admin header reuses PublicSiteHeader with admin variant", () => {
@@ -38,5 +38,26 @@ describe("Dashboard and Admin writing affordances", () => {
     assert.match(providers, /getSiteLocale/);
     assert.match(providers, /getSitePalette/);
     assert.doesNotMatch(providers, /"use client"/);
+  });
+
+  test("Admin layout imports admin-globals.css with core and admin bundles", () => {
+    const layout = read("src/app/(payload)/layout.tsx");
+    const adminGlobals = read("src/app/admin-globals.css");
+
+    assert.match(layout, /admin-globals\.css/);
+    assert.doesNotMatch(layout, /sunny-chrome\.css/);
+    assert.match(adminGlobals, /sunny-core\.css/);
+    assert.match(adminGlobals, /sunny-admin\.css/);
+    assert.doesNotMatch(adminGlobals, /sunny-dashboard\.css/);
+    assert.doesNotMatch(adminGlobals, /sunny-agent\.css/);
+  });
+
+  test("DashboardSettingsMenu delegates to shared PreferencesPanel", () => {
+    const menu = read("src/components/dashboard/DashboardSettingsMenu.tsx");
+    const panel = read("src/components/shared/PreferencesPanel.tsx");
+
+    assert.match(menu, /PreferencesPanel/);
+    assert.match(panel, /ThemeToggle/);
+    assert.doesNotMatch(menu, /ThemeCycleButton/);
   });
 });

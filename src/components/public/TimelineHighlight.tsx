@@ -50,7 +50,7 @@ export function TimelineHighlight({ events, locale }: TimelineHighlightProps) {
         <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1.12fr)_minmax(18rem,0.88fr)]">
           <Link
             href="/timeline?featured=1"
-            className="block rounded-lg border border-border bg-white/58 px-5 py-5 transition hover:bg-white/72 md:px-6 md:py-6"
+            className="block rounded-lg border border-border sunny-surface-glass-58 px-5 py-5 transition hover:sunny-surface-glass-72 md:px-6 md:py-6"
           >
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge size="md" tone="accent">
@@ -72,7 +72,7 @@ export function TimelineHighlight({ events, locale }: TimelineHighlightProps) {
             </p>
           </Link>
 
-          <div className="rounded-lg border border-border bg-white/32 px-4 py-4">
+          <div className="rounded-lg border border-border sunny-surface-glass-32 px-4 py-4">
             <div className="flex items-center justify-between gap-3">
               <p className="sunny-kicker text-muted">{copy.more}</p>
               <span className="sunny-dashboard-count">{supportingEvents.length}</span>

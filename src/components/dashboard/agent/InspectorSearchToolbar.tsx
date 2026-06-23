@@ -85,14 +85,14 @@ export function InspectorSearchToolbar({
       </div>
       {searchOpen ? (
         <div className="sunny-dashboard-inspector-search">
-          <div className="sunny-codex-search-wrapper">
+          <div className="sunny-dashboard-search-wrapper">
             <span className="sunny-dashboard-inspector-search-icon" aria-hidden="true">
               <DashboardIcon name="search" />
             </span>
             <input
               ref={inputRef}
               type="text"
-              className="sunny-codex-sidebar-search-input"
+              className="sunny-dashboard-sidebar-search-input"
               placeholder="搜索关联的计划、日程、笔记..."
               value={query}
               onChange={(event) => onQueryChange(event.target.value)}
@@ -101,7 +101,7 @@ export function InspectorSearchToolbar({
             {query ? (
               <button
                 type="button"
-                className="sunny-codex-sidebar-search-clear"
+                className="sunny-dashboard-sidebar-search-clear"
                 onClick={handleClearQuery}
                 aria-label="清除搜索"
               >

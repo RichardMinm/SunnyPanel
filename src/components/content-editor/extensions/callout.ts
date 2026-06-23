@@ -28,7 +28,16 @@ export const Callout = Node.create({
     return [{ tag: "div[data-type='callout']" }];
   },
 
-  renderHTML({ HTMLAttributes }) {
-    return ["div", mergeAttributes(HTMLAttributes, { "data-type": "callout" }), 0];
+  renderHTML({ HTMLAttributes, node }) {
+    const tone = node.attrs.tone || "note";
+
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        class: `sunny-rich-editor-callout is-tone-${tone}`,
+        "data-type": "callout",
+      }),
+      0,
+    ];
   },
 });

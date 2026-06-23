@@ -11,16 +11,15 @@ describe("writing layout persistence", () => {
     assert.match(hook, /sunny-writing-layout/);
     assert.match(hook, /localStorage/);
     assert.match(hook, /focusMode/);
-    assert.match(hook, /inspectorOpen/);
+    assert.match(hook, /inspectorOpen:\s*false/);
   });
 
-  test("WritingWorkspace wires layout provider state into panel classes", () => {
-    const workspace = read("src/components/dashboard/writing/WritingWorkspace.tsx");
+  test("WritingLibraryRail wires layout libraryOpen into sidebar section classes", () => {
+    const rail = read("src/components/dashboard/writing/WritingLibraryRail.tsx");
 
-    assert.match(workspace, /useWritingLayoutContext/);
-    assert.match(workspace, /is-library-open/);
-    assert.match(workspace, /is-inspector-open/);
-    assert.match(workspace, /is-focus-mode/);
+    assert.match(rail, /useWritingLayoutContext/);
+    assert.match(rail, /layout\.libraryOpen/);
+    assert.match(rail, /is-collapsed/);
   });
 });
 
@@ -32,6 +31,14 @@ describe("writing autosave", () => {
     assert.match(hook, /updateDraft/);
     assert.match(hook, /scheduleAutosave/);
     assert.match(hook, /flushSave/);
+  });
+
+  test("WritingDocumentsProvider stores shared document actions", () => {
+    const provider = read("src/components/dashboard/writing/WritingDocumentsContext.tsx");
+
+    assert.match(provider, /useWritingDocuments/);
+    assert.match(provider, /handleSelectDocument/);
+    assert.match(provider, /handleDeleteRequest/);
   });
 
   test("WritingMetaPanel no longer exposes a separate save properties button", () => {

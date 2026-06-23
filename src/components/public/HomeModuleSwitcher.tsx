@@ -90,20 +90,20 @@ export function HomeModuleSwitcher({
             <button
               key={module.id}
               aria-selected={isActive}
-              className="relative inline-flex items-center gap-3 overflow-hidden rounded-full border border-border bg-white/70 px-4 py-2 text-sm font-medium text-foreground transition hover:bg-white"
+              className="relative inline-flex items-center gap-3 overflow-hidden rounded-full border border-border sunny-surface-glass-70 px-4 py-2 text-sm font-medium text-foreground transition sunny-surface-glass-hover"
               onClick={() => setActiveModule(module.id)}
               role="tab"
               type="button"
             >
               {isActive ? (
                 <motion.span
-                  className="absolute inset-0 rounded-full bg-[linear-gradient(135deg,rgba(196,94,35,0.18),rgba(255,255,255,0.88))]"
+                  className="absolute inset-0 rounded-full sunny-gradient-module-highlight"
                   layoutId="home-module-pill"
                   transition={{ duration: 0.28, ease: "easeOut" }}
                 />
               ) : null}
               <span className="relative z-10">{module.label}</span>
-              <span className="relative z-10 rounded-full bg-white/85 px-2.5 py-0.5 text-xs text-muted shadow-[0_2px_8px_rgba(24,34,44,0.06)]">
+              <span className="relative z-10 rounded-full sunny-surface-glass-85 px-2.5 py-0.5 text-xs text-muted sunny-shadow-soft">
                 {module.count}
               </span>
             </button>

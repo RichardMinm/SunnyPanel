@@ -15,7 +15,7 @@ export type WritingLayoutState = {
 
 const defaultLayout: WritingLayoutState = {
   focusMode: false,
-  inspectorOpen: true,
+  inspectorOpen: false,
   inspectorPinned: false,
   libraryOpen: true,
   libraryPinned: false,
@@ -35,26 +35,38 @@ const readStoredLayout = (): WritingLayoutState => {
     }
 
     const parsed = JSON.parse(raw) as Partial<WritingLayoutState>;
+    const wasFocusMode = parsed.focusMode === true;
 
+    // Focus/preview are session-only; stale persisted focus mode hides the library after reload.
     return {
-      focusMode: parsed.focusMode === true,
-      inspectorOpen: parsed.inspectorOpen !== false,
+      focusMode: false,
+      previewMode: false,
+      inspectorOpen: wasFocusMode ? defaultLayout.inspectorOpen : parsed.inspectorOpen !== false,
       inspectorPinned: parsed.inspectorPinned === true,
-      libraryOpen: parsed.libraryOpen !== false,
+      libraryOpen: wasFocusMode ? defaultLayout.libraryOpen : parsed.libraryOpen !== false,
       libraryPinned: parsed.libraryPinned === true,
-      previewMode: parsed.previewMode === true,
     };
   } catch {
     return defaultLayout;
   }
 };
 
-const persistLayout = (layout: WritingLayoutState) => {
+const persistLayout = (layout: WritingLayoutState, preFocus: null | WritingLayoutState) => {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+  const stored: Omit<WritingLayoutState, "focusMode" | "previewMode"> & {
+    focusMode?: never;
+    previewMode?: never;
+  } = {
+    inspectorOpen: layout.focusMode && preFocus ? preFocus.inspectorOpen : layout.inspectorOpen,
+    inspectorPinned: layout.inspectorPinned,
+    libraryOpen: layout.focusMode && preFocus ? preFocus.libraryOpen : layout.libraryOpen,
+    libraryPinned: layout.libraryPinned,
+  };
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
 };
 
 export function useWritingLayout() {
@@ -96,7 +108,7 @@ export function useWritingLayout() {
         next.inspectorOpen = false;
       }
 
-      persistLayout(next);
+      persistLayout(next, preFocusLayout.current);
       return next;
     });
   }, []);

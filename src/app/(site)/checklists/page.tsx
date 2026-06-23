@@ -71,7 +71,7 @@ export default async function ChecklistsPage() {
                           ) : null}
                         </div>
 
-                        <div className="grid grid-cols-1 gap-2 rounded-[1.15rem] border border-border bg-white/55 px-4 py-4 text-center text-sm text-muted sm:grid-cols-3 md:min-w-[10rem] md:grid-cols-1 md:gap-0 md:rounded-[1.35rem] md:text-left">
+                        <div className="grid grid-cols-1 gap-2 rounded-[1.15rem] border border-border sunny-surface-glass-55 px-4 py-4 text-center text-sm text-muted sm:grid-cols-3 md:min-w-[10rem] md:grid-cols-1 md:gap-0 md:rounded-[1.35rem] md:text-left">
                           <p>{copy.checklists.groups} {groups.length}</p>
                           <p className="md:mt-2">{copy.checklists.items} {totalItems}</p>
                           <p className="md:mt-2">{copy.checklists.completed} {completedItems}</p>
@@ -86,7 +86,7 @@ export default async function ChecklistsPage() {
                           return (
                             <details
                               key={group.id ?? `${checklist.id}-${groupIndex}`}
-                              className="rounded-[1.15rem] border border-border bg-white/58 px-4 py-4 md:rounded-[1.4rem] md:px-5"
+                              className="rounded-[1.15rem] border border-border sunny-surface-glass-58 px-4 py-4 md:rounded-[1.4rem] md:px-5"
                               open={groupIndex === 0}
                             >
                               <summary className="flex cursor-pointer list-none flex-col gap-3 text-left sm:flex-row sm:items-center sm:justify-between sm:gap-4">
@@ -111,8 +111,8 @@ export default async function ChecklistsPage() {
                                           <span
                                             className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-icon-badge ${
                                               item.isCompleted
-                                                ? "border-emerald-300 bg-emerald-100 text-emerald-700"
-                                                : "border-border bg-white/70 text-muted"
+                                                ? "sunny-tone-success border"
+                                                : "border-border sunny-surface-glass-70 text-muted"
                                             }`}
                                           >
                                             {item.isCompleted ? "✓" : ""}
@@ -141,7 +141,7 @@ export default async function ChecklistsPage() {
                                     </div>
 
                                     {item.completionNote ? (
-                                      <div className="mt-3 rounded-[1rem] bg-white/72 px-4 py-3">
+                                      <div className="mt-3 rounded-[1rem] sunny-surface-glass-72 px-4 py-3">
                                         <p className="sunny-kicker-compact text-muted">{copy.common.completionNote}</p>
                                         <p className="mt-2 text-sm leading-7 text-muted">{item.completionNote}</p>
                                       </div>

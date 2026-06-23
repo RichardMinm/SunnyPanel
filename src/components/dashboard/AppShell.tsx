@@ -9,6 +9,7 @@ type AppShellProps = {
   sidebarCollapsed?: boolean;
   sidebarExpanded?: boolean;
   sidebarPinned?: boolean;
+  writingMode?: boolean;
 };
 
 export function AppShell({
@@ -18,6 +19,7 @@ export function AppShell({
   sidebarCollapsed,
   sidebarExpanded = false,
   sidebarPinned = false,
+  writingMode = false,
 }: AppShellProps) {
   const style = panelWidth
     ? ({
@@ -27,7 +29,7 @@ export function AppShell({
 
   return (
     <div
-      className={`sunny-dashboard-shell sunny-app-shell${panelOpen ? " is-panel-expanded" : ""}${sidebarCollapsed ? " is-sidebar-collapsed" : ""}${sidebarExpanded ? " is-sidebar-expanded" : " is-sidebar-auto-collapsed"}${sidebarPinned ? " is-sidebar-pinned" : ""}`}
+      className={`sunny-dashboard-shell sunny-app-shell${panelOpen ? " is-panel-expanded" : ""}${sidebarCollapsed ? " is-sidebar-collapsed" : ""}${sidebarExpanded ? " is-sidebar-expanded" : " is-sidebar-auto-collapsed"}${sidebarPinned ? " is-sidebar-pinned" : ""}${writingMode ? " is-writing-mode" : ""}`}
       data-panel-state={panelOpen ? "expanded" : "collapsed"}
       data-sidebar-state={sidebarExpanded ? "expanded" : "collapsed"}
       data-testid="dashboard-shell"

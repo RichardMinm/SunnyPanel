@@ -5,15 +5,22 @@ import { isRecord } from "@/lib/shared/is-record";
 
 const supportedNodeTypes = new Set([
   "blockquote",
+  "blockMath",
   "bulletList",
   "callout",
   "codeBlock",
+  "details",
+  "detailsContent",
+  "detailsSummary",
   "hardBreak",
   "heading",
   "horizontalRule",
   "image",
+  "inlineMath",
   "listItem",
+  "mediaEmbed",
   "orderedList",
+  "pageBreak",
   "paragraph",
   "table",
   "tableCell",
@@ -26,13 +33,17 @@ const supportedNodeTypes = new Set([
 
 const topLevelNodeTypes = new Set([
   "blockquote",
+  "blockMath",
   "bulletList",
   "callout",
   "codeBlock",
+  "details",
   "heading",
   "horizontalRule",
   "image",
+  "mediaEmbed",
   "orderedList",
+  "pageBreak",
   "paragraph",
   "table",
   "taskList",
@@ -41,7 +52,18 @@ const topLevelNodeTypes = new Set([
 const inlineNodeTypes = new Set(["hardBreak", "text"]);
 const listItemNodeTypes = topLevelNodeTypes;
 const listNodeTypes = new Set(["listItem"]);
-const leafNodeTypes = new Set(["hardBreak", "horizontalRule", "image", "text"]);
+const leafNodeTypes = new Set([
+  "blockMath",
+  "hardBreak",
+  "horizontalRule",
+  "image",
+  "inlineMath",
+  "mediaEmbed",
+  "pageBreak",
+  "text",
+]);
+const detailsChildNodeTypes = new Set(["detailsContent", "detailsSummary"]);
+const detailsContentNodeTypes = topLevelNodeTypes;
 const tableCellNodeTypes = topLevelNodeTypes;
 const tableNodeTypes = new Set(["tableRow"]);
 const tableRowNodeTypes = new Set(["tableCell", "tableHeader"]);
@@ -54,10 +76,13 @@ const childNodeTypesByParent = new Map<string, Set<string>>([
   ["bulletList", listNodeTypes],
   ["callout", topLevelNodeTypes],
   ["codeBlock", textNodeTypes],
+  ["details", detailsChildNodeTypes],
+  ["detailsContent", detailsContentNodeTypes],
+  ["detailsSummary", inlineNodeTypes],
   ["heading", inlineNodeTypes],
   ["listItem", listItemNodeTypes],
   ["orderedList", listNodeTypes],
-  ["paragraph", inlineNodeTypes],
+  ["paragraph", new Set([...inlineNodeTypes, "inlineMath"])],
   ["table", tableNodeTypes],
   ["tableCell", tableCellNodeTypes],
   ["tableHeader", tableCellNodeTypes],
@@ -203,6 +228,31 @@ const isValidNodeAttrs = (nodeType: string, attrs: unknown) => {
           hasValidIdAttr(attrs) &&
           hasOptionalBooleanAttr(attrs, "checked"))
       );
+    case "blockMath":
+    case "inlineMath":
+      return (
+        attrs === undefined ||
+        (isRecord(attrs) &&
+          hasOnlyAttrs(attrs, ["id", "latex"]) &&
+          hasValidIdAttr(attrs) &&
+          hasOptionalNullableStringAttr(attrs, "latex"))
+      );
+    case "mediaEmbed":
+      return (
+        isRecord(attrs) &&
+        hasOnlyAttrs(attrs, ["id", "kind", "src", "title", "filename"]) &&
+        hasValidIdAttr(attrs) &&
+        isNonEmptyString(attrs.src) &&
+        hasOptionalNullableStringAttr(attrs, "kind") &&
+        hasOptionalNullableStringAttr(attrs, "title") &&
+        hasOptionalNullableStringAttr(attrs, "filename")
+      );
+    case "pageBreak":
+      return attrs === undefined || (isRecord(attrs) && hasOnlyAttrs(attrs, ["id"]) && hasValidIdAttr(attrs));
+    case "details":
+    case "detailsContent":
+    case "detailsSummary":
+      return attrs === undefined || (isRecord(attrs) && hasOnlyAttrs(attrs, ["id"]) && hasValidIdAttr(attrs));
     case "text":
       return attrs === undefined;
     default:
@@ -269,6 +319,16 @@ const hasValidContentShape = (node: Record<string, unknown>, nodeType: string) =
     case "listItem":
     case "taskItem":
       return hasNonEmptyContent(node) && isNodeType(node.content[0], "paragraph") && hasValidChildren(node, nodeType);
+    case "details":
+      return (
+        hasNonEmptyContent(node) &&
+        node.content.some((child) => isNodeType(child, "detailsSummary")) &&
+        node.content.some((child) => isNodeType(child, "detailsContent")) &&
+        hasValidChildren(node, nodeType)
+      );
+    case "detailsContent":
+    case "detailsSummary":
+      return hasOptionalNonEmptyContent(node) && (!node.content || hasValidChildren({ content: node.content }, nodeType));
     default:
       return false;
   }
@@ -315,6 +375,10 @@ const isValidRichContentNode = (value: unknown, parentType: string): value is Ri
 
   if (nodeType === "text" && !isNonEmptyString(value.text)) {
     return false;
+  }
+
+  if ((nodeType === "inlineMath" || nodeType === "blockMath") && !("content" in value)) {
+    return true;
   }
 
   if ("text" in value && typeof value.text !== "string") {

@@ -157,7 +157,8 @@ export function useWritingDocuments() {
 
       const endpoint = `/api/dashboard/content${params.size ? `?${params.toString()}` : ""}`;
       const data = await readDashboardJson<DocumentListResponse>(await fetch(endpoint));
-      setDocuments(data.documents ?? []);
+      const loadedDocs = data.documents ?? [];
+      setDocuments(loadedDocs);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "加载内容失败");
     } finally {
@@ -299,7 +300,10 @@ export function useWritingDocuments() {
   );
 
   const createDocument = useCallback(
-    async (collection: DashboardContentCollection, title?: string) => {
+    async (
+      collection: DashboardContentCollection,
+      options?: { categoryId?: null | number; title?: string },
+    ) => {
       clearAutosaveTimer();
       setError(null);
       setSaveState("saving");
@@ -307,7 +311,11 @@ export function useWritingDocuments() {
       try {
         const data = await readDashboardJson<DocumentResponse>(
           await fetch("/api/dashboard/content", {
-            body: JSON.stringify({ collection, title }),
+            body: JSON.stringify({
+              collection,
+              title: options?.title,
+              writingCategoryId: options?.categoryId ?? undefined,
+            }),
             headers: { "Content-Type": "application/json" },
             method: "POST",
           }),
@@ -372,7 +380,10 @@ export function useWritingDocuments() {
       }
 
       const sourceDraft = draftRef.current ?? buildDraftFromDocument(full);
-      const created = await createDocument(document.collection, `${full.title} 副本`);
+      const created = await createDocument(document.collection, {
+        title: `${full.title} 副本`,
+        categoryId: document.categoryId,
+      });
 
       if (!created) {
         return null;
@@ -415,7 +426,11 @@ export function useWritingDocuments() {
   );
 
   const setPublicationState = useCallback(
-    async (document: WritingDocument, action: "publish" | "unpublish") => {
+    async (
+      document: WritingDocument,
+      action: "publish" | "unpublish",
+      options?: { visibility?: "private" | "public" },
+    ) => {
       if (isDirtyRef.current) {
         const saved = await flushSave();
         if (!saved) {
@@ -429,6 +444,14 @@ export function useWritingDocuments() {
       try {
         const data = await readDashboardJson<DocumentResponse>(
           await fetch(`/api/dashboard/content/${document.collection}/${document.id}/${action}`, {
+            body:
+              action === "publish" && options?.visibility
+                ? JSON.stringify({ visibility: options.visibility })
+                : undefined,
+            headers:
+              action === "publish" && options?.visibility
+                ? { "Content-Type": "application/json" }
+                : undefined,
             method: "POST",
           }),
         );
@@ -450,13 +473,53 @@ export function useWritingDocuments() {
   );
 
   const publishDocument = useCallback(
-    (document: WritingDocument) => setPublicationState(document, "publish"),
+    (document: WritingDocument, options?: { visibility?: "private" | "public" }) =>
+      setPublicationState(document, "publish", options),
     [setPublicationState],
   );
 
   const unpublishDocument = useCallback(
     (document: WritingDocument) => setPublicationState(document, "unpublish"),
     [setPublicationState],
+  );
+
+  const moveDocumentToCategory = useCallback(
+    async (document: WritingDocumentListItem, categoryId: null | number) => {
+      setError(null);
+
+      try {
+        const data = await readDashboardJson<DocumentResponse>(
+          await fetch(`/api/dashboard/content/${document.collection}/${document.id}`, {
+            body: JSON.stringify({
+              lastKnownUpdatedAt: document.updatedAt,
+              writingCategory: categoryId,
+            }),
+            headers: { "Content-Type": "application/json" },
+            method: "PATCH",
+          }),
+        );
+
+        const nextDocument = data.document;
+        if (!nextDocument) {
+          throw new Error("移动文档失败");
+        }
+
+        setDocuments((current) => upsertListItem(current, nextDocument));
+
+        if (
+          selectedDocumentRef.current &&
+          getDocumentKey(selectedDocumentRef.current) === getDocumentKey(document)
+        ) {
+          setSelectedDocument(nextDocument);
+        }
+
+        return nextDocument;
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : "移动文档失败");
+        return null;
+      }
+    },
+    [],
   );
 
   useEffect(() => {
@@ -481,6 +544,23 @@ export function useWritingDocuments() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [loadDocument]);
 
+  useEffect(() => {
+    if (documents.length === 0 || selectedDocumentRef.current) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const collection = parseCollection(params.get("collection"));
+    const rawId = Number(params.get("id"));
+
+    if (collection && Number.isFinite(rawId) && rawId > 0) {
+      return;
+    }
+
+    const firstDocument = documents[0];
+    void loadDocument(firstDocument.collection, firstDocument.id);
+  }, [documents, loadDocument]);
+
   useEffect(() => () => clearAutosaveTimer(), [clearAutosaveTimer]);
 
   return {
@@ -495,6 +575,7 @@ export function useWritingDocuments() {
     isDirty,
     isLoading,
     loadDocuments,
+    moveDocumentToCategory,
     publishDocument,
     renameDocument,
     saveDocument,

@@ -3,6 +3,7 @@
 import type { Editor } from "@tiptap/core";
 import { BubbleMenu } from "@tiptap/react/menus";
 
+import { codeLanguageOptions } from "@/lib/editor/lowlight";
 import { promptLinkHref } from "@/lib/editor/prompt-link";
 
 export type EditorBubbleAiAction = "condense" | "expand" | "polish" | "rewrite" | "summarize";
@@ -45,13 +46,39 @@ export function EditorBubbleMenu({ editor, onAiAction }: EditorBubbleMenuProps) 
   };
 
   return (
-    <BubbleMenu
-      className="sunny-rich-editor-bubble-menu"
-      editor={editor}
-      shouldShow={({ editor: currentEditor }) =>
-        !currentEditor.state.selection.empty && currentEditor.isEditable
-      }
-    >
+    <>
+      <BubbleMenu
+        className="sunny-rich-editor-bubble-menu"
+        editor={editor}
+        shouldShow={({ editor: currentEditor }) =>
+          currentEditor.isActive("codeBlock") && currentEditor.isEditable
+        }
+      >
+        <label className="sunny-rich-editor-code-lang">
+          <span>语言</span>
+          <select
+            onChange={(event) => {
+              editor.chain().focus().updateAttributes("codeBlock", { language: event.target.value }).run();
+            }}
+            value={editor.getAttributes("codeBlock").language ?? "plaintext"}
+          >
+            {codeLanguageOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </BubbleMenu>
+      <BubbleMenu
+        className="sunny-rich-editor-bubble-menu"
+        editor={editor}
+        shouldShow={({ editor: currentEditor }) =>
+          !currentEditor.state.selection.empty &&
+          currentEditor.isEditable &&
+          !currentEditor.isActive("codeBlock")
+        }
+      >
       <button
         aria-pressed={editor.isActive("bold")}
         onClick={() => editor.chain().focus().toggleBold().run()}
@@ -109,6 +136,7 @@ export function EditorBubbleMenu({ editor, onAiAction }: EditorBubbleMenuProps) 
           </button>
         </>
       ) : null}
-    </BubbleMenu>
+      </BubbleMenu>
+    </>
   );
 }

@@ -1,23 +1,4 @@
 /* ── Settings Popover ── */
-:root {
-  --settings-bg: #ffffff;
-  --settings-border: #eadfdf;
-  --settings-shadow: 0 16px 40px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
-  --settings-radius: 20px;
-  --settings-padding: 1.5rem; /* 24px */
-  --settings-section-gap: 1.25rem; /* 20px */
-  --settings-heading: #3b2f35;
-  --settings-sub: #8b7f85;
-}
-
-html[data-theme="dark"] {
-  --settings-bg: #1e1f2b;
-  --settings-border: #2f3040;
-  --settings-shadow: 0 16px 40px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.18);
-  --settings-heading: #e8e3ed;
-  --settings-sub: #9b919c;
-}
-
 .settings-popover {
   z-index: 1000;
   display: flex;

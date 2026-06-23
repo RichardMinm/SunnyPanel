@@ -23,7 +23,19 @@ describe("dashboard content API contracts", () => {
     const row = read("src/components/dashboard/writing/WritingDocumentRow.tsx");
 
     assert.match(row, /getDashboardEditHref/);
+    assert.match(row, /AppContextMenu/);
+    assert.match(row, /AppDropdownMenu/);
     assert.doesNotMatch(row, /content=\$\{document\.collection\}:\$\{document\.id\}/);
+    assert.doesNotMatch(row, /role="menu"/);
+    assert.doesNotMatch(row, /addEventListener\("mousedown"/);
+  });
+
+  test("writing sidebar bottom rail uses AppDropdownMenu for create actions", () => {
+    const bottomRail = read("src/components/dashboard/writing/WritingSidebarBottomRail.tsx");
+
+    assert.match(bottomRail, /AppDropdownMenu/);
+    assert.doesNotMatch(bottomRail, /role="menu"/);
+    assert.doesNotMatch(bottomRail, /addEventListener\("mousedown"/);
   });
 
   test("dashboard auth redirect preserves writing workspace query params", () => {

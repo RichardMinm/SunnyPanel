@@ -34,12 +34,12 @@ export function PublicSiteHeader({
       : workspaceItems.some((item) => isNavActive(pathname, item.href));
 
   return (
-    <header className="sunny-public-header relative z-40 overflow-visible rounded-lg px-3 py-3 md:px-5 md:py-3.5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">
+    <header className="sunny-public-header rounded-lg">
+      <div className="sunny-public-header-inner">
+        <div className="sunny-public-header-brand-row">
           <SiteBrand locale={locale} />
 
-          <div className="flex shrink-0 items-center gap-2 lg:hidden">
+          <div className="sunny-public-header-actions sunny-public-header-actions--mobile">
             <HeaderWorkspaceActions
               locale={locale}
               palette={palette}
@@ -50,7 +50,7 @@ export function PublicSiteHeader({
           </div>
         </div>
 
-        <div className="min-w-0">
+        <div className="sunny-public-header-nav-wrap">
           <nav className="sunny-public-nav-scroll flex gap-1 overflow-x-auto pb-1 lg:flex-wrap lg:justify-center lg:overflow-visible lg:pb-0">
             {navigation.map((item) => (
               <PublicNavLink
@@ -63,7 +63,7 @@ export function PublicSiteHeader({
           </nav>
         </div>
 
-        <div className="hidden shrink-0 items-center justify-end gap-2 lg:flex">
+        <div className="sunny-public-header-actions sunny-public-header-actions--desktop">
           <HeaderWorkspaceActions
             locale={locale}
             palette={palette}

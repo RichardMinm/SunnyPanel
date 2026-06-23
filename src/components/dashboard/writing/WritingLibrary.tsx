@@ -1,89 +1,129 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
 
-import { WritingDocumentRow } from "./WritingDocumentRow";
+import { WritingCategoryGroup } from "./WritingCategoryGroup";
+import { useWritingDocumentsContext } from "./WritingDocumentsContext";
 import { WritingEmptyState } from "./WritingEmptyState";
-import { WritingLibraryFilters } from "./WritingLibraryFilters";
+import { useWritingLibraryFiltersContext } from "./WritingLibraryFiltersContext";
 import { WritingLibraryHeader } from "./WritingLibraryHeader";
-import { WritingLibrarySearch } from "./WritingLibrarySearch";
-import type { WritingCollectionFilter, WritingDocumentListItem } from "./writing-types";
+import { WritingUncategorizedGroup } from "./WritingUncategorizedGroup";
+import { groupDocumentsByCategory } from "./writing-library-groups";
+import type { WritingDocumentListItem } from "./writing-types";
 
 type WritingLibraryProps = {
-  activeDocument: null | WritingDocumentListItem;
-  collectionFilter: WritingCollectionFilter;
-  documents: WritingDocumentListItem[];
-  isLoading: boolean;
   onClose?: () => void;
-  onCollectionFilterChange: (filter: WritingCollectionFilter) => void;
-  onCreateDocument: (collection: DashboardContentCollection) => void;
-  onDeleteDocument: (document: WritingDocumentListItem) => void;
-  onDuplicateDocument: (document: WritingDocumentListItem) => void;
-  onRenameDocument: (document: WritingDocumentListItem, title: string) => void;
-  onSelectDocument: (document: WritingDocumentListItem) => void;
+  variant?: "column" | "embedded";
 };
 
-export function WritingLibrary({
-  activeDocument,
-  collectionFilter,
-  documents,
-  isLoading,
-  onClose,
-  onCollectionFilterChange,
-  onCreateDocument,
-  onDeleteDocument,
-  onDuplicateDocument,
-  onRenameDocument,
-  onSelectDocument,
-}: WritingLibraryProps) {
-  const [searchQuery, setSearchQuery] = useState("");
+export function WritingLibrary({ onClose, variant = "column" }: WritingLibraryProps) {
+  const {
+    activeCategoryId,
+    archiveCategory,
+    categories,
+    createDocument,
+    documents,
+    duplicateDocument,
+    handleDeleteRequest,
+    handleSelectDocument,
+    isLoading,
+    isLoadingCategories,
+    moveDocumentToCategory,
+    renameDocument,
+    selectedDocument,
+    setActiveCategoryId,
+    updateCategory,
+  } = useWritingDocumentsContext();
+
+  const { draftFilter, showArchivedCategories } = useWritingLibraryFiltersContext();
 
   const filteredDocuments = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) {
+    if (!draftFilter) {
       return documents;
     }
 
-    return documents.filter((document) => {
-      const haystack = [document.title, document.excerpt].join(" ").toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [documents, searchQuery]);
+    return documents.filter((document) => document.status === "draft");
+  }, [documents, draftFilter]);
+
+  const visibleCategories = useMemo(
+    () => categories.filter((category) => category.archived === showArchivedCategories),
+    [categories, showArchivedCategories],
+  );
+
+  const grouped = useMemo(
+    () => groupDocumentsByCategory(filteredDocuments, visibleCategories),
+    [filteredDocuments, visibleCategories],
+  );
+
+  const hasDocuments = filteredDocuments.length > 0;
+  const showEmptyState =
+    !isLoading &&
+    !isLoadingCategories &&
+    !hasDocuments &&
+    visibleCategories.length === 0 &&
+    draftFilter;
+
+  const handleCreateDocument = (collection: DashboardContentCollection) => {
+    void createDocument(collection, { categoryId: activeCategoryId });
+  };
+
+  const handleArchiveCategory = (category: (typeof categories)[number]) => {
+    void archiveCategory(category.id);
+  };
+
+  const handleRenameCategory = (category: (typeof categories)[number], title: string) => {
+    void updateCategory(category.id, { title });
+  };
+
+  const sharedDocumentProps = {
+    activeDocument: selectedDocument,
+    categories: visibleCategories,
+    onDelete: handleDeleteRequest,
+    onDuplicate: (document: WritingDocumentListItem) => void duplicateDocument(document),
+    onMoveToCategory: (document: WritingDocumentListItem, categoryId: null | number) => {
+      void moveDocumentToCategory(document, categoryId);
+    },
+    onRename: (document: WritingDocumentListItem, title: string) => void renameDocument(document, title),
+    onSelect: (document: WritingDocumentListItem) => void handleSelectDocument(document),
+  };
 
   return (
-    <aside className="sunny-writing-library" aria-label="内容库">
-      <WritingLibraryHeader onClose={onClose} onCreateDocument={onCreateDocument} />
-      <WritingLibrarySearch onChange={setSearchQuery} value={searchQuery} />
-      <WritingLibraryFilters
-        collectionFilter={collectionFilter}
-        onCollectionFilterChange={onCollectionFilterChange}
-      />
+    <aside
+      className={`sunny-writing-library${variant === "embedded" ? " is-embedded" : ""}`}
+      aria-label="内容库"
+    >
+      <WritingLibraryHeader onClose={onClose} showClose={Boolean(onClose)} />
 
       <div className="sunny-writing-document-list" role="list">
-        {isLoading ? (
+        {isLoading || isLoadingCategories ? (
           <p className="sunny-writing-empty">正在整理内容...</p>
-        ) : filteredDocuments.length ? (
-          filteredDocuments.map((document) => {
-            const active =
-              activeDocument?.collection === document.collection && activeDocument.id === document.id;
-
-            return (
-              <WritingDocumentRow
-                active={active}
-                document={document}
-                key={`${document.collection}:${document.id}`}
-                onDelete={onDeleteDocument}
-                onDuplicate={onDuplicateDocument}
-                onRename={onRenameDocument}
-                onSelect={onSelectDocument}
-              />
-            );
-          })
+        ) : showEmptyState ? (
+          <WritingEmptyState
+            collection={selectedDocument?.collection ?? "posts"}
+            onCreate={handleCreateDocument}
+          />
         ) : (
-          <WritingEmptyState onCreate={() => onCreateDocument("posts")} />
+          <>
+            {visibleCategories.map((category) => (
+              <WritingCategoryGroup
+                {...sharedDocumentProps}
+                category={category}
+                documents={grouped.byCategory.get(category.id) ?? []}
+                key={category.id}
+                onArchiveCategory={handleArchiveCategory}
+                onRenameCategory={handleRenameCategory}
+                onSelectCategory={() => setActiveCategoryId(category.id)}
+              />
+            ))}
+            {!showArchivedCategories ? (
+              <WritingUncategorizedGroup
+                {...sharedDocumentProps}
+                documents={grouped.uncategorized}
+              />
+            ) : null}
+          </>
         )}
       </div>
     </aside>

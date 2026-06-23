@@ -32,7 +32,7 @@ export function TimelineEventCard({ event, locale }: TimelineEventCardProps) {
   return (
     <article
       className={`relative rounded-[1rem] border border-border px-4 py-4 md:px-5 md:py-5 ${
-        event.isFeatured ? "bg-white/68 shadow-[inset_3px_0_0_var(--accent)]" : "bg-white/42"
+        event.isFeatured ? "sunny-surface-glass-68 shadow-[inset_3px_0_0_var(--accent)]" : "sunny-surface-glass-42"
       }`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

@@ -4,7 +4,6 @@ import type { WritingDocument, WritingSaveState } from "./writing-types";
 
 type WritingPublishControlsProps = {
   document: WritingDocument;
-  onPublish: (document: WritingDocument) => Promise<null | WritingDocument>;
   onUnpublish: (document: WritingDocument) => Promise<null | WritingDocument>;
   saveState: WritingSaveState;
 };
@@ -14,7 +13,6 @@ const getStatusLabel = (document: WritingDocument) =>
 
 export function WritingPublishControls({
   document,
-  onPublish,
   onUnpublish,
   saveState,
 }: WritingPublishControlsProps) {
@@ -24,7 +22,9 @@ export function WritingPublishControls({
     <section className="sunny-writing-side-section" aria-label="发布">
       <div className="sunny-writing-publish-head">
         <h3>发布</h3>
-        <span data-status={document.status}>{getStatusLabel(document)}</span>
+        <span className="sunny-writing-status-chip" data-status={document.status}>
+          {getStatusLabel(document)}
+        </span>
       </div>
 
       <div className="sunny-writing-publish-actions">
@@ -33,15 +33,15 @@ export function WritingPublishControls({
             转回草稿
           </button>
         ) : (
-          <button disabled={busy} onClick={() => void onPublish(document)} type="button">
-            发布
-          </button>
+          <p className="sunny-writing-side-muted">在编辑器顶栏发布此文档。</p>
         )}
-        <a href={document.advancedAdminHref} target="_blank" rel="noreferrer">
-          高级 Admin
-        </a>
         {document.publicHref ? (
-          <a href={document.publicHref} target="_blank" rel="noreferrer">
+          <a
+            className="sunny-writing-publish-link"
+            href={document.publicHref}
+            rel="noreferrer"
+            target="_blank"
+          >
             公开页
           </a>
         ) : null}

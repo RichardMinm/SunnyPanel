@@ -7,7 +7,7 @@ export function PublicSiteFooter({ locale }: { locale: SiteLocale }) {
   const footerItems = getFooterNavItems(locale);
 
   return (
-    <footer className="mt-8 rounded-xl border border-border/80 bg-white/45 px-4 py-4 backdrop-blur md:mt-9 md:rounded-xl md:px-6 md:py-5">
+    <footer className="mt-8 rounded-xl border border-border/80 sunny-surface-glass-45 px-4 py-4 backdrop-blur md:mt-9 md:rounded-xl md:px-6 md:py-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <p className="text-sm text-muted">SunnyPanel</p>
 

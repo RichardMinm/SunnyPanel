@@ -207,6 +207,7 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
 const INSPECTOR_TAB_ICONS: Record<AgentInspectorTab, DashboardIconName> = {
   approval: "checklist",
   context: "thinking",
+  debug: "command",
   inbox: "inbox",
   linked: "project",
   memory: "memory",
@@ -265,11 +266,13 @@ export const COLLECTION_ICON_MAP: Record<string, DashboardIconName> = {
   "agent-memories": "memory",
   checklists: "checklist",
   notes: "note",
+  pages: "document",
   "plan-reviews": "review",
   plans: "plans",
   posts: "post",
   "schedule-items": "schedule",
   "timeline-events": "timeline",
+  updates: "sparkle",
 };
 
 /** collection slug 默认图标 */

@@ -35,7 +35,7 @@ export default async function UpdatesPage() {
             >
               <section className="sunny-card rounded-[1.6rem] p-5 sm:p-6 md:rounded-[2.2rem] md:p-8">
                 <div className="relative">
-                  <div className="absolute left-5 top-4 bottom-4 hidden w-px bg-[linear-gradient(180deg,rgba(24,34,44,0.14),rgba(24,34,44,0.02))] md:block" />
+                  <div className="absolute left-5 top-4 bottom-4 hidden w-px sunny-gradient-timeline-line md:block" />
 
                   <div className="space-y-4 md:space-y-5">
                     {updates.map((update) => (

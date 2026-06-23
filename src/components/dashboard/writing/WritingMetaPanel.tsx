@@ -9,7 +9,9 @@ import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 import { WritingInspectorSection } from "./WritingInspectorSection";
 import { WritingOutlinePanel } from "./WritingOutlinePanel";
 import { WritingPublishControls } from "./WritingPublishControls";
+import { WritingStats } from "./WritingStats";
 import type { WritingMetadataDraft } from "./writing-metadata";
+import { showsSummaryField } from "./writing-metadata";
 import type {
   WritingDocument,
   WritingDraft,
@@ -22,12 +24,12 @@ type WritingMetaPanelProps = {
   isPinned?: boolean;
   onClose?: () => void;
   onPin?: () => void;
-  onPublish: (document: WritingDocument) => Promise<null | WritingDocument>;
   onUnpublish: (document: WritingDocument) => Promise<null | WritingDocument>;
   onUpdateMetadata: <Key extends keyof WritingMetadataDraft>(
     key: Key,
     value: WritingMetadataDraft[Key],
   ) => void;
+  onUpdateSummary?: (summary: string) => void;
   saveState: WritingSaveState;
 };
 
@@ -119,9 +121,9 @@ export function WritingMetaPanel({
   isPinned = false,
   onClose,
   onPin,
-  onPublish,
   onUnpublish,
   onUpdateMetadata,
+  onUpdateSummary,
   saveState,
 }: WritingMetaPanelProps) {
   const title = useMemo(() => {
@@ -178,20 +180,7 @@ export function WritingMetaPanel({
         </div>
       </div>
 
-      <WritingInspectorSection title="基本信息">
-        <label className="sunny-writing-field">
-          <span>可见性</span>
-          <select
-            onChange={(event) =>
-              onUpdateMetadata("visibility", event.target.value as WritingMetadataDraft["visibility"])
-            }
-            value={draft.metadata.visibility}
-          >
-            <option value="private">私有</option>
-            <option value="public">公开</option>
-          </select>
-        </label>
-
+      <WritingInspectorSection defaultOpen={false} title="基本信息">
         {document.collection === "updates" ? (
           <label className="sunny-writing-field">
             <span>类型</span>
@@ -226,16 +215,28 @@ export function WritingMetaPanel({
         ) : null}
       </WritingInspectorSection>
 
-      <WritingInspectorSection title="发布设置">
+      <WritingInspectorSection defaultOpen={false} title="发布设置">
         <WritingPublishControls
           document={document}
-          onPublish={onPublish}
           onUnpublish={onUnpublish}
           saveState={saveState}
         />
       </WritingInspectorSection>
 
-      <WritingInspectorSection defaultOpen={false} title="内容结构">
+      <WritingInspectorSection defaultOpen={false} sectionId="outline" title="内容结构">
+        {showsSummaryField(document.collection) && onUpdateSummary ? (
+          <label className="sunny-writing-field">
+            <span>摘要</span>
+            <textarea
+              className="sunny-writing-summary-input"
+              onChange={(event) => onUpdateSummary(event.target.value)}
+              placeholder="写一句摘要，帮助读者快速理解这篇内容..."
+              rows={3}
+              value={draft.summary}
+            />
+          </label>
+        ) : null}
+
         {document.collection === "posts" ? (
           <label className="sunny-writing-field">
             <span>标签</span>
@@ -279,9 +280,27 @@ export function WritingMetaPanel({
         ) : null}
 
         <WritingOutlinePanel outline={document.contentOutline} />
+        <WritingStats
+          contentJson={draft.contentRich}
+          lastEdited={document.updatedAt}
+          title={draft.title}
+        />
       </WritingInspectorSection>
 
-      <WritingInspectorSection defaultOpen={false} title="高级设置">
+      <WritingInspectorSection defaultOpen={false} sectionId="advanced" title="高级设置">
+        <label className="sunny-writing-field">
+          <span>可见性</span>
+          <select
+            onChange={(event) =>
+              onUpdateMetadata("visibility", event.target.value as WritingMetadataDraft["visibility"])
+            }
+            value={draft.metadata.visibility}
+          >
+            <option value="private">私有</option>
+            <option value="public">公开</option>
+          </select>
+        </label>
+
         {(document.collection === "posts" || document.collection === "pages") ? (
           <label className="sunny-writing-field">
             <span>Slug</span>
@@ -297,11 +316,6 @@ export function WritingMetaPanel({
           <Link className="sunny-writing-admin-link" href={document.advancedAdminHref}>
             高级 Admin
           </Link>
-          {document.publicHref ? (
-            <a className="sunny-writing-admin-link" href={document.publicHref} rel="noreferrer" target="_blank">
-              公开页
-            </a>
-          ) : null}
         </div>
       </WritingInspectorSection>
     </aside>

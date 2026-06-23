@@ -72,7 +72,7 @@
   gap: 0.35rem;
 }
 .sunny-memory-card:hover {
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-xs);
 }
 .sunny-memory-card.is-expanded {
   border-color: var(--accent);
@@ -97,19 +97,19 @@
 }
 .sunny-memory-type-badge.is-project_context {
   background: var(--tone-success-bg);
-  color: #15803d;
+  color: var(--tone-success-text);
 }
 .sunny-memory-type-badge.is-writing_style {
   background: var(--tone-warning-bg);
-  color: #b45309;
+  color: var(--tone-warning-text);
 }
 .sunny-memory-type-badge.is-workflow_rule {
-  background: #f3e8ff;
-  color: #7c3aed;
+  background: var(--mode-review-bg);
+  color: var(--mode-review-text);
 }
 .sunny-memory-type-badge.is-fact {
-  background: #fce7f3;
-  color: #be185d;
+  background: var(--mode-timeline-bg);
+  color: var(--mode-timeline-text);
 }
 
 .sunny-memory-star {
@@ -151,7 +151,7 @@ html[data-theme="dark"] .sunny-memory-card,
 html[data-theme="dark"] .sunny-memory-editor {
   background: var(--surface-strong);
   border-color: var(--border);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-md);
 }
 
 html[data-theme="dark"] .sunny-memory-card h3 {
