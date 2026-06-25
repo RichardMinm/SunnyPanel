@@ -31,7 +31,14 @@ type DashboardRightPanelProps = {
   messages: AgentChatMessage[];
   onArtifactsRollback?: () => void;
   onInspectorTabChange: (tab: AgentInspectorTab) => void;
-  onPrefillComposer?: (prompt: string) => void;
+  onPlanOperatingPrompt?: (prompt: string) => void;
+  onPrefillComposer?: (
+    prompt: string,
+    source?: {
+      suggestedPrompt: string;
+      suggestionId: number;
+    },
+  ) => void;
   onResizeStart?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onTogglePanel: () => void;
   panelOpen: boolean;
@@ -231,6 +238,7 @@ export function DashboardRightPanel({
   messages,
   onArtifactsRollback,
   onInspectorTabChange,
+  onPlanOperatingPrompt,
   onPrefillComposer,
   onResizeStart,
   onTogglePanel,
@@ -344,6 +352,7 @@ export function DashboardRightPanel({
               lastRollbackPayload={lastRollbackPayload}
               lastRollbackResult={lastRollbackResult}
               onArtifactsRollback={onArtifactsRollback}
+              onPlanOperatingPrompt={onPlanOperatingPrompt}
               onRollbackSelectedRun={onRollbackSelectedRun}
               selectedRunDetail={selectedRunDetail}
               selectedRunRollbackBusy={selectedRunRollbackBusy}

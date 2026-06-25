@@ -8,7 +8,13 @@ import { riskLevelLabelMap } from "./constants";
 import { useAgentInbox } from "./use-agent-inbox";
 
 type AgentInboxPanelProps = {
-  onPrefillComposer?: (prompt: string) => void;
+  onPrefillComposer?: (
+    prompt: string,
+    source?: {
+      suggestedPrompt: string;
+      suggestionId: number;
+    },
+  ) => void;
 };
 
 export function AgentInboxPanel({ onPrefillComposer }: AgentInboxPanelProps) {
@@ -17,7 +23,10 @@ export function AgentInboxPanel({ onPrefillComposer }: AgentInboxPanelProps) {
   const handleAccept = useCallback(
     (item: AgentInboxSuggestion) => {
       // accept = 预填 composer（用户复核后再经安全门发起），并标记建议已接受。
-      onPrefillComposer?.(item.suggestedPrompt);
+      onPrefillComposer?.(item.suggestedPrompt, {
+        suggestedPrompt: item.suggestedPrompt,
+        suggestionId: item.id,
+      });
       void accept(item.id);
     },
     [accept, onPrefillComposer],

@@ -116,6 +116,7 @@ export type AgentDryRunProposedActionResult = {
 };
 
 export type AgentDryRunBypassResult = {
+  action?: ProposedAgentAction;
   type: "bypass";
 };
 
@@ -357,20 +358,84 @@ export type CancelScheduleItemArgs = {
   reason?: null | string;
 };
 
-export type ModifyRecordArgs = {
+export type PlanRecordPatch = {
+  description?: null | string;
+  domain?: "creative" | "fitness" | "other" | "study" | "travel" | "work";
+  dueDate?: null | string;
+  executionMode?: "agent" | "hybrid" | "manual";
+  priority?: "high" | "low" | "medium";
+  startDate?: null | string;
+  state?: "active" | "backlog" | "done" | "paused";
+  status?: "draft" | "published";
+  title?: string;
+  visibility?: "private" | "public";
+};
+
+export type ScheduleRecordPatch = {
+  category?: "agent" | "course" | "default" | "exam" | "plan_action" | "study";
+  date?: string;
+  description?: null | string;
+  endTime?: null | string;
+  isAllDay?: boolean;
+  priority?: "high" | "low" | "medium";
+  startTime?: null | string;
+  status?: "canceled" | "done" | "planned" | "skipped";
+  title?: string;
+};
+
+export type ChecklistRecordPatch = {
+  publishedAt?: null | string;
+  status?: "draft" | "published";
+  summary?: null | string;
+  title?: string;
+  visibility?: "private" | "public";
+};
+
+export type TimelineRecordPatch = {
+  description?: null | string;
+  eventDate?: string;
+  isFeatured?: boolean;
+  sortOrder?: number;
+  status?: "draft" | "published";
+  title?: string;
+  type?: "agent" | "exam" | "life" | "milestone" | "project" | "study";
+  visibility?: "private" | "public";
+};
+
+type ModifyRecordBaseArgs = {
   /** 自然语言描述的修改字段和值 */
   changeDescription: string;
   /** 要修改的目标实体名称 */
   entityName: string;
-  /** 实体类型：plan / schedule / checklist / timeline */
-  entityType: "checklist" | "plan" | "schedule" | "timeline";
+  /** dry-run 唯一定位后固化的目标 ID */
+  targetId?: null | number;
 };
+
+export type ModifyRecordArgs =
+  | (ModifyRecordBaseArgs & {
+      entityType: "checklist";
+      patch?: ChecklistRecordPatch | null;
+    })
+  | (ModifyRecordBaseArgs & {
+      entityType: "plan";
+      patch?: PlanRecordPatch | null;
+    })
+  | (ModifyRecordBaseArgs & {
+      entityType: "schedule";
+      patch?: ScheduleRecordPatch | null;
+    })
+  | (ModifyRecordBaseArgs & {
+      entityType: "timeline";
+      patch?: TimelineRecordPatch | null;
+    });
 
 export type DeleteRecordArgs = {
   /** 要删除的目标实体名称 */
   entityName: string;
   /** 实体类型 */
   entityType: "checklist" | "plan" | "schedule" | "timeline";
+  /** dry-run 唯一定位后固化的目标 ID */
+  targetId?: null | number;
 };
 
 export type QueryPlanProgressArgs = {
@@ -570,6 +635,8 @@ export type AgentChatResponse = {
   trace?: AgentTraceStep[];
   threadId?: number;
   tokenUsage?: AgentTokenUsage;
+  /** 客户端或服务端生成的幂等回合标识。 */
+  turnId?: string;
   /** 服务端回传的工作台模式，供日志和 UI 可观测。 */
   workbenchMode?: string;
   /** 本轮上下文摘要，供 StatusBar 展示。 */
@@ -592,6 +659,12 @@ const scheduleSourceTypeValues = ["agent", "checklist", "manual", "plan"] as con
 const timelineComposerSourceTypeValues = ["checklist_item", "free_text", "note", "plan", "post", "update"] as const;
 const timelineComposerEventTypeValues = ["life", "milestone", "project"] as const;
 const timelineComposerVisibilityValues = ["private", "public"] as const;
+const contentStatusValues = ["draft", "published"] as const;
+const visibilityValues = ["private", "public"] as const;
+const planDomainValues = ["creative", "fitness", "other", "study", "travel", "work"] as const;
+const scheduleCategoryValues = ["agent", "course", "default", "exam", "plan_action", "study"] as const;
+const scheduleStatusValues = ["canceled", "done", "planned", "skipped"] as const;
+const timelineEventTypeValues = ["agent", "exam", "life", "milestone", "project", "study"] as const;
 const agentRoleValues = ["content", "memory", "plan", "query", "review", "schedule"] as const;
 const agentIntentValues = [
   "add_completion_note",
@@ -674,6 +747,76 @@ const getOptionalNumber = (value: unknown) => {
   }
 
   return undefined;
+};
+
+const getOptionalNullableString = (value: unknown) =>
+  value === null ? null : getOptionalString(value);
+
+const getOptionalNullableDateString = (value: unknown) =>
+  value === null ? null : getOptionalDateString(value);
+
+const compactRecord = <T extends Record<string, unknown>>(value: T): Partial<T> =>
+  Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as Partial<T>;
+
+const parseModifyRecordPatch = (
+  entityType: ModifyRecordArgs["entityType"],
+  value: unknown,
+): ModifyRecordArgs["patch"] => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (entityType === "plan") {
+    return compactRecord({
+      agentBrief: getOptionalNullableString(value.agentBrief),
+      description: getOptionalNullableString(value.description),
+      domain: getOptionalEnum(value.domain, planDomainValues),
+      dueDate: getOptionalNullableDateString(value.dueDate),
+      executionMode: getOptionalEnum(value.executionMode, executionModeValues),
+      priority: getOptionalEnum(value.priority, planPriorityValues),
+      startDate: getOptionalNullableDateString(value.startDate),
+      state: getOptionalEnum(value.state, planStateValues),
+      status: getOptionalEnum(value.status, contentStatusValues),
+      title: getOptionalString(value.title),
+      visibility: getOptionalEnum(value.visibility, visibilityValues),
+    });
+  }
+
+  if (entityType === "schedule") {
+    return compactRecord({
+      agentBrief: getOptionalNullableString(value.agentBrief),
+      category: getOptionalEnum(value.category, scheduleCategoryValues),
+      date: getOptionalDateString(value.date),
+      description: getOptionalNullableString(value.description),
+      endTime: getOptionalNullableString(value.endTime),
+      isAllDay: typeof value.isAllDay === "boolean" ? value.isAllDay : undefined,
+      priority: getOptionalEnum(value.priority, planPriorityValues),
+      startTime: getOptionalNullableString(value.startTime),
+      status: getOptionalEnum(value.status, scheduleStatusValues),
+      title: getOptionalString(value.title),
+    });
+  }
+
+  if (entityType === "checklist") {
+    return compactRecord({
+      publishedAt: getOptionalNullableDateString(value.publishedAt),
+      status: getOptionalEnum(value.status, contentStatusValues),
+      summary: getOptionalNullableString(value.summary),
+      title: getOptionalString(value.title),
+      visibility: getOptionalEnum(value.visibility, visibilityValues),
+    });
+  }
+
+  return compactRecord({
+    description: getOptionalNullableString(value.description),
+    eventDate: getOptionalDateString(value.eventDate),
+    isFeatured: typeof value.isFeatured === "boolean" ? value.isFeatured : undefined,
+    sortOrder: getOptionalNumber(value.sortOrder),
+    status: getOptionalEnum(value.status, contentStatusValues),
+    title: getOptionalString(value.title),
+    type: getOptionalEnum(value.type, timelineEventTypeValues),
+    visibility: getOptionalEnum(value.visibility, visibilityValues),
+  });
 };
 
 const getOptionalStringArray = (value: unknown) =>
@@ -1425,6 +1568,28 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         reply,
       };
     }
+    case "delete_record": {
+      const entityName = getRequiredString(value.args.entityName);
+      const entityType = getOptionalEnum(
+        value.args.entityType,
+        ["checklist", "plan", "schedule", "timeline"] as const,
+      );
+
+      if (!entityName || !entityType) {
+        return null;
+      }
+
+      return {
+        args: {
+          entityName,
+          entityType,
+          targetId: getOptionalNumber(value.args.targetId) ?? null,
+        },
+        confidence,
+        intent: "delete_record",
+        reply,
+      };
+    }
     case "reschedule_item": {
       const rescheduleItemId = getOptionalNumber(value.args.itemId);
       if (!rescheduleItemId) return null;
@@ -1452,6 +1617,59 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         },
         confidence,
         intent: "cancel_schedule_item",
+        reply,
+      };
+    }
+    case "modify_record": {
+      const entityName = getRequiredString(value.args.entityName);
+      const changeDescription = getRequiredString(value.args.changeDescription);
+      const entityType = getOptionalEnum(
+        value.args.entityType,
+        ["checklist", "plan", "schedule", "timeline"] as const,
+      );
+
+      if (!entityName || !changeDescription || !entityType) {
+        return null;
+      }
+
+      const baseArgs = {
+        changeDescription,
+        entityName,
+        patch: parseModifyRecordPatch(entityType, value.args.patch),
+        targetId: getOptionalNumber(value.args.targetId) ?? null,
+      };
+
+      if (entityType === "checklist") {
+        return {
+          args: { ...baseArgs, entityType, patch: baseArgs.patch as ChecklistRecordPatch | null },
+          confidence,
+          intent: "modify_record",
+          reply,
+        };
+      }
+
+      if (entityType === "plan") {
+        return {
+          args: { ...baseArgs, entityType, patch: baseArgs.patch as PlanRecordPatch | null },
+          confidence,
+          intent: "modify_record",
+          reply,
+        };
+      }
+
+      if (entityType === "schedule") {
+        return {
+          args: { ...baseArgs, entityType, patch: baseArgs.patch as ScheduleRecordPatch | null },
+          confidence,
+          intent: "modify_record",
+          reply,
+        };
+      }
+
+      return {
+        args: { ...baseArgs, entityType, patch: baseArgs.patch as TimelineRecordPatch | null },
+        confidence,
+        intent: "modify_record",
         reply,
       };
     }

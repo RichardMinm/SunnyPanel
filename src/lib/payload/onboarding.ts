@@ -18,6 +18,141 @@ const withRichSeedContent = <TSeed extends { content: string }>(seed: TSeed) => 
 
 const samplePublishedAt = "2026-04-23T08:30:00.000Z";
 
+export const mapSequentially = async <TInput, TOutput>(
+  values: readonly TInput[],
+  map: (value: TInput, index: number) => Promise<TOutput>,
+): Promise<TOutput[]> => {
+  const output: TOutput[] = [];
+
+  for (const [index, value] of values.entries()) {
+    output.push(await map(value, index));
+  }
+
+  return output;
+};
+
+export const createInFlightGate = <
+  TArgs extends unknown[],
+  TResult,
+>(
+  run: (...args: TArgs) => Promise<TResult>,
+) => {
+  let pending: Promise<TResult> | null = null;
+
+  return (...args: TArgs): Promise<TResult> => {
+    if (!pending) {
+      pending = run(...args).finally(() => {
+        pending = null;
+      });
+    }
+
+    return pending;
+  };
+};
+
+const globalInFlightStoreKey = Symbol.for(
+  "sunnypanel.payload.in-flight-gates",
+);
+
+const getGlobalInFlightStore = () => {
+  const root = globalThis as unknown as {
+    [key: symbol]: Map<string, Promise<unknown>> | undefined;
+  };
+
+  root[globalInFlightStoreKey] ??= new Map();
+
+  return root[globalInFlightStoreKey];
+};
+
+export const createGlobalInFlightGate = <
+  TArgs extends unknown[],
+  TResult,
+>(
+  key: string,
+  run: (...args: TArgs) => Promise<TResult>,
+) =>
+  (...args: TArgs): Promise<TResult> => {
+    const store = getGlobalInFlightStore();
+    const existing = store.get(key) as
+      | Promise<TResult>
+      | undefined;
+
+    if (existing) {
+      return existing;
+    }
+
+    const pending = run(...args).finally(() => {
+      if (store.get(key) === pending) {
+        store.delete(key);
+      }
+    });
+    store.set(key, pending);
+
+    return pending;
+  };
+
+type AdvisoryLockClient = {
+  connect: () => Promise<unknown>;
+  end: () => Promise<unknown>;
+  query: (
+    text: string,
+    params?: unknown[],
+  ) => Promise<unknown>;
+};
+
+export const withPostgresAdvisoryLock = async <TResult>(
+  key: string,
+  run: () => Promise<TResult>,
+  options: {
+    connectionString?: string;
+    createClient?: () =>
+      | AdvisoryLockClient
+      | Promise<AdvisoryLockClient>;
+  } = {},
+): Promise<TResult> => {
+  const connectionString =
+    options.connectionString ?? process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error(
+      "DATABASE_URL is required for onboarding advisory locking.",
+    );
+  }
+
+  const client = options.createClient
+    ? await options.createClient()
+    : await (async () => {
+        const { Client } = await import("pg");
+
+        return new Client({
+          connectionString,
+        }) as AdvisoryLockClient;
+      })();
+  let connected = false;
+
+  try {
+    await client.connect();
+    connected = true;
+    await client.query(
+      "select pg_advisory_lock(hashtext($1))",
+      [key],
+    );
+
+    return await run();
+  } finally {
+    if (connected) {
+      try {
+        await client.query(
+          "select pg_advisory_unlock(hashtext($1))",
+          [key],
+        );
+      } finally {
+        await client.end();
+      }
+    }
+  }
+};
+
 const aboutPageSeed = {
   content: createMarkdownContent("SunnyPanel 是一个把公开表达和私有工作流放到一起的个人系统。", [
     "我希望它既能承接文章、动态、时间线，也能承接计划、清单和长期回顾，不再把写作和执行拆成两套完全割裂的工具。",
@@ -190,7 +325,7 @@ export const hasInitialWorkspaceSeed = async (payload: Payload) => {
   return Boolean(agentFoundationPlan.docs[0]);
 };
 
-export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
+const seedInitialWorkspace = async (payload: Payload, user: User) => {
   const [aboutPage, nowPage, starterPost, starterChecklist] = await Promise.all([
     findFirstByWhere<{ id: number }>(payload, "pages", {
       slug: {
@@ -223,6 +358,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
         status: "published",
         visibility: "public",
       },
+      depth: 0,
       overrideAccess: true,
     })) as { id: number });
 
@@ -235,6 +371,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
         status: "published",
         visibility: "public",
       },
+      depth: 0,
       overrideAccess: true,
     })) as { id: number });
 
@@ -247,6 +384,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
         status: "published",
         visibility: "public",
       },
+      depth: 0,
       overrideAccess: true,
     })) as { id: number });
 
@@ -262,11 +400,13 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
         status: "published",
         visibility: "public",
       },
+      depth: 0,
       overrideAccess: true,
     })) as { id: number });
 
-  const starterUpdateDocs = await Promise.all(
-    starterUpdates.map(async (update) => {
+  const starterUpdateDocs = await mapSequentially(
+    starterUpdates,
+    async (update) => {
       const existingUpdate = await findFirstByWhere<{ id: number }>(payload, "updates", {
         legacyContentMarkdown: {
           equals: update.content,
@@ -284,13 +424,15 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
           status: "published",
           visibility: "public",
         },
+        depth: 0,
         overrideAccess: true,
       })) as { id: number };
-    }),
+    },
   );
 
-  const starterNoteDocs = await Promise.all(
-    starterNotes.map(async (note) => {
+  const starterNoteDocs = await mapSequentially(
+    starterNotes,
+    async (note) => {
       const existingNote = await findFirstByWhere<{ id: number }>(payload, "notes", {
         legacyContentMarkdown: {
           equals: note.content,
@@ -308,9 +450,10 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
           status: "published",
           visibility: "public",
         },
+        depth: 0,
         overrideAccess: true,
       })) as { id: number };
-    }),
+    },
   );
 
   const timelineSeeds = [
@@ -340,8 +483,9 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
     },
   ];
 
-  await Promise.all(
-    timelineSeeds.map(async (event) => {
+  await mapSequentially(
+    timelineSeeds,
+    async (event) => {
       const existingEvent = await findFirstByWhere<{ id: number }>(payload, "timeline-events", {
         title: {
           equals: event.title,
@@ -360,13 +504,15 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
           status: "published",
           visibility: "public",
         },
+        depth: 0,
         overrideAccess: true,
       });
-    }),
+    },
   );
 
-  const starterPlanDocs = await Promise.all(
-    starterPlans.map(async (plan, index) => {
+  const starterPlanDocs = await mapSequentially(
+    starterPlans,
+    async (plan, index) => {
       const existingPlan = await payload.find({
         collection: "plans",
         depth: 0,
@@ -509,6 +655,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
         return payload.update({
           collection: "plans",
           data: planPatch,
+          depth: 0,
           id: currentPlan.id,
           overrideAccess: true,
         });
@@ -517,9 +664,10 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
       return payload.create({
         collection: "plans",
         data: planData,
+        depth: 0,
         overrideAccess: true,
       });
-    }),
+    },
   );
 
   const agentFoundationPlan = starterPlanDocs.find((plan) => plan.title === "为全自动 Agent 工作流补齐基础上下文");
@@ -626,6 +774,7 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
       await payload.update({
         collection: "agent-runs",
         data: agentRunPatch,
+        depth: 0,
         id: existingAgentRun.id,
         overrideAccess: true,
       });
@@ -633,11 +782,48 @@ export const ensureInitialWorkspace = async (payload: Payload, user: User) => {
       await payload.create({
         collection: "agent-runs",
         data: agentRunData,
+        depth: 0,
         overrideAccess: true,
       });
     }
   }
 };
+
+type InitialWorkspaceEnsurerDeps = {
+  gateKey?: string;
+  hasSeed?: (payload: Payload) => Promise<boolean>;
+  lock?: <TResult>(
+    key: string,
+    run: () => Promise<TResult>,
+  ) => Promise<TResult>;
+  lockKey?: string;
+  seed?: (payload: Payload, user: User) => Promise<void>;
+};
+
+export const createInitialWorkspaceEnsurer = ({
+  gateKey = "initial-workspace",
+  hasSeed = hasInitialWorkspaceSeed,
+  lock = withPostgresAdvisoryLock,
+  lockKey = "sunnypanel:initial-workspace:v1",
+  seed = seedInitialWorkspace,
+}: InitialWorkspaceEnsurerDeps = {}) =>
+  createGlobalInFlightGate(
+    gateKey,
+    (payload: Payload, user: User) =>
+      lock(
+        lockKey,
+        async () => {
+          if (await hasSeed(payload)) {
+            return;
+          }
+
+          await seed(payload, user);
+        },
+      ),
+  );
+
+export const ensureInitialWorkspace =
+  createInitialWorkspaceEnsurer();
 
 type BuildOnboardingChecklistArgs = {
   activePlans: number;

@@ -8,6 +8,8 @@ import sharp from "sharp";
 import { buildConfig } from "payload";
 
 import { AgentRun } from "./src/collections/AgentRun.ts";
+import { AgentActionReceipt } from "./src/collections/AgentActionReceipt.ts";
+import { AgentThreadEvent } from "./src/collections/AgentThreadEvent.ts";
 import { AgentMemory } from "./src/collections/AgentMemory.ts";
 import { AgentSuggestion } from "./src/collections/AgentSuggestion.ts";
 import { AgentThread } from "./src/collections/AgentThread.ts";
@@ -96,7 +98,26 @@ export default buildConfig({
       importMapFile: path.resolve(dirname, "src/app/(payload)/admin/importMap.js"),
     },
   },
-  collections: [Users, Media, Post, Note, Update, Checklist, TimelineEvent, Plan, ScheduleItem, PlanReview, AgentThread, AgentRun, AgentMemory, AgentSuggestion, Page, WritingCategory],
+  collections: [
+    Users,
+    Media,
+    Post,
+    Note,
+    Update,
+    Checklist,
+    TimelineEvent,
+    Plan,
+    ScheduleItem,
+    PlanReview,
+    AgentThread,
+    AgentRun,
+    AgentActionReceipt,
+    AgentThreadEvent,
+    AgentMemory,
+    AgentSuggestion,
+    Page,
+    WritingCategory,
+  ],
   cors: allowedOrigins,
   csrf: allowedOrigins,
   db: postgresAdapter({

@@ -203,6 +203,38 @@ export const AgentThread: CollectionConfig = {
           label: "追问澄清",
           value: "clarify",
         },
+        {
+          label: "修改记录",
+          value: "modify_record",
+        },
+        {
+          label: "删除记录",
+          value: "delete_record",
+        },
+        {
+          label: "能力查询",
+          value: "capability_query",
+        },
+        {
+          label: "查询清单进度",
+          value: "query_checklist_progress",
+        },
+        {
+          label: "查询记忆",
+          value: "query_memory",
+        },
+        {
+          label: "查询计划",
+          value: "query_plan",
+        },
+        {
+          label: "查询日程",
+          value: "query_schedule",
+        },
+        {
+          label: "查询时间线",
+          value: "query_timeline",
+        },
       ],
     },
     {
@@ -232,6 +264,14 @@ export const AgentThread: CollectionConfig = {
         {
           label: "流程接力",
           value: "workflow",
+        },
+        {
+          label: "模型",
+          value: "model",
+        },
+        {
+          label: "OpenAI 兼容",
+          value: "openai-compatible",
         },
       ],
     },

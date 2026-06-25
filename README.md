@@ -22,8 +22,8 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 
 ### 数据与工具
 
-- **15 个数据集合**：Post / Note / Update / Page / TimelineEvent / Checklist / Plan / PlanReview / ScheduleItem / AgentMemory / AgentRun / AgentSuggestion / AgentThread / Media / Users
-- **13 个 Agent 工具**：覆盖计划创建/拆解、日程排期/改期、清单完成/备注、记忆存储、周报生成、Timeline 同步
+- **16 个数据集合**：包含 AgentThread、AgentRun、AgentActionReceipt 等运行与审计数据
+- **15 个 Agent 工具**：覆盖计划创建/拆解、日程排期/改期、四类记录安全修改、清单完成/备注、记忆存储、周报生成、Timeline 同步
 - **Payload CMS** 管理底层数据模型，Admin 编辑器与公开站点共用渲染层
 
 ## 架构概览
@@ -33,14 +33,15 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
         │
         ▼
 ┌──────────────────────────────────┐
-│  Orchestrator (编排器)            │
-│  LLM 感知 workspace 上下文        │
-│  拆解复合意图 → TaskNode DAG      │
+│  LangGraph 顶层状态机              │
+│  context → intent → dry-run       │
+│  → interrupt/Command → finalize   │
 └──────────────┬───────────────────┘
                │
                ▼
 ┌──────────────────────────────────┐
-│  Execution Graph (DAG 执行引擎)   │
+│  Orchestration Subgraph           │
+│  复合意图 → TaskNode DAG           │
 │  拓扑分层并行执行                  │
 │  每层路由到对应 Specialized Agent  │
 │  Agent Bus 传递 artifact          │
@@ -56,21 +57,24 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
         │
         ▼
 ┌──────────────────────────────────┐
-│  Tool Registry (13 工具)          │
+│  Tool Registry (15 工具)          │
 │  dryRun → propose → execute       │
-│  → rollback                       │
+│  → action receipt → rollback      │
 └──────────────┬───────────────────┘
                │
                ▼
-        Payload CMS / PostgreSQL
+ Payload CMS / PostgreSQL + PostgresSaver
 ```
 
 ## 已实现能力
 
 ### Agent 系统
 - 编排器（Orchestrator）：LLM 拆解 single / compound 意图为 TaskNode DAG
+- PostgreSQL Checkpointer：等待确认、澄清、队列和策略恢复可跨进程继续
+- LangGraph `interrupt/Command`：写操作在用户确认前暂停，恢复后继续原图
+- Action Receipt：以 thread + action 为幂等键，阻止重复确认造成重复写入
 - 6 个专业 Agent 定义与路由，Agent Bus 消息传递
-- 13 个工具含完整 dryRun / execute / rollback 生命周期，逐工具风险分级
+- 15 个工具含完整 dryRun / execute / rollback 生命周期，逐工具风险分级
 - OpenAI Function Calling 支持，带 LLM → 启发式降级链路
 - 长期记忆系统：类型分类、向量检索、相关性评分
 - AgentRun 审计追溯、rollback API、token 统计
@@ -122,6 +126,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 | ScheduleItems | 日程（日期、时段、冲突检测） |
 | AgentThreads | Agent 对话线程 |
 | AgentRuns | Agent 执行记录（审计追溯） |
+| AgentActionReceipts | Agent 写操作幂等领取与结果重放 |
 | AgentMemories | Agent 长期记忆（向量检索） |
 | AgentSuggestions | Agent 生成的建议 |
 | Media | 上传媒体文件 |
@@ -179,13 +184,34 @@ cp .env.example .env
 docker compose up -d postgres
 ```
 
-4. 启动开发服务：
+4. 首次初始化 LangGraph checkpoint 表：
+
+```bash
+npm run agent:checkpoint:setup
+```
+
+此命令需要 `DATABASE_URL`，且必须显式执行；HTTP 请求不会自动运行 checkpoint DDL。
+
+### Agent 状态与持久化
+
+- PostgreSQL LangGraph checkpoint 是工作流节点、复合任务层和 interrupt 恢复的真相源。
+- 父图直接挂载 native compound subgraph；子图继承父 saver/checkpoint namespace，不创建应用自定义子 thread key。
+- `agent-thread-events` 追加事件流是会话消息、回合终态和 pending 状态的真相源。
+- `AgentThread` 仅用于线程列表、搜索和旧前端兼容投影；可从事件流重建。
+- `Plan.agentContext/subtasks` 仅是业务展示投影，不参与确认前执行决策。
+- `agent-action-receipts` 使用 thread、action 和 `execute | rollback` 操作键保护业务写入与补偿重放。
+- 空工作区 onboarding 使用 PostgreSQL advisory lock 串行化跨 worker 初始化，避免首请求重复 seed。
+- `AGENT_GRAPH_RUNTIME=legacy` 仅是显式紧急开关；legacy 与 LangGraph 共享同一事件历史。
+
+当前迁移成果位于隔离开发工作树，尚未合并到 `main`，也尚未部署到生产环境。
+
+5. 启动开发服务：
 
 ```bash
 npm run dev
 ```
 
-5. 打开站点：
+6. 打开站点：
 
 - 前台：[http://localhost:3000](http://localhost:3000)
 - 后台：[http://localhost:3000/admin](http://localhost:3000/admin)
@@ -203,9 +229,10 @@ npm run dev
    - `DATABASE_URL` — 指向可访问的 PostgreSQL（Supabase、Neon、Railway 等）
    - `PAYLOAD_DB_PUSH` — 设为 `false`
    - `NEXT_PUBLIC_SERVER_URL` — 设为实际 HTTPS 域名
+   - `AGENT_GRAPH_RUNTIME` — 默认 `langgraph`；仅紧急回退时设为 `legacy`
 4. 部署后运行 `npm run seed` 或通过 `/admin` 创建管理员用户
 
-生产环境还需在数据库上手动执行一次 Payload migration（`npx payload migrate`），确保 schema 与代码一致。
+生产环境还需在数据库上执行 Payload migration（`npx payload migrate`），并在应用接流量前显式执行一次 `npm run agent:checkpoint:setup`。
 
 ### Docker 完整部署
 
@@ -220,16 +247,21 @@ docker compose up --build -d
 - `PAYLOAD_DB_PUSH` — 设为 `false`，通过 `npx payload migrate` 管理 schema
 - `DATABASE_URL` — PostgreSQL 连接串
 - `NEXT_PUBLIC_SERVER_URL` — 实际 HTTPS 域名（Docker 部署需前置反向代理做 SSL 终止）
+- `AGENT_GRAPH_RUNTIME` — `langgraph`（默认）；`legacy` 仅作紧急开关
 - LLM API key — 可选，未配置时 Agent 使用规则降级
 
 ## 测试
 
 ```bash
 npm run test:agent     # Agent 单元测试
+npm run test:agent:checkpoint # PostgreSQL checkpoint 集成测试（需 DATABASE_URL）
+npm run test:agent:e2e # Agent JSON/SSE/确认幂等 E2E（需已启动服务和测试账号）
 npm run test:e2e       # E2E 测试（Playwright）
 npm run smoke:agent    # Agent 冒烟测试
 npm run test:agent:trace  # Pipeline trace 测试
 ```
+
+`test:agent:e2e` 需要设置 `AGENT_E2E_SERVER_URL`、`AGENT_E2E_EMAIL` 和 `AGENT_E2E_PASSWORD`。应只对一次性数据库和专用测试用户运行。
 
 测试文件位于 `tests/agent/`、`tests/content/`、`tests/command/`、`tests/e2e/`。
 
@@ -248,8 +280,11 @@ npm run start                # 启动生产服务
 npm run lint                 # ESLint + 排版检查
 
 npm run test:agent           # Agent 单元测试
+npm run test:agent:checkpoint # PostgreSQL checkpoint 跨实例恢复测试
+npm run test:agent:e2e       # Agent JSON/SSE/确认幂等 E2E
 npm run test:e2e             # E2E 测试
 npm run typecheck            # TypeScript 类型检查
+npm run agent:checkpoint:setup # 显式创建 LangGraph checkpoint 表
 
 npm run migrate              # 执行 Payload 数据库迁移
 npm run migrate:create       # 创建新的迁移文件

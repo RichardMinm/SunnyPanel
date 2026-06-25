@@ -108,11 +108,14 @@ const intentParameterHints: Record<AgentWriteIntentName, Record<string, Paramete
   delete_record: {
     entityName: { description: "要删除的实体名称", type: "string" },
     entityType: { description: "实体类型 plan/schedule/checklist/timeline", enum: ["plan", "schedule", "checklist", "timeline"], type: "string" },
+    targetId: { description: "目标文档 ID（已知时优先提供）", type: "number" },
   },
   modify_record: {
     entityName: { description: "要修改的实体名称", type: "string" },
     entityType: { description: "实体类型 plan/schedule/checklist/timeline", enum: ["plan", "schedule", "checklist", "timeline"], type: "string" },
     changeDescription: { description: "修改内容描述", type: "string" },
+    patch: { description: "仅包含目标实体允许的安全标量字段和值", type: "object" },
+    targetId: { description: "目标文档 ID（已知时优先提供）", type: "number" },
   },
 };
 

@@ -299,6 +299,10 @@ export const executeOrchestrationGraph = async (
     autoApproval?: AutoApprovalContext;
     disableToolFailureRepair?: boolean;
     disabledLoopDirectiveModes?: AgentExecutionStrategy["mode"][];
+    executeAction?: (
+      intent: AgentIntent,
+      action: ProposedAgentAction,
+    ) => ReturnType<AgentIntentExecutor>;
     executeIntent?: AgentIntentExecutor;
     message?: string;
     orchestrationId?: string;
@@ -317,6 +321,9 @@ export const executeOrchestrationGraph = async (
   const disableToolFailureRepair = options.disableToolFailureRepair ?? false;
   const disabledLoopDirectiveModes = new Set(options.disabledLoopDirectiveModes ?? []);
   const executeIntent = options.executeIntent ?? executeAgentIntent;
+  const executeAction =
+    options.executeAction ??
+    ((intent: AgentIntent) => executeIntent(intent));
   const recordAutoApproval = options.recordAutoApproval ?? defaultRecordAutoApproval;
   const recordStrategyFeedbackMemory = options.recordStrategyFeedbackMemory ?? autoArchiveStrategyFeedbackMemory;
   const { layers, orphanedTaskIds } = groupTasksIntoParallelLayers(plan.tasks);
@@ -514,7 +521,7 @@ export const executeOrchestrationGraph = async (
 
           if (decision.approved) {
             incrementAutoCount(autoApproval.threadId);
-            const executed = await executeIntent(intent);
+            const executed = await executeAction(intent, dryRun.action);
             const message = executed.assistantMessage.slice(0, 120);
             autoExecutedMessages.push(`✅ 已自动执行「${task.label}」：${message.slice(0, 80)}`);
             observations.push(buildTaskObservation(task, {
@@ -569,6 +576,44 @@ export const executeOrchestrationGraph = async (
           message: dryRun.assistantMessage,
           status: "clarified",
         }));
+
+        return null;
+      }
+
+      if (dryRun.type === "bypass" && dryRun.action) {
+        const isWrite =
+          (dryRun.action.affectedDocuments?.length ?? 0) > 0;
+        const executed = isWrite
+          ? await executeAction(intent, dryRun.action)
+          : await executeIntent(intent);
+        const message = executed.assistantMessage.slice(0, 120);
+
+        if (isWrite) {
+          autoExecutedMessages.push(
+            `✅ 已执行「${task.label}」：${message.slice(0, 80)}`,
+          );
+        } else {
+          readOnlyMessages.push(executed.assistantMessage);
+        }
+
+        observations.push(
+          buildTaskObservation(task, {
+            action: dryRun.action,
+            message,
+            rollbackPayload: executed.rollbackPayload,
+            status: isWrite ? "auto_executed" : "executed",
+          }),
+        );
+        bus = publishTaskArtifact(bus, {
+          from: task.agentRole,
+          payload: buildArtifactPayload(
+            task,
+            intent,
+            dryRun.action,
+          ),
+          reasoning: message,
+          taskId: task.id,
+        });
 
         return null;
       }

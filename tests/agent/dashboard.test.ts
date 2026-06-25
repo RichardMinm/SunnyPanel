@@ -5,6 +5,7 @@ import { describe, test } from "node:test";
 import {
   compactAssistantMessageForPendingAction,
 } from "../../src/components/dashboard/agent/utils";
+import { formatIntentLabel } from "../../src/components/dashboard/agent/constants";
 import { filterDashboardThreads } from "../../src/lib/dashboard/filter-dashboard-threads";
 import type { AgentThreadSummary } from "../../src/components/dashboard/agent/types";
 import type { PendingAction } from "../../src/lib/agent/schemas";
@@ -313,7 +314,7 @@ describe("Dashboard layout contracts", () => {
     assert.match(rightPanel, /onPrefillComposer=\{onPrefillComposer\}/);
 
     assert.match(inboxPanel, /useAgentInbox/);
-    assert.match(inboxPanel, /onPrefillComposer\?\.\(item\.suggestedPrompt\)/);
+    assert.match(inboxPanel, /onPrefillComposer\?\.\(item\.suggestedPrompt,\s*\{[\s\S]*suggestionId:\s*item\.id/);
     assert.match(inboxPanel, /采纳/);
     assert.match(inboxPanel, /忽略/);
 
@@ -322,7 +323,60 @@ describe("Dashboard layout contracts", () => {
     assert.match(inboxHook, /"accept" \| "dismiss"/);
     assert.match(inboxHook, /method: "PATCH"/);
 
-    assert.match(pageClient, /onPrefillComposer=\{\(prompt\) => \{ chat\.setInput\(prompt\); \}\}/);
+    assert.match(pageClient, /onPrefillComposer=\{\(prompt,\s*source\) => \{ chat\.prefillFromSuggestion\(prompt,\s*source\); \}\}/);
+    assert.match(read("src/components/dashboard/agent-chat/use-agent-chat-messaging.ts"), /suggestionId/);
+    assert.match(read("src/components/dashboard/agent-chat/use-agent-chat-messaging.ts"), /suggestedPrompt/);
+  });
+
+  test("Approval inspector has a dedicated strategy resume card", () => {
+    const approvalPanel = read("src/components/dashboard/agent/AgentApprovalPanel.tsx");
+
+    assert.match(approvalPanel, /pendingAction\?\.type === "await_strategy_resume"/);
+    assert.match(approvalPanel, /策略恢复/);
+    assert.match(approvalPanel, /pendingAction\.failureReason/);
+    assert.match(approvalPanel, /pendingAction\.strategyMode/);
+    assert.match(approvalPanel, /pendingAction\.failedTaskId/);
+    assert.match(approvalPanel, /回复「继续」/);
+    assert.match(approvalPanel, /回复「取消」/);
+    assert.match(approvalPanel, /formatIntentLabel\(task\.intent\)/);
+    assert.match(approvalPanel, /formatAgentRoleLabel\(task\.agentRole\)/);
+  });
+
+  test("Trace inspector renders a dedicated Plan Operating Card for readiness audits", () => {
+    const tracePanel = read("src/components/dashboard/agent/AgentTracePanel.tsx");
+    const operatingCard = read("src/components/dashboard/agent/PlanOperatingCard.tsx");
+
+    assert.match(tracePanel, /PlanOperatingCard/);
+    assert.match(tracePanel, /run\.workflow === "readiness-audit"/);
+    assert.match(operatingCard, /Plan Operating/);
+    assert.match(operatingCard, /readiness-audit/);
+    assert.match(operatingCard, /下一步/);
+    assert.match(operatingCard, /状态/);
+    assert.match(operatingCard, /复核/);
+    assert.match(operatingCard, /继续推进/);
+    assert.match(operatingCard, /暂缓这项计划/);
+    assert.match(operatingCard, /进入审阅/);
+    assert.match(operatingCard, /onRunPrompt/);
+    assert.match(read("src/components/dashboard/DashboardShell.tsx"), /onPlanOperatingPrompt=\{onRunPrompt\}/);
+    assert.match(read("src/components/dashboard/DashboardRightPanel.tsx"), /onPlanOperatingPrompt/);
+  });
+
+  test("Inspector labels cover new Agent intents without exposing raw internal names", () => {
+    const expectedLabels = {
+      capability_query: "能力查询",
+      delete_record: "删除记录",
+      modify_record: "修改记录",
+      query_checklist_progress: "查询清单进度",
+      query_memory: "查询记忆",
+      query_plan: "查询计划",
+      query_schedule: "查询日程",
+      query_timeline: "查询时间线",
+    };
+
+    for (const [intent, label] of Object.entries(expectedLabels)) {
+      assert.equal(formatIntentLabel(intent), label);
+      assert.notEqual(formatIntentLabel(intent), intent);
+    }
   });
 
   test("Composer is mode-aware through a compact menu and sends workbenchMode to the Agent chat API", () => {
@@ -363,6 +417,18 @@ describe("Dashboard layout contracts", () => {
     assert.match(composer, /togglePanel/);
     assert.match(read("src/components/dashboard/DashboardInspectorControlContext.tsx"), /togglePanel/);
     assert.match(read("src/components/dashboard/DashboardShell.tsx"), /togglePanel: handleTogglePanel/);
+  });
+
+  test("Agent chat requests include a client-generated turnId", () => {
+    const messagingHook = read(
+      "src/components/dashboard/agent-chat/use-agent-chat-messaging.ts",
+    );
+
+    assert.match(
+      messagingHook,
+      /const turnId = globalThis\.crypto\.randomUUID\(\)/,
+    );
+    assert.match(messagingHook, /threadId,\s*turnId,/);
   });
 
   test("Thread header is a single product status line while approval card owns write and risk detail", () => {

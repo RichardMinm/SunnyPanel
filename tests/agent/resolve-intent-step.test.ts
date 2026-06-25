@@ -104,6 +104,65 @@ test("runResolveIntentStep carries resume queue after confirming a pending propo
   );
 });
 
+test("batch confirmations derive a unique receipt action id from their actions", async () => {
+  const runBatch = async (
+    actions: ProposedAgentAction[],
+    orchestrationId?: string,
+  ) => {
+    const trace: AgentTraceStep[] = [];
+    const result = await runResolveIntentStep({
+      confirmationSignals: { cancel: false, confirm: true },
+      context: promptContext,
+      emitStatus: () => undefined,
+      emitToken: () => undefined,
+      emitUsage: () => undefined,
+      intentModelEngine: "workflow",
+      message: "确认",
+      modelResolver: async () => null,
+      pendingAction: {
+        actions,
+        orchestrationId,
+        type: "await_batch_confirmation",
+      },
+      persistAgentTurn: async () => ({ id: 42 } as AgentThread),
+      pushTrace: (step) => trace.push(step),
+      recordAgentConfirmationDecisionFn: async () => undefined,
+      recordBatchConfirmationDecisionFn: async () => undefined,
+      resolvedHistory: [],
+      thread: { id: 42 } as AgentThread,
+      tokenUsage,
+      trace,
+      user: { id: 1 },
+    });
+
+    assert.equal(result.outcome, "continue");
+    return result.data.confirmedActionId;
+  };
+  const firstId = await runBatch([
+    action,
+    { ...action, id: "action-create-schedule", intent: "compose_schedule_item" },
+  ]);
+  const secondId = await runBatch([
+    { ...action, id: "action-create-plan-2" },
+    { ...action, id: "action-create-schedule-2", intent: "compose_schedule_item" },
+  ]);
+
+  assert.notEqual(firstId, "batch");
+  assert.notEqual(secondId, "batch");
+  assert.notEqual(firstId, secondId);
+
+  const sharedOrchestrationFirst = await runBatch(
+    [{ ...action, id: "shared-action-1" }],
+    "shared-orchestration",
+  );
+  const sharedOrchestrationSecond = await runBatch(
+    [{ ...action, id: "shared-action-2" }],
+    "shared-orchestration",
+  );
+
+  assert.notEqual(sharedOrchestrationFirst, sharedOrchestrationSecond);
+});
+
 test("runResolveIntentStep grounds streaming replies with the pre-resolved contextual answer", async () => {
   const trace: AgentTraceStep[] = [];
   const contextualAnswer = "结合你已有的线性代数计划，建议先补矩阵运算，再进入向量空间。";

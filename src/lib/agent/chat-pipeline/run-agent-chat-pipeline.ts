@@ -28,6 +28,7 @@ import { toPromptThreadSummary } from "@/lib/agent/thread-summary";
 import { runAgentLearningLoop } from "@/lib/agent/learning-loop";
 import type { ContextPreferences } from "@/lib/agent/chat-pipeline/handle-agent-chat-post";
 import type { UserPreferences } from "@/lib/agent/user-preferences";
+import type { AgentTurnFinalizer } from "@/lib/agent/turn-finalizer";
 import type { AgentPromptContext } from "@/lib/agent/prompts";
 import {
   createAgentStreamController,
@@ -39,6 +40,7 @@ import {
 export type RunAgentChatPipelineDeps = {
   baseTokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   contextPreferences?: ContextPreferences | null;
+  finalizeTurn?: AgentTurnFinalizer;
   generateIntentWithAgentModel: typeof generateIntentWithAgentModel;
   intentModelEngine: AgentEngine;
   message: string;
@@ -50,12 +52,14 @@ export type RunAgentChatPipelineDeps = {
   user: { id: number };
   userPreferences?: UserPreferences | null;
   workbenchMode?: AgentWorkbenchMode | null;
+  turnId?: string;
 };
 
 export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
   const {
     baseTokenUsage,
     contextPreferences,
+    finalizeTurn,
     generateIntentWithAgentModel: modelResolver,
     intentModelEngine,
     message,
@@ -119,6 +123,13 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
 
       emitTrace(step);
     };
+    let bufferedTurn: {
+      assistantMessage: string;
+      confidence?: number;
+      engine: AgentEngine;
+      intent: AgentIntent["intent"];
+      nextPendingAction: null | PendingAction;
+    } | null = null;
     const persistAgentTurn = async ({
       assistantMessage,
       confidence,
@@ -132,6 +143,21 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       intent: AgentIntent["intent"];
       nextPendingAction: null | PendingAction;
     }) => {
+      if (finalizeTurn) {
+        bufferedTurn = {
+          assistantMessage,
+          confidence,
+          engine,
+          intent,
+          nextPendingAction,
+        };
+
+        return {
+          ...thread,
+          pendingAction: nextPendingAction,
+        } as AgentThread;
+      }
+
       emitStatus("正在保存会话上下文...");
       pushTrace({
         detail: "会把这轮用户输入、Agent 回复和待处理动作一起写回 AgentThread。",
@@ -284,6 +310,12 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
 
       tokenUsage = orchestrationResult.data.tokenUsage;
 
+      if (orchestrationResult.outcome === "compound") {
+        throw new Error(
+          "Legacy pipeline received a deferred compound plan unexpectedly.",
+        );
+      }
+
       stream.start({
         id: "stage-arbitration",
         phase: "arbitration",
@@ -313,6 +345,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         tokenUsage,
         trace,
         user,
+        workbenchMode,
       });
       stream.complete(
         "stage-arbitration",
@@ -528,6 +561,33 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
 
     if (lastContextSummary && !lastResponse.contextSummary) {
       lastResponse = { ...lastResponse, contextSummary: lastContextSummary };
+    }
+
+    if (finalizeTurn) {
+      const turn = bufferedTurn as {
+        assistantMessage: string;
+        confidence?: number;
+        engine: AgentEngine;
+        intent: AgentIntent["intent"];
+        nextPendingAction: null | PendingAction;
+      } | null;
+      const response = turn
+        ? {
+            ...lastResponse,
+            assistantMessage: turn.assistantMessage,
+            confidence: turn.confidence ?? lastResponse.confidence,
+            engine: turn.engine,
+            intent: turn.intent,
+            pendingAction: turn.nextPendingAction,
+          }
+        : lastResponse;
+
+      return finalizeTurn({
+        existingMemories: currentContextMemories,
+        pushTrace,
+        response,
+        tokenUsage: response.tokenUsage ?? tokenUsage,
+      });
     }
 
     return lastResponse;

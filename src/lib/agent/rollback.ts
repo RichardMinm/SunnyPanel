@@ -165,6 +165,87 @@ const pickTimelineSnapshotData = (snapshot: unknown) => {
   return Object.keys(data).length > 0 ? data : null;
 };
 
+const pickChecklistSnapshotData = (snapshot: unknown) => {
+  if (typeof snapshot !== "object" || snapshot === null || Array.isArray(snapshot)) {
+    return null;
+  }
+
+  const record = snapshot as Record<string, unknown>;
+  const data: Record<string, unknown> = {};
+  const fields = [
+    "groups",
+    "publishedAt",
+    "slug",
+    "status",
+    "summary",
+    "title",
+    "visibility",
+  ];
+
+  for (const field of fields) {
+    if (field in record) {
+      data[field] = record[field];
+    }
+  }
+
+  return Object.keys(data).length > 0 ? data : null;
+};
+
+const modifiedRecordFields: Record<string, ReadonlySet<string>> = {
+  checklists: new Set(["publishedAt", "status", "summary", "title", "visibility"]),
+  plans: new Set([
+    "description",
+    "domain",
+    "dueDate",
+    "executionMode",
+    "priority",
+    "startDate",
+    "state",
+    "status",
+    "title",
+    "visibility",
+  ]),
+  "schedule-items": new Set([
+    "category",
+    "date",
+    "description",
+    "endTime",
+    "isAllDay",
+    "priority",
+    "startTime",
+    "status",
+    "title",
+  ]),
+  "timeline-events": new Set([
+    "description",
+    "eventDate",
+    "isFeatured",
+    "sortOrder",
+    "status",
+    "title",
+    "type",
+    "visibility",
+  ]),
+};
+
+const pickModifiedRecordSnapshot = (collection: string, snapshot: unknown) => {
+  if (typeof snapshot !== "object" || snapshot === null || Array.isArray(snapshot)) {
+    return null;
+  }
+
+  const fields = modifiedRecordFields[collection];
+  if (!fields) {
+    return null;
+  }
+
+  const record = snapshot as Record<string, unknown>;
+  const data = Object.fromEntries(
+    Object.entries(record).filter(([field]) => fields.has(field)),
+  );
+
+  return Object.keys(data).length > 0 ? data : null;
+};
+
 /**
  * 按 AgentRun 中保存的 rollbackPayload 执行有限回滚（单用户 Payload 直连）。
  */
@@ -335,6 +416,38 @@ export const executeRollbackFromPayload = async (
       strategy: parsed.strategy,
     });
     const auditWarning = shouldPersistAudit ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId) : undefined;
+
+    return auditWarning ? { ...result, auditWarning } : result;
+  }
+
+  if (parsed.strategy === "restore_modified_record") {
+    if (!documentId) {
+      throw new Error("restore_modified_record 需要 documentId。");
+    }
+
+    const data = pickModifiedRecordSnapshot(collection, parsed.beforeSnapshot);
+    if (!data) {
+      throw new Error(
+        `restore_modified_record 缺少 ${collection} 的有效安全字段快照。`,
+      );
+    }
+
+    await payload.update({
+      collection: collection as never,
+      data: data as never,
+      id: documentId,
+      overrideAccess: true,
+    });
+
+    const result = buildRollbackResult({
+      affectedDocuments: [affectedDocument(collection, documentId, "update")],
+      collection,
+      documentId,
+      strategy: parsed.strategy,
+    });
+    const auditWarning = shouldPersistAudit
+      ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId)
+      : undefined;
 
     return auditWarning ? { ...result, auditWarning } : result;
   }
@@ -524,6 +637,105 @@ export const executeRollbackFromPayload = async (
         visibility: snapshot.visibility ?? "private",
         weeklyRhythm: snapshot.weeklyRhythm ?? null,
       },
+      overrideAccess: true,
+    });
+
+    const result = buildRollbackResult({
+      affectedDocuments: [affectedDocument(collection, documentId, "create")],
+      collection,
+      documentId,
+      strategy: parsed.strategy,
+    });
+    const auditWarning = shouldPersistAudit
+      ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId)
+      : undefined;
+
+    return auditWarning ? { ...result, auditWarning } : result;
+  }
+
+  if (parsed.strategy === "restore_deleted_schedule_item") {
+    if (!documentId) {
+      throw new Error("restore_deleted_schedule_item 需要 documentId。");
+    }
+
+    if (collection !== "schedule-items") {
+      throw new Error(`restore_deleted_schedule_item 期望 schedule-items，收到：${collection}`);
+    }
+
+    const data = pickScheduleSnapshotData(parsed.beforeSnapshot);
+    if (!data || typeof data.title !== "string") {
+      throw new Error("restore_deleted_schedule_item 缺少有效的 beforeSnapshot（至少需要 title）。");
+    }
+
+    await payload.create({
+      collection: "schedule-items",
+      data: data as never,
+      overrideAccess: true,
+    });
+
+    const result = buildRollbackResult({
+      affectedDocuments: [affectedDocument(collection, documentId, "create")],
+      collection,
+      documentId,
+      strategy: parsed.strategy,
+    });
+    const auditWarning = shouldPersistAudit
+      ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId)
+      : undefined;
+
+    return auditWarning ? { ...result, auditWarning } : result;
+  }
+
+  if (parsed.strategy === "restore_deleted_checklist") {
+    if (!documentId) {
+      throw new Error("restore_deleted_checklist 需要 documentId。");
+    }
+
+    if (collection !== "checklists") {
+      throw new Error(`restore_deleted_checklist 期望 checklists，收到：${collection}`);
+    }
+
+    const data = pickChecklistSnapshotData(parsed.beforeSnapshot);
+    if (!data || typeof data.title !== "string") {
+      throw new Error("restore_deleted_checklist 缺少有效的 beforeSnapshot（至少需要 title）。");
+    }
+
+    await payload.create({
+      collection: "checklists",
+      data: data as never,
+      overrideAccess: true,
+    });
+
+    const result = buildRollbackResult({
+      affectedDocuments: [affectedDocument(collection, documentId, "create")],
+      collection,
+      documentId,
+      strategy: parsed.strategy,
+    });
+    const auditWarning = shouldPersistAudit
+      ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId)
+      : undefined;
+
+    return auditWarning ? { ...result, auditWarning } : result;
+  }
+
+  if (parsed.strategy === "restore_deleted_timeline_event") {
+    if (!documentId) {
+      throw new Error("restore_deleted_timeline_event 需要 documentId。");
+    }
+
+    if (collection !== "timeline-events") {
+      throw new Error(`restore_deleted_timeline_event 期望 timeline-events，收到：${collection}`);
+    }
+
+    const data = pickTimelineSnapshotData(parsed.beforeSnapshot);
+    if (!data || typeof data.title !== "string") {
+      throw new Error("restore_deleted_timeline_event 缺少有效的 beforeSnapshot（至少需要 title）。");
+    }
+
+    await payload.create({
+      collection: "timeline-events",
+      data: data as never,
       overrideAccess: true,
     });
 

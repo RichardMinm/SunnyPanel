@@ -423,7 +423,134 @@ html[data-theme="dark"] .sunny-agent-change-row{
   color: var(--muted);
   font-size: var(--text-sm);
   line-height: 1.6;
-}/* ── Context Panel Empty State ── */
+}/* ── Plan Operating Card ── */
+
+.sunny-plan-operating-card {
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.78rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 0.78rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 58%),
+    color-mix(in srgb, var(--surface-strong) 42%, transparent);
+}
+
+.sunny-plan-operating-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sunny-plan-operating-card-head span {
+  display: block;
+  color: var(--accent-strong);
+  font-family: var(--sunny-font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+}
+
+.sunny-plan-operating-card-head h3 {
+  margin: 0.18rem 0 0;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.sunny-plan-operating-state {
+  flex: 0 0 auto;
+  border: 1px solid var(--tone-neutral-border);
+  border-radius: var(--radius-pill);
+  padding: 0.22rem 0.46rem;
+  color: var(--tone-neutral-text);
+  font-size: var(--text-2xs);
+  line-height: 1;
+}
+
+.sunny-plan-operating-state.is-blocked {
+  border-color: var(--tone-danger-border);
+  background: var(--tone-danger-bg);
+  color: var(--tone-danger-text);
+}
+
+.sunny-plan-operating-state.is-review {
+  border-color: var(--tone-success-border);
+  background: var(--tone-success-bg);
+  color: var(--tone-success-text);
+}
+
+.sunny-plan-operating-state.is-running,
+.sunny-plan-operating-state.is-ready {
+  border-color: var(--tone-info-border);
+  background: var(--tone-info-bg);
+  color: var(--tone-info-text);
+}
+
+.sunny-plan-operating-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.42rem 0.62rem;
+  padding: 0.62rem;
+  border: 1px solid var(--border);
+  border-radius: 0.62rem;
+  background: var(--agent-control-bg);
+}
+
+.sunny-plan-operating-grid span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.sunny-plan-operating-grid strong {
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.sunny-plan-operating-card p,
+.sunny-plan-operating-card small {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}
+
+.sunny-plan-operating-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.sunny-plan-operating-actions button {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--agent-control-bg);
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-weight: 650;
+  line-height: 1;
+  padding: 0.44rem 0.58rem;
+  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+}
+
+.sunny-plan-operating-actions button:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--agent-control-bg));
+  color: var(--accent-strong);
+}
+
+.sunny-plan-operating-debug {
+  border-top: 1px solid var(--border);
+  padding-top: 0.55rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+/* ── Context Panel Empty State ── */
 
 .sunny-agent-context-empty{
   text-align: center;

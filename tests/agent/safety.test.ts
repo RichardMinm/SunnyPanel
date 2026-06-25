@@ -121,6 +121,31 @@ test("low-risk intents do not require confirmation proposals", async () => {
   }
 });
 
+test("low-risk write bypass keeps its dry-run action id for idempotent execution", async () => {
+  const result = await dryRunAgentIntent(
+    {
+      args: { itemId: 88 },
+      intent: "cancel_schedule_item",
+    },
+    {
+      createActionId: () => "cancel-action-88",
+      resolveScheduleItem: async (itemId) => ({
+        date: "2026-06-22",
+        id: itemId,
+        priority: "medium",
+        status: "planned",
+        title: "晨间复盘",
+      }),
+    },
+  );
+
+  assert.equal(result.type, "bypass");
+  assert.equal(
+    (result as { action?: { id?: string } }).action?.id,
+    "cancel-action-88",
+  );
+});
+
 test("medium-risk write intents are converted into confirmation proposals", async () => {
   const createPlanIntent: AgentIntent = {
     args: {
@@ -291,9 +316,9 @@ test("weekly review preview bypasses confirmation but saved review requires conf
     dryRunContext,
   );
 
-  assert.deepEqual(previewResult, {
-    type: "bypass",
-  });
+  assert.equal(previewResult.type, "bypass");
+  assert.equal(previewResult.action?.requiresConfirmation, false);
+  assert.deepEqual(previewResult.action?.affectedDocuments, []);
   assert.ok(savedProposal);
   assert.equal(savedProposal.riskLevel, "medium");
   assert.equal(savedProposal.requiresConfirmation, true);

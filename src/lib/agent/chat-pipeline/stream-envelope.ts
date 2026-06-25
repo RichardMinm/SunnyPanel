@@ -108,6 +108,7 @@ export const createAgentChatResponse = (payload: AgentChatResponse, stream: bool
         suggestedMode: intentToSuggestedMode[payload.intent],
         threadId: payload.threadId,
         tokenUsage: streamedUsage,
+        turnId: payload.turnId,
       });
 
       await emitProgressiveTokens(payload.assistantMessage, enqueue, streamedUsage, 'response');
@@ -195,6 +196,7 @@ export const createAgentChatStream = (
             suggestedMode: intentToSuggestedMode[payload.intent],
             threadId: payload.threadId,
             tokenUsage: baseUsage,
+            turnId: payload.turnId,
           });
           await emitProgressiveTokens(payload.assistantMessage, enqueue, baseUsage, 'response');
         }
@@ -208,6 +210,7 @@ export const createAgentChatStream = (
           suggestedMode: intentToSuggestedMode[payload.intent],
           threadId: payload.threadId,
           tokenUsage: payload.tokenUsage,
+          turnId: payload.turnId,
         });
 
         enqueue("done", payload);

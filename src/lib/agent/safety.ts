@@ -70,7 +70,7 @@ export const dryRunAgentIntent = async (
   const result = await dryRunAgentTool(intent, context);
 
   if (result.type === "proposed_action" && !result.action.requiresConfirmation) {
-    return { type: "bypass" };
+    return { action: result.action, type: "bypass" };
   }
 
   return result;

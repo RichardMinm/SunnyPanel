@@ -5,16 +5,29 @@ import type { Payload } from "payload";
 
 import { createRunAgentChatPipeline } from "@/lib/agent/chat-pipeline/run-agent-chat-pipeline";
 import { parseStructuredConfirmation } from "@/lib/agent/chat-pipeline/confirmation-step";
-import { createAgentChatResponse, createAgentChatStream } from "@/lib/agent/chat-pipeline/stream-envelope";
+import {
+  createAgentChatResponse,
+  createAgentChatStream,
+} from "@/lib/agent/chat-pipeline/stream-envelope";
 import { generateIntentWithAgentModel, getAgentIntentModelEngine } from "@/lib/agent/client";
-import { isCancellationReply, shouldSkipPendingAction } from "@/lib/agent/intent-resolution";
+import { getAgentGraphRuntimeConfig } from "@/lib/agent/langgraph/config";
+import { createAgentRuntimeRunner } from "@/lib/agent/langgraph/dispatcher";
+import { buildLangGraphFailureResponse } from "@/lib/agent/langgraph/failure-response";
+import { createRunProductionLangGraphAgentChatPipeline } from "@/lib/agent/langgraph/production-adapter";
 import { logAgentEvent } from "@/lib/agent/logger";
+import { runAgentLearningLoop } from "@/lib/agent/learning-loop";
 import { parsePendingAction, sanitizeChatMessages } from "@/lib/agent/schemas";
+import {
+  claimAgentTurn,
+  createPayloadAgentThreadEventStore,
+  ensureLegacyThreadEvents,
+  hydrateAgentThreadState,
+  type AgentSuggestionTurnSource,
+} from "@/lib/agent/thread-events";
+import { createAgentTurnFinalizer } from "@/lib/agent/turn-finalizer";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import {
-  appendAgentThreadTurn,
   getOrCreateAgentThread,
-  getThreadMessages,
   getThreadPendingAction,
   removeCurrentMessageFromHistory,
 } from "@/lib/agent/thread";
@@ -75,6 +88,21 @@ const parseContextPreferences = (value: unknown): ContextPreferences | null => {
   return { excluded, pinned };
 };
 
+const parseSuggestionSource = (body: Record<string, unknown>): AgentSuggestionTurnSource | null => {
+  const suggestionId = parseThreadId(body.suggestionId);
+  const suggestedPrompt =
+    typeof body.suggestedPrompt === "string" ? body.suggestedPrompt.trim() : "";
+
+  if (!suggestionId || !suggestedPrompt) {
+    return null;
+  }
+
+  return {
+    suggestedPrompt,
+    suggestionId,
+  };
+};
+
 export type AgentChatPostUser = { id: number };
 
 /**
@@ -115,6 +143,16 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
   const shouldStream = body.stream === true;
   const workbenchMode = parseWorkbenchMode(body.workbenchMode);
   const contextPreferences = parseContextPreferences(body.contextPreferences);
+  const suggestionSource = parseSuggestionSource(body);
+  const requestedTurnId =
+    typeof body.turnId === "string" &&
+    /^[A-Za-z0-9:_-]{8,128}$/.test(body.turnId)
+      ? body.turnId
+      : null;
+  const turnId =
+    requestedTurnId ??
+    globalThis.crypto?.randomUUID?.() ??
+    `agent-turn-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
   const history = sanitizeChatMessages(body.messages);
   logAgentEvent("info", "chat.request", {
@@ -129,119 +167,85 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     threadId: parseThreadId(body.threadId),
     userId: user.id,
   });
-  const storedHistory = getThreadMessages(thread);
+  const eventStore = createPayloadAgentThreadEventStore(
+    payload as never,
+  );
+  await ensureLegacyThreadEvents({
+    store: eventStore,
+    thread,
+    userId: user.id,
+  });
+  const canonicalThread = await hydrateAgentThreadState({
+    store: eventStore,
+    threadId: thread.id,
+  });
+  const storedHistory = canonicalThread.messages;
   const clientHistory = removeCurrentMessageFromHistory(history, message);
   const resolvedHistory = (storedHistory.length > 0 ? storedHistory : clientHistory).slice(-12);
-  const pendingAction = getThreadPendingAction(thread) ?? parsePendingAction(body.pendingAction);
+  const pendingAction =
+    canonicalThread.pendingAction ??
+    getThreadPendingAction(thread) ??
+    parsePendingAction(body.pendingAction);
   const baseTokenUsage = createTokenUsageSnapshot({
     contextTokens: estimateMessagesTokenCount(resolvedHistory) + estimateTokenCount(pendingAction),
     inputTokens: estimateTokenCount(message),
   });
-
-  if (
-    pendingAction?.type === "await_batch_confirmation" &&
-    isCancellationReply(message)
-  ) {
-    const assistantMessage = `好的，已取消这 ${pendingAction.actions.length} 项批量待确认操作。你可以重新描述要做的变更。`;
-    const tokenUsage = {
-      ...baseTokenUsage,
-      outputTokens: estimateTokenCount(assistantMessage),
-      totalTokens:
-        baseTokenUsage.contextTokens + baseTokenUsage.inputTokens + estimateTokenCount(assistantMessage),
-    };
-
-    await appendAgentThreadTurn({
-      assistantMessage,
-      confidence: 1,
-      engine: "workflow",
-      intent: "clarify",
-      pendingAction: null,
-      thread,
-      userMessage: message,
-    });
-    logAgentEvent("info", "chat.batch_confirmation_cancelled", {
-      threadId: thread.id,
-      userId: user.id,
-    });
-
-    return createAgentChatResponse(
-      {
-        assistantMessage,
-        confidence: 1,
-        engine: "workflow",
-        intent: "clarify",
-        pendingAction: null,
-        threadId: thread.id,
-        tokenUsage,
-      },
-      shouldStream,
-    );
-  }
-
-  if (shouldSkipPendingAction(pendingAction, message)) {
-    const assistantMessage =
-      pendingAction.type === "await_completion_note"
-        ? "好的，这次先不补备注。你接下来也可以直接继续给我新的计划或完成记录。"
-        : "好的，这次先不继续这个待澄清动作。你接下来可以直接给我新的计划、清单或进度指令。";
-    const tokenUsage = {
-      ...baseTokenUsage,
-      outputTokens: estimateTokenCount(assistantMessage),
-      totalTokens:
-        baseTokenUsage.contextTokens + baseTokenUsage.inputTokens + estimateTokenCount(assistantMessage),
-    };
-
-    await appendAgentThreadTurn({
-      assistantMessage,
-      confidence: 1,
-      engine: "workflow",
-      intent: "clarify",
-      pendingAction: null,
-      thread,
-      userMessage: message,
-    });
-    logAgentEvent("info", "chat.pending_action_skipped", {
-      threadId: thread.id,
-      userId: user.id,
-    });
-
-    return createAgentChatResponse(
-      {
-        assistantMessage,
-        confidence: 1,
-        engine: "workflow",
-        intent: "clarify",
-        pendingAction: null,
-        threadId: thread.id,
-        tokenUsage,
-      },
-      shouldStream,
-    );
-  }
-
-  // Persist the user message to the thread before the pipeline runs.
-  // If the pipeline errors or times out, the message still survives in the DB
-  // instead of vanishing from the conversation.
-  const recordedAt = new Date().toISOString();
-  const persistedMessages = [
-    ...(thread.messages ?? []).map((m) => ({
-      content: m.content,
-      recordedAt: typeof m.recordedAt === "string" ? m.recordedAt : undefined,
-      role: m.role,
-    })),
-    { content: message, recordedAt, role: "user" as const },
-  ].slice(-40);
-  await payload.update({
-    collection: "agent-threads",
-    data: { messages: persistedMessages },
-    id: thread.id,
-    overrideAccess: true,
+  const claim = await claimAgentTurn({
+    message,
+    store: eventStore,
+    suggestionSource,
+    threadId: thread.id,
+    turnId,
+    userId: user.id,
+    workbenchMode,
   });
+
+  if (claim.status === "replay") {
+    return createAgentChatResponse(claim.response, shouldStream);
+  }
+
+  if (claim.status === "blocked") {
+    return createAgentChatResponse(
+      {
+        assistantMessage:
+          "这个回合仍在处理中，我不会启动第二次执行。请稍后重新载入该会话。",
+        confidence: 1,
+        engine: "workflow",
+        intent: "clarify",
+        pendingAction,
+        threadId: thread.id,
+        tokenUsage: baseTokenUsage,
+        turnId,
+        workbenchMode: workbenchMode ?? undefined,
+      },
+      shouldStream,
+    );
+  }
 
   const intentModelEngine = await getAgentIntentModelEngine();
   const userPreferences = await getUserPreferences(user.id);
-  const runPipeline = createRunAgentChatPipeline({
+  const finalizeTurn = createAgentTurnFinalizer({
+    eventStore,
+    message,
+    pendingBefore: pendingAction,
+    project: (projection) =>
+      payload.update({
+        collection: "agent-threads",
+        data: projection,
+        id: thread.id,
+        overrideAccess: true,
+      }),
+    runLearningLoop: runAgentLearningLoop,
+    suggestionSource,
+    thread,
+    turnId,
+    user,
+    workbenchMode,
+  });
+  const pipelineDeps = {
     baseTokenUsage,
     contextPreferences,
+    finalizeTurn,
     generateIntentWithAgentModel,
     intentModelEngine,
     message,
@@ -250,10 +254,59 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     resolvedHistory,
     structuredConfirmation,
     thread,
+    turnId,
     user,
     userPreferences,
     workbenchMode,
+  };
+  const runtimeConfig = getAgentGraphRuntimeConfig();
+  const selectedRunner = createAgentRuntimeRunner({
+    config: runtimeConfig,
+    createLangGraphRunner: () =>
+      createRunProductionLangGraphAgentChatPipeline(pipelineDeps),
+    createLegacyRunner: () => createRunAgentChatPipeline(pipelineDeps),
   });
+  const runPipeline: typeof selectedRunner = async (...args) => {
+    try {
+      return await selectedRunner(...args);
+    } catch (error) {
+      logAgentEvent("error", "chat.runtime_failure", {
+        error: error instanceof Error ? error.message : String(error),
+        threadId: thread.id,
+        userId: user.id,
+      });
+
+      const response =
+        runtimeConfig.mode === "legacy"
+          ? {
+              assistantMessage:
+                "Agent 运行失败，本轮没有自动重试写操作。原待处理状态已保留，请检查最近的 AgentRun 后再决定是否重试。",
+              confidence: 0,
+              engine: "workflow" as const,
+              intent: "clarify" as const,
+              pendingAction,
+              threadId: thread.id,
+              tokenUsage: baseTokenUsage,
+              turnId,
+              workbenchMode: workbenchMode ?? undefined,
+            }
+          : buildLangGraphFailureResponse({
+              baseTokenUsage,
+              error,
+              pendingAction,
+              threadId: thread.id,
+              workbenchMode,
+            });
+
+      return finalizeTurn({
+        existingMemories: [],
+        failure: error,
+        pushTrace: () => undefined,
+        response,
+        tokenUsage: baseTokenUsage,
+      });
+    }
+  };
 
   if (shouldStream) {
     return createAgentChatStream(runPipeline);

@@ -6,13 +6,16 @@ import type {
   AgentTraceStep,
   PendingAction,
 } from "@/lib/agent/schemas";
+import type { StructuredConfirmation } from "@/lib/agent/chat-pipeline/confirmation-step";
 
 export type SunnyAgentGraphInput = {
   baseTokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   message: string;
   pendingAction: null | PendingAction;
   resolvedHistory: AgentChatMessage[];
+  structuredConfirmation: null | StructuredConfirmation;
   threadId: number;
+  turnId: string;
   userId: number;
 };
 

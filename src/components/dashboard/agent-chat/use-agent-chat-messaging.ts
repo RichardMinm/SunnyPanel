@@ -30,6 +30,10 @@ import {
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 type UseAgentChatMessagingOptions = {
+  activeSuggestionSource: null | {
+    suggestedPrompt: string;
+    suggestionId: number;
+  };
   contextPreferences: ContextPreferences;
   isSubmitting: boolean;
   loadThread: (nextThreadId?: number, options?: { preserveInspector?: boolean }) => Promise<void>;
@@ -45,6 +49,12 @@ type UseAgentChatMessagingOptions = {
   setLastRollbackResult: (result: AgentRollbackExecutionResult | null) => void;
   setMessages: Dispatch<SetStateAction<AgentChatMessage[]>>;
   setPendingAction: (action: PendingAction | null) => void;
+  setActiveSuggestionSource: (
+    source: null | {
+      suggestedPrompt: string;
+      suggestionId: number;
+    },
+  ) => void;
   setStatusText: (text: string) => void;
   setStreamingState: (state: "idle" | "responding" | "thinking") => void;
   setStreamChanges: Dispatch<SetStateAction<AgentStreamChangeEvent[]>>;
@@ -60,6 +70,7 @@ type UseAgentChatMessagingOptions = {
 };
 
 export function useAgentChatMessaging({
+  activeSuggestionSource,
   contextPreferences,
   isSubmitting,
   lastRollbackPayload,
@@ -76,6 +87,7 @@ export function useAgentChatMessaging({
   setLastRollbackResult,
   setMessages,
   setPendingAction,
+  setActiveSuggestionSource,
   setStatusText,
   setStreamingState,
   setStreamChanges,
@@ -222,6 +234,11 @@ export function useAgentChatMessaging({
 
       try {
         const hasPreferences = contextPreferences.pinned.length > 0 || contextPreferences.excluded.length > 0;
+        const turnId = globalThis.crypto.randomUUID();
+        const suggestionSource =
+          activeSuggestionSource && nextMessage === activeSuggestionSource.suggestedPrompt
+            ? activeSuggestionSource
+            : null;
         const response = await fetch("/api/agent/chat", {
           body: JSON.stringify({
             confirmation: options?.confirmation,
@@ -229,9 +246,16 @@ export function useAgentChatMessaging({
             message: nextMessage,
             messages: nextHistory,
             pendingAction,
+            ...(suggestionSource
+              ? {
+                  suggestedPrompt: suggestionSource.suggestedPrompt,
+                  suggestionId: suggestionSource.suggestionId,
+                }
+              : {}),
             workbenchMode,
             stream: true,
             threadId,
+            turnId,
           }),
           headers: {
             "Content-Type": "application/json",
@@ -315,6 +339,9 @@ export function useAgentChatMessaging({
           setTokenUsage(responseData.tokenUsage);
         }
         setStatusText(responseData.engine ? `最近一次：${engineLabelMap[responseData.engine]}` : "已完成");
+        if (suggestionSource) {
+          setActiveSuggestionSource(null);
+        }
         setStreamingState("idle");
         const targetThreadId = typeof responseData.threadId === "number" ? responseData.threadId : undefined;
         /* Await loadThread so that isSubmitting guards the next sendMessage
@@ -355,6 +382,7 @@ export function useAgentChatMessaging({
       }
     },
     [
+      activeSuggestionSource,
       appendStreamingAssistantContent,
       contextPreferences,
       isSubmitting,
@@ -371,6 +399,7 @@ export function useAgentChatMessaging({
       setLastRollbackResult,
       setMessages,
       setPendingAction,
+      setActiveSuggestionSource,
       setStatusText,
       setStreamingState,
       setStreamChanges,

@@ -30,7 +30,7 @@
 .settings-popover-subtitle {
   margin: 0;
   color: var(--settings-sub);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm-compact);
   line-height: 1.45;
 }
 
