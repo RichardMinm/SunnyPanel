@@ -7,6 +7,7 @@ import {
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
 import {
   resolveAwaitConfirmationBranch,
+  getBatchReceiptActionId,
   restoreConfirmedBatchIntents,
   restoreConfirmedIntent,
   type ConfirmationSignals,
@@ -30,6 +31,15 @@ import type {
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
+import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
+import {
+  runWritingAssist,
+  type WritingAssistRequest,
+} from "@/lib/agent/writing-assist-core";
+import type {
+  WritingAssistAction,
+  WritingAssistResult,
+} from "@/lib/agent/prompts/writing-assist";
 
 export type IntentResolution = {
   arbitration?: AgentArbitrationDecision;
@@ -69,6 +79,8 @@ export type ResolveIntentStepParams = {
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { id: number };
+  workbenchMode?: AgentWorkbenchMode | null;
+  writingAssistRunner?: (request: WritingAssistRequest) => Promise<WritingAssistResult>;
 };
 
 export type ResolveIntentStepNext = {
@@ -82,6 +94,54 @@ export type ResolveIntentStepNext = {
 export type ResolveIntentStepResult =
   | { outcome: "early_exit"; response: AgentChatResponse }
   | { outcome: "continue"; data: ResolveIntentStepNext };
+
+const inferWritingAssistAction = (message: string): WritingAssistAction => {
+  if (/标签|tag/i.test(message)) return "extract_tags";
+  if (/大纲|提纲|outline/i.test(message)) return "generate_outline";
+  if (/标题|title/i.test(message)) return "generate_title";
+  if (/摘要|summary|生成摘要/i.test(message)) return "generate_summary";
+  if (/总结|summarize/i.test(message)) return "summarize";
+  if (/精简|压缩|condense/i.test(message)) return "condense";
+  if (/扩写|expand/i.test(message)) return "expand";
+  if (/续写|继续写|continue/i.test(message)) return "continue";
+  if (/润色|polish/i.test(message)) return "polish";
+  if (/改写|重写|rewrite/i.test(message)) return "rewrite";
+
+  return "polish";
+};
+
+const extractWritingAssistText = (message: string) => {
+  const trimmed = message.trim();
+  const colonMatch = trimmed.match(/(?:：|:)\s*([\s\S]+)$/);
+  if (colonMatch?.[1]?.trim()) {
+    return colonMatch[1].trim();
+  }
+
+  const quotedMatch = trimmed.match(/[「“"]([^」”"]{2,})[」”"]/);
+  if (quotedMatch?.[1]?.trim()) {
+    return quotedMatch[1].trim();
+  }
+
+  return trimmed;
+};
+
+const formatWritingAssistResult = (result: WritingAssistResult) => {
+  if (typeof result.result === "string" && result.result.trim()) {
+    return result.result.trim();
+  }
+
+  if (Array.isArray(result.tags) && result.tags.length > 0) {
+    return `标签：${result.tags.join("、")}`;
+  }
+
+  if (Array.isArray(result.outline) && result.outline.length > 0) {
+    return result.outline
+      .map((item) => `${"#".repeat(Math.max(1, Math.min(3, item.level)))} ${item.text}`)
+      .join("\n");
+  }
+
+  return "";
+};
 
 export const runResolveIntentStep = async (params: ResolveIntentStepParams): Promise<ResolveIntentStepResult> => {
   const {
@@ -106,6 +166,8 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     tokenUsage: tokenUsageIn,
     trace,
     user,
+    workbenchMode,
+    writingAssistRunner,
   } = params;
 
   let tokenUsage = tokenUsageIn;
@@ -282,7 +344,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
       outcome: "continue",
       data: {
         batchExecuteIntents: batchIntents,
-        confirmedActionId: pendingAction.orchestrationId ?? "batch",
+        confirmedActionId: getBatchReceiptActionId(pendingAction),
         nextPendingAfterExecute: pendingAction.resumeQueue ?? null,
         resolution: {
           engine: "workflow",
@@ -526,6 +588,158 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
         tokenUsage,
       },
     };
+  }
+
+  if (workbenchMode === "writing") {
+    const action = inferWritingAssistAction(message);
+    const text = extractWritingAssistText(message);
+    const contentItem = context.contentItems?.[0];
+    const runner = writingAssistRunner ?? runWritingAssist;
+
+    emitStatus("正在运行写作辅助...");
+    stream?.start({
+      id: "stage-response",
+      phase: "response",
+      title: "运行写作辅助",
+    });
+    stream?.progress({
+      detail: `action=${action}`,
+      message: "写作模式已接管这轮请求",
+      stageId: "stage-response",
+    });
+    pushTrace({
+      detail: `action=${action}`,
+      id: "writing-assist-chat",
+      kind: "analysis",
+      status: "running",
+      title: "写作辅助正在处理",
+    });
+
+    if (!writingAssistRunner && process.env.AGENT_DISABLE_LLM === "1") {
+      const question = "AI 功能已禁用，暂时无法在 Agent Chat 中执行写作辅助。你仍可以编辑原文，或稍后开启模型后再试。";
+      const outputTokens = estimateTokenCount(question);
+      tokenUsage = {
+        ...tokenUsage,
+        outputTokens,
+        totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+      };
+      pushTrace({
+        detail: "AGENT_DISABLE_LLM=1",
+        id: "writing-assist-chat",
+        kind: "error",
+        status: "error",
+        title: "写作辅助不可用",
+      });
+      stream?.complete("stage-response", "写作辅助不可用");
+
+      return {
+        outcome: "continue",
+        data: {
+          confirmedActionId: null,
+          resolution: {
+            engine: "workflow",
+            intent: {
+              args: {
+                missingFields: ["model"],
+                question,
+              },
+              confidence: 1,
+              intent: "clarify",
+            },
+          },
+          tokenUsage,
+        },
+      };
+    }
+
+    try {
+      const writingResult = await runner({
+        action,
+        collection: contentItem?.kind,
+        summary: contentItem?.summary ?? undefined,
+        text,
+        title: contentItem?.title,
+      });
+      const assistantMessage = formatWritingAssistResult(writingResult);
+
+      if (!assistantMessage) {
+        throw new Error("写作辅助没有返回可展示结果。");
+      }
+
+      for (const token of splitIntoWordTokens(assistantMessage)) {
+        emitToken(token, "response");
+        await new Promise((r) => setTimeout(r, 6));
+      }
+      stream?.complete("stage-response", "写作辅助已生成结果");
+      const outputTokens = estimateTokenCount(assistantMessage);
+      tokenUsage = {
+        ...tokenUsage,
+        outputTokens,
+        totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+      };
+      pushTrace({
+        detail: `action=${action} outputTokens=${outputTokens}`,
+        id: "writing-assist-chat",
+        kind: "complete",
+        status: "done",
+        title: "写作辅助已完成",
+      });
+
+      return {
+        outcome: "continue",
+        data: {
+          confirmedActionId: null,
+          resolution: {
+            engine: "workflow",
+            intent: {
+              args: {
+                answer: assistantMessage,
+                suggestAction: `writing_assist:${action} 已作为只读转换完成；采纳文风需在写作面板中显式确认。`,
+              },
+              confidence: 0.9,
+              intent: "answer_question",
+              reply: assistantMessage,
+            },
+          },
+          tokenUsage,
+        },
+      };
+    } catch (error) {
+      const question = `写作辅助暂时不可用：${error instanceof Error ? error.message : "AI 请求失败"}。请稍后再试，或先手动编辑文本。`;
+      const outputTokens = estimateTokenCount(question);
+      tokenUsage = {
+        ...tokenUsage,
+        outputTokens,
+        totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+      };
+      pushTrace({
+        detail: error instanceof Error ? error.message : String(error),
+        id: "writing-assist-chat",
+        kind: "error",
+        status: "error",
+        title: "写作辅助失败",
+      });
+      stream?.complete("stage-response", "写作辅助失败");
+
+      return {
+        outcome: "continue",
+        data: {
+          confirmedActionId: null,
+          resolution: {
+            engine: "workflow",
+            intent: {
+              args: {
+                missingFields: ["writing_assist"],
+                question,
+              },
+              confidence: 1,
+              intent: "clarify",
+            },
+          },
+          tokenUsage,
+        },
+      };
+    }
   }
 
   emitStatus("正在分析用户意图...");

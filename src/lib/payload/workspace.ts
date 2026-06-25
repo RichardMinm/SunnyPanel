@@ -295,8 +295,9 @@ export const getAgentWorkspaceContextSource = async ({
   budget: AgentContextBudget;
   payload?: Payload;
 }): Promise<AgentContextSource> => {
-  const { getCachedWorkspaceCore } = await import("./workspace-cache");
-  const core = await getCachedWorkspaceCore();
+  const core = await loadWorkspaceCore({
+    seedInitialWorkspace: false,
+  });
 
   return buildAgentContextSourceFromCore(core, budget);
 };
@@ -534,7 +535,22 @@ export const assembleWorkspaceSnapshot = (core: WorkspaceCoreData): WorkspaceSna
   };
 };
 
-export const loadWorkspaceCore = async (redirectPath = defaultDashboardPath): Promise<WorkspaceCoreData> => {
+type LoadWorkspaceCoreOptions = {
+  redirectPath?: string;
+  seedInitialWorkspace?: boolean;
+};
+
+export const loadWorkspaceCore = async (
+  input: LoadWorkspaceCoreOptions | string = defaultDashboardPath,
+): Promise<WorkspaceCoreData> => {
+  const redirectPath =
+    typeof input === "string"
+      ? input
+      : input.redirectPath ?? defaultDashboardPath;
+  const shouldSeedInitialWorkspace =
+    typeof input === "string"
+      ? true
+      : input.seedInitialWorkspace ?? true;
   const payload = await getPayloadClient();
 
   const authResult = await getPayloadAuthResult();
@@ -555,9 +571,12 @@ export const loadWorkspaceCore = async (redirectPath = defaultDashboardPath): Pr
     redirect(buildAdminRoute("/admin/login", redirectPath));
   }
 
-  const hasWorkspaceSeed = await hasInitialWorkspaceSeed(payload);
+  const hasWorkspaceSeed =
+    shouldSeedInitialWorkspace
+      ? await hasInitialWorkspaceSeed(payload)
+      : true;
 
-  if (!hasWorkspaceSeed) {
+  if (shouldSeedInitialWorkspace && !hasWorkspaceSeed) {
     await ensureInitialWorkspace(payload, authResult.user as User);
   }
 

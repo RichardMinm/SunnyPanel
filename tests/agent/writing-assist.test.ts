@@ -6,10 +6,37 @@ import {
   buildWritingAssistMessages,
   parseWritingAssistResult,
 } from "../../src/lib/agent/prompts/writing-assist";
+import { runResolveIntentStep } from "../../src/lib/agent/chat-pipeline/resolve-intent-step";
 import { createTokenUsageSnapshot } from "../../src/lib/agent/token-usage";
-import { rememberWritingStyle, runWritingAssist } from "../../src/lib/agent/writing-assist-core";
+import {
+  rememberWritingStyle,
+  runWritingAssist,
+  type WritingAssistRequest,
+} from "../../src/lib/agent/writing-assist-core";
+import type { AgentPromptContext } from "../../src/lib/agent/prompts";
+import type { AgentChatResponse, AgentTraceStep } from "../../src/lib/agent/schemas";
+import type { AgentThread } from "../../src/payload-types";
 
 const read = (path: string) => readFileSync(path, "utf8");
+
+const promptContext: AgentPromptContext = {
+  checklists: [],
+  contentItems: [{ id: 1, kind: "posts", status: "published", summary: null, title: "上一篇随笔", updatedAt: "2026-06-01", visibility: "public" }],
+  memories: [{ id: 1, title: "文风样例", type: "writing_style", content: "短句、直接", confidence: 0.8, lastUsedAt: null }],
+  now: "2026-06-25T00:00:00.000+08:00",
+  pendingAction: null,
+  plans: [],
+};
+
+const baseTokenUsage: NonNullable<AgentChatResponse["tokenUsage"]> = {
+  contextTokens: 8,
+  inputTokens: 5,
+  outputTokens: 0,
+  providerInputTokens: 0,
+  providerOutputTokens: 0,
+  source: "estimate",
+  totalTokens: 13,
+};
 
 describe("writing assist API", () => {
   test("route exposes supported assist actions", () => {
@@ -160,5 +187,89 @@ describe("writing assist core", () => {
     );
 
     assert.equal(doc, null);
+  });
+});
+
+describe("writing assist through Agent chat", () => {
+  test("writing workbench mode resolves to a traceable Agent chat response", async () => {
+    const trace: AgentTraceStep[] = [];
+    const tokens: string[] = [];
+    const result = await runResolveIntentStep({
+      confirmationSignals: { cancel: false, confirm: false },
+      context: promptContext,
+      emitStatus: () => undefined,
+      emitToken: (token) => tokens.push(token),
+      emitUsage: () => undefined,
+      intentModelEngine: "workflow",
+      message: "请润色：今天写得很散，但我还是想保留一点温度。",
+      modelResolver: async () => {
+        throw new Error("writing mode should not call the generic intent model");
+      },
+      pendingAction: null,
+      persistAgentTurn: async () => ({ id: 77 } as AgentThread),
+      pushTrace: (step) => trace.push(step),
+      recordAgentConfirmationDecisionFn: async () => undefined,
+      recordBatchConfirmationDecisionFn: async () => undefined,
+      resolvedHistory: [],
+      thread: { id: 77 } as AgentThread,
+      tokenUsage: baseTokenUsage,
+      trace,
+      user: { id: 1 },
+      workbenchMode: "writing",
+      writingAssistRunner: async (request: WritingAssistRequest) => {
+        assert.equal(request.action, "polish");
+        assert.match(request.text ?? "", /今天写得很散/);
+        return { result: "今天的文字还有些散，但里面有一种值得保留的温度。" };
+      },
+    });
+
+    assert.equal(result.outcome, "continue");
+    assert.equal(result.data.resolution.intent.intent, "answer_question");
+    assert.match(
+      result.data.resolution.intent.intent === "answer_question"
+        ? result.data.resolution.intent.args.answer
+        : "",
+      /值得保留的温度/,
+    );
+    assert.match(tokens.join(""), /值得保留的温度/);
+    assert.ok((result.data.tokenUsage.outputTokens ?? 0) > 0);
+    assert.ok(trace.some((step) => step.id === "writing-assist-chat" && step.status === "done"));
+  });
+
+  test("writing workbench mode returns a controlled clarify response when LLM is disabled", async () => {
+    const trace: AgentTraceStep[] = [];
+    const result = await runResolveIntentStep({
+      confirmationSignals: { cancel: false, confirm: false },
+      context: promptContext,
+      emitStatus: () => undefined,
+      emitToken: () => undefined,
+      emitUsage: () => undefined,
+      intentModelEngine: "workflow",
+      message: "帮我改写这段文字：原文",
+      modelResolver: async () => {
+        throw new Error("disabled writing mode should not call the generic intent model");
+      },
+      pendingAction: null,
+      persistAgentTurn: async () => ({ id: 78 } as AgentThread),
+      pushTrace: (step) => trace.push(step),
+      recordAgentConfirmationDecisionFn: async () => undefined,
+      recordBatchConfirmationDecisionFn: async () => undefined,
+      resolvedHistory: [],
+      thread: { id: 78 } as AgentThread,
+      tokenUsage: baseTokenUsage,
+      trace,
+      user: { id: 1 },
+      workbenchMode: "writing",
+    });
+
+    assert.equal(result.outcome, "continue");
+    assert.equal(result.data.resolution.intent.intent, "clarify");
+    assert.match(
+      result.data.resolution.intent.intent === "clarify"
+        ? result.data.resolution.intent.args.question
+        : "",
+      /AI 功能已禁用/,
+    );
+    assert.ok(trace.some((step) => step.id === "writing-assist-chat" && step.status === "error"));
   });
 });

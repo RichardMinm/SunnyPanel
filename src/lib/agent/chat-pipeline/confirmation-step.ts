@@ -44,6 +44,15 @@ export const confirmationMatchesBatchPending = (
   confirmation.actionId === "batch" ||
   confirmation.actionId === (pending.orchestrationId ?? "batch");
 
+export const getBatchReceiptActionId = (
+  pending: Extract<PendingAction, { type: "await_batch_confirmation" }>,
+) =>
+  [
+    "batch",
+    pending.orchestrationId ?? "standalone",
+    ...pending.actions.map((action) => action.id),
+  ].join(":");
+
 export type ConfirmationSignals = {
   cancel: boolean;
   confirm: boolean;

@@ -4,9 +4,9 @@ import { getPayloadClient } from "@/lib/payload/client";
 
 import { enhanceEvaluationWithLLM, mergeEvaluationEnhancement } from "./evaluation-llm";
 import { getCurrentAgentUserId } from "./execution-context";
+import { persistPlanOperatingReview } from "./plan-operating";
 import type { EvaluatePlanArgs } from "./schemas";
 import { getAgentProgressSnapshot } from "./progress";
-import { validateAgentRunData, validatePlanReviewData } from "./write-schemas";
 
 type EvaluationResult = {
   assistantMessage: string;
@@ -115,69 +115,32 @@ const resolvePlan = (plans: Plan[], args: EvaluatePlanArgs) => {
 };
 
 const persistPlanReview = async (result: EvaluationResult) => {
-  if (Object.keys(result.metrics).length === 0 || result.recommendations.length === 0) {
-    return result;
-  }
-
   const payload = await getPayloadClient();
-  const reviewedAt = new Date().toISOString();
-  const title =
-    result.scope === "plan" && result.planTitle
-      ? `Plan Review · ${result.planTitle}`
-      : `Plan Review · Overall · ${reviewedAt.slice(0, 10)}`;
-  const reviewData = validatePlanReviewData({
-    health: result.health,
-    metrics: result.metrics,
-    plan: result.scope === "plan" ? result.planId : undefined,
-    recommendations: result.recommendations.map((content) => ({
-      content,
-    })),
-    reviewedAt,
-    scope: result.scope,
-    source: "agent",
-    summary: result.assistantMessage,
-    title,
+  return persistPlanOperatingReview(result, {
+    createAgentRun: async (data, context) =>
+      payload.create({
+        collection: "agent-runs",
+        context,
+        data,
+        overrideAccess: true,
+      }),
+    createPlanReview: async (data) =>
+      payload.create({
+        collection: "plan-reviews",
+        data,
+        overrideAccess: true,
+      }),
+    updatePlan: async (id, data) => {
+      await payload.update({
+        collection: "plans",
+        data,
+        depth: 0,
+        id,
+        overrideAccess: true,
+      });
+    },
+    userId: getCurrentAgentUserId(),
   });
-  const review = await payload.create({
-    collection: "plan-reviews",
-    data: reviewData,
-    overrideAccess: true,
-  });
-  const agentRunData = validateAgentRunData({
-    completedAt: reviewedAt,
-    goal: result.scope === "plan" && result.planTitle ? `评估计划：${result.planTitle}` : "评估整体计划状态",
-    relatedContent: [
-      {
-        relationTo: "plan-reviews",
-        value: review.id,
-      },
-    ],
-    startedAt: reviewedAt,
-    status: "succeeded",
-    steps: [
-      {
-        level: "info",
-        message: `已生成 PlanReview #${review.id}`,
-        recordedAt: reviewedAt,
-      },
-    ],
-    summary: result.assistantMessage,
-    title,
-    trigger: "agent",
-    user: getCurrentAgentUserId(),
-    workflow: "readiness-audit",
-  });
-
-  await payload.create({
-    collection: "agent-runs",
-    data: agentRunData,
-    overrideAccess: true,
-  });
-
-  return {
-    ...result,
-    reviewId: review.id,
-  };
 };
 
 /**

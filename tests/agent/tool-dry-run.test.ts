@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { dryRunAgentIntent } from "../../src/lib/agent/safety";
+import { runDryRunAndProposeStep } from "../../src/lib/agent/chat-pipeline/dry-run-and-propose-step";
 import { dryRunAgentTool, type AgentToolDryRunContext } from "../../src/lib/agent/tool-registry";
 import { isRollbackPayloadExecutable } from "../../src/lib/agent/rollback-parse";
 
@@ -297,5 +298,54 @@ test("cancel dry-run reflects the real current status instead of a hardcoded val
     assert.equal(before.status, "done");
     assert.match(result!.action.changes[0]?.beforePreview ?? "", /done/);
     assert.equal(isRollbackPayloadExecutable(result!.action.rollbackPayload), true);
+  }
+});
+
+test("low-risk write dry-run forwards an action id without asking for confirmation", async () => {
+  const result = await runDryRunAndProposeStep({
+    confirmedActionId: null,
+    context: {
+      checklists: [],
+      now: "2026-06-22T08:00:00.000+08:00",
+      pendingAction: null,
+      plans: [],
+    },
+    emitStatus: () => undefined,
+    emitToken: () => undefined,
+    payload: {
+      findByID: async () => ({
+        date: "2026-06-22",
+        id: 88,
+        priority: "medium",
+        sourceType: "manual",
+        status: "planned",
+        title: "晨间复盘",
+      }),
+    } as never,
+    persistAgentTurn: async () => {
+      throw new Error("low-risk write must continue to execution");
+    },
+    pushTrace: () => undefined,
+    resolution: {
+      engine: "heuristic",
+      intent: {
+        args: { itemId: 88 },
+        intent: "cancel_schedule_item",
+      },
+    },
+    tokenUsage: {
+      contextTokens: 0,
+      inputTokens: 1,
+      outputTokens: 0,
+      source: "estimate",
+      totalTokens: 1,
+    },
+    trace: [],
+    user: { id: 1 },
+  });
+
+  assert.equal(result.outcome, "execute");
+  if (result.outcome === "execute") {
+    assert.equal(typeof result.data.approvedActionId, "string");
   }
 });

@@ -18,7 +18,8 @@ import {
   composeTimelineEventFromIntent,
   completePlanItemFromIntent,
   createPlanFromIntent,
-  deletePlanFromIntent,
+  deleteRecordFromIntent,
+  modifyRecordFromIntent,
   queryPlanProgressFromIntent,
   rescheduleItemFromIntent,
   saveMemoryFromIntent,
@@ -62,7 +63,8 @@ const toolExecutors = {
   composeTimelineEvent: composeTimelineEventFromIntent,
   completePlanItem: completePlanItemFromIntent,
   createPlan: createPlanFromIntent,
-  deleteRecord: deletePlanFromIntent,
+  deleteRecord: deleteRecordFromIntent,
+  modifyRecord: modifyRecordFromIntent,
   queryPlanProgress: queryPlanProgressFromIntent,
   rescheduleItem: rescheduleItemFromIntent,
   saveMemory: saveMemoryFromIntent,
@@ -264,6 +266,7 @@ export const executeAgentIntent = async (
     case "schedule_plan":
     case "weekly_review":
     case "delete_record":
+    case "modify_record":
       const result = await runWithAgentExecutionContext({ userId: options.userId }, () =>
         executeAgentTool(intent, toolExecutors, onTrace),
       );
@@ -274,15 +277,6 @@ export const executeAgentIntent = async (
           status: "failed",
         }
       );
-    case "modify_record":
-      onTrace?.({
-        detail: `修改：${(intent.args as Record<string,unknown>).entityName}`,
-        id: "workflow-modify_record",
-        kind: "write",
-        status: "done",
-        title: "已进入修改确认流程",
-      });
-      return { assistantMessage: "", pendingAction: null };
     case "query_checklist_progress":
     case "query_plan":
     case "query_schedule":

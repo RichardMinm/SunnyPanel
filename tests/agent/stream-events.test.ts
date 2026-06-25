@@ -3,13 +3,19 @@ import { test } from "node:test";
 
 import { parseStreamBlock } from "../../src/lib/agent/chat-stream";
 import { createAgentChatStream } from "../../src/lib/agent/chat-pipeline/stream-envelope";
+import { buildLangGraphFailureResponse } from "../../src/lib/agent/langgraph/failure-response";
 import { readAgentChatStream } from "../../src/lib/agent/read-agent-chat-stream";
 import type {
   AgentStreamChangeEvent,
   AgentStreamProgressEvent,
   AgentStreamStageEvent,
 } from "../../src/lib/agent/stream-events";
-import type { AgentChatResponse, AgentTokenUsage, AgentTraceStep } from "../../src/lib/agent/schemas";
+import type {
+  AgentChatResponse,
+  AgentTokenUsage,
+  AgentTraceStep,
+  PendingAction,
+} from "../../src/lib/agent/schemas";
 
 const encodeBlock = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
@@ -184,4 +190,62 @@ test("createAgentChatStream exposes stage, progress, and change events from the 
   assert.match(body, /event: progress\ndata: .*"message":"仲裁结果：直接回答"/);
   assert.match(body, /event: change\ndata: .*"summary":"预览低风险更新"/);
   assert.match(body, /event: done\ndata: .*"assistantMessage":"完成"/);
+});
+
+test("createAgentChatStream preserves pending actions in controlled LangGraph failures", async () => {
+  const pendingAction: PendingAction = {
+    action: {
+      args: { title: "待确认计划" },
+      changes: [],
+      id: "pending-action",
+      intent: "create_plan",
+      requiresConfirmation: true,
+      riskLevel: "medium",
+      summary: "创建待确认计划",
+    },
+    type: "await_confirmation",
+  };
+  const response = createAgentChatStream(async () =>
+    buildLangGraphFailureResponse({
+      baseTokenUsage: {
+        contextTokens: 2,
+        inputTokens: 3,
+        outputTokens: 0,
+        source: "estimate",
+        totalTokens: 5,
+      },
+      error: new Error("checkpoint unavailable"),
+      pendingAction,
+      threadId: 42,
+      workbenchMode: "ask",
+    }),
+  );
+
+  const body = await response.text();
+
+  assert.match(body, /event: meta\ndata: .*"id":"pending-action"/);
+  assert.match(body, /event: done\ndata: .*"id":"pending-action"/);
+  assert.doesNotMatch(body, /event: error/);
+});
+
+test("createAgentChatStream includes turnId in meta and done", async () => {
+  const response = createAgentChatStream(async () => ({
+    assistantMessage: "完成",
+    engine: "workflow",
+    intent: "answer_question",
+    pendingAction: null,
+    threadId: 42,
+    turnId: "turn-stream-1",
+  }));
+
+  const body = await response.text();
+
+  assert.match(
+    body,
+    /event: meta\ndata: .*"turnId":"turn-stream-1"/,
+  );
+  assert.match(
+    body,
+    /event: done\ndata: .*"turnId":"turn-stream-1"/,
+  );
 });

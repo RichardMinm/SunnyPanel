@@ -81,6 +81,7 @@ test("rollback strategy labels cover executable strategies without exposing enum
     "archive_created_memory",
     "restore_checklist_groups",
     "restore_checklist_groups_and_timeline",
+    "restore_modified_record",
     "restore_schedule_item_snapshot",
     "restore_schedule_item_status",
   ];

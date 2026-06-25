@@ -1,0 +1,901 @@
+import {
+  Command,
+  EmptyInputError,
+  type BaseCheckpointSaver,
+} from "@langchain/langgraph";
+
+import {
+  createPayloadActionReceiptStore,
+  runIdempotentAgentAction,
+  type AgentActionReceiptStore,
+} from "@/lib/agent/action-receipts";
+import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
+import type { runBuildContextStep } from "@/lib/agent/chat-pipeline/build-context-step";
+import {
+  resolveConfirmationSignals,
+} from "@/lib/agent/chat-pipeline/confirmation-step";
+import type { runDryRunAndProposeStep } from "@/lib/agent/chat-pipeline/dry-run-and-propose-step";
+import type { runExecuteAndPersistStep } from "@/lib/agent/chat-pipeline/execute-and-persist-step";
+import {
+  buildOrchestrationDryRunContext,
+  type runOrchestrationStep,
+} from "@/lib/agent/chat-pipeline/orchestration-step";
+import type { runResolveIntentStep } from "@/lib/agent/chat-pipeline/resolve-intent-step";
+import type { RunAgentChatPipelineDeps } from "@/lib/agent/chat-pipeline/run-agent-chat-pipeline";
+import type { StreamTokenCallback } from "@/lib/agent/client";
+import {
+  executeAgentIntent,
+  type AgentIntentExecutor,
+} from "@/lib/agent/executor";
+import {
+  buildSunnyAgentCheckpointConfig,
+  getSunnyAgentPostgresSaver,
+} from "@/lib/agent/langgraph/checkpointer";
+import {
+  compileFullSunnyAgentGraph,
+  getInterruptedCompoundResult,
+  getInterruptedAgentResponse,
+  type FullSunnyAgentGraphDependencies,
+} from "@/lib/agent/langgraph/full-runtime";
+import {
+  compileMountedOrchestrationSubgraph,
+  type NativeOrchestrationSubgraphDependencies,
+} from "@/lib/agent/langgraph/orchestration-subgraph";
+import type { runAgentLearningLoop } from "@/lib/agent/learning-loop";
+import { executeRollbackFromPayload } from "@/lib/agent/rollback";
+import {
+  buildExecutionDecisionTraceStep,
+  buildObservationTraceStep,
+} from "@/lib/agent/execution-graph";
+import { createNativeOrchestrationTaskExecutor } from "@/lib/agent/orchestration/native-task-executor";
+import { summarizeExecutionQueue } from "@/lib/agent/orchestration/observations";
+import {
+  projectCompletedOrchestrationToPlan,
+  projectConfirmedOrchestrationToPlan,
+} from "@/lib/agent/orchestration/projection";
+import { replanAfterTaskFailure } from "@/lib/agent/orchestration/replan";
+import { buildToolFailureRepairPlan } from "@/lib/agent/orchestration/tool-failure-repair";
+import type {
+  AgentChatResponse,
+  AgentEngine,
+  AgentIntent,
+  AgentTraceStep,
+  PendingAction,
+} from "@/lib/agent/schemas";
+import {
+  createAgentStreamController,
+  type AgentStreamChangeEvent,
+  type AgentStreamProgressEvent,
+  type AgentStreamStageEvent,
+} from "@/lib/agent/stream-events";
+import type { appendAgentThreadTurn } from "@/lib/agent/thread";
+import { toPromptThreadSummary } from "@/lib/agent/thread-summary";
+import type { AgentThread } from "@/payload-types";
+import {
+  estimateTokenCount,
+  splitIntoWordTokens,
+} from "@/lib/agent/token-usage";
+
+export type FullLangGraphAdapterSteps = {
+  appendAgentThreadTurn: typeof appendAgentThreadTurn;
+  runAgentLearningLoop: typeof runAgentLearningLoop;
+  runBuildContextStep: typeof runBuildContextStep;
+  runDryRunAndProposeStep: typeof runDryRunAndProposeStep;
+  runExecuteAndPersistStep: typeof runExecuteAndPersistStep;
+  runOrchestrationStep: typeof runOrchestrationStep;
+  runResolveIntentStep: typeof runResolveIntentStep;
+};
+
+type BufferedTurn = {
+  assistantMessage: string;
+  confidence?: number;
+  engine: AgentEngine;
+  intent: AgentIntent["intent"];
+  nextPendingAction: null | PendingAction;
+};
+
+const mergeTrace = (
+  left: AgentTraceStep[] | undefined,
+  right: AgentTraceStep[],
+) => {
+  const merged = new Map<string, AgentTraceStep>();
+
+  for (const step of [...(left ?? []), ...right]) {
+    merged.set(step.id, {
+      ...(merged.get(step.id) ?? {}),
+      ...step,
+    } as AgentTraceStep);
+  }
+
+  return [...merged.values()];
+};
+
+export const createRunFullLangGraphAgentChatPipeline = (
+  deps: RunAgentChatPipelineDeps,
+  steps: FullLangGraphAdapterSteps,
+  options?: {
+    checkpointer?: BaseCheckpointSaver;
+    executeIntent?: AgentIntentExecutor;
+    receiptStore?: AgentActionReceiptStore;
+  },
+) => {
+  const {
+    baseTokenUsage,
+    contextPreferences,
+    finalizeTurn,
+    generateIntentWithAgentModel: modelResolver,
+    intentModelEngine,
+    message,
+    payload,
+    pendingAction,
+    resolvedHistory,
+    structuredConfirmation,
+    thread,
+    turnId: requestedTurnId,
+    user,
+    userPreferences,
+    workbenchMode,
+  } = deps;
+  const turnId =
+    requestedTurnId ??
+    globalThis.crypto?.randomUUID?.() ??
+    `agent-turn-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const messages = (thread.messages as Array<{ role: string }> | null) ?? [];
+  const hasThreadPendingAction = thread.pendingAction != null;
+  const autoApproval = {
+    isFirstActionInThread:
+      messages.length === 0 && !hasThreadPendingAction,
+    lastIntent: hasThreadPendingAction ? null : thread.lastIntent,
+    pendingActionHistory: (hasThreadPendingAction
+      ? [thread.pendingAction as PendingAction]
+      : []) as PendingAction[],
+    threadId: thread.id,
+    userPreferences,
+  };
+  const threadSummary = toPromptThreadSummary(thread);
+  const checkpointer =
+    options?.checkpointer ?? getSunnyAgentPostgresSaver();
+  const receiptStore =
+    options?.receiptStore ??
+    createPayloadActionReceiptStore(payload as never);
+  const orchestrationExecuteIntent =
+    options?.executeIntent ?? executeAgentIntent;
+
+  return async (
+    emitStatus: (status: string) => void = () => undefined,
+    emitTrace: (step: AgentTraceStep) => void = () => undefined,
+    emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void = () =>
+      undefined,
+    emitToken: StreamTokenCallback = () => undefined,
+    emitStage: (event: AgentStreamStageEvent) => void = () => undefined,
+    emitProgress: (event: AgentStreamProgressEvent) => void = () => undefined,
+    emitChange: (event: AgentStreamChangeEvent) => void = () => undefined,
+  ): Promise<AgentChatResponse> => {
+    const trace: AgentTraceStep[] = [];
+    const stream = createAgentStreamController({
+      emitChange,
+      emitProgress,
+      emitStage,
+    });
+    let bufferedTurn: BufferedTurn | null = null;
+    let currentContextMemories: BuildContextStepResult["context"]["memories"] =
+      [];
+    let tokenUsage = baseTokenUsage;
+    let finalizedResponse: AgentChatResponse | null = null;
+
+    const pushTrace = (step: AgentTraceStep) => {
+      const index = trace.findIndex((item) => item.id === step.id);
+
+      if (index === -1) {
+        trace.push(step);
+      } else {
+        trace[index] = { ...trace[index], ...step };
+      }
+
+      emitTrace(step);
+    };
+
+    const bufferAgentTurn = async (
+      turn: BufferedTurn,
+    ): Promise<AgentThread> => {
+      bufferedTurn = turn;
+
+      return {
+        ...thread,
+        pendingAction: turn.nextPendingAction,
+      } as AgentThread;
+    };
+
+    const executeOrchestrationAction = (
+      intent: AgentIntent,
+      action: import("@/lib/agent/schemas").ProposedAgentAction,
+    ) =>
+      runIdempotentAgentAction({
+        actionId: action.id,
+        execute: () =>
+          orchestrationExecuteIntent(intent, pushTrace, {
+            userId: user.id,
+          }),
+        intent: intent.intent,
+        store: receiptStore,
+        threadId: thread.id,
+        userId: user.id,
+      });
+    const executeOrchestrationRollback = ({
+      actionId,
+      intent,
+      rollbackPayload,
+    }: {
+      actionId: string;
+      intent: AgentIntent["intent"];
+      rollbackPayload: unknown;
+    }) =>
+      runIdempotentAgentAction({
+        actionId,
+        execute: () =>
+          executeRollbackFromPayload(rollbackPayload, {
+            userId: user.id,
+          }),
+        intent,
+        operation: "rollback",
+        store: receiptStore,
+        threadId: thread.id,
+        userId: user.id,
+      });
+
+    const finalizeCompoundResult = async ({
+      plan,
+      result,
+      usage,
+    }: {
+      plan: import("@/lib/agent/orchestration/types").OrchestratorPlan;
+      result: import("@/lib/agent/orchestration/types").ExecutionGraphResult;
+      usage: NonNullable<AgentChatResponse["tokenUsage"]>;
+    }): Promise<AgentChatResponse> => {
+      const observationTrace = buildObservationTraceStep(
+        result.observations,
+      );
+
+      if (observationTrace) {
+        pushTrace(observationTrace);
+      }
+      pushTrace(buildExecutionDecisionTraceStep(result));
+
+      if (!result.pendingAction) {
+        try {
+          await projectCompletedOrchestrationToPlan({
+            orchestrationId: `orch-${turnId}`,
+            payload,
+            plan,
+            result,
+          });
+        } catch (error) {
+          pushTrace({
+            detail:
+              error instanceof Error
+                ? error.message
+                : String(error),
+            id: `orchestration-projection-${turnId}`,
+            kind: "error",
+            status: "error",
+            title: "编排业务投影未完成",
+          });
+        }
+      }
+
+      for (const proposal of result.proposals.slice(0, 4)) {
+        stream.change({
+          collections: Array.from(
+            new Set(
+              proposal.changes.map(
+                (change) => change.collection,
+              ),
+            ),
+          ),
+          riskLevel: proposal.riskLevel,
+          stageId: "stage-orchestration",
+          summary: proposal.summary,
+        });
+      }
+      stream.progress({
+        detail: `${result.executedCount} 项已执行，${result.proposals.length} 项待确认。`,
+        message: "编排执行图已评估",
+        stageId: "stage-orchestration",
+      });
+
+      for (const token of splitIntoWordTokens(
+        result.assistantMessage,
+      )) {
+        emitToken(token, "response");
+      }
+
+      const outputTokens = estimateTokenCount(
+        result.assistantMessage,
+      );
+      const nextTokenUsage = {
+        ...usage,
+        outputTokens,
+        totalTokens:
+          usage.contextTokens +
+          usage.inputTokens +
+          outputTokens,
+      };
+      const primaryIntent =
+        result.proposals[0]?.intent ??
+        result.observations[0]?.intent ??
+        plan.tasks[0]?.intent ??
+        "answer_question";
+      const updatedThread = await bufferAgentTurn({
+        assistantMessage: result.assistantMessage,
+        confidence: 0.9,
+        engine: "workflow",
+        intent: primaryIntent,
+        nextPendingAction: result.pendingAction,
+      });
+
+      tokenUsage = nextTokenUsage;
+
+      return {
+        assistantMessage: result.assistantMessage,
+        confidence: 0.9,
+        engine: "workflow",
+        intent: primaryIntent,
+        pendingAction: result.pendingAction,
+        threadId: updatedThread.id,
+        tokenUsage: nextTokenUsage,
+        trace,
+      };
+    };
+
+    const createMountedTaskExecutor = ({
+      context,
+      input: graphInput,
+      plan,
+    }: {
+      context?: unknown;
+      input?: import("@/lib/agent/langgraph/state").SunnyAgentGraphInput;
+      plan: import("@/lib/agent/orchestration/types").OrchestratorPlan;
+    }) =>
+      createNativeOrchestrationTaskExecutor({
+        autoApproval,
+        dryRunContext: buildOrchestrationDryRunContext({
+          context:
+            context as BuildContextStepResult["context"],
+          payload,
+        }),
+        executeAction: executeOrchestrationAction,
+        executeIntent: (intent) =>
+          orchestrationExecuteIntent(intent, pushTrace, {
+            userId: user.id,
+          }),
+        message: graphInput?.message ?? message,
+        plan,
+        promptContext:
+          context as BuildContextStepResult["context"],
+      });
+    const compoundDependencies: NativeOrchestrationSubgraphDependencies = {
+      compensate: async ({ outcomes }) => {
+        const messages: string[] = [];
+
+        for (const outcome of [...outcomes].reverse()) {
+          const actionId = outcome.observation.actionId;
+
+          if (
+            !actionId ||
+            outcome.rollbackPayload === undefined
+          ) {
+            continue;
+          }
+
+          try {
+            await executeOrchestrationRollback({
+              actionId,
+              intent: outcome.observation.intent,
+              rollbackPayload: outcome.rollbackPayload,
+            });
+            messages.push(
+              `↩ 已补偿「${outcome.observation.label}」。`,
+            );
+          } catch (error) {
+            messages.push(
+              `⚠️「${outcome.observation.label}」补偿状态不确定：${
+                error instanceof Error
+                  ? error.message
+                  : String(error)
+              }`,
+            );
+
+            return { indeterminate: true, messages };
+          }
+        }
+
+        return { indeterminate: false, messages };
+      },
+      executeConfirmedAction: (args) =>
+        createMountedTaskExecutor(args).executeConfirmedAction!(
+          args,
+        ),
+      executePreparedTask: (args) =>
+        createMountedTaskExecutor(args).executePreparedTask(
+          args,
+        ),
+      prepareTask: (args) =>
+        createMountedTaskExecutor(args).prepareTask(args),
+      repair: async ({ failedObservation, state }) => {
+        const failedTask =
+          state.taskCatalog.find(
+            (task) => task.id === failedObservation.taskId,
+          ) ??
+          state.plan.tasks.find(
+            (task) => task.id === failedObservation.taskId,
+          );
+
+        if (!failedTask) {
+          return null;
+        }
+
+        return (
+          buildToolFailureRepairPlan({
+            failedTask,
+            failureReason:
+              failedObservation.error ??
+              failedObservation.message,
+            message: state.input?.message ?? message,
+          })?.plan ?? null
+        );
+      },
+      replan: async ({ failedObservation, state }) => {
+        const failedTask =
+          state.taskCatalog.find(
+            (task) => task.id === failedObservation.taskId,
+          ) ??
+          state.plan.tasks.find(
+            (task) => task.id === failedObservation.taskId,
+          );
+        const promptContext =
+          state.context as BuildContextStepResult["context"];
+
+        if (!failedTask || !promptContext) {
+          return null;
+        }
+
+        const failedTaskIndex = state.plan.tasks.findIndex(
+          (task) => task.id === failedTask.id,
+        );
+
+        return replanAfterTaskFailure({
+          failedTask,
+          failedTaskIndex:
+            failedTaskIndex >= 0
+              ? failedTaskIndex
+              : state.plan.tasks.length - 1,
+          failureReason:
+            failedObservation.error ??
+            failedObservation.message,
+          failureType: "tool_error",
+          message: state.input?.message ?? message,
+          observations: state.outcomes.map(
+            (outcome) => outcome.observation,
+          ),
+          originalPlan: state.plan,
+          proposals: state.outcomes.flatMap((outcome) =>
+            outcome.proposal ? [outcome.proposal] : [],
+          ),
+          promptContext,
+          queueState: summarizeExecutionQueue(
+            state.plan.tasks,
+            state.outcomes.map(
+              (outcome) => outcome.observation,
+            ),
+          ),
+        });
+      },
+    };
+    const compoundSubgraph =
+      compileMountedOrchestrationSubgraph(
+        compoundDependencies,
+        { maxTasksPerRun: 10 },
+      );
+
+    const persistTurn = async (
+      response: AgentChatResponse,
+    ): Promise<AgentChatResponse> => {
+      if (finalizedResponse) {
+        return finalizedResponse;
+      }
+
+      const turn = bufferedTurn ?? {
+        assistantMessage: response.assistantMessage,
+        confidence: response.confidence,
+        engine: response.engine,
+        intent: response.intent,
+        nextPendingAction: response.pendingAction,
+      };
+      if (finalizeTurn) {
+        const finalized = await finalizeTurn({
+          existingMemories: currentContextMemories ?? [],
+          pushTrace,
+          response: {
+            ...response,
+            assistantMessage: turn.assistantMessage,
+            confidence: turn.confidence ?? response.confidence,
+            engine: turn.engine,
+            intent: turn.intent,
+            pendingAction: turn.nextPendingAction,
+            trace: mergeTrace(response.trace, trace),
+            workbenchMode: workbenchMode ?? undefined,
+          },
+          tokenUsage: response.tokenUsage ?? tokenUsage,
+        });
+        finalizedResponse = {
+          ...finalized,
+          trace: mergeTrace(finalized.trace, trace),
+        };
+
+        return finalizedResponse;
+      }
+
+      emitStatus("正在保存会话上下文...");
+      pushTrace({
+        detail: "统一写回本轮 LangGraph 响应和 pending 投影。",
+        id: "thread-writeback",
+        kind: "write",
+        status: "running",
+        title: "正在保存会话上下文",
+      });
+      const updatedThread = await steps.appendAgentThreadTurn({
+        assistantMessage: turn.assistantMessage,
+        confidence: turn.confidence,
+        engine: turn.engine,
+        intent: turn.intent,
+        pendingAction: turn.nextPendingAction,
+        thread,
+        userMessage: message,
+      });
+      pushTrace({
+        detail: `Thread #${updatedThread.id} 已更新。`,
+        id: "thread-writeback",
+        kind: "complete",
+        status: "done",
+        title: "会话上下文已保存",
+      });
+      await steps.runAgentLearningLoop({
+        assistantMessage: turn.assistantMessage,
+        existingMemories: currentContextMemories ?? [],
+        intent: turn.intent,
+        message,
+        pendingActionAfter: turn.nextPendingAction,
+        pendingActionBefore: pendingAction,
+        pushTrace,
+        sourceThread: updatedThread.id,
+        tokenUsage: response.tokenUsage ?? tokenUsage,
+        user,
+      });
+      finalizedResponse = {
+        ...response,
+        assistantMessage: turn.assistantMessage,
+        confidence: turn.confidence ?? response.confidence,
+        engine: turn.engine,
+        intent: turn.intent,
+        pendingAction: turn.nextPendingAction,
+        threadId: updatedThread.id,
+        trace: mergeTrace(response.trace, trace),
+        workbenchMode: workbenchMode ?? undefined,
+      };
+
+      return finalizedResponse;
+    };
+
+    const graphDependencies: FullSunnyAgentGraphDependencies = {
+      buildContext: async ({ input: graphInput }) => {
+        const result = await steps.runBuildContextStep({
+          baseTokenUsage: graphInput.baseTokenUsage,
+          contextPreferences: contextPreferences ?? undefined,
+          emitStatus,
+          emitToken,
+          emitUsage,
+          message: graphInput.message,
+          payload,
+          pendingAction: graphInput.pendingAction,
+          pushTrace,
+          stream,
+          threadSummary,
+          workbenchMode,
+        });
+        currentContextMemories = result.context.memories ?? [];
+        tokenUsage = result.tokenUsage;
+
+        return result;
+      },
+      orchestrate: async ({
+        context,
+        input: graphInput,
+        tokenUsage: usage,
+      }) => {
+        const result = await steps.runOrchestrationStep({
+          autoApproval,
+          context: context as BuildContextStepResult["context"],
+          deferCompoundExecution: true,
+          emitStatus,
+          emitToken,
+          executeAction: executeOrchestrationAction,
+          executeRollback: executeOrchestrationRollback,
+          message: graphInput.message,
+          payload,
+          pendingAction: graphInput.pendingAction,
+          persistAgentTurn: bufferAgentTurn,
+          pushTrace,
+          stream,
+          tokenUsage: usage,
+          trace,
+          user,
+        });
+
+        if (result.outcome === "early_exit") {
+          return { response: result.response, type: "response" };
+        }
+
+        tokenUsage = result.data.tokenUsage;
+
+        if (result.outcome === "compound") {
+          return {
+            plan: result.data.plan,
+            tokenUsage,
+            type: "compound",
+          };
+        }
+
+        return {
+          preResolvedIntent: result.data.preResolvedIntent,
+          tokenUsage,
+          type: "continue",
+        };
+      },
+      finalizeCompound: async ({
+        plan,
+        result,
+        tokenUsage: usage,
+      }) =>
+        finalizeCompoundResult({
+          plan,
+          result,
+          usage,
+        }),
+      resolveIntent: async ({
+        context,
+        input: graphInput,
+        preResolvedIntent,
+        tokenUsage: usage,
+      }) => {
+        const result = await steps.runResolveIntentStep({
+          confirmationSignals: resolveConfirmationSignals({
+            confirmation: graphInput.structuredConfirmation,
+            message: graphInput.message,
+            pendingAction: graphInput.pendingAction,
+          }),
+          context: context as BuildContextStepResult["context"],
+          emitStatus,
+          emitToken,
+          emitUsage,
+          intentModelEngine,
+          message: graphInput.message,
+          modelResolver,
+          pendingAction: graphInput.pendingAction,
+          persistAgentTurn: bufferAgentTurn,
+          preResolvedIntent,
+          pushTrace,
+          resolvedHistory,
+          stream,
+          thread,
+          tokenUsage: usage,
+          trace,
+          user,
+          workbenchMode,
+        });
+
+        if (result.outcome === "early_exit") {
+          return { response: result.response, type: "response" };
+        }
+
+        tokenUsage = result.data.tokenUsage;
+
+        return {
+          ...result.data,
+          tokenUsage,
+          type: "continue",
+        };
+      },
+      dryRun: async ({
+        context,
+        resolution,
+        resolutionData,
+        tokenUsage: usage,
+      }) => {
+        if (resolutionData.batchExecuteIntents?.length) {
+          return {
+            executionApproved: true,
+            isDirectAnswer: false,
+            tokenUsage: usage,
+            type: "continue",
+          };
+        }
+
+        const result = await steps.runDryRunAndProposeStep({
+          autoApproval,
+          confirmedActionId: resolutionData.confirmedActionId ?? null,
+          context: context as BuildContextStepResult["context"],
+          emitStatus,
+          emitToken,
+          payload,
+          persistAgentTurn: bufferAgentTurn,
+          pushTrace,
+          resolution,
+          stream,
+          tokenUsage: usage,
+          trace,
+          user,
+        });
+
+        if (result.outcome === "early_exit") {
+          return { response: result.response, type: "response" };
+        }
+
+        tokenUsage = result.data.tokenUsage;
+
+        return { ...result.data, type: "continue" };
+      },
+      execute: async ({
+        dryRun,
+        input: graphInput,
+        resolution,
+        resolutionData,
+        tokenUsage: usage,
+      }) => {
+        const executeStep = () =>
+          steps.runExecuteAndPersistStep({
+            batchExecuteIntents: resolutionData.batchExecuteIntents,
+            confirmedActionId: resolutionData.confirmedActionId ?? null,
+            emitStatus,
+            emitToken,
+            executionApproved: dryRun.executionApproved,
+            isDirectAnswer: dryRun.isDirectAnswer,
+            nextPendingAfterExecute:
+              resolutionData.nextPendingAfterExecute ?? undefined,
+            persistAgentTurn: bufferAgentTurn,
+            pushTrace,
+            resolution,
+            stream,
+            tokenUsage: usage,
+            trace,
+            user,
+          });
+        const actionId =
+          resolutionData.confirmedActionId ??
+          dryRun.approvedActionId ??
+          null;
+        const response = actionId
+          ? await runIdempotentAgentAction({
+              actionId,
+              execute: executeStep,
+              intent: resolution.intent.intent,
+              store: receiptStore,
+              threadId: thread.id,
+              userId: user.id,
+            })
+          : await executeStep();
+        tokenUsage = response.tokenUsage ?? usage;
+
+        try {
+          await projectConfirmedOrchestrationToPlan({
+            payload,
+            pendingAction: graphInput.pendingAction,
+          });
+        } catch (error) {
+          pushTrace({
+            detail:
+              error instanceof Error
+                ? error.message
+                : String(error),
+            id: `orchestration-confirmed-projection-${graphInput.turnId}`,
+            kind: "error",
+            status: "error",
+            title: "确认后的编排投影未完成",
+          });
+        }
+
+        return response;
+      },
+      finalize: ({ response }) => persistTurn(response),
+    };
+    const graph = compileFullSunnyAgentGraph(graphDependencies, {
+      checkpointer,
+      compoundSubgraph,
+    });
+    const checkpointConfig = buildSunnyAgentCheckpointConfig({
+      threadId: thread.id,
+      userId: user.id,
+    });
+    emitUsage(tokenUsage);
+    emitToken("正在通过 LangGraph 分析你的请求...\n", "thinking");
+    const initialInput = {
+      compoundPlan: null,
+      compoundResult: null,
+      context: null,
+      contextSummary: null,
+      dryRunData: null,
+      failureMessage: null,
+      input: {
+        baseTokenUsage,
+        message,
+        pendingAction,
+        resolvedHistory,
+        structuredConfirmation,
+        threadId: thread.id,
+        turnId,
+        userId: user.id,
+      },
+      preResolvedIntent: null,
+      resolution: null,
+      resolutionData: null,
+      response: null,
+      tokenUsage: baseTokenUsage,
+      trace: [],
+    };
+    let result;
+    const checkpointState = await graph.getState(checkpointConfig);
+    const hasCheckpointInterrupt =
+      checkpointState.next.includes("await_user") ||
+      checkpointState.tasks.some((task) => task.interrupts.length > 0);
+
+    if (hasCheckpointInterrupt || pendingAction) {
+      try {
+        result = await graph.invoke(
+          new Command({
+            resume: {
+              message,
+              structuredConfirmation,
+              baseTokenUsage,
+              turnId,
+            },
+          }),
+          checkpointConfig,
+        );
+
+        if (!result.response && !getInterruptedAgentResponse(result)) {
+          result = await graph.invoke(initialInput, checkpointConfig);
+        }
+      } catch (error) {
+        if (!(error instanceof EmptyInputError)) {
+          throw error;
+        }
+
+        result = await graph.invoke(initialInput, checkpointConfig);
+      }
+    } else {
+      result = await graph.invoke(initialInput, checkpointConfig);
+    }
+    const interruptedCompound =
+      getInterruptedCompoundResult(result);
+
+    if (interruptedCompound) {
+      return persistTurn(
+        await finalizeCompoundResult({
+          plan: interruptedCompound.plan,
+          result: interruptedCompound.result,
+          usage: tokenUsage,
+        }),
+      );
+    }
+    const interruptedResponse = getInterruptedAgentResponse(result);
+
+    if (interruptedResponse) {
+      return persistTurn(interruptedResponse);
+    }
+
+    if (!result.response) {
+      throw new Error("LangGraph did not produce a response.");
+    }
+
+    return result.response;
+  };
+};

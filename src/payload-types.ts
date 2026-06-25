@@ -79,6 +79,8 @@ export interface Config {
     'plan-reviews': PlanReview;
     'agent-threads': AgentThread;
     'agent-runs': AgentRun;
+    'agent-action-receipts': AgentActionReceipt;
+    'agent-thread-events': AgentThreadEvent;
     'agent-memories': AgentMemory;
     'agent-suggestions': AgentSuggestion;
     pages: Page;
@@ -101,6 +103,8 @@ export interface Config {
     'plan-reviews': PlanReviewsSelect<false> | PlanReviewsSelect<true>;
     'agent-threads': AgentThreadsSelect<false> | AgentThreadsSelect<true>;
     'agent-runs': AgentRunsSelect<false> | AgentRunsSelect<true>;
+    'agent-action-receipts': AgentActionReceiptsSelect<false> | AgentActionReceiptsSelect<true>;
+    'agent-thread-events': AgentThreadEventsSelect<false> | AgentThreadEventsSelect<true>;
     'agent-memories': AgentMemoriesSelect<false> | AgentMemoriesSelect<true>;
     'agent-suggestions': AgentSuggestionsSelect<false> | AgentSuggestionsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
@@ -905,9 +909,17 @@ export interface AgentThread {
         | 'reschedule_item'
         | 'cancel_schedule_item'
         | 'clarify'
+        | 'modify_record'
+        | 'delete_record'
+        | 'capability_query'
+        | 'query_checklist_progress'
+        | 'query_memory'
+        | 'query_plan'
+        | 'query_schedule'
+        | 'query_timeline'
       )
     | null;
-  lastEngine?: ('glm' | 'openai' | 'zai' | 'heuristic' | 'workflow') | null;
+  lastEngine?: ('glm' | 'openai' | 'zai' | 'heuristic' | 'workflow' | 'model' | 'openai-compatible') | null;
   lastConfidence?: number | null;
   lastInteractionAt?: string | null;
   /**
@@ -954,6 +966,67 @@ export interface ScheduleItem {
   agentBrief?: string | null;
   createdBy: 'manual' | 'agent';
   conflictNote?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-action-receipts".
+ */
+export interface AgentActionReceipt {
+  id: number;
+  key: string;
+  actionId: string;
+  intent: string;
+  operation: 'execute' | 'rollback';
+  status: 'pending' | 'succeeded' | 'failed' | 'indeterminate';
+  user: number | User;
+  thread: number | AgentThread;
+  response?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  rollbackPayload?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  error?: string | null;
+  completedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-thread-events".
+ */
+export interface AgentThreadEvent {
+  id: number;
+  eventKey: string;
+  turnId: string;
+  eventType: 'legacy_bootstrap' | 'user_received' | 'assistant_completed' | 'turn_failed' | 'projection_failed';
+  schemaVersion: number;
+  thread: number | AgentThread;
+  user: number | User;
+  payload:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  recordedAt: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -1080,6 +1153,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'agent-runs';
         value: number | AgentRun;
+      } | null)
+    | ({
+        relationTo: 'agent-action-receipts';
+        value: number | AgentActionReceipt;
+      } | null)
+    | ({
+        relationTo: 'agent-thread-events';
+        value: number | AgentThreadEvent;
       } | null)
     | ({
         relationTo: 'agent-memories';
@@ -1455,6 +1536,41 @@ export interface AgentRunsSelect<T extends boolean = true> {
   provider?: T;
   tokenUsage?: T;
   trace?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-action-receipts_select".
+ */
+export interface AgentActionReceiptsSelect<T extends boolean = true> {
+  key?: T;
+  actionId?: T;
+  intent?: T;
+  operation?: T;
+  status?: T;
+  user?: T;
+  thread?: T;
+  response?: T;
+  rollbackPayload?: T;
+  error?: T;
+  completedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "agent-thread-events_select".
+ */
+export interface AgentThreadEventsSelect<T extends boolean = true> {
+  eventKey?: T;
+  turnId?: T;
+  eventType?: T;
+  schemaVersion?: T;
+  thread?: T;
+  user?: T;
+  payload?: T;
+  recordedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

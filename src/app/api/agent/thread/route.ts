@@ -3,6 +3,11 @@ import type { Where } from "payload";
 
 import { buildAgentRunOwnerWhere, getRelationId } from "@/lib/agent/run-access";
 import { parsePendingAction, sanitizeChatMessages } from "@/lib/agent/schemas";
+import {
+  createPayloadAgentThreadEventStore,
+  ensureLegacyThreadEvents,
+  hydrateAgentThreadState,
+} from "@/lib/agent/thread-events";
 import { toAgentRunSummary } from "@/lib/agent/run-summary";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
@@ -28,6 +33,7 @@ export async function GET(request: Request) {
       { status: 401 },
     );
   }
+  const user = authResult.user;
 
   const payload = await getPayloadClient();
   const url = new URL(request.url);
@@ -37,7 +43,7 @@ export async function GET(request: Request) {
   const limit = Math.min(Number(url.searchParams.get("limit")) || 8, 50);
 
   const conditions: Where[] = [
-    { user: { equals: authResult.user.id } },
+    { user: { equals: user.id } },
   ];
 
   if (showArchived) {
@@ -71,7 +77,7 @@ export async function GET(request: Request) {
     limit: 6,
     overrideAccess: true,
     sort: "-startedAt",
-    where: buildAgentRunOwnerWhere(authResult.user.id),
+    where: buildAgentRunOwnerWhere(user.id),
   });
   const selectedThread =
     requestedThreadId !== null
@@ -86,15 +92,36 @@ export async function GET(request: Request) {
           .catch(() => null)) as (typeof threads.docs)[number] | null)
       : threads.docs[0] ?? null;
   const ownedSelectedThread =
-    selectedThread && getRelationId(selectedThread.user) === authResult.user.id ? selectedThread : null;
+    selectedThread && getRelationId(selectedThread.user) === user.id ? selectedThread : null;
+  const selectedCanonicalState = ownedSelectedThread
+    ? await (async () => {
+        const eventStore = createPayloadAgentThreadEventStore(
+          payload as never,
+        );
+        await ensureLegacyThreadEvents({
+          store: eventStore,
+          thread: ownedSelectedThread,
+          userId: user.id,
+        });
+
+        return hydrateAgentThreadState({
+          store: eventStore,
+          threadId: ownedSelectedThread.id,
+        });
+      })()
+    : null;
 
   return NextResponse.json({
     selectedThread: ownedSelectedThread
       ? {
           id: ownedSelectedThread.id,
           lastInteractionAt: ownedSelectedThread.lastInteractionAt,
-          messages: sanitizeChatMessages(ownedSelectedThread.messages ?? []),
-          pendingAction: parsePendingAction(ownedSelectedThread.pendingAction),
+          messages:
+            selectedCanonicalState?.messages ??
+            sanitizeChatMessages(ownedSelectedThread.messages ?? []),
+          pendingAction:
+            selectedCanonicalState?.pendingAction ??
+            parsePendingAction(ownedSelectedThread.pendingAction),
           title: ownedSelectedThread.title,
         }
       : null,

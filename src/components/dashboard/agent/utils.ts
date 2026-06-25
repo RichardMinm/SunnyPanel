@@ -26,7 +26,7 @@ export const getPendingActionLabel = (pendingAction: PendingAction) => {
   }
 
   if (pendingAction.type === "await_strategy_resume") {
-    return "等待策略重试";
+    return `等待策略恢复：${pendingAction.strategyMode}`;
   }
 
   if (pendingAction.type === "await_learning_followup") {

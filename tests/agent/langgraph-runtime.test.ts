@@ -3,13 +3,11 @@ import test from "node:test";
 
 import {
   getAgentGraphRuntimeConfig,
-  isLangGraphIntentEnabled,
-} from "../../src/lib/agent/langgraph/config.ts";
+} from "../../src/lib/agent/langgraph/config";
 import {
   runSunnyAgentGraph,
-  UnsupportedLangGraphIntentError,
-} from "../../src/lib/agent/langgraph/runtime.ts";
-import type { AgentChatResponse, AgentIntent } from "../../src/lib/agent/schemas.ts";
+} from "../../src/lib/agent/langgraph/runtime";
+import type { AgentChatResponse, AgentIntent } from "../../src/lib/agent/schemas";
 
 const tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]> = {
   contextTokens: 2,
@@ -19,27 +17,22 @@ const tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]> = {
   totalTokens: 5,
 };
 
-test("graph runtime config defaults to legacy and the Phase 1 read allowlist", () => {
+test("graph runtime config defaults to LangGraph", () => {
   const config = getAgentGraphRuntimeConfig({});
 
-  assert.equal(config.mode, "legacy");
-  assert.deepEqual([...config.intents], [
-    "answer_question",
-    "query_progress",
-    "query_plan_progress",
-  ]);
-  assert.equal(isLangGraphIntentEnabled("query_progress", config), true);
-  assert.equal(isLangGraphIntentEnabled("create_plan", config), false);
+  assert.deepEqual(config, { mode: "langgraph" });
 });
 
-test("graph runtime config reads hybrid mode and a normalized intent allowlist", () => {
-  const config = getAgentGraphRuntimeConfig({
-    AGENT_GRAPH_RUNTIME: "hybrid",
-    AGENT_LANGGRAPH_INTENTS: " query_progress,answer_question,query_progress ",
-  });
+test("graph runtime config keeps legacy as the only explicit fallback", () => {
+  assert.deepEqual(
+    getAgentGraphRuntimeConfig({ AGENT_GRAPH_RUNTIME: "legacy" }),
+    { mode: "legacy" },
+  );
 
-  assert.equal(config.mode, "hybrid");
-  assert.deepEqual([...config.intents], ["query_progress", "answer_question"]);
+  assert.deepEqual(
+    getAgentGraphRuntimeConfig({ AGENT_GRAPH_RUNTIME: "hybrid" }),
+    { mode: "langgraph" },
+  );
 });
 
 test("Phase 1 graph runs buildContext, resolveIntent, executeRead, finalize in order", async () => {
@@ -56,7 +49,9 @@ test("Phase 1 graph runs buildContext, resolveIntent, executeRead, finalize in o
       message: "总结整体进度",
       pendingAction: null,
       resolvedHistory: [],
+      structuredConfirmation: null,
       threadId: 42,
+      turnId: "turn-runtime-basic-1",
       userId: 7,
     },
     {
@@ -99,47 +94,50 @@ test("Phase 1 graph runs buildContext, resolveIntent, executeRead, finalize in o
   assert.equal(response.threadId, 42);
 });
 
-test("an unsupported intent stops before executeRead and finalize", async () => {
+test("all registered intents can reach execution without an allowlist", async () => {
   let executeCount = 0;
   let finalizeCount = 0;
 
-  await assert.rejects(
-    runSunnyAgentGraph(
-      {
-        baseTokenUsage: tokenUsage,
-        message: "创建计划",
-        pendingAction: null,
-        resolvedHistory: [],
-        threadId: 42,
-        userId: 7,
+  const response = await runSunnyAgentGraph(
+    {
+      baseTokenUsage: tokenUsage,
+      message: "创建计划",
+      pendingAction: null,
+      resolvedHistory: [],
+      structuredConfirmation: null,
+      threadId: 42,
+      turnId: "turn-runtime-basic-2",
+      userId: 7,
+    },
+    {
+      buildContext: async () => ({
+        context: {},
+        contextSummary: "上下文",
+        tokenUsage,
+      }),
+      executeRead: async () => {
+        executeCount += 1;
+        return {
+          assistantMessage: "创建计划预览",
+          pendingAction: null,
+        };
       },
-      {
-        buildContext: async () => ({
-          context: {},
-          contextSummary: "上下文",
-          tokenUsage,
-        }),
-        executeRead: async () => {
-          executeCount += 1;
-          return { assistantMessage: "不应执行", pendingAction: null };
-        },
-        finalize: async ({ response }) => {
-          finalizeCount += 1;
-          return response;
-        },
-        resolveIntent: async () => ({
-          engine: "heuristic",
-          intent: {
-            args: { title: "测试计划" },
-            confidence: 1,
-            intent: "create_plan",
-          },
-        }),
+      finalize: async ({ response: graphResponse }) => {
+        finalizeCount += 1;
+        return graphResponse;
       },
-    ),
-    UnsupportedLangGraphIntentError,
+      resolveIntent: async () => ({
+        engine: "heuristic",
+        intent: {
+          args: { title: "测试计划" },
+          confidence: 1,
+          intent: "create_plan",
+        },
+      }),
+    },
   );
 
-  assert.equal(executeCount, 0);
-  assert.equal(finalizeCount, 0);
+  assert.equal(response.intent, "create_plan");
+  assert.equal(executeCount, 1);
+  assert.equal(finalizeCount, 1);
 });

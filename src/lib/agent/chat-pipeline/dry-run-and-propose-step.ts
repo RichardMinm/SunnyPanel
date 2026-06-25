@@ -22,6 +22,7 @@ import {
   resolveChecklistGroupForAppend,
   resolveChecklistItem,
 } from "../checklist-resolvers";
+import { resolveDeleteRecordTarget } from "../tools/delete-record";
 
 export type DryRunAndProposeStepParams = {
   autoApproval?: AutoApprovalContext;
@@ -46,6 +47,7 @@ export type DryRunAndProposeStepParams = {
 };
 
 export type DryRunAndProposeStepNext = {
+  approvedActionId?: string;
   executionApproved: boolean;
   isDirectAnswer: boolean;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -154,6 +156,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         promptContext: context,
         resolveChecklistGroupForAppend,
         resolveChecklistItem,
+        resolveDeleteRecord: (args) => resolveDeleteRecordTarget(args, { payload }),
         resolveScheduleItem: (itemId) => getScheduleItemById(itemId, payload),
       });
 
@@ -218,7 +221,25 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     };
   }
 
-  const proposedAction = dryRunResult.type === "proposed_action" ? dryRunResult.action : null;
+  const proposedAction =
+    dryRunResult.type === "proposed_action" || dryRunResult.type === "bypass"
+      ? dryRunResult.action ?? null
+      : null;
+
+  if (proposedAction && proposedAction.requiresConfirmation === false) {
+    const hasWriteChange =
+      (proposedAction.affectedDocuments?.length ?? 0) > 0;
+
+    return {
+      outcome: "execute",
+      data: {
+        ...(hasWriteChange ? { approvedActionId: proposedAction.id } : {}),
+        executionApproved: true,
+        isDirectAnswer: false,
+        tokenUsage,
+      },
+    };
+  }
 
   if (proposedAction && autoApproval) {
     stream?.change({
@@ -266,6 +287,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       return {
         outcome: "execute",
         data: {
+          approvedActionId: proposedAction.id,
           executionApproved: true,
           isDirectAnswer: false,
           tokenUsage,

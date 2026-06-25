@@ -30,6 +30,11 @@ export type UseAgentDashboardChatOptions = {
   initialThreadId?: number;
 };
 
+type AgentSuggestionComposerSource = {
+  suggestedPrompt: string;
+  suggestionId: number;
+};
+
 export function useAgentDashboardChat({
   initialThreadId,
 }: UseAgentDashboardChatOptions) {
@@ -76,8 +81,27 @@ export function useAgentDashboardChat({
   const [threadTitle, setThreadTitle] = useState("");
   const [threadHydrated, setThreadHydrated] = useState(false);
   const [workbenchMode, setWorkbenchMode] = useState<AgentWorkbenchMode>("ask");
+  const [activeSuggestionSource, setActiveSuggestionSource] = useState<null | AgentSuggestionComposerSource>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const skipInitialThreadLoadRef = useRef(false);
+
+  const setInputAndClearSuggestion = useCallback(
+    (value: string) => {
+      setInput(value);
+      setActiveSuggestionSource((current) =>
+        current && value !== current.suggestedPrompt ? null : current,
+      );
+    },
+    [],
+  );
+
+  const prefillFromSuggestion = useCallback(
+    (prompt: string, source?: AgentSuggestionComposerSource) => {
+      setInput(prompt);
+      setActiveSuggestionSource(source ?? null);
+    },
+    [],
+  );
 
   const loadThread = useCallback(
     async (nextThreadId?: number, options?: { preserveInspector?: boolean; listOnly?: boolean }) => {
@@ -151,6 +175,7 @@ export function useAgentDashboardChat({
     sendMessage,
     stopGeneration,
   } = useAgentChatMessaging({
+    activeSuggestionSource,
     contextPreferences,
     isSubmitting,
     lastRollbackPayload,
@@ -167,6 +192,7 @@ export function useAgentDashboardChat({
     setLastRollbackResult,
     setMessages,
     setPendingAction,
+    setActiveSuggestionSource,
     setStatusText,
     setStreamingState,
     setStreamChanges,
@@ -377,7 +403,8 @@ export function useAgentDashboardChat({
     selectedRunRollbackBusy,
     selectedRunRollbackError,
     sendMessage,
-    setInput,
+    setInput: setInputAndClearSuggestion,
+    prefillFromSuggestion,
     setActiveInspectorTab,
     statusLabel,
     stopGeneration,

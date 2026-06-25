@@ -1,4 +1,6 @@
 import type { Payload } from "payload";
+import type { RunnableConfig } from "@langchain/core/runnables";
+import type { BaseCheckpointSaver } from "@langchain/langgraph";
 
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
 import {
@@ -6,11 +8,12 @@ import {
   buildObservationTraceStep,
   buildResumedOrchestratorPlan,
   buildStrategyResumeOrchestratorPlan,
-  executeOrchestrationGraph,
 } from "@/lib/agent/execution-graph";
+import { runOrchestrationSubgraph } from "@/lib/agent/langgraph/orchestration-subgraph";
 import { orchestratorPlanToIntent, runOrchestrator } from "@/lib/agent/orchestrator";
 import { replanAfterTaskFailure, type ReplanInput } from "@/lib/agent/orchestration/replan";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
+import { projectCompletedOrchestrationToPlan } from "@/lib/agent/orchestration/projection";
 import { logAgentEvent } from "@/lib/agent/logger";
 import {
   isCancellationReply,
@@ -23,7 +26,11 @@ import type {
   AgentIntent,
   AgentTraceStep,
   PendingAction,
+  ProposedAgentAction,
 } from "@/lib/agent/schemas";
+import type {
+  AgentIntentExecutionResult,
+} from "@/lib/agent/executor";
 import type { AutoApprovalContext } from "@/lib/agent/safety";
 import type { AgentToolDryRunContext } from "@/lib/agent/tool-registry";
 import type { StreamTokenCallback } from "@/lib/agent/client";
@@ -37,15 +44,29 @@ import {
   resolveChecklistGroupForAppend,
   resolveChecklistItem,
 } from "../checklist-resolvers";
+import { resolveDeleteRecordTarget } from "../tools/delete-record";
 
 const ORCHESTRATION_MAX_TASKS_PER_RUN = 10;
 
 export type OrchestrationStepParams = {
   autoApproval?: AutoApprovalContext;
   context: BuildContextStepResult["context"];
+  compoundCheckpointer?: BaseCheckpointSaver;
+  compoundRunnableConfig?: RunnableConfig;
+  deferCompoundExecution?: boolean;
   dryRunContextOverrides?: Partial<AgentToolDryRunContext>;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
+  executeAction?: (
+    intent: AgentIntent,
+    action: ProposedAgentAction,
+  ) => Promise<AgentIntentExecutionResult>;
+  executeRollback?: (args: {
+    actionId: string;
+    intent: AgentIntent["intent"];
+    rollbackPayload: unknown;
+  }) => Promise<unknown>;
+  forcedPlan?: OrchestratorPlan;
   message: string;
   payload: Payload;
   pendingAction: null | PendingAction;
@@ -60,6 +81,7 @@ export type OrchestrationStepParams = {
   replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
   runOrchestratorFn?: typeof runOrchestrator;
   stream?: AgentStreamController;
+  terminalizeCompoundExecution?: boolean;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { id: number };
@@ -68,6 +90,13 @@ export type OrchestrationStepParams = {
 export type OrchestrationStepResult =
   | { outcome: "early_exit"; response: AgentChatResponse }
   | {
+      outcome: "compound";
+      data: {
+        plan: OrchestratorPlan;
+        tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
+      };
+    }
+  | {
       outcome: "continue";
       data: {
         preResolvedIntent: AgentIntent | null;
@@ -75,13 +104,52 @@ export type OrchestrationStepResult =
       };
     };
 
+export const buildOrchestrationDryRunContext = ({
+  context,
+  overrides,
+  payload,
+}: {
+  context: BuildContextStepResult["context"];
+  overrides?: Partial<AgentToolDryRunContext>;
+  payload: Payload;
+}): AgentToolDryRunContext => ({
+  detectScheduleConflicts: (args: {
+    date: string;
+    endTime?: null | string;
+    excludeId?: number;
+    startTime?: null | string;
+  }) =>
+    detectScheduleConflicts(
+      args.date,
+      args.startTime,
+      args.endTime,
+      args.excludeId,
+      payload,
+    ),
+  findTimelineEvent: findChecklistTimelineEvent,
+  now: context.now,
+  planCandidates: context.plans,
+  resolveChecklistGroupForAppend,
+  resolveChecklistItem,
+  resolveDeleteRecord: (args) => resolveDeleteRecordTarget(args, { payload }),
+  resolveScheduleItem: (itemId: number) =>
+    getScheduleItemById(itemId, payload),
+  ...overrides,
+});
+
 export const runOrchestrationStep = async (params: OrchestrationStepParams): Promise<OrchestrationStepResult> => {
   const {
     autoApproval,
     context,
+    compoundCheckpointer,
+    compoundRunnableConfig,
+    deferCompoundExecution = false,
     dryRunContextOverrides,
     emitStatus,
     emitToken,
+    executeAction,
+    executeRollback,
+    forcedPlan,
     message,
     payload,
     pendingAction,
@@ -90,28 +158,18 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     replanTaskFailure,
     runOrchestratorFn = runOrchestrator,
     stream,
+    terminalizeCompoundExecution = false,
     tokenUsage: tokenUsageIn,
     trace,
     user,
   } = params;
   let tokenUsage = tokenUsageIn;
-  const graphDryRunContext = {
-    detectScheduleConflicts: (args: {
-      date: string;
-      endTime?: null | string;
-      excludeId?: number;
-      startTime?: null | string;
-    }) =>
-      detectScheduleConflicts(args.date, args.startTime, args.endTime, args.excludeId, payload),
-    findTimelineEvent: findChecklistTimelineEvent,
-    now: context.now,
-    planCandidates: context.plans,
-    resolveChecklistGroupForAppend,
-    resolveChecklistItem,
-    resolveScheduleItem: (itemId: number) => getScheduleItemById(itemId, payload),
-    ...dryRunContextOverrides,
-  };
-  const pushGraphTraceSteps = (graphResult: Awaited<ReturnType<typeof executeOrchestrationGraph>>) => {
+  const graphDryRunContext = buildOrchestrationDryRunContext({
+    context,
+    overrides: dryRunContextOverrides,
+    payload,
+  });
+  const pushGraphTraceSteps = (graphResult: Awaited<ReturnType<typeof runOrchestrationSubgraph>>) => {
     const observationTraceStep = buildObservationTraceStep(graphResult.observations);
 
     if (observationTraceStep) {
@@ -119,6 +177,33 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     }
 
     pushTrace(buildExecutionDecisionTraceStep(graphResult));
+  };
+  const projectCompletedPlan = async (
+    planToProject: OrchestratorPlan,
+    orchestrationId: string,
+    graphResult: Awaited<
+      ReturnType<typeof runOrchestrationSubgraph>
+    >,
+  ) => {
+    try {
+      await projectCompletedOrchestrationToPlan({
+        orchestrationId,
+        payload,
+        plan: planToProject,
+        result: graphResult,
+      });
+    } catch (error) {
+      pushTrace({
+        detail:
+          error instanceof Error
+            ? error.message
+            : String(error),
+        id: `orchestration-projection-${orchestrationId}`,
+        kind: "error",
+        status: "error",
+        title: "编排业务投影未完成",
+      });
+    }
   };
 
   const emitAndPersistEarlyExit = async ({
@@ -263,17 +348,37 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           strategyOverride: "incremental",
         }));
 
-    const graphResult = await executeOrchestrationGraph(resumedPlan, graphDryRunContext, {
+    if (deferCompoundExecution) {
+      return {
+        outcome: "compound",
+        data: {
+          plan: resumedPlan,
+          tokenUsage,
+        },
+      };
+    }
+
+    const graphResult = await runOrchestrationSubgraph(resumedPlan, graphDryRunContext, {
       autoApproval,
+      checkpointer: compoundCheckpointer,
       disableToolFailureRepair: true,
       disabledLoopDirectiveModes: ["avoid_recent_failure"],
+      executeAction,
+      executeRollback,
       maxTasksPerRun: ORCHESTRATION_MAX_TASKS_PER_RUN,
       message: pendingAction.originalMessage,
       orchestrationId: pendingAction.orchestrationId ?? `orch-strategy-resume-${Date.now()}-${user.id}`,
       promptContext: context,
+      runnableConfig: compoundRunnableConfig,
       replanTaskFailure: resumeReplanTaskFailure,
     });
     pushGraphTraceSteps(graphResult);
+    await projectCompletedPlan(
+      resumedPlan,
+      pendingAction.orchestrationId ??
+        `orch-strategy-resume-${user.id}`,
+      graphResult,
+    );
 
     pushTrace({
       detail: graphResult.evaluation.summary,
@@ -370,14 +475,34 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       title: "延后队列已恢复",
     });
 
-    const graphResult = await executeOrchestrationGraph(resumedPlan, graphDryRunContext, {
+    if (deferCompoundExecution) {
+      return {
+        outcome: "compound",
+        data: {
+          plan: resumedPlan,
+          tokenUsage,
+        },
+      };
+    }
+
+    const graphResult = await runOrchestrationSubgraph(resumedPlan, graphDryRunContext, {
       autoApproval,
+      checkpointer: compoundCheckpointer,
+      executeAction,
+      executeRollback,
       maxTasksPerRun: ORCHESTRATION_MAX_TASKS_PER_RUN,
       message: pendingAction.originalMessage,
       orchestrationId: pendingAction.orchestrationId ?? `orch-resume-${Date.now()}-${user.id}`,
       promptContext: context,
+      runnableConfig: compoundRunnableConfig,
     });
     pushGraphTraceSteps(graphResult);
+    await projectCompletedPlan(
+      resumedPlan,
+      pendingAction.orchestrationId ??
+        `orch-resume-${user.id}`,
+      graphResult,
+    );
 
     logAgentEvent("info", "chat.orchestration_queue_resumed", {
       deferredTaskCount: pendingAction.deferredTaskIds.length,
@@ -432,7 +557,9 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     title: "编排器正在拆解任务",
   });
 
-  const plan = await runOrchestratorFn(message, context);
+  const plan =
+    forcedPlan ??
+    (await runOrchestratorFn(message, context));
   stream?.progress({
     detail: `${plan.mode === "compound" ? "复合" : "单一"}意图 · ${plan.tasks.length} 个子任务`,
     message: "编排计划已生成",
@@ -458,55 +585,39 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
   }
 
   if (plan.mode === "compound" && plan.tasks.length > 1) {
-    const orchestrationId = `orch-${Date.now()}-${user.id}`;
-    const relatedPlanId = plan.tasks
-      .map((task) => {
-        const args = task.args as { planId?: number; relatedPlanId?: number };
-
-        return typeof args.relatedPlanId === "number"
-          ? args.relatedPlanId
-          : typeof args.planId === "number"
-            ? args.planId
-            : null;
-      })
-      .find((id): id is number => typeof id === "number");
-
-    if (relatedPlanId) {
-      await payload.update({
-        collection: "plans",
+    if (deferCompoundExecution) {
+      return {
+        outcome: "compound",
         data: {
-          agentContext: {
-            mode: plan.mode,
-            orchestrationId,
-            reasoning: plan.reasoning,
-            updatedAt: new Date().toISOString(),
-          },
-          subtasks: plan.tasks.map((task) => ({
-            agentRole: task.agentRole,
-            id: task.id,
-            intent: task.intent,
-            label: task.label,
-            status: "pending",
-          })),
+          plan,
+          tokenUsage,
         },
-        depth: 0,
-        id: relatedPlanId,
-        overrideAccess: true,
-      });
+      };
     }
 
-    const graphResult = await executeOrchestrationGraph(
+    const orchestrationId = `orch-${Date.now()}-${user.id}`;
+
+    const graphResult = await runOrchestrationSubgraph(
       plan,
       graphDryRunContext,
       {
         autoApproval,
+        checkpointer: compoundCheckpointer,
+        executeAction,
+        executeRollback,
         maxTasksPerRun: ORCHESTRATION_MAX_TASKS_PER_RUN,
         message,
         orchestrationId,
         promptContext: context,
+        runnableConfig: compoundRunnableConfig,
       },
     );
     pushGraphTraceSteps(graphResult);
+    await projectCompletedPlan(
+      plan,
+      orchestrationId,
+      graphResult,
+    );
     for (const proposal of graphResult.proposals.slice(0, 4)) {
       stream?.change({
         collections: Array.from(new Set(proposal.changes.map((change) => change.collection))),
@@ -563,7 +674,11 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       };
     }
 
-    if (graphResult.executedCount === 0 && !graphResult.pendingAction) {
+    if (
+      (terminalizeCompoundExecution ||
+        graphResult.executedCount === 0) &&
+      !graphResult.pendingAction
+    ) {
       const assistantMessage = graphResult.assistantMessage;
       for (const token of splitIntoWordTokens(assistantMessage)) {
         emitToken(token, 'response');
@@ -579,7 +694,9 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         assistantMessage,
         confidence: 0.9,
         engine: "workflow",
-        intent: "answer_question",
+        intent:
+          graphResult.observations[0]?.intent ??
+          "answer_question",
         nextPendingAction: null,
       });
 
@@ -589,7 +706,9 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           assistantMessage,
           confidence: 0.9,
           engine: "workflow",
-          intent: "answer_question",
+          intent:
+            graphResult.observations[0]?.intent ??
+            "answer_question",
           pendingAction: null,
           trace,
           threadId: updatedThread.id,

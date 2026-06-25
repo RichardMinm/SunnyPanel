@@ -38,7 +38,13 @@ type DashboardShellProps = {
   tokenUsage: AgentTokenUsage;
   onInspectorTabChange: (tab: AgentInspectorTab) => void;
   onArtifactsRollback?: () => void;
-  onPrefillComposer?: (prompt: string) => void;
+  onPrefillComposer?: (
+    prompt: string,
+    source?: {
+      suggestedPrompt: string;
+      suggestionId: number;
+    },
+  ) => void;
   onRollbackSelectedRun?: () => void;
   onToggleContextExclude: (key: string) => void;
   onToggleContextPin: (key: string) => void;
@@ -261,9 +267,17 @@ export function DashboardShell({
   }, [autoInspectorTab, openInspector]);
 
   useEffect(() => {
-    if (panelOpen) {
-      setSidebarHoverExpanded(false);
+    if (!panelOpen) {
+      return;
     }
+
+    const frame = window.requestAnimationFrame(() => {
+      setSidebarHoverExpanded(false);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
   }, [panelOpen]);
 
   const inspectorControl = useMemo(
@@ -378,6 +392,7 @@ export function DashboardShell({
         onResizeStart={handleResizeStart}
         onArtifactsRollback={onArtifactsRollback}
         onInspectorTabChange={handleInspectorTabChange}
+        onPlanOperatingPrompt={onRunPrompt}
         onPrefillComposer={onPrefillComposer}
         onTogglePanel={handleTogglePanel}
         panelOpen={panelOpen}

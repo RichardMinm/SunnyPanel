@@ -123,5 +123,40 @@ export const isRollbackPayloadExecutable = (value: unknown): boolean => {
     );
   }
 
+  if (parsed.strategy === "restore_deleted_schedule_item") {
+    const snapshot = parsed.beforeSnapshot as { title?: unknown } | undefined;
+    return (
+      typeof documentId === "number" &&
+      collection === "schedule-items" &&
+      typeof snapshot?.title === "string"
+    );
+  }
+
+  if (parsed.strategy === "restore_deleted_checklist") {
+    const snapshot = parsed.beforeSnapshot as { title?: unknown } | undefined;
+    return (
+      typeof documentId === "number" &&
+      collection === "checklists" &&
+      typeof snapshot?.title === "string"
+    );
+  }
+
+  if (parsed.strategy === "restore_deleted_timeline_event") {
+    const snapshot = parsed.beforeSnapshot as { title?: unknown } | undefined;
+    return (
+      typeof documentId === "number" &&
+      collection === "timeline-events" &&
+      typeof snapshot?.title === "string"
+    );
+  }
+
+  if (parsed.strategy === "restore_modified_record") {
+    return (
+      typeof documentId === "number" &&
+      ["checklists", "plans", "schedule-items", "timeline-events"].includes(collection) &&
+      parsed.beforeSnapshot != null
+    );
+  }
+
   return false;
 };

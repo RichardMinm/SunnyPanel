@@ -2,6 +2,7 @@ import type { AgentChatMessage, AgentTraceStep, ProposedAgentAction } from "@/li
 import { canRollbackAgentRunDetail, formatAgentRunRollbackAction } from "@/lib/agent/run-summary";
 
 import { AgentArtifactsPanel } from "./AgentArtifactsPanel";
+import { PlanOperatingCard } from "./PlanOperatingCard";
 import { formatRunStepLevelLabel, traceKindLabelMap, traceStatusLabelMap } from "./constants";
 import {
   buildRollbackResultDisplayRows,
@@ -19,6 +20,7 @@ type AgentTracePanelProps = {
   lastRollbackPayload?: null | unknown;
   debugMode: boolean;
   onArtifactsRollback?: () => void;
+  onPlanOperatingPrompt?: (prompt: string) => void;
   onRollbackSelectedRun?: () => void;
   selectedRunDetail?: AgentRunDetail | null;
   selectedRunRollbackBusy?: boolean;
@@ -55,17 +57,23 @@ function RollbackResultCard({ result }: { result: AgentRollbackExecutionResult }
 function AgentRunDetailCard({
   debugMode,
   onRollback,
+  onRunPrompt,
   rollbackBusy,
   rollbackError,
   run,
 }: {
   debugMode: boolean;
   onRollback?: () => void;
+  onRunPrompt?: (prompt: string) => void;
   rollbackBusy?: boolean;
   rollbackError?: null | string;
   run: AgentRunDetail;
 }) {
   const canRollback = canRollbackAgentRunDetail(run);
+
+  if (run.workflow === "readiness-audit") {
+    return <PlanOperatingCard debugMode={debugMode} onRunPrompt={onRunPrompt} run={run} />;
+  }
 
   return (
     <div className="sunny-agent-artifact-row" role="status">
@@ -124,6 +132,7 @@ export function AgentTracePanel({
   lastRollbackPayload = null,
   debugMode,
   onArtifactsRollback,
+  onPlanOperatingPrompt,
   onRollbackSelectedRun,
   selectedRunDetail = null,
   selectedRunRollbackBusy = false,
@@ -159,6 +168,7 @@ export function AgentTracePanel({
         <AgentRunDetailCard
           debugMode={debugMode}
           onRollback={onRollbackSelectedRun}
+          onRunPrompt={onPlanOperatingPrompt}
           rollbackBusy={selectedRunRollbackBusy}
           rollbackError={selectedRunRollbackError}
           run={selectedRunDetail}

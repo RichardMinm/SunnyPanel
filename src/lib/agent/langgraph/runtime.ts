@@ -2,7 +2,6 @@ import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 
 import {
   getAgentGraphRuntimeConfig,
-  isLangGraphIntentEnabled,
   type AgentGraphRuntimeConfig,
 } from "@/lib/agent/langgraph/config";
 import type {
@@ -13,16 +12,6 @@ import type {
   SunnyAgentGraphState,
 } from "@/lib/agent/langgraph/state";
 import type { AgentChatResponse } from "@/lib/agent/schemas";
-
-export class UnsupportedLangGraphIntentError extends Error {
-  readonly intent: SunnyAgentGraphResolution["intent"]["intent"];
-
-  constructor(intent: SunnyAgentGraphResolution["intent"]["intent"]) {
-    super(`LangGraph runtime does not support intent: ${intent}`);
-    this.name = "UnsupportedLangGraphIntentError";
-    this.intent = intent;
-  }
-}
 
 export type SunnyAgentGraphDependencies = {
   buildContext: (
@@ -61,7 +50,7 @@ const SunnyAgentStateAnnotation = Annotation.Root({
 
 export const compileSunnyAgentGraph = (
   dependencies: SunnyAgentGraphDependencies,
-  config: AgentGraphRuntimeConfig = getAgentGraphRuntimeConfig(),
+  _config: AgentGraphRuntimeConfig = getAgentGraphRuntimeConfig(),
 ) =>
   new StateGraph(SunnyAgentStateAnnotation)
     .addNode("buildContext", async (state) => {
@@ -87,10 +76,6 @@ export const compileSunnyAgentGraph = (
         input: state.input,
         tokenUsage: state.tokenUsage ?? state.input.baseTokenUsage,
       });
-
-      if (!isLangGraphIntentEnabled(resolution.intent.intent, config)) {
-        throw new UnsupportedLangGraphIntentError(resolution.intent.intent);
-      }
 
       return {
         resolution,

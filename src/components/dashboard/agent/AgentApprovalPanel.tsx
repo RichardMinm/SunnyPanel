@@ -82,6 +82,35 @@ export function AgentApprovalPanel({ action, pendingAction }: AgentApprovalPanel
     );
   }
 
+  if (pendingAction?.type === "await_strategy_resume") {
+    return (
+      <div className="sunny-agent-inspector-panel">
+        <div className="sunny-agent-inspector-summary">
+          <span className="sunny-agent-risk-pill-v2 sunny-agent-risk-medium">策略恢复</span>
+          <h3>{getPendingActionLabel(pendingAction)}</h3>
+          <p>失败原因：{pendingAction.failureReason}</p>
+          <p>策略模式：{pendingAction.strategyMode}</p>
+          {pendingAction.failedTaskId ? <p>失败任务：{pendingAction.failedTaskId}</p> : null}
+          <p>回复「继续」按策略恢复，或回复「取消」放弃这次恢复。</p>
+        </div>
+        <div className="sunny-agent-change-list-v2">
+          {pendingAction.tasks.map((task) => (
+            <div key={task.id} className="sunny-agent-change-row">
+              <div>
+                <span>{formatIntentLabel(task.intent)}</span>
+                <strong>{task.label}</strong>
+              </div>
+              <p>
+                {formatAgentRoleLabel(task.agentRole)}
+                {task.id === pendingAction.failedTaskId ? " · 失败任务" : ""}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (pendingAction?.type === "await_learning_followup") {
     return (
       <div className="sunny-agent-inspector-panel">

@@ -150,6 +150,67 @@ test("runOrchestrationStep bypasses write orchestration for learning consultatio
   assert.equal(trace.some((step) => step.id === "orchestrator-readonly-preflight"), true);
 });
 
+test("runOrchestrationStep performs no business projection write before confirmation", async () => {
+  let businessWrites = 0;
+  const result = await runOrchestrationStep({
+    context: {
+      ...promptContext,
+      plans: [
+        {
+          id: 17,
+          priority: "medium",
+          state: "active",
+          title: "迁移计划",
+        },
+      ],
+    },
+    emitStatus: () => undefined,
+    emitToken: () => undefined,
+    message: "为迁移计划创建下一阶段",
+    payload: {
+      update: async () => {
+        businessWrites += 1;
+        throw new Error("confirmation preview must not update Plan");
+      },
+    } as unknown as Payload,
+    pendingAction: null,
+    persistAgentTurn: async () => ({ id: 45 }) as AgentThread,
+    pushTrace: () => undefined,
+    runOrchestratorFn: async () => ({
+      mode: "compound",
+      reasoning: "先生成确认提案。",
+      tasks: [
+        {
+          agentRole: "plan",
+          args: {
+            relatedPlanId: 17,
+            title: "迁移计划下一阶段",
+          },
+          dependsOn: [],
+          id: "task-create",
+          intent: "create_plan",
+          label: "创建下一阶段",
+        },
+        {
+          agentRole: "query",
+          args: { answer: "等待确认后再更新计划投影。" },
+          dependsOn: ["task-create"],
+          id: "task-answer",
+          intent: "answer_question",
+          label: "说明后续",
+        },
+      ],
+    }),
+    tokenUsage,
+    trace: [],
+    user: { id: 1 },
+  });
+
+  assert.equal(result.outcome, "early_exit");
+  assert.equal(result.response.pendingAction?.type, "await_confirmation");
+  assert.equal(businessWrites, 0);
+});
+
 test("parsePendingAction preserves strategy pause resume context", () => {
   const parsed = parsePendingAction({
     failedTaskId: "task-complete-item",
