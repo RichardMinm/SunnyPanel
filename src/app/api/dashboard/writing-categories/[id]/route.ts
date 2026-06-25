@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { dashboardContentCollections } from "@/lib/dashboard/content/config";
+import { mapPayloadError } from "@/lib/dashboard/content/api-errors";
 import {
   isWritingCategoryIcon,
   isWritingCategoryTint,
@@ -28,37 +29,55 @@ const parseBody = async (request: Request) => {
   }
 };
 
-const clearCategoryFromDocuments = async (categoryId: number, user: NonNullable<Awaited<ReturnType<typeof getPayloadAuthResult>>["user"]>) => {
+const clearCategoryFromDocuments = async (
+  categoryId: number,
+  user: NonNullable<Awaited<ReturnType<typeof getPayloadAuthResult>>["user"]>,
+) => {
   const payload = await getPayloadClient();
 
   await Promise.all(
     dashboardContentCollections.map(async (collection) => {
-      const linked = await payload.find({
-        collection,
-        depth: 0,
-        limit: 200,
-        overrideAccess: false,
-        user,
-        where: {
-          writingCategory: {
-            equals: categoryId,
-          },
-        },
-      });
+      let page = 1;
 
-      await Promise.all(
-        linked.docs.map((doc) =>
-          payload.update({
-            collection,
-            data: {
-              writingCategory: null,
+      while (true) {
+        const linked = await payload.find({
+          collection,
+          depth: 0,
+          limit: 200,
+          overrideAccess: false,
+          page,
+          user,
+          where: {
+            writingCategory: {
+              equals: categoryId,
             },
-            id: doc.id,
-            overrideAccess: false,
-            user,
-          }),
-        ),
-      );
+          },
+        });
+
+        if (linked.docs.length === 0) {
+          break;
+        }
+
+        await Promise.all(
+          linked.docs.map((doc) =>
+            payload.update({
+              collection,
+              data: {
+                writingCategory: null,
+              },
+              id: doc.id,
+              overrideAccess: false,
+              user,
+            }),
+          ),
+        );
+
+        if (!linked.hasNextPage) {
+          break;
+        }
+
+        page += 1;
+      }
     }),
   );
 };
@@ -119,15 +138,19 @@ export async function PATCH(request: Request, context: WritingCategoryDetailCont
     return NextResponse.json({ message: "没有可更新字段" }, { status: 400 });
   }
 
-  const doc = await payload.update({
-    collection: "writing-categories",
-    data: data as never,
-    id,
-    overrideAccess: false,
-    user: authResult.user,
-  });
+  try {
+    const doc = await payload.update({
+      collection: "writing-categories",
+      data: data as never,
+      id,
+      overrideAccess: false,
+      user: authResult.user,
+    });
 
-  return NextResponse.json({ category: normalizeWritingCategoryListItem(doc) });
+    return NextResponse.json({ category: normalizeWritingCategoryListItem(doc) });
+  } catch (error) {
+    return mapPayloadError(error, "更新文档集失败");
+  }
 }
 
 export async function DELETE(_request: Request, context: WritingCategoryDetailContext) {
@@ -159,13 +182,17 @@ export async function DELETE(_request: Request, context: WritingCategoryDetailCo
     return NextResponse.json({ message: "文档集不存在" }, { status: 404 });
   }
 
-  await clearCategoryFromDocuments(id, authResult.user);
-  await payload.delete({
-    collection: "writing-categories",
-    id,
-    overrideAccess: false,
-    user: authResult.user,
-  });
+  try {
+    await clearCategoryFromDocuments(id, authResult.user);
+    await payload.delete({
+      collection: "writing-categories",
+      id,
+      overrideAccess: false,
+      user: authResult.user,
+    });
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return mapPayloadError(error, "删除文档集失败");
+  }
 }

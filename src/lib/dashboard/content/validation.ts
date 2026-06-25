@@ -14,3 +14,8 @@ export const parseDashboardContentBody = async (request: Request) => {
 
   return typeof body === "object" && body !== null && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
 };
+
+export const isStaleDashboardContentUpdate = (
+  existingUpdatedAt: string,
+  lastKnownUpdatedAt: unknown,
+): boolean => typeof lastKnownUpdatedAt === "string" && existingUpdatedAt !== lastKnownUpdatedAt;

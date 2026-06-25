@@ -11,7 +11,12 @@ type WritingLibraryHeaderProps = {
 export function WritingLibraryHeader({ onClose, showClose = true }: WritingLibraryHeaderProps) {
   return (
     <div className="sunny-writing-library-head">
-      <p className="sunny-writing-library-eyebrow">文档集</p>
+      <div className="sunny-writing-library-space-label">
+        <span aria-hidden="true" className="sunny-writing-library-space-icon">
+          <DashboardIcon name="layers" />
+        </span>
+        <span className="sunny-writing-library-space-title">文档集</span>
+      </div>
       {onClose && showClose ? (
         <AppIconButton
           aria-label="收起内容库"

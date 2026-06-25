@@ -1,19 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 
 import { DashboardIcon } from "@/components/dashboard/icons";
 import {
   AppDropdownMenu,
   AppDropdownMenuItem,
 } from "@/components/primitives/AppDropdownMenu";
+import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
 import type { WritingCategoryListItem } from "@/lib/dashboard/writing-categories/normalize";
 
 import { WritingDocumentRow } from "./WritingDocumentRow";
-import {
-  getWritingCategoryTintVar,
-  isWritingCategoryIconName,
-} from "./writing-collection-meta";
 import { sortDocumentsByUpdatedAt } from "./writing-library-groups";
 import type { WritingDocumentListItem } from "./writing-types";
 
@@ -23,6 +20,7 @@ type WritingCategoryGroupProps = {
   documents: WritingDocumentListItem[];
   categories: WritingCategoryListItem[];
   onArchiveCategory: (category: WritingCategoryListItem) => void;
+  onCreateDocument?: (collection: DashboardContentCollection) => void;
   onDelete: (document: WritingDocumentListItem) => void;
   onDuplicate: (document: WritingDocumentListItem) => void;
   onMoveToCategory: (document: WritingDocumentListItem, categoryId: null | number) => void;
@@ -38,6 +36,7 @@ export function WritingCategoryGroup({
   categories,
   documents,
   onArchiveCategory,
+  onCreateDocument,
   onDelete,
   onDuplicate,
   onMoveToCategory,
@@ -60,7 +59,6 @@ export function WritingCategoryGroup({
   }, [hasActiveDocument]);
 
   const sortedDocuments = useMemo(() => sortDocumentsByUpdatedAt(documents), [documents]);
-  const tintVar = getWritingCategoryTintVar(category.tint);
 
   const handleRename = useCallback(() => {
     const nextTitle = window.prompt("文档集名称", category.title)?.trim();
@@ -69,53 +67,75 @@ export function WritingCategoryGroup({
     }
   }, [category, onRenameCategory]);
 
+  const handleCreateDocument = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      onSelectCategory?.();
+      onCreateDocument?.("posts");
+    },
+    [onCreateDocument, onSelectCategory],
+  );
+
   return (
-    <section
-      aria-label={category.title}
-      className="sunny-writing-category-group"
-      data-tint={category.tint}
-    >
-      <div
-        className="sunny-writing-library-group-head-wrap"
-        style={{ ["--writing-category-tint" as string]: `var(${tintVar})` }}
-      >
+    <section aria-label={category.title} className="sunny-writing-tree-node">
+      <div className="sunny-writing-tree-row-wrap is-folder">
         <button
           aria-expanded={open}
-          className="sunny-writing-library-group-head"
+          className="sunny-writing-tree-row is-folder"
           onClick={() => {
             onSelectCategory?.();
             setOpen((current) => !current);
           }}
           type="button"
         >
-          <span className="sunny-writing-library-group-chevron" data-open={open ? "true" : "false"}>
+          <span className="sunny-writing-tree-chevron" data-open={open ? "true" : "false"}>
             <DashboardIcon name="chevronDown" />
           </span>
-          <span className="sunny-writing-library-group-icon">
-            <DashboardIcon name={isWritingCategoryIconName(category.icon)} />
-          </span>
-          <span className="sunny-writing-library-group-label">{category.title}</span>
-          {sortedDocuments.length > 0 ? (
-            <span className="sunny-writing-library-group-count">{sortedDocuments.length}</span>
-          ) : null}
+          <span className="sunny-writing-tree-label">{category.title}</span>
         </button>
-        <AppDropdownMenu
-          align="end"
-          className="sunny-writing-menu"
-          onOpenChange={setMenuOpen}
-          open={menuOpen}
-          side="bottom"
-          sideOffset={6}
-          trigger={<DashboardIcon name="moreHorizontal" />}
-          triggerAriaLabel={`${category.title} 操作`}
-          triggerClassName={`sunny-writing-category-menu-toggle${menuOpen ? " is-open" : ""}`}
-        >
-          <AppDropdownMenuItem onSelect={handleRename}>重命名</AppDropdownMenuItem>
-          <AppDropdownMenuItem onSelect={() => onArchiveCategory(category)}>归档</AppDropdownMenuItem>
-        </AppDropdownMenu>
+        <div className="sunny-writing-tree-row-actions">
+          {onCreateDocument ? (
+            <button
+              aria-label={`在「${category.title}」中新建文档`}
+              className="sunny-writing-tree-action"
+              onClick={handleCreateDocument}
+              type="button"
+            >
+              <DashboardIcon name="plus" />
+            </button>
+          ) : null}
+          <AppDropdownMenu
+            align="end"
+            className="sunny-writing-menu"
+            onOpenChange={setMenuOpen}
+            open={menuOpen}
+            side="bottom"
+            sideOffset={6}
+            trigger={<DashboardIcon name="moreHorizontal" />}
+            triggerAriaLabel={`${category.title} 操作`}
+            triggerClassName={`sunny-writing-tree-action${menuOpen ? " is-open" : ""}`}
+          >
+            <AppDropdownMenuItem onSelect={handleRename}>重命名</AppDropdownMenuItem>
+            <AppDropdownMenuItem onSelect={() => onArchiveCategory(category)}>归档</AppDropdownMenuItem>
+          </AppDropdownMenu>
+        </div>
       </div>
       {open ? (
-        <div className="sunny-writing-library-group-list" role="list">
+        <div className="sunny-writing-tree-children" role="list">
+          {sortedDocuments.length === 0 ? (
+            <div className="sunny-writing-tree-empty">
+              <span className="sunny-writing-tree-empty-label">暂无文档</span>
+              {onCreateDocument ? (
+                <button
+                  className="sunny-writing-tree-empty-create"
+                  onClick={handleCreateDocument}
+                  type="button"
+                >
+                  新建
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {sortedDocuments.map((document) => {
             const active =
               activeDocument?.collection === document.collection && activeDocument.id === document.id;

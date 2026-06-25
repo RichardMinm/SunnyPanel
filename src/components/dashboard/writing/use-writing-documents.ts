@@ -92,9 +92,7 @@ const draftToPatch = (document: WritingDocument, draft: WritingDraft): WritingDo
 
   if (document.collection === "pages") {
     patch.slug = draft.metadata.slug.trim();
-    if (draft.summary.trim()) {
-      patch.summary = draft.summary.trim();
-    }
+    patch.summary = (draft.summary || draft.metadata.summary).trim();
   }
 
   if (document.collection === "notes") {
@@ -118,6 +116,7 @@ export function useWritingDocuments() {
   const [error, setError] = useState<null | string>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingDocument, setIsLoadingDocument] = useState(false);
   const [saveState, setSaveState] = useState<WritingSaveState>("idle");
   const [selectedDocument, setSelectedDocument] = useState<null | WritingDocument>(null);
 
@@ -253,6 +252,7 @@ export function useWritingDocuments() {
     async (collection: DashboardContentCollection, id: number) => {
       clearAutosaveTimer();
       setError(null);
+      setIsLoadingDocument(true);
 
       try {
         const data = await readDashboardJson<DocumentResponse>(
@@ -275,6 +275,8 @@ export function useWritingDocuments() {
         setError(nextError instanceof Error ? nextError.message : "打开内容失败");
         setSaveState("error");
         return null;
+      } finally {
+        setIsLoadingDocument(false);
       }
     },
     [clearAutosaveTimer],
@@ -574,6 +576,7 @@ export function useWritingDocuments() {
     flushSave,
     isDirty,
     isLoading,
+    isLoadingDocument,
     loadDocuments,
     moveDocumentToCategory,
     publishDocument,

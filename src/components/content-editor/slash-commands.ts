@@ -2,36 +2,46 @@
 
 import type { Editor } from "@tiptap/core";
 
+import type { WritingAssistAction } from "@/lib/agent/prompts/writing-assist";
+import {
+  getWorkflowActionDescription,
+  runWritingWorkflowAction,
+  type WritingWorkflowActionId,
+} from "@/lib/dashboard/writing-workflow-actions";
 import { uploadDashboardImage } from "@/lib/editor/upload-dashboard-image";
 import { uploadDashboardMedia } from "@/lib/editor/upload-dashboard-media";
 
 import type { SlashCommandIconName } from "./SlashCommandIcon";
 
-export type SlashCommandGroup =
-  | "basic"
-  | "list"
-  | "media"
-  | "advanced"
-  | "insert"
-  | "callout";
+export type SlashCommandGroup = "ai" | "blocks" | "common" | "lists" | "time" | "workflow";
+
+export type SlashCommandKind = "ai" | "block" | "insert" | "workflow";
+
+export type SlashCommandHandlers = {
+  onWritingAssist?: (action: WritingAssistAction) => void;
+  onWorkflow?: (id: WritingWorkflowActionId) => void;
+};
 
 export type SlashCommandItem = {
+  badge?: "chevron" | "shortcut";
   command: (editor: Editor) => boolean | Promise<void> | void;
+  description: string;
   group: SlashCommandGroup;
   icon: SlashCommandIconName;
   id: string;
   keywords: string[];
+  kind?: SlashCommandKind;
   label: string;
   shortcut?: string;
 };
 
 export const slashCommandGroupLabels: Record<SlashCommandGroup, string> = {
-  basic: "基础",
-  list: "列表",
-  media: "媒体",
-  advanced: "高级块",
-  insert: "插入",
-  callout: "提示框",
+  ai: "AI",
+  blocks: "内容块",
+  common: "常用",
+  lists: "列表",
+  time: "时间",
+  workflow: "SunnyPanel 工作流",
 };
 
 const pickFile = (accept: string) =>
@@ -108,290 +118,349 @@ const formatDateTime = () =>
     year: "numeric",
   }).format(new Date());
 
-export const slashCommandItems: SlashCommandItem[] = [
-  {
-    command: (editor) => editor.chain().focus().setParagraph().run(),
-    group: "basic",
-    icon: "paragraph",
-    id: "paragraph",
-    keywords: ["paragraph", "text", "正文"],
-    label: "正文",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-    group: "basic",
-    icon: "heading1",
-    id: "heading-1",
-    keywords: ["h1", "heading", "标题"],
-    label: "标题 1",
-    shortcut: "⌃⇧1",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-    group: "basic",
-    icon: "heading2",
-    id: "heading-2",
-    keywords: ["h2", "heading", "标题"],
-    label: "标题 2",
-    shortcut: "⌃⇧2",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run(),
-    group: "basic",
-    icon: "heading3",
-    id: "heading-3",
-    keywords: ["h3", "heading", "标题"],
-    label: "标题 3",
-    shortcut: "⌃⇧3",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleTaskList().run(),
-    group: "list",
-    icon: "taskList",
-    id: "task-list",
-    keywords: ["task", "todo", "任务"],
-    label: "任务列表",
-    shortcut: "⌃⇧7",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleBulletList().run(),
-    group: "list",
-    icon: "bulletList",
-    id: "bullet-list",
-    keywords: ["list", "bullet", "无序"],
-    label: "无序列表",
-    shortcut: "⌃⇧8",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleOrderedList().run(),
-    group: "list",
-    icon: "orderedList",
-    id: "ordered-list",
-    keywords: ["ordered", "有序"],
-    label: "有序列表",
-    shortcut: "⌃⇧9",
-  },
-  {
-    command: async (editor) => {
-      const file = await pickFile("image/*");
-      if (!file) {
-        return;
-      }
+const aiCommand =
+  (action: WritingAssistAction, handlers: SlashCommandHandlers) => (editor: Editor) => {
+    handlers.onWritingAssist?.(action);
+    return editor.chain().focus().run();
+  };
 
-      const uploaded = await uploadDashboardImage(file);
-      editor.chain().focus().setImage({ alt: file.name, src: uploaded.url }).run();
+const workflowCommand =
+  (id: WritingWorkflowActionId, handlers: SlashCommandHandlers) => (editor: Editor) => {
+    handlers.onWorkflow?.(id);
+    return editor.chain().focus().run();
+  };
+
+export function createSlashCommandItems(handlers: SlashCommandHandlers = {}): SlashCommandItem[] {
+  return [
+    {
+      command: (editor) => editor.chain().focus().setParagraph().run(),
+      description: "普通段落文本",
+      group: "common",
+      icon: "paragraph",
+      id: "paragraph",
+      keywords: ["paragraph", "text", "正文", "p"],
+      kind: "block",
+      label: "正文",
     },
-    group: "media",
-    icon: "image",
-    id: "image",
-    keywords: ["image", "photo", "图片"],
-    label: "图片",
-    shortcut: "⌘⇧I",
-  },
-  {
-    command: async (editor) => {
-      const url = promptText("视频地址（https://）");
-      if (url) {
-        insertMediaEmbed(editor, "video", url, "视频", "");
-        return;
-      }
-
-      const file = await pickFile("video/*");
-      if (!file) {
-        return;
-      }
-
-      const uploaded = await uploadDashboardMedia(file, file.name);
-      insertMediaEmbed(editor, "video", uploaded.url, file.name, file.name);
+    {
+      command: (editor) => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+      description: "用于章节主标题",
+      group: "common",
+      icon: "heading1",
+      id: "heading-1",
+      keywords: ["h1", "heading", "标题", "标题1"],
+      kind: "block",
+      label: "标题 1",
+      shortcut: "⌃⇧1",
     },
-    group: "media",
-    icon: "video",
-    id: "video",
-    keywords: ["video", "视频"],
-    label: "视频",
-    shortcut: "⌘⇧V",
-  },
-  {
-    command: async (editor) => {
-      const file = await pickFile("application/pdf,.pdf");
-      if (!file) {
-        return;
-      }
-
-      const uploaded = await uploadDashboardMedia(file, file.name);
-      insertMediaEmbed(editor, "pdf", uploaded.url, file.name, file.name);
+    {
+      command: (editor) => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+      description: "用于小节标题",
+      group: "common",
+      icon: "heading2",
+      id: "heading-2",
+      keywords: ["h2", "heading", "标题", "标题2"],
+      kind: "block",
+      label: "标题 2",
+      shortcut: "⌃⇧2",
     },
-    group: "media",
-    icon: "pdf",
-    id: "pdf",
-    keywords: ["pdf"],
-    label: "PDF",
-  },
-  {
-    command: async (editor) => {
-      const file = await pickFile("*/*");
-      if (!file) {
-        return;
-      }
-
-      const uploaded = await uploadDashboardMedia(file, file.name);
-      insertMediaEmbed(editor, "file", uploaded.url, file.name, file.name);
+    {
+      command: (editor) => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+      description: "用于段落小标题",
+      group: "common",
+      icon: "heading3",
+      id: "heading-3",
+      keywords: ["h3", "heading", "标题", "标题3"],
+      kind: "block",
+      label: "标题 3",
+      shortcut: "⌃⇧3",
     },
-    group: "media",
-    icon: "attachment",
-    id: "attachment",
-    keywords: ["attachment", "file", "附件"],
-    label: "附件",
-  },
-  {
-    command: (editor) =>
-      editor.chain().focus().insertTable({ cols: 3, rows: 3, withHeaderRow: true }).run(),
-    group: "basic",
-    icon: "table",
-    id: "table",
-    keywords: ["table", "表格"],
-    label: "表格",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleBlockquote().run(),
-    group: "basic",
-    icon: "quote",
-    id: "quote",
-    keywords: ["quote", "引用"],
-    label: "引用",
-    shortcut: "⌘]",
-  },
-  {
-    command: (editor) => {
-      const latex = promptText("输入 LaTeX 公式");
-      if (!latex) {
-        return;
-      }
-
-      editor.chain().focus().insertBlockMath({ latex }).run();
+    {
+      command: (editor) => editor.chain().focus().toggleTaskList().run(),
+      description: "可勾选的任务清单",
+      group: "common",
+      icon: "taskList",
+      id: "task-list-common",
+      keywords: ["task", "todo", "任务", "待办"],
+      kind: "block",
+      label: "任务列表",
+      shortcut: "⌃⇧7",
     },
-    group: "advanced",
-    icon: "math",
-    id: "math",
-    keywords: ["math", "latex", "数学"],
-    label: "数学块 (LaTeX)",
-  },
-  {
-    command: (editor) =>
-      editor
-        .chain()
-        .focus()
-        .insertContent({
-          content: [
-            {
-              content: [{ text: "切换标题", type: "text" }],
-              type: "detailsSummary",
-            },
-            {
-              content: [{ type: "paragraph" }],
-              type: "detailsContent",
-            },
-          ],
-          type: "details",
-        })
-        .run(),
-    group: "advanced",
-    icon: "toggle",
-    id: "toggle",
-    keywords: ["toggle", "details", "切换"],
-    label: "切换块",
-  },
-  {
-    command: (editor) => editor.chain().focus().setHorizontalRule().run(),
-    group: "advanced",
-    icon: "divider",
-    id: "divider",
-    keywords: ["divider", "hr", "分割线"],
-    label: "分割线",
-    shortcut: "⌘_",
-  },
-  {
-    command: (editor) => editor.chain().focus().insertContent({ type: "pageBreak" }).run(),
-    group: "advanced",
-    icon: "pageBreak",
-    id: "page-break",
-    keywords: ["page", "break", "分页"],
-    label: "分页符",
-  },
-  {
-    command: (editor) => editor.chain().focus().insertContent(formatDate()).run(),
-    group: "insert",
-    icon: "date",
-    id: "date",
-    keywords: ["date", "日期"],
-    label: "当前日期",
-  },
-  {
-    command: (editor) => editor.chain().focus().insertContent(formatTime()).run(),
-    group: "insert",
-    icon: "time",
-    id: "time",
-    keywords: ["time", "时间"],
-    label: "当前时间",
-  },
-  {
-    command: (editor) => editor.chain().focus().insertContent(formatDateTime()).run(),
-    group: "insert",
-    icon: "datetime",
-    id: "datetime",
-    keywords: ["datetime", "日期时间"],
-    label: "当前日期和时间",
-  },
-  {
-    command: (editor) => editor.chain().focus().toggleCodeBlock({ language: "plaintext" }).run(),
-    group: "basic",
-    icon: "codeBlock",
-    id: "code-block",
-    keywords: ["code", "代码"],
-    label: "代码块",
-    shortcut: "⌘⇧C",
-  },
-  {
-    command: (editor) => insertCallout(editor, "info"),
-    group: "callout",
-    icon: "calloutInfo",
-    id: "callout-info",
-    keywords: ["info", "tip", "提示"],
-    label: "提示信息",
-  },
-  {
-    command: (editor) => insertCallout(editor, "success"),
-    group: "callout",
-    icon: "calloutSuccess",
-    id: "callout-success",
-    keywords: ["success", "成功"],
-    label: "成功通知",
-  },
-  {
-    command: (editor) => insertCallout(editor, "warning"),
-    group: "callout",
-    icon: "calloutWarning",
-    id: "callout-warning",
-    keywords: ["warning", "警告"],
-    label: "警告信息",
-  },
-];
+    {
+      command: (editor) => editor.chain().focus().toggleBlockquote().run(),
+      description: "引用段落或摘录",
+      group: "common",
+      icon: "quote",
+      id: "quote",
+      keywords: ["quote", "引用", "blockquote"],
+      kind: "block",
+      label: "引用",
+      shortcut: "⌘]",
+    },
+    {
+      command: (editor) =>
+        editor.chain().focus().insertTable({ cols: 3, rows: 3, withHeaderRow: true }).run(),
+      description: "插入可编辑表格",
+      group: "blocks",
+      icon: "table",
+      id: "table",
+      keywords: ["table", "表格", "grid"],
+      kind: "block",
+      label: "表格",
+    },
+    {
+      command: (editor) => editor.chain().focus().toggleCodeBlock({ language: "plaintext" }).run(),
+      description: "插入支持语法高亮的代码区域",
+      group: "blocks",
+      icon: "codeBlock",
+      id: "code-block",
+      keywords: ["code", "代码", "codeblock"],
+      kind: "block",
+      label: "代码块",
+      shortcut: "⌘⇧C",
+    },
+    {
+      command: async (editor) => {
+        const file = await pickFile("image/*");
+        if (!file) return;
+        const uploaded = await uploadDashboardImage(file);
+        editor.chain().focus().setImage({ alt: file.name, src: uploaded.url }).run();
+      },
+      description: "上传或插入图片",
+      group: "blocks",
+      icon: "image",
+      id: "image",
+      keywords: ["image", "photo", "图片", "img"],
+      kind: "block",
+      label: "图片",
+      shortcut: "⌘⇧I",
+    },
+    {
+      command: (editor) => editor.chain().focus().setHorizontalRule().run(),
+      description: "在段落之间插入分割线",
+      group: "blocks",
+      icon: "divider",
+      id: "divider",
+      keywords: ["divider", "hr", "分割线", "分隔"],
+      kind: "block",
+      label: "分割线",
+      shortcut: "⌘_",
+    },
+    {
+      command: (editor) => insertCallout(editor, "info"),
+      description: "突出提示或说明信息",
+      group: "blocks",
+      icon: "calloutInfo",
+      id: "callout-info",
+      keywords: ["callout", "info", "tip", "提示"],
+      kind: "block",
+      label: "Callout",
+    },
+    {
+      command: (editor) => editor.chain().focus().toggleBulletList().run(),
+      description: "项目符号列表",
+      group: "lists",
+      icon: "bulletList",
+      id: "bullet-list",
+      keywords: ["list", "bullet", "无序", "ul"],
+      kind: "block",
+      label: "无序列表",
+      shortcut: "⌃⇧8",
+    },
+    {
+      command: (editor) => editor.chain().focus().toggleOrderedList().run(),
+      description: "编号步骤列表",
+      group: "lists",
+      icon: "orderedList",
+      id: "ordered-list",
+      keywords: ["ordered", "有序", "ol", "编号"],
+      kind: "block",
+      label: "有序列表",
+      shortcut: "⌃⇧9",
+    },
+    {
+      command: (editor) => editor.chain().focus().toggleTaskList().run(),
+      description: "带复选框的任务项",
+      group: "lists",
+      icon: "taskList",
+      id: "task-list",
+      keywords: ["task", "todo", "任务列表"],
+      kind: "block",
+      label: "任务列表",
+      shortcut: "⌃⇧7",
+    },
+    {
+      command: (editor) => editor.chain().focus().insertContent(formatDate()).run(),
+      description: "插入今天的日期",
+      group: "time",
+      icon: "date",
+      id: "date",
+      keywords: ["date", "日期", "今天"],
+      kind: "insert",
+      label: "当前日期",
+    },
+    {
+      command: (editor) => editor.chain().focus().insertContent(formatTime()).run(),
+      description: "插入当前时刻",
+      group: "time",
+      icon: "time",
+      id: "time",
+      keywords: ["time", "时间", "时刻"],
+      kind: "insert",
+      label: "当前时间",
+    },
+    {
+      command: (editor) => editor.chain().focus().insertContent(formatDateTime()).run(),
+      description: "日期与时间一起插入",
+      group: "time",
+      icon: "datetime",
+      id: "datetime",
+      keywords: ["datetime", "日期时间"],
+      kind: "insert",
+      label: "当前日期和时间",
+    },
+    {
+      command: aiCommand("continue", handlers),
+      description: "根据当前上下文继续写作",
+      group: "ai",
+      icon: "aiSpark",
+      id: "ai-continue",
+      keywords: ["ai", "continue", "续写", "写作"],
+      kind: "ai",
+      label: "AI 续写",
+      badge: "chevron",
+    },
+    {
+      command: aiCommand("summarize", handlers),
+      description: "生成一段简明摘要",
+      group: "ai",
+      icon: "aiSummary",
+      id: "ai-summarize",
+      keywords: ["ai", "summary", "总结", "摘要"],
+      kind: "ai",
+      label: "总结本文",
+      badge: "chevron",
+    },
+    {
+      command: aiCommand("generate_outline", handlers),
+      description: "根据正文生成章节大纲",
+      group: "ai",
+      icon: "aiOutline",
+      id: "ai-outline",
+      keywords: ["ai", "outline", "大纲", "结构"],
+      kind: "ai",
+      label: "生成大纲",
+      badge: "chevron",
+    },
+    {
+      command: aiCommand("rewrite", handlers),
+      description: "改写选中或当前段落",
+      group: "ai",
+      icon: "aiRewrite",
+      id: "ai-rewrite",
+      keywords: ["ai", "rewrite", "改写", "润色"],
+      kind: "ai",
+      label: "改写选中内容",
+      badge: "chevron",
+    },
+    {
+      command: aiCommand("extract_tags", handlers),
+      description: "从正文提取 3–8 个标签",
+      group: "ai",
+      icon: "aiTags",
+      id: "ai-tags",
+      keywords: ["ai", "tags", "标签", "tag"],
+      kind: "ai",
+      label: "提取标签",
+      badge: "chevron",
+    },
+    {
+      command: workflowCommand("checklist_from_doc", handlers),
+      description: getWorkflowActionDescription("checklist_from_doc"),
+      group: "workflow",
+      icon: "wfChecklist",
+      id: "wf-checklist",
+      keywords: ["checklist", "清单", "任务"],
+      kind: "workflow",
+      label: "从本文生成清单",
+      badge: "chevron",
+    },
+    {
+      command: workflowCommand("plan_from_doc", handlers),
+      description: getWorkflowActionDescription("plan_from_doc"),
+      group: "workflow",
+      icon: "wfPlan",
+      id: "wf-plan",
+      keywords: ["plan", "计划", "里程碑"],
+      kind: "workflow",
+      label: "从本文生成计划",
+      badge: "chevron",
+    },
+    {
+      command: workflowCommand("memory_from_doc", handlers),
+      description: getWorkflowActionDescription("memory_from_doc"),
+      group: "workflow",
+      icon: "wfMemory",
+      id: "wf-memory",
+      keywords: ["memory", "记忆", "保存"],
+      kind: "workflow",
+      label: "保存为记忆",
+      badge: "chevron",
+    },
+    {
+      command: workflowCommand("timeline_from_doc", handlers),
+      description: getWorkflowActionDescription("timeline_from_doc"),
+      group: "workflow",
+      icon: "wfTimeline",
+      id: "wf-timeline",
+      keywords: ["timeline", "时间线", "节点"],
+      kind: "workflow",
+      label: "记录为时间线节点",
+      badge: "chevron",
+    },
+    {
+      command: workflowCommand("plan_continue", handlers),
+      description: getWorkflowActionDescription("plan_continue"),
+      group: "workflow",
+      icon: "aiSpark",
+      id: "wf-plan-continue",
+      keywords: ["plan", "continue", "续写", "计划"],
+      kind: "workflow",
+      label: "根据当前计划续写",
+      badge: "chevron",
+    },
+    {
+      command: workflowCommand("schedule_weekly", handlers),
+      description: getWorkflowActionDescription("schedule_weekly"),
+      group: "workflow",
+      icon: "wfSchedule",
+      id: "wf-schedule-weekly",
+      keywords: ["schedule", "日程", "周记", "weekly"],
+      kind: "workflow",
+      label: "根据最近日程生成周记",
+      badge: "chevron",
+    },
+  ];
+}
 
-export function filterSlashCommandItems(query: string) {
+/** @deprecated Use createSlashCommandItems — kept for tests defaulting to empty handlers */
+export const slashCommandItems = createSlashCommandItems();
+
+export function filterSlashCommandItems(query: string, items = slashCommandItems) {
   const normalized = query.trim().toLowerCase();
 
   if (!normalized) {
-    return slashCommandItems;
+    return items;
   }
 
-  return slashCommandItems.filter((item) => {
-    const haystack = [item.label, ...item.keywords].join(" ").toLowerCase();
+  return items.filter((item) => {
+    const haystack = [item.label, item.description, ...item.keywords].join(" ").toLowerCase();
     return haystack.includes(normalized);
   });
 }
 
 export function groupSlashCommandItems(items: SlashCommandItem[]) {
-  const order: SlashCommandGroup[] = ["basic", "list", "media", "advanced", "insert", "callout"];
+  const order: SlashCommandGroup[] = ["common", "blocks", "lists", "time", "ai", "workflow"];
   return order
     .map((group) => ({
       group,
@@ -400,3 +469,5 @@ export function groupSlashCommandItems(items: SlashCommandItem[]) {
     }))
     .filter((entry) => entry.items.length > 0);
 }
+
+export { runWritingWorkflowAction, type WritingWorkflowActionId };

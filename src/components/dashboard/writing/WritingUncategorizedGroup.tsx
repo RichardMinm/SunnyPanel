@@ -49,24 +49,22 @@ export function WritingUncategorizedGroup({
   }
 
   return (
-    <section aria-label="未分类" className="sunny-writing-uncategorized-group">
-      <button
-        aria-expanded={open}
-        className="sunny-writing-library-group-head is-uncategorized"
-        onClick={() => setOpen((current) => !current)}
-        type="button"
-      >
-        <span className="sunny-writing-library-group-chevron" data-open={open ? "true" : "false"}>
-          <DashboardIcon name="chevronDown" />
-        </span>
-        <span className="sunny-writing-library-group-icon">
-          <DashboardIcon name="inbox" />
-        </span>
-        <span className="sunny-writing-library-group-label">未分类</span>
-        <span className="sunny-writing-library-group-count">{sortedDocuments.length}</span>
-      </button>
+    <section aria-label="未分类" className="sunny-writing-tree-node">
+      <div className="sunny-writing-tree-row-wrap is-folder">
+        <button
+          aria-expanded={open}
+          className="sunny-writing-tree-row is-folder"
+          onClick={() => setOpen((current) => !current)}
+          type="button"
+        >
+          <span className="sunny-writing-tree-chevron" data-open={open ? "true" : "false"}>
+            <DashboardIcon name="chevronDown" />
+          </span>
+          <span className="sunny-writing-tree-label">未分类</span>
+        </button>
+      </div>
       {open ? (
-        <div className="sunny-writing-library-group-list" role="list">
+        <div className="sunny-writing-tree-children" role="list">
           {sortedDocuments.map((document) => {
             const active =
               activeDocument?.collection === document.collection && activeDocument.id === document.id;

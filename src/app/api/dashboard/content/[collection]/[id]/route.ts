@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 
 import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
+import { mapPayloadError } from "@/lib/dashboard/content/api-errors";
 import { normalizeDashboardContentDocument } from "@/lib/dashboard/content/normalize";
+import {
+  parsePatchContentRich,
+  validatePatchRelationships,
+} from "@/lib/dashboard/content/patch-validation";
+import { enforceDashboardContentRateLimit } from "@/lib/dashboard/content/rate-limit";
 import {
   parseDashboardContentBody,
   parseDashboardContentId,
   validateDashboardContentCollection,
+  isStaleDashboardContentUpdate,
 } from "@/lib/dashboard/content/validation";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
@@ -18,10 +25,10 @@ type DashboardContentDetailContext = {
 };
 
 const mutableKeysByCollection: Record<DashboardContentCollection, Set<string>> = {
-  notes: new Set(["category", "contentRich", "coverImage", "mood", "pinned", "status", "visibility", "writingCategory"]),
-  pages: new Set(["contentRich", "coverImage", "slug", "status", "title", "visibility", "writingCategory"]),
-  posts: new Set(["contentRich", "coverImage", "publishedAt", "slug", "status", "summary", "tags", "title", "visibility", "writingCategory"]),
-  updates: new Set(["contentRich", "coverImage", "link", "status", "type", "visibility", "writingCategory"]),
+  notes: new Set(["category", "contentRich", "coverImage", "mood", "pinned", "visibility", "writingCategory"]),
+  pages: new Set(["contentRich", "coverImage", "slug", "summary", "title", "visibility", "writingCategory"]),
+  posts: new Set(["contentRich", "coverImage", "slug", "summary", "tags", "title", "visibility", "writingCategory"]),
+  updates: new Set(["contentRich", "coverImage", "link", "type", "visibility", "writingCategory"]),
 };
 
 const resolveTarget = async (context: DashboardContentDetailContext) => {
@@ -111,7 +118,7 @@ export async function PATCH(request: Request, context: DashboardContentDetailCon
 
   const lastKnownUpdatedAt = typeof body.lastKnownUpdatedAt === "string" ? body.lastKnownUpdatedAt : null;
 
-  if (lastKnownUpdatedAt && existing.updatedAt !== lastKnownUpdatedAt) {
+  if (isStaleDashboardContentUpdate(String(existing.updatedAt), lastKnownUpdatedAt)) {
     return NextResponse.json({ message: "内容已在其他位置更新" }, { status: 409 });
   }
 
@@ -121,15 +128,36 @@ export async function PATCH(request: Request, context: DashboardContentDetailCon
     return NextResponse.json({ message: "没有可更新字段" }, { status: 400 });
   }
 
-  const doc = await payload.update({
-    collection: target.collection,
-    data: data as never,
-    id: target.id,
-    overrideAccess: false,
-    user: authResult.user,
-  });
+  if ("contentRich" in data) {
+    const parsedContent = parsePatchContentRich(data.contentRich);
+    if (!parsedContent.ok) {
+      return NextResponse.json({ message: parsedContent.message }, { status: 400 });
+    }
+  }
 
-  return NextResponse.json({ document: normalizeDashboardContentDocument(target.collection, doc as never) });
+  const relationshipError = await validatePatchRelationships(payload, data, authResult.user);
+  if (relationshipError) {
+    return NextResponse.json({ message: relationshipError }, { status: 400 });
+  }
+
+  const rateLimited = enforceDashboardContentRateLimit(authResult.user.id, "dashboard-content-patch");
+  if (rateLimited) {
+    return rateLimited;
+  }
+
+  try {
+    const doc = await payload.update({
+      collection: target.collection,
+      data: data as never,
+      id: target.id,
+      overrideAccess: false,
+      user: authResult.user,
+    });
+
+    return NextResponse.json({ document: normalizeDashboardContentDocument(target.collection, doc as never) });
+  } catch (error) {
+    return mapPayloadError(error, "更新内容失败");
+  }
 }
 
 export async function DELETE(_request: Request, context: DashboardContentDetailContext) {
@@ -146,13 +174,30 @@ export async function DELETE(_request: Request, context: DashboardContentDetailC
   }
 
   const payload = await getPayloadClient();
+  const existing = await payload
+    .findByID({
+      collection: target.collection,
+      depth: 0,
+      id: target.id,
+      overrideAccess: false,
+      user: authResult.user,
+    })
+    .catch(() => null);
 
-  await payload.delete({
-    collection: target.collection,
-    id: target.id,
-    overrideAccess: false,
-    user: authResult.user,
-  });
+  if (!existing) {
+    return NextResponse.json({ message: "内容不存在" }, { status: 404 });
+  }
 
-  return NextResponse.json({ ok: true });
+  try {
+    await payload.delete({
+      collection: target.collection,
+      id: target.id,
+      overrideAccess: false,
+      user: authResult.user,
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return mapPayloadError(error, "删除内容失败");
+  }
 }

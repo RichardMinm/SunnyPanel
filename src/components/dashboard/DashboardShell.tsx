@@ -23,6 +23,22 @@ import { WritingDocumentsProvider } from "./writing/WritingDocumentsContext";
 import { WritingLibraryFiltersProvider } from "./writing/WritingLibraryFiltersContext";
 import { WritingLayoutProvider } from "./writing/WritingLayoutContext";
 import type { WritingSaveStatusSnapshot } from "./writing/writing-types";
+import { formatWritingSaveStatusLabel } from "@/lib/dashboard/writing-save-status";
+
+const formatWritingBarLabel = (status: WritingSaveStatusSnapshot) => {
+  const savePart = formatWritingSaveStatusLabel(status);
+  const parts = [savePart];
+  if (typeof status.wordCount === "number") {
+    parts.push(`${status.wordCount.toLocaleString("zh-CN")} 字`);
+  }
+  if (typeof status.readingMinutes === "number") {
+    parts.push(`约 ${status.readingMinutes} 分钟`);
+  }
+  if (status.lastEdited) {
+    parts.push(`最后编辑 ${status.lastEdited}`);
+  }
+  return parts.join(" · ");
+};
 
 
 type DashboardShellProps = {
@@ -379,12 +395,19 @@ export function DashboardShell({
             />
 
             <MainWorkspace>
-              <WritingWorkspace onSaveStatusChange={setWritingSaveStatus} />
+              <WritingWorkspace
+                onPrefillComposer={onPrefillComposer}
+                onSaveStatusChange={setWritingSaveStatus}
+              />
             </MainWorkspace>
 
             <DashboardStatusBar
-              statusLabel={statusLabel}
-              writingStatus={writingSaveStatus}
+              isWritingMode
+              statusLabel={
+                writingSaveStatus
+                  ? formatWritingBarLabel(writingSaveStatus)
+                  : "已保存"
+              }
             />
             </WritingLibraryFiltersProvider>
           </WritingDocumentsProvider>

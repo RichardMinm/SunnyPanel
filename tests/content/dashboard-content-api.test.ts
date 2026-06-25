@@ -4,7 +4,7 @@ import { describe, test } from "node:test";
 
 import { buildDashboardHref } from "../../src/lib/dashboard/dashboard-href";
 import { dashboardContentCollections, getDashboardEditHref } from "../../src/lib/dashboard/content/config";
-import { validateDashboardContentCollection } from "../../src/lib/dashboard/content/validation";
+import { isStaleDashboardContentUpdate, validateDashboardContentCollection } from "../../src/lib/dashboard/content/validation";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -59,13 +59,38 @@ describe("dashboard content API contracts", () => {
     assert.match(route, /getPayloadAuthResult/);
     assert.match(route, /getPayloadClient/);
     assert.match(detailRoute, /lastKnownUpdatedAt/);
-    assert.match(detailRoute, /status: 409/);
+    assert.match(detailRoute, /isStaleDashboardContentUpdate/);
+  });
+
+  test("isStaleDashboardContentUpdate detects autosave conflicts", () => {
+    assert.equal(isStaleDashboardContentUpdate("2026-06-08T10:00:00.000Z", "2026-06-08T09:00:00.000Z"), true);
+    assert.equal(isStaleDashboardContentUpdate("2026-06-08T10:00:00.000Z", "2026-06-08T10:00:00.000Z"), false);
+    assert.equal(isStaleDashboardContentUpdate("2026-06-08T10:00:00.000Z", null), false);
+    assert.equal(isStaleDashboardContentUpdate("2026-06-08T10:00:00.000Z", undefined), false);
   });
 
   test("Dashboard-created post drafts satisfy required Payload fields", () => {
     const route = read("src/app/api/dashboard/content/route.ts");
 
-    assert.doesNotMatch(route, /data\.summary\s*=\s*""/);
-    assert.match(route, /data\.summary\s*=\s*"[^"]+"/);
+    assert.match(route, /if \(collection === "posts"\)[\s\S]*data\.summary\s*=\s*"待补充摘要"/);
+    assert.match(route, /if \(collection === "pages"\)[\s\S]*data\.summary\s*=\s*""/);
+  });
+
+  test("detail PATCH validates contentRich and relationships", () => {
+    const detailRoute = read("src/app/api/dashboard/content/[collection]/[id]/route.ts");
+    const patchValidation = read("src/lib/dashboard/content/patch-validation.ts");
+
+    assert.match(detailRoute, /parsePatchContentRich/);
+    assert.match(detailRoute, /validatePatchRelationships/);
+    assert.match(detailRoute, /mapPayloadError/);
+    assert.match(detailRoute, /summary/);
+    assert.match(patchValidation, /validateWritingCategoryId/);
+    assert.match(patchValidation, /validateCoverImageId/);
+  });
+
+  test("Page collection exposes summary field in Payload schema", () => {
+    const pageCollection = read("src/collections/Page.ts");
+
+    assert.match(pageCollection, /name:\s*"summary"/);
   });
 });

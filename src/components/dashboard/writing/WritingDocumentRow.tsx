@@ -12,7 +12,6 @@ import {
   renderWritingDocumentContextItems,
   renderWritingDocumentDropdownItems,
 } from "./WritingDocumentActions";
-import { getWritingCollectionMeta } from "./writing-collection-meta";
 import type { WritingDocumentListItem } from "./writing-types";
 
 type WritingDocumentRowProps = {
@@ -25,14 +24,6 @@ type WritingDocumentRowProps = {
   onRename: (document: WritingDocumentListItem, title: string) => void;
   onSelect: (document: WritingDocumentListItem) => void;
 };
-
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat("zh-CN", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "2-digit",
-  }).format(new Date(value));
 
 export function WritingDocumentRow({
   active,
@@ -47,8 +38,6 @@ export function WritingDocumentRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(document.title);
-  const updatedLabel = formatDate(document.updatedAt);
-  const collectionMeta = getWritingCollectionMeta(document.collection);
 
   const startRename = useCallback(() => {
     setRenaming(true);
@@ -83,15 +72,17 @@ export function WritingDocumentRow({
   };
 
   const rowContent = (
-    <>
+    <div className={`sunny-writing-tree-row-wrap is-document${active ? " is-active" : ""}`}>
       <button
-        className="sunny-writing-document-row-main"
+        aria-current={active ? "true" : undefined}
+        className="sunny-writing-tree-row is-document"
         onClick={() => onSelect(document)}
-        title={`${document.title || "未命名内容"} · ${updatedLabel}`}
+        title={document.title || "未命名内容"}
         type="button"
       >
         {renaming ? (
           <input
+            aria-label="重命名文档"
             autoFocus
             className="sunny-writing-document-rename"
             onBlur={finishRename}
@@ -109,49 +100,35 @@ export function WritingDocumentRow({
             value={renameValue}
           />
         ) : (
-          <>
-            <span className="sunny-writing-document-title">{document.title || "未命名内容"}</span>
-            <span
-              aria-hidden="true"
-              className="sunny-writing-document-type-icon"
-              data-collection={document.collection}
-              style={{
-                ["--writing-collection-tint" as string]: `var(${collectionMeta.tintVar})`,
-              }}
-            >
-              <DashboardIcon name={collectionMeta.icon} />
-            </span>
-            <time className="sunny-writing-document-time" dateTime={document.updatedAt}>
-              {updatedLabel}
-            </time>
-          </>
+          <span className="sunny-writing-tree-label sunny-writing-document-title">
+            {document.title || "未命名内容"}
+          </span>
         )}
       </button>
-      <AppDropdownMenu
-        align="end"
-        className="sunny-writing-menu"
-        collisionPadding={16}
-        onOpenChange={setMenuOpen}
-        open={menuOpen}
-        side="bottom"
-        sideOffset={6}
-        trigger={<DashboardIcon name="moreHorizontal" />}
-        triggerAriaLabel="更多操作"
-        triggerClassName={`sunny-writing-document-menu-toggle${menuOpen ? " is-open" : ""}`}
-      >
-        {renderWritingDocumentDropdownItems({ ...actionHandlers, onClose: () => setMenuOpen(false) })}
-      </AppDropdownMenu>
-    </>
+      <div className="sunny-writing-tree-row-actions">
+        <AppDropdownMenu
+          align="end"
+          className="sunny-writing-menu"
+          collisionPadding={16}
+          onOpenChange={setMenuOpen}
+          open={menuOpen}
+          side="bottom"
+          sideOffset={6}
+          trigger={<DashboardIcon name="moreHorizontal" />}
+          triggerAriaLabel="更多操作"
+          triggerClassName={`sunny-writing-tree-action${menuOpen ? " is-open" : ""}`}
+        >
+          {renderWritingDocumentDropdownItems({ ...actionHandlers, onClose: () => setMenuOpen(false) })}
+        </AppDropdownMenu>
+      </div>
+    </div>
   );
 
   return (
     <AppContextMenu
       contentClassName="sunny-writing-menu"
       trigger={
-        <div
-          className={`sunny-writing-document-row${active ? " is-active" : ""}`}
-          role="listitem"
-        >
+        <div className="sunny-writing-tree-item" role="listitem">
           {rowContent}
         </div>
       }

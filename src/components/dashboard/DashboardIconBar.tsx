@@ -441,21 +441,23 @@ export function DashboardIconBar({
 
       <div className="sunny-dashboard-icon-bar-bottom sunny-dashboard-sidebar-bottom">
         {isWritingMode ? <WritingSidebarBottomRail /> : null}
-        <div className="sunny-dashboard-sidebar-settings-row sunny-dashboard-settings">
-          <DashboardSettingsMenu
-            locale={locale}
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
-            palette={palette}
-            triggerClassName="sunny-dashboard-sidebar-action sunny-dashboard-sidebar-settings-trigger"
-            trigger={
-              <>
-                <span className="sunny-dashboard-sidebar-icon"><DashboardIcon name="settings" /></span>
-                <span className="sunny-dashboard-sidebar-label">设置</span>
-              </>
-            }
-          />
-        </div>
+        {!isWritingMode ? (
+          <div className="sunny-dashboard-sidebar-settings-row sunny-dashboard-settings">
+            <DashboardSettingsMenu
+              locale={locale}
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+              palette={palette}
+              triggerClassName="sunny-dashboard-sidebar-action sunny-dashboard-sidebar-settings-trigger"
+              trigger={
+                <>
+                  <span className="sunny-dashboard-sidebar-icon"><DashboardIcon name="settings" /></span>
+                  <span className="sunny-dashboard-sidebar-label">设置</span>
+                </>
+              }
+            />
+          </div>
+        ) : null}
       </div>
       <ConfirmDialog
         open={deleteTarget !== null}

@@ -32,11 +32,16 @@ describe("writing assist API", () => {
   test("editor exposes lightweight AI entry points", () => {
     const bubble = read("src/components/content-editor/EditorBubbleMenu.tsx");
     const pane = read("src/components/dashboard/writing/WritingEditorPane.tsx");
+    const slash = read("src/components/content-editor/slash-commands.ts");
+    const quick = read("src/components/content-editor/WritingEmptyQuickActions.tsx");
 
     assert.match(bubble, /改写/);
     assert.match(bubble, /润色/);
-    assert.match(pane, /生成标题/);
-    assert.match(pane, /自动生成摘要/);
+    assert.match(pane, /onWritingAssist/);
+    assert.match(pane, /handleWorkflow/);
+    assert.match(slash, /AI 续写/);
+    assert.match(slash, /总结本文/);
+    assert.match(quick, /AI 续写/);
   });
 
   test("document-level AI outline results become editable heading blocks", () => {

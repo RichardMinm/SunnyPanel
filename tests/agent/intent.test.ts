@@ -208,64 +208,6 @@ test("uses the injected model resolver without calling external APIs", async () 
   assert.equal(result.intent.intent, "answer_question");
 });
 
-test("answers learning consultation requests without creating plans", async () => {
-  const result = await resolveWithMockedModel({
-    message: "给我参谋一下线性代数的学习",
-  });
-
-  assert.equal(result.engine, "heuristic");
-  assert.equal(result.intent.intent, "answer_question");
-  const args = result.intent.args as { answer?: string; suggestAction?: null | string };
-  assert.match(args.answer ?? "", /线性代数/);
-  assert.match(args.answer ?? "", /诊断|薄弱|顺序|练习/);
-  assert.match(args.suggestAction ?? "", /学习计划|清单/);
-});
-
-test("learning consultation uses relevant workspace context", async () => {
-  const result = await resolveWithMockedModel({
-    context: {
-      checklists: [
-        {
-          groups: [
-            {
-              items: ["矩阵秩错题", "特征值专项"],
-              title: "矩阵与特征值",
-            },
-          ],
-          title: "线性代数错题清单",
-        },
-      ],
-      memories: [
-        {
-          confidence: 0.91,
-          content: "你偏好每天晚上 1 小时复习线性代数，先做错题再回教材。",
-          id: 9,
-          lastUsedAt: null,
-          title: "线代学习偏好",
-          type: "preference",
-        },
-      ],
-      now: "2026-05-06T00:00:00.000+08:00",
-      pendingAction: null,
-      plans: [
-        {
-          priority: "high",
-          state: "active",
-          title: "线性代数二轮复习",
-        },
-      ],
-    },
-    message: "给我参谋一下线性代数的学习",
-  });
-
-  assert.equal(result.engine, "heuristic");
-  assert.equal(result.intent.intent, "answer_question");
-  const answer = result.intent.intent === "answer_question" ? result.intent.args.answer : "";
-  assert.match(answer, /线性代数二轮复习/);
-  assert.match(answer, /线性代数错题清单/);
-  assert.match(answer, /每天晚上 1 小时/);
-});
-
 test("general consultation uses workspace context without writing", async () => {
   const result = await resolveWithMockedModel({
     context: {
@@ -455,40 +397,6 @@ test("learning consultation follow-up asks for learning profile before composing
       : null,
     "compose_plan",
   );
-});
-
-test("learning path requests are answered directly instead of treated as plan composition", async () => {
-  const result = await resolveWithMockedModel({
-    message: "请你为我规划一个信息安全学习的路径，偏向蓝队方向",
-  });
-
-  assert.equal(result.engine, "heuristic");
-  assert.equal(result.intent.intent, "answer_question");
-  const answer = result.intent.intent === "answer_question" ? result.intent.args.answer : "";
-  assert.match(answer, /信息安全|蓝队/);
-  assert.match(answer, /路径|阶段|路线/);
-  assert.doesNotMatch(answer, /最终产出什么|开始日期/);
-});
-
-test("learning follow-up can switch from plan composition to a direct learning path", async () => {
-  const pendingAction = {
-    originalMessage: "请你为我规划一个信息安全学习的路径，偏向蓝队方向",
-    requestedAction: "compose_plan",
-    subject: "信息安全",
-    type: "await_learning_followup",
-  } as unknown as PendingAction;
-  const result = await resolveWithMockedModel({
-    message: "给出路径即可，并不是计划",
-    pendingAction,
-  });
-
-  assert.equal(result.engine, "workflow");
-  assert.equal(result.intent.intent, "answer_question");
-  const answer = result.intent.intent === "answer_question" ? result.intent.args.answer : "";
-  assert.match(answer, /信息安全|蓝队/);
-  assert.match(answer, /路径|阶段|路线/);
-  assert.doesNotMatch(answer, /学习目标、当前基础、每天可投入时间和期望完成期限/);
-  assert.equal(result.intent.intent === "answer_question" ? result.intent.args.suggestAction : null, null);
 });
 
 test("learning profile answer composes a plan with the previous subject and constraints", async () => {

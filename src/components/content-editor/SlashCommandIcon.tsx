@@ -1,11 +1,17 @@
 import type { ReactNode } from "react";
 
 export type SlashCommandIconName =
+  | "aiOutline"
+  | "aiRewrite"
+  | "aiSpark"
+  | "aiSummary"
+  | "aiTags"
   | "attachment"
   | "bulletList"
   | "calloutInfo"
   | "calloutSuccess"
   | "calloutWarning"
+  | "chevronRight"
   | "codeBlock"
   | "date"
   | "datetime"
@@ -24,9 +30,42 @@ export type SlashCommandIconName =
   | "taskList"
   | "time"
   | "toggle"
-  | "video";
+  | "video"
+  | "wfChecklist"
+  | "wfMemory"
+  | "wfPlan"
+  | "wfSchedule"
+  | "wfTimeline";
 
 const ICON_PATHS: Record<SlashCommandIconName, ReactNode> = {
+  aiOutline: (
+    <>
+      <path d="M5.5 14.5V5.5h9M5.5 8.5h6M5.5 11.5h4" />
+    </>
+  ),
+  aiRewrite: (
+    <>
+      <path d="M12.5 4.5 15.5 7.5 8 15H5v-3z" />
+      <path d="M11.5 5.5 14.5 8.5" />
+    </>
+  ),
+  aiSpark: (
+    <>
+      <path d="m10 3.5 1 3 3 1-3 1-1 3-1-3-3-1 3-1z" />
+      <path d="M15.5 13.5v2M14.5 14.5h2" />
+    </>
+  ),
+  aiSummary: (
+    <>
+      <path d="M5.5 6h9M5.5 10h7M5.5 14h5" />
+    </>
+  ),
+  aiTags: (
+    <>
+      <path d="M6 6.5h3l6.5 6.5-3 3L6 9.5z" />
+      <path d="M8.25 8.25h.05" />
+    </>
+  ),
   attachment: (
     <>
       <path d="M7.5 11.75 12.25 7a2.25 2.25 0 1 1 3.18 3.18l-5.43 5.43a3.5 3.5 0 1 1-4.95-4.95l5.75-5.75" />
@@ -56,6 +95,11 @@ const ICON_PATHS: Record<SlashCommandIconName, ReactNode> = {
       <path d="M10 8.25v3.25" />
       <path d="M10 5.75v.05" />
       <path d="m4.75 15.25 5.25-9 5.25 9z" />
+    </>
+  ),
+  chevronRight: (
+    <>
+      <path d="m8 5.5 4 4.5-4 4.5" />
     </>
   ),
   codeBlock: (
@@ -165,6 +209,35 @@ const ICON_PATHS: Record<SlashCommandIconName, ReactNode> = {
     <>
       <path d="M5.25 6.25h6.5v7.5h-6.5z" />
       <path d="m11.75 9.25 3-1.75v5.5l-3-1.75z" />
+    </>
+  ),
+  wfChecklist: (
+    <>
+      <path d="M6.5 7.25 8 8.75 12.5 5.25" />
+      <path d="M5.5 12.25h9M5.5 14.75h6" />
+    </>
+  ),
+  wfMemory: (
+    <>
+      <path d="M10 5.25a3.25 3.25 0 0 1 3.25 3.25c0 2.25-3.25 5.5-3.25 5.5S6.75 10.75 6.75 8.5A3.25 3.25 0 0 1 10 5.25Z" />
+    </>
+  ),
+  wfPlan: (
+    <>
+      <path d="M6.5 5.25h7v9.5h-7z" />
+      <path d="M8.25 8.25h3.5M8.25 11h3.5" />
+    </>
+  ),
+  wfSchedule: (
+    <>
+      <path d="M6.25 5.25h7.5v9.5H6.25z" />
+      <path d="M8 4v2M12 4v2M6.25 8.25h7.5" />
+    </>
+  ),
+  wfTimeline: (
+    <>
+      <path d="M5.5 10h9M10 5.5v9" />
+      <path d="M7.5 7.5h.05M12.5 12.5h.05" />
     </>
   ),
 };

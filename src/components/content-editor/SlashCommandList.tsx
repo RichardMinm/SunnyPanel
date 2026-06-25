@@ -2,94 +2,68 @@
 
 import type { Editor } from "@tiptap/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
+import { EditorCommandMenu } from "./EditorCommandMenu";
 import {
+  createSlashCommandItems,
   filterSlashCommandItems,
-  groupSlashCommandItems,
-  slashCommandGroupLabels,
+  type SlashCommandHandlers,
   type SlashCommandItem,
 } from "./slash-commands";
-import { SlashCommandIcon } from "./SlashCommandIcon";
 
-type SlashCommandListProps = {
-  items: SlashCommandItem[];
-  onSelect: (item: SlashCommandItem) => void;
-  position: { left: number; top: number };
-  selectedIndex: number;
-};
+const MENU_WIDTH = 340;
+const MENU_MAX_HEIGHT = 420;
+const VIEWPORT_PADDING = 12;
 
-export function SlashCommandList({
-  items,
-  onSelect,
-  position,
-  selectedIndex,
-}: SlashCommandListProps) {
-  const groups = useMemo(() => groupSlashCommandItems(items), [items]);
+function computeMenuPosition(
+  coords: { bottom: number; left: number; top: number },
+  itemCount: number,
+): { left: number; placement: "bottom-start" | "top-start"; top: number } {
+  const estimatedHeight = Math.min(MENU_MAX_HEIGHT, Math.max(itemCount, 1) * 52 + 48);
+  const spaceBelow = window.innerHeight - coords.bottom - VIEWPORT_PADDING;
+  const spaceAbove = coords.top - VIEWPORT_PADDING;
+  const flip = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
 
-  if (!items.length || typeof document === "undefined") {
-    return null;
+  const left = Math.min(
+    Math.max(VIEWPORT_PADDING, coords.left),
+    window.innerWidth - MENU_WIDTH - VIEWPORT_PADDING,
+  );
+
+  if (flip) {
+    return {
+      left,
+      placement: "top-start",
+      top: Math.max(VIEWPORT_PADDING, coords.top - 8 - estimatedHeight),
+    };
   }
 
-  let runningIndex = 0;
-
-  return createPortal(
-    <div
-      className="sunny-rich-editor-slash-popup"
-      role="listbox"
-      style={{ left: position.left, top: position.top }}
-    >
-      {groups.map((group, groupIndex) => (
-        <div className="sunny-rich-editor-slash-group" key={group.group}>
-          {groupIndex > 0 ? <div className="sunny-rich-editor-slash-divider" role="separator" /> : null}
-          <span className="sunny-rich-editor-slash-group-label">
-            {slashCommandGroupLabels[group.group]}
-          </span>
-          {group.items.map((item) => {
-            const itemIndex = runningIndex;
-            runningIndex += 1;
-
-            return (
-              <button
-                aria-selected={itemIndex === selectedIndex}
-                className={itemIndex === selectedIndex ? "is-active" : ""}
-                key={item.id}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  onSelect(item);
-                }}
-                role="option"
-                type="button"
-              >
-                <span aria-hidden className="sunny-rich-editor-slash-icon">
-                  <SlashCommandIcon name={item.icon} />
-                </span>
-                <span className="sunny-rich-editor-slash-label">{item.label}</span>
-                {item.shortcut ? (
-                  <span className="sunny-rich-editor-slash-shortcut">{item.shortcut}</span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-      ))}
-    </div>,
-    document.body,
-  );
+  return {
+    left,
+    placement: "bottom-start",
+    top: coords.bottom + 8,
+  };
 }
 
-export function filterSlashItems(query: string) {
-  return filterSlashCommandItems(query);
-}
-
-export function useSlashCommandState(editor: Editor | null) {
+export function useSlashCommandState(
+  editor: Editor | null,
+  handlers: SlashCommandHandlers = {},
+) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [position, setPosition] = useState({ left: 0, top: 0 });
+  const [placement, setPlacement] = useState<"bottom-start" | "top-start">("bottom-start");
   const rangeRef = useRef<{ from: number; to: number } | null>(null);
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
 
-  const items = filterSlashItems(query);
+  const allItems = useMemo(
+    () => createSlashCommandItems(handlersRef.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers compared by ref
+    [handlers.onWritingAssist, handlers.onWorkflow],
+  );
+
+  const items = filterSlashCommandItems(query, allItems);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -116,13 +90,7 @@ export function useSlashCommandState(editor: Editor | null) {
       return;
     }
 
-    const updatePosition = () => {
-      const { from } = editor.state.selection;
-      const coords = editor.view.coordsAtPos(from);
-      setPosition({ left: coords.left, top: coords.bottom + 8 });
-    };
-
-    const handleUpdate = () => {
+    const updateFromEditor = () => {
       const { $from } = editor.state.selection;
       const textBefore = $from.parent.textBetween(
         Math.max(0, $from.parentOffset - 40),
@@ -139,20 +107,32 @@ export function useSlashCommandState(editor: Editor | null) {
 
       const slashIndex = $from.pos - match[1].length - 1;
       rangeRef.current = { from: slashIndex, to: $from.pos };
-      setQuery(match[1]);
+      const nextQuery = match[1];
+      setQuery(nextQuery);
       setOpen(true);
       setSelectedIndex(0);
-      updatePosition();
+
+      const coords = editor.view.coordsAtPos($from.pos);
+      const filtered = filterSlashCommandItems(nextQuery, createSlashCommandItems(handlersRef.current));
+      const nextPosition = computeMenuPosition(coords, filtered.length);
+      setPosition({ left: nextPosition.left, top: nextPosition.top });
+      setPlacement(nextPosition.placement);
     };
 
-    editor.on("selectionUpdate", handleUpdate);
-    editor.on("update", handleUpdate);
+    editor.on("selectionUpdate", updateFromEditor);
+    editor.on("update", updateFromEditor);
 
     return () => {
-      editor.off("selectionUpdate", handleUpdate);
-      editor.off("update", handleUpdate);
+      editor.off("selectionUpdate", updateFromEditor);
+      editor.off("update", updateFromEditor);
     };
   }, [close, editor]);
+
+  useEffect(() => {
+    setSelectedIndex((current) =>
+      items.length === 0 ? 0 : Math.min(current, items.length - 1),
+    );
+  }, [items.length, query]);
 
   useEffect(() => {
     if (!open || !editor) {
@@ -162,13 +142,15 @@ export function useSlashCommandState(editor: Editor | null) {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setSelectedIndex((current) => (current + 1) % Math.max(items.length, 1));
+        if (items.length === 0) return;
+        setSelectedIndex((current) => (current + 1) % items.length);
       }
 
       if (event.key === "ArrowUp") {
         event.preventDefault();
+        if (items.length === 0) return;
         setSelectedIndex((current) =>
-          current === 0 ? Math.max(items.length - 1, 0) : current - 1,
+          current === 0 ? items.length - 1 : current - 1,
         );
       }
 
@@ -194,8 +176,42 @@ export function useSlashCommandState(editor: Editor | null) {
     close,
     items,
     open,
+    placement,
     position,
+    query,
     selectItem,
     selectedIndex,
+    setSelectedIndex,
   };
+}
+
+type SlashCommandListProps = {
+  handlers?: SlashCommandHandlers;
+  onHoverIndex: (index: number) => void;
+  onSelect: (item: SlashCommandItem) => void;
+  open: boolean;
+  items: SlashCommandItem[];
+  placement: "bottom-start" | "top-start";
+  position: { left: number; top: number };
+  query: string;
+  selectedIndex: number;
+};
+
+export function SlashCommandList(props: SlashCommandListProps) {
+  return (
+    <EditorCommandMenu
+      items={props.items}
+      onHoverIndex={props.onHoverIndex}
+      onSelect={props.onSelect}
+      open={props.open}
+      placement={props.placement}
+      position={props.position}
+      query={props.query}
+      selectedIndex={props.selectedIndex}
+    />
+  );
+}
+
+export function filterSlashItems(query: string, handlers: SlashCommandHandlers = {}) {
+  return filterSlashCommandItems(query, createSlashCommandItems(handlers));
 }

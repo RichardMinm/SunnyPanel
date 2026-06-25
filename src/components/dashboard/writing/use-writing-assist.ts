@@ -4,18 +4,9 @@ import { useCallback, useState } from "react";
 
 import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
 import type { ContentOutlineItem, RichContentDocument } from "@/lib/rich-content/types";
+import type { WritingAssistAction } from "@/lib/agent/prompts/writing-assist";
 
-export type WritingAssistAction =
-  | "condense"
-  | "continue"
-  | "expand"
-  | "extract_tags"
-  | "generate_outline"
-  | "generate_summary"
-  | "generate_title"
-  | "polish"
-  | "rewrite"
-  | "summarize";
+export type { WritingAssistAction };
 
 type WritingAssistContext = {
   collection?: DashboardContentCollection;

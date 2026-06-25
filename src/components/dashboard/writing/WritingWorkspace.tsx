@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { AppTooltip } from "@/components/primitives/AppTooltip";
 import { DashboardIcon } from "@/components/dashboard/icons";
 import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
 
@@ -10,20 +11,26 @@ import { useWritingLayoutContext } from "./WritingLayoutContext";
 import { WritingEditorPane } from "./WritingEditorPane";
 import { WritingMetaPanel } from "./WritingMetaPanel";
 import { WritingPreviewPane } from "./WritingPreviewPane";
+import { countWritingWords, extractRichText } from "@/lib/dashboard/writing-text-stats";
 import type { WritingMetadataDraft } from "./writing-metadata";
 import type { WritingSaveStatusSnapshot } from "./writing-types";
 
 type WritingWorkspaceProps = {
+  onPrefillComposer?: (prompt: string) => void;
   onSaveStatusChange?: (status: WritingSaveStatusSnapshot) => void;
 };
 
-export function WritingWorkspace({ onSaveStatusChange }: WritingWorkspaceProps) {
+export function WritingWorkspace({
+  onPrefillComposer,
+  onSaveStatusChange,
+}: WritingWorkspaceProps) {
   const {
     createDocument,
     draft,
     error,
     flushSave,
     isDirty,
+    isLoadingDocument,
     publishDocument,
     saveState,
     selectedDocument,
@@ -149,8 +156,35 @@ export function WritingWorkspace({ onSaveStatusChange }: WritingWorkspaceProps) 
     .join(" ");
 
   useEffect(() => {
-    onSaveStatusChange?.({ error, isDirty, saveState });
-  }, [error, isDirty, onSaveStatusChange, saveState]);
+    if (!draft && !selectedDocument) {
+      onSaveStatusChange?.({ error, isDirty, saveState });
+      return;
+    }
+
+    let text = draft?.title ?? selectedDocument?.title ?? "";
+    if (draft?.contentRich?.content) {
+      text += ` ${draft.contentRich.content.map((block) => extractRichText(block)).join(" ")}`;
+    }
+    const wordCount = countWritingWords(text);
+    const readingMinutes = Math.max(1, Math.ceil(wordCount / 400));
+    const lastEdited = selectedDocument?.updatedAt
+      ? new Intl.DateTimeFormat("zh-CN", {
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          month: "long",
+        }).format(new Date(selectedDocument.updatedAt))
+      : undefined;
+
+    onSaveStatusChange?.({
+      error,
+      isDirty,
+      lastEdited,
+      readingMinutes,
+      saveState,
+      wordCount,
+    });
+  }, [draft, error, isDirty, onSaveStatusChange, saveState, selectedDocument]);
 
   return (
     <div className={workspaceClassName} data-testid="dashboard-writing-workspace">
@@ -167,9 +201,11 @@ export function WritingWorkspace({ onSaveStatusChange }: WritingWorkspaceProps) 
           error={error}
           focusMode={layout.focusMode}
           isDirty={isDirty}
+          isLoadingDocument={isLoadingDocument}
           onCreateDocument={handleCreateDocument}
           onFlushSave={flushSave}
           onOpenInspector={() => setInspectorOpen(true)}
+          onPrefillComposer={onPrefillComposer}
           onPublish={publishDocument}
           onToggleFocusMode={toggleFocusMode}
           onTogglePreviewMode={togglePreviewMode}
@@ -192,7 +228,6 @@ export function WritingWorkspace({ onSaveStatusChange }: WritingWorkspaceProps) 
             onPin={handlePinInspector}
             onUnpublish={unpublishDocument}
             onUpdateMetadata={handleUpdateMetadata}
-            onUpdateSummary={(summary) => updateDraft({ summary })}
             saveState={saveState}
           />
         </div>
@@ -203,18 +238,19 @@ export function WritingWorkspace({ onSaveStatusChange }: WritingWorkspaceProps) 
           onMouseEnter={handlePeekEnter}
           onMouseLeave={handlePeekLeave}
         >
-          <button
-            aria-label="展开属性栏"
-            className="sunny-writing-panel-toggle is-inspector"
-            onClick={() => {
-              setInspectorOpen(true);
-              setPeekOpen(true);
-            }}
-            title="展开属性栏"
-            type="button"
-          >
-            <DashboardIcon name="chevronLeft" />
-          </button>
+          <AppTooltip content="打开属性面板">
+            <button
+              aria-label="打开属性面板"
+              className="sunny-writing-panel-toggle is-inspector"
+              onClick={() => {
+                setInspectorOpen(true);
+                setPeekOpen(true);
+              }}
+              type="button"
+            >
+              <DashboardIcon name="chevronLeft" />
+            </button>
+          </AppTooltip>
         </div>
       ) : null}
     </div>

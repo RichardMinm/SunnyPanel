@@ -4,10 +4,13 @@ import {
   dashboardContentCollections,
   type DashboardContentCollection,
 } from "@/lib/dashboard/content/config";
+import { mapPayloadError } from "@/lib/dashboard/content/api-errors";
 import {
   normalizeDashboardContentDocument,
   normalizeDashboardContentListItem,
 } from "@/lib/dashboard/content/normalize";
+import { parseRelationshipId, validateWritingCategoryId } from "@/lib/dashboard/content/patch-validation";
+import { enforceDashboardContentRateLimit } from "@/lib/dashboard/content/rate-limit";
 import {
   parseDashboardContentBody,
   validateDashboardContentCollection,
@@ -20,10 +23,7 @@ const createDraftSlug = (collection: DashboardContentCollection) => `draft-${col
 
 const buildCreateData = (collection: DashboardContentCollection, body: Record<string, unknown>) => {
   const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : null;
-  const writingCategoryId =
-    typeof body.writingCategoryId === "number" && body.writingCategoryId > 0
-      ? body.writingCategoryId
-      : null;
+  const writingCategoryId = parseRelationshipId(body.writingCategoryId);
   const data: Record<string, unknown> = {
     contentRich: createEmptyRichDocument(),
     status: "draft",
@@ -43,6 +43,7 @@ const buildCreateData = (collection: DashboardContentCollection, body: Record<st
   if (collection === "pages") {
     data.title = title ?? "未命名页面";
     data.slug = createDraftSlug(collection);
+    data.summary = "";
   }
 
   if (collection === "notes") {
@@ -111,13 +112,34 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "不支持的内容类型" }, { status: 400 });
   }
 
+  const writingCategoryId = parseRelationshipId(body.writingCategoryId);
   const payload = await getPayloadClient();
-  const doc = await payload.create({
-    collection,
-    data: buildCreateData(collection, body) as never,
-    overrideAccess: false,
-    user: authResult.user,
-  });
 
-  return NextResponse.json({ document: normalizeDashboardContentDocument(collection, doc as never) }, { status: 201 });
+  if (writingCategoryId) {
+    const categoryError = await validateWritingCategoryId(payload, writingCategoryId, authResult.user);
+    if (categoryError) {
+      return NextResponse.json({ message: categoryError }, { status: 400 });
+    }
+  }
+
+  const rateLimited = enforceDashboardContentRateLimit(authResult.user.id, "dashboard-content-create");
+  if (rateLimited) {
+    return rateLimited;
+  }
+
+  try {
+    const doc = await payload.create({
+      collection,
+      data: buildCreateData(collection, body) as never,
+      overrideAccess: false,
+      user: authResult.user,
+    });
+
+    return NextResponse.json(
+      { document: normalizeDashboardContentDocument(collection, doc as never) },
+      { status: 201 },
+    );
+  } catch (error) {
+    return mapPayloadError(error, "创建内容失败");
+  }
 }

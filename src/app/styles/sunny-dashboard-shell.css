@@ -5,7 +5,7 @@
 
 /* ── Dashboard Shell 变量 ── */
 :root {
---dashboard-sidebar-width: clamp(18rem, 18vw, 20.5rem);
+--dashboard-sidebar-width: clamp(14.4rem, 14.4vw, 16.4rem);
   --dashboard-icon-bar-width: var(--dashboard-sidebar-width);
   --dashboard-sidebar-collapsed-width: 56px;
   --dashboard-panel-width: clamp(20rem, 24vw, 22.5rem);
@@ -107,7 +107,7 @@ padding: 0.75rem 0.35rem;
 .sunny-dashboard-icon-bar .sunny-dashboard-sidebar-collapse-toggle .sunny-dashboard-sidebar-label,
 .sunny-dashboard-icon-bar .sunny-dashboard-project-row span:not(.sunny-dashboard-project-mark):not(.sunny-dashboard-sidebar-icon) {
 opacity: 1;
-  max-width: 16rem;
+  max-width: 12.8rem;
   overflow: hidden;
   white-space: nowrap;
   transition:
@@ -1783,8 +1783,28 @@ background: color-mix(in srgb, var(--accent) 10%, transparent);
 
 .sunny-writing-sidebar-bottom-rail {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.35rem;
   width: 100%;
+}
+
+.sunny-writing-rail-section {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.sunny-writing-rail-section-label {
+  display: block;
+  padding: 0 0.5rem;
+  color: var(--muted);
+  font-size: var(--text-3xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sunny-writing-rail-section-actions {
+  display: grid;
+  gap: 0.2rem;
 }
 
 .sunny-dashboard-icon-bar.is-writing-mode .sunny-writing-sidebar-bottom-rail .sunny-dashboard-sidebar-action {

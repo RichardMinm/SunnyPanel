@@ -86,22 +86,15 @@ export function WritingDocumentsProvider({ children }: { children: ReactNode }) 
 
       <ConfirmDialog
         busy={false}
+        cancelLabel="放弃修改并切换"
         confirmLabel="保存并切换"
         message="当前文档有未保存修改。要保存后再切换吗？"
-        onCancel={() => setPendingSwitch(null)}
+        onCancel={() => void handleConfirmSwitch(false)}
         onConfirm={() => void handleConfirmSwitch(true)}
         open={pendingSwitch !== null}
         title="未保存的修改"
         variant="warning"
       />
-
-      {pendingSwitch ? (
-        <div className="sunny-writing-switch-actions">
-          <button onClick={() => void handleConfirmSwitch(false)} type="button">
-            放弃修改并切换
-          </button>
-        </div>
-      ) : null}
 
       <ConfirmDialog
         busy={deleteBusy}

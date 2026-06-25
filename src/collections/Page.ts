@@ -36,6 +36,15 @@ export const Page: CollectionConfig = {
       required: true,
     },
     createSlugField(),
+    {
+      name: "summary",
+      type: "textarea",
+      label: "摘要",
+      admin: {
+        description: "可选。写一句摘要，便于在列表和预览中快速识别页面。",
+        placeholder: "例如：这页主要介绍项目背景与联系方式。",
+      },
+    },
     ...richContentFields({
       label: "页面内容",
       legacyLabel: "旧 Markdown 页面内容",

@@ -4,7 +4,6 @@ import { describe, test } from "node:test";
 
 import {
   compactAssistantMessageForPendingAction,
-  parseScheduleResultMessage,
 } from "../../src/components/dashboard/agent/utils";
 import { filterDashboardThreads } from "../../src/lib/dashboard/filter-dashboard-threads";
 import type { AgentThreadSummary } from "../../src/components/dashboard/agent/types";
@@ -376,7 +375,6 @@ describe("Dashboard layout contracts", () => {
 
     assert.match(conversation, /<AgentApprovalCard/);
     assert.match(conversation, /compactAssistantMessageForPendingAction/);
-    assert.match(messageCard, /ScheduleResultCard/);
     assert.match(messageCard, /role === "user" \?/);
     assert.doesNotMatch(dashboardHook, /setStatusText\(`已恢复 Thread #\$\{selectedThread\.id\}`\)/);
     assert.match(dashboardHook, /setStatusText\("已就绪"\)/);
@@ -546,15 +544,6 @@ describe("Dashboard conversation utils", () => {
       compactAssistantMessageForPendingAction(content, null),
       "今天最该推进 CET-6 计划。\n\n（DryRun 详情已归档为结构化记录，不再展开全文。）",
     );
-  });
-
-  test("parseScheduleResultMessage extracts schedule creation summary", () => {
-    assert.deepEqual(parseScheduleResultMessage("已创建日程「专注推进一个计划动作」：2026-06-06 09:00-10:30。"), {
-      title: "专注推进一个计划动作",
-      date: "2026-06-06",
-      timeRange: "09:00-10:30",
-    });
-    assert.equal(parseScheduleResultMessage("普通助手回复"), null);
   });
 });
 

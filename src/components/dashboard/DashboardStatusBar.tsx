@@ -1,6 +1,7 @@
 "use client";
 
 import type { WritingSaveStatusSnapshot } from "@/components/dashboard/writing/writing-types";
+import { formatWritingSaveStatusDisplay } from "@/lib/dashboard/writing-save-status";
 
 export type DashboardStatusBarProps = {
   /** 当前分支名 */
@@ -19,6 +20,8 @@ export type DashboardStatusBarProps = {
   tokenSummary?: string;
   /** 写作模式 autosave 状态 */
   writingStatus?: null | WritingSaveStatusSnapshot;
+  /** 写作模式：隐藏开发者信息，仅显示写作统计 */
+  isWritingMode?: boolean;
 };
 
 function formatUserStatus(statusLabel: string): string {
@@ -29,37 +32,13 @@ function formatUserStatus(statusLabel: string): string {
   return `Sunny · ${statusLabel}`;
 }
 
-const formatWritingStatus = (writingStatus: WritingSaveStatusSnapshot) => {
-  if (writingStatus.error || writingStatus.saveState === "error") {
-    return {
-      className: "sunny-dashboard-status-writing is-error",
-      label: writingStatus.error ?? "保存失败",
-    };
-  }
-
-  if (writingStatus.saveState === "saving") {
-    return {
-      className: "sunny-dashboard-status-writing",
-      label: "保存中...",
-    };
-  }
-
-  if (writingStatus.isDirty || writingStatus.saveState === "dirty") {
-    return {
-      className: "sunny-dashboard-status-writing is-dirty",
-      label: "有未保存修改",
-    };
-  }
-
-  return {
-    className: "sunny-dashboard-status-writing",
-    label: "已保存",
-  };
-};
+const formatWritingStatus = (writingStatus: WritingSaveStatusSnapshot) =>
+  formatWritingSaveStatusDisplay(writingStatus);
 
 export function DashboardStatusBar({
   branch = "main",
   isProduction = false,
+  isWritingMode = false,
   model = "DeepSeek V3",
   searchAvailable = true,
   statusLabel,
@@ -68,13 +47,16 @@ export function DashboardStatusBar({
   writingStatus,
 }: DashboardStatusBarProps) {
   const writingStatusDisplay = writingStatus ? formatWritingStatus(writingStatus) : null;
+  const showDevInfo = !isProduction && !isWritingMode;
 
   return (
     <footer className="sunny-dashboard-status-bar" role="status" aria-label="工作台状态">
       <span className="sunny-dashboard-status-dot" aria-hidden="true" />
-      {isProduction ? (
+      {isWritingMode ? (
+        <span className="sunny-dashboard-status-writing">{statusLabel}</span>
+      ) : isProduction ? (
         <span>{formatUserStatus(statusLabel)}</span>
-      ) : (
+      ) : showDevInfo ? (
         <>
           <span>{model}</span>
           <span aria-hidden="true">|</span>
@@ -92,15 +74,15 @@ export function DashboardStatusBar({
             </>
           ) : null}
         </>
-      )}
+      ) : null}
       <span style={{ flex: 1 }} />
-      {writingStatusDisplay ? (
+      {!isWritingMode && writingStatusDisplay ? (
         <span className={writingStatusDisplay.className}>{writingStatusDisplay.label}</span>
       ) : null}
       {searchAvailable ? (
         <span className="sunny-dashboard-status-kbd" aria-hidden="true">⌘K</span>
       ) : null}
-      {!isProduction && !writingStatusDisplay ? (
+      {!isProduction && !isWritingMode && !writingStatusDisplay ? (
         <span>{statusLabel}</span>
       ) : null}
     </footer>

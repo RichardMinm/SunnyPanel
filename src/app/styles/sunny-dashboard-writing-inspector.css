@@ -1,0 +1,565 @@
+/* ── Meta panel ── */
+
+html[data-theme="dark"] .sunny-writing-meta-panel {
+  border-left-color: var(--border);
+}
+
+/* Section headers */
+html[data-theme="dark"] .sunny-writing-meta-head h3,
+html[data-theme="dark"] .sunny-writing-side-section h3 {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+html[data-theme="dark"] .sunny-writing-meta-head p,
+html[data-theme="dark"] .sunny-writing-side-muted {
+  color: var(--muted);
+}
+
+/* Section dividers */
+html[data-theme="dark"] .sunny-writing-side-section {
+  border-bottom-color: var(--border);
+}
+
+/* Field labels */
+html[data-theme="dark"] .sunny-writing-field span,
+html[data-theme="dark"] .sunny-writing-checkbox span {
+  color: var(--muted);
+}
+
+/* Inputs / selects / textareas */
+html[data-theme="dark"] .sunny-writing-field input,
+html[data-theme="dark"] .sunny-writing-field select,
+html[data-theme="dark"] .sunny-writing-field textarea {
+  background: var(--foreground);
+  border-color: var(--border);
+  color: var(--background);
+}
+
+html[data-theme="dark"] .sunny-writing-field input::placeholder,
+html[data-theme="dark"] .sunny-writing-field textarea::placeholder {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .sunny-writing-field input:focus,
+html[data-theme="dark"] .sunny-writing-field select:focus,
+html[data-theme="dark"] .sunny-writing-field textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Publish section */
+html[data-theme="dark"] .sunny-writing-publish-head span {
+  background: var(--overlay-warning-12);
+  color: var(--tone-warning-text);
+}
+
+html[data-theme="dark"] .sunny-writing-publish-head span[data-status="published"] {
+  background: var(--overlay-success-12);
+  color: var(--cat-plan-dot);
+}
+
+html[data-theme="dark"] .sunny-writing-publish-actions button,
+html[data-theme="dark"] .sunny-writing-publish-actions a {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--border);
+}
+
+html[data-theme="dark"] .sunny-writing-publish-actions button:hover,
+html[data-theme="dark"] .sunny-writing-publish-actions a:hover {
+  background: var(--surface-strong);
+}
+
+/* Checkbox */
+html[data-theme="dark"] .sunny-writing-checkbox input {
+  accent-color: var(--accent);
+}
+
+/* Outline list */
+html[data-theme="dark"] .sunny-writing-outline-list a {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .sunny-writing-outline-list a:hover {
+  color: var(--accent-strong);
+}
+
+/* Admin / advanced links */
+html[data-theme="dark"] .sunny-writing-admin-link {
+  background: var(--surface-strong);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .sunny-writing-admin-link:hover {
+  background: var(--surface-strong);
+  color: var(--border);
+}
+
+/* ── Inspector sections ── */
+
+html[data-theme="dark"] .sunny-writing-inspector-section summary:hover {
+  background: var(--overlay-light-04);
+}
+
+html[data-theme="dark"] .sunny-writing-inspector-chevron {
+  color: var(--muted);
+}
+
+/* ── Panel toggle ── */
+
+html[data-theme="dark"] .sunny-writing-panel-toggle {
+  background: var(--surface-strong);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .sunny-writing-panel-toggle:hover {
+  background: var(--surface-strong);
+  border-color: var(--muted);
+  color: var(--border);
+}
+
+/* ── Preview pane ── */
+
+html[data-theme="dark"] .sunny-writing-preview-pane {
+  background: var(--background);
+}
+
+html[data-theme="dark"] .sunny-writing-preview-article h1 {
+  color: var(--background);
+}
+
+html[data-theme="dark"] .sunny-writing-preview-summary {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich {
+  color: var(--foreground);
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich h1,
+html[data-theme="dark"] .sunny-writing-preview-rich h2,
+html[data-theme="dark"] .sunny-writing-preview-rich h3 {
+  color: var(--surface-tint);
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich a {
+  color: var(--accent-strong);
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich blockquote {
+  border-left-color: var(--border);
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich code {
+  background: var(--overlay-light-08);
+  color: var(--foreground);
+}
+
+html[data-theme="dark"] .sunny-writing-preview-rich pre {
+  background: var(--surface-strong);
+  border-color: var(--border);
+}
+
+/* ── Inline error ── */
+
+html[data-theme="dark"] .sunny-writing-inline-error {
+  color: var(--tone-danger-soft);
+}
+
+/* ── Switch actions ── */
+
+html[data-theme="dark"] .sunny-writing-switch-actions {
+  background: var(--surface-strong);
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .sunny-writing-switch-actions button {
+  color: var(--border);
+}
+
+html[data-theme="dark"] .sunny-writing-switch-actions button:hover {
+  color: var(--surface-tint);
+}
+
+/* ── Library empty state ── */
+
+html[data-theme="dark"] .sunny-writing-empty-state.is-library {
+  color: var(--muted);
+}
+
+/* ── Eyebrow / subtle labels ── */
+
+html[data-theme="dark"] .sunny-writing-eyebrow {
+  color: var(--muted);
+}
+
+/* ── Advanced links container ── */
+
+html[data-theme="dark"] .sunny-writing-advanced-links {
+  /* inherits, no override needed */
+}
+
+
+/* Tags chip row */
+.sunny-writing-tags-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.sunny-writing-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 8px;
+  background: var(--writing-hover);
+  color: var(--writing-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+}
+
+.sunny-writing-tag-chip-remove {
+  border: 0;
+  background: transparent;
+  color: var(--writing-muted);
+  font-size: var(--text-sm);
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sunny-writing-tag-chip-remove:hover {
+  color: var(--tone-danger-text);
+}
+
+.sunny-writing-tag-chip-add {
+  border: 1px dashed var(--writing-rule);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--writing-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+}
+
+.sunny-writing-tag-chip-add:hover {
+  border-color: var(--writing-accent);
+  color: var(--writing-accent);
+}
+
+.sunny-writing-tag-chip-input {
+  width: 6rem;
+  border: 1px solid var(--writing-accent);
+  border-radius: 8px;
+  background: var(--writing-control-bg);
+  color: var(--writing-text);
+  font-family: var(--sunny-font-sans);
+  font-size: var(--text-xs);
+  padding: 0.15rem 0.5rem;
+  outline: none;
+}
+
+/* Empty field muted text */
+.sunny-writing-empty-muted {
+  display: block;
+  color: var(--writing-muted);
+  font-size: var(--text-sm-compact);
+  font-style: italic;
+  opacity: 0.55;
+  padding: 0.35rem 0;
+}
+
+/* ── Bubble menu (dark) ── */
+
+html[data-theme="dark"] .sunny-rich-editor-bubble-menu {
+  background: var(--surface-strong);
+  border-color: var(--border);
+  box-shadow: var(--writing-shadow-overlay);
+}
+
+html[data-theme="dark"] .sunny-rich-editor-bubble-menu button {
+  color: var(--border);
+}
+
+html[data-theme="dark"] .sunny-rich-editor-bubble-menu button:hover,
+html[data-theme="dark"] .sunny-rich-editor-bubble-menu button[aria-pressed="true"] {
+  background: var(--border);
+  color: var(--surface-tint);
+}
+
+html[data-theme="dark"] .sunny-rich-editor-bubble-divider {
+  background: var(--border);
+}
+
+/* ── Insert menu (dark) ── */
+
+html[data-theme="dark"] .sunny-rich-editor-insert-menu {
+  background: var(--surface-strong);
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .sunny-rich-editor-insert-menu button {
+  color: var(--border);
+}
+
+html[data-theme="dark"] .sunny-rich-editor-insert-menu button:hover {
+  background: var(--surface-strong);
+}
+
+/* ── AI trigger button (dark) ── */
+
+html[data-theme="dark"] .sunny-rich-editor-ai-trigger {
+  color: var(--border);
+}
+
+html[data-theme="dark"] .sunny-rich-editor-ai-trigger:hover {
+  color: var(--surface-tint);
+}
+
+/* ── Pin button icon color (dark) ── */
+
+html[data-theme="dark"] .sunny-writing-meta-pin-button .sunny-dashboard-nav-icon {
+  color: inherit;
+}
+
+.sunny-writing-create-dropdown {
+  position: relative;
+}
+
+.sunny-writing-create-menu,
+.sunny-rich-editor-insert-menu,
+.sunny-writing-document-menu {
+  position: absolute;
+  z-index: 20;
+  display: grid;
+  gap: 0.15rem;
+  min-width: 8.5rem;
+  border: 1px solid var(--writing-rule);
+  border-radius: 12px;
+  background: var(--writing-card-bg);
+  box-shadow: var(--writing-shadow);
+  padding: 0.35rem;
+}
+
+.sunny-writing-create-menu {
+  top: calc(100% + 0.35rem);
+  right: 0;
+}
+
+.sunny-writing-create-menu button,
+.sunny-rich-editor-insert-menu button,
+.sunny-writing-document-menu button {
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--writing-text);
+  font-size: var(--text-sm-compact);
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+}
+
+.sunny-writing-create-menu button:hover,
+.sunny-rich-editor-insert-menu button:hover,
+.sunny-writing-document-menu button:hover {
+  background: var(--writing-hover);
+}
+
+.sunny-writing-summary-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-top: 2rem;
+  margin-bottom: 0;
+}
+
+.sunny-writing-summary-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--writing-chrome-title);
+  font-family: var(--sunny-font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  outline: none;
+  resize: none;
+  min-height: 1.5rem;
+}
+
+.sunny-writing-summary-input::placeholder {
+  color: var(--writing-chrome-placeholder);
+}
+
+/* Summary ghost AI button — sparkle icon */
+.sunny-writing-summary-ai-ghost {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--writing-muted);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 180ms ease, background 180ms ease, color 180ms ease;
+  margin-top: 0.25rem;
+}
+
+.sunny-writing-summary-row:hover .sunny-writing-summary-ai-ghost,
+.sunny-writing-summary-ai-ghost:hover {
+  opacity: 1;
+}
+
+.sunny-writing-summary-ai-ghost:hover {
+  background: var(--writing-hover);
+  color: var(--writing-text);
+}
+
+.sunny-writing-summary-ai-ghost:disabled {
+  opacity: 0;
+  cursor: default;
+  pointer-events: none;
+}
+
+.sunny-writing-summary-ai-ghost .sunny-dashboard-nav-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.sunny-writing-focus-title {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunny-writing-panel-toggle {
+  position: absolute;
+  z-index: 5;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 1px solid var(--writing-rule);
+  border-radius: 12px;
+  background: var(--writing-card-bg);
+  box-shadow: var(--writing-shadow);
+  color: var(--writing-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  padding: 0.45rem 0.35rem;
+  writing-mode: vertical-rl;
+}
+
+.sunny-writing-panel-toggle.is-library {
+  left: 0.35rem;
+}
+
+.sunny-writing-panel-toggle.is-inspector {
+  right: 0.35rem;
+}
+
+.sunny-writing-inspector-section {
+  border-top: 1px solid var(--writing-rule);
+  padding-top: 0.65rem;
+}
+
+.sunny-writing-inspector-section summary {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--writing-text);
+  cursor: pointer;
+  font-size: var(--text-sm-compact);
+  font-weight: 600;
+  list-style: none;
+  margin-bottom: 0.55rem;
+  padding: 0.15rem 0.25rem;
+  border-radius: 4px;
+  transition: background 160ms ease;
+}
+
+.sunny-writing-inspector-section summary:hover {
+  background: var(--writing-hover);
+}
+
+.sunny-writing-inspector-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.sunny-writing-inspector-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 180ms ease;
+  color: var(--writing-muted);
+}
+
+.sunny-writing-inspector-chevron .sunny-dashboard-nav-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.sunny-writing-inspector-section[open] > summary .sunny-writing-inspector-chevron {
+  transform: rotate(0deg);
+}
+
+.sunny-writing-inspector-section:not([open]) > summary .sunny-writing-inspector-chevron {
+  transform: rotate(-90deg);
+}
+
+.sunny-writing-inspector-section-body {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sunny-writing-preview-pane,
+.sunny-writing-editor-pane.is-focus-mode {
+  min-width: 0;
+}
+
+.sunny-writing-preview-canvas {
+  min-height: 0;
+  overflow-y: auto;
+  padding: clamp(2rem, 5vh, 3.4rem) clamp(1.25rem, 4vw, 3.75rem) 5rem;
+}
+
+.sunny-writing-preview-article h1 {
+  margin: 0 0 1rem;
+  font-size: clamp(2.25rem, 4vw, 2.75rem);
+  line-height: 1.1;
+}
+
+.sunny-writing-preview-summary {
+  color: var(--writing-muted);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.sunny-writing-inline-error {
+  margin: 0;
+  padding: 0.35rem 1.15rem;
+  color: var(--tone-danger-text);
+  font-size: var(--text-sm-compact);
+}
+
+.sunny-writing-document-menu .is-danger {
+  color: var(--tone-danger-text);
+}
+
+.sunny-writing-empty-state.is-library {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.5rem 0.75rem;
+  text-align: center;
+}

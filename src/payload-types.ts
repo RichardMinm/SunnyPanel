@@ -603,6 +603,10 @@ export interface Page {
    */
   slug: string;
   /**
+   * 可选。写一句摘要，便于在列表和预览中快速识别页面。
+   */
+  summary?: string | null;
+  /**
    * Dashboard Writing 使用的结构化富文本内容。
    */
   contentRich:
@@ -1532,6 +1536,7 @@ export interface PagesSelect<T extends boolean = true> {
   title?: T;
   generateSlug?: T;
   slug?: T;
+  summary?: T;
   contentRich?: T;
   contentText?: T;
   contentExcerpt?: T;

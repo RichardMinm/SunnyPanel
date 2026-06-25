@@ -55,5 +55,8 @@ export type WritingSaveState = "dirty" | "error" | "idle" | "saving" | "saved";
 export type WritingSaveStatusSnapshot = {
   error: null | string;
   isDirty: boolean;
+  lastEdited?: null | string;
+  readingMinutes?: number;
   saveState: WritingSaveState;
+  wordCount?: number;
 };

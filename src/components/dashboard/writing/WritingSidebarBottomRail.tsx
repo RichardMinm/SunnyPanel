@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 
+import { DashboardSettingsMenu } from "@/components/dashboard/DashboardSettingsMenu";
 import { DashboardIcon } from "@/components/dashboard/icons";
 import {
   AppDropdownMenu,
   AppDropdownMenuItem,
   AppDropdownMenuLabel,
 } from "@/components/primitives/AppDropdownMenu";
+import { useSitePreferences } from "@/components/shared/SitePreferencesProvider";
 import {
   dashboardContentCollections,
   dashboardContentLabels,
@@ -25,6 +27,7 @@ const createOptions = dashboardContentCollections.map((collection) => ({
 }));
 
 export function WritingSidebarBottomRail() {
+  const { locale, palette } = useSitePreferences();
   const {
     activeCategoryId,
     createCategory,
@@ -46,6 +49,7 @@ export function WritingSidebarBottomRail() {
   } = useWritingLibraryFiltersContext();
 
   const [createCategoryBusy, setCreateCategoryBusy] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleCreateCategory = async (
     input: Parameters<typeof createCategory>[0],
@@ -72,74 +76,100 @@ export function WritingSidebarBottomRail() {
   return (
     <>
       <div className="sunny-writing-sidebar-bottom-rail">
-        <button
-          className="sunny-dashboard-sidebar-action"
-          onClick={() => setCreateCategoryOpen(true)}
-          type="button"
-        >
-          <span className="sunny-dashboard-sidebar-icon">
-            <DashboardIcon name="plus" />
-          </span>
-          <span className="sunny-dashboard-sidebar-label">新建文档集</span>
-        </button>
-        <AppDropdownMenu
-          align="start"
-          className="sunny-writing-menu"
-          side="top"
-          sideOffset={6}
-          trigger={
-            <>
+        <div className="sunny-writing-rail-section">
+          <span className="sunny-writing-rail-section-label">内容</span>
+          <div className="sunny-writing-rail-section-actions">
+            <button
+              className="sunny-dashboard-sidebar-action"
+              onClick={() => setCreateCategoryOpen(true)}
+              type="button"
+            >
               <span className="sunny-dashboard-sidebar-icon">
                 <DashboardIcon name="plus" />
               </span>
-              <span className="sunny-dashboard-sidebar-label">新建</span>
-            </>
-          }
-          triggerAriaLabel="新建内容"
-          triggerClassName="sunny-dashboard-sidebar-action"
-        >
-          <AppDropdownMenuLabel>新建</AppDropdownMenuLabel>
-          {createOptions.map((option) => (
-            <AppDropdownMenuItem
-              key={option.collection}
-              onSelect={() => handleCreateDocument(option.collection)}
+              <span className="sunny-dashboard-sidebar-label">新建文档集</span>
+            </button>
+            <AppDropdownMenu
+              align="start"
+              className="sunny-writing-menu"
+              side="top"
+              sideOffset={6}
+              trigger={
+                <>
+                  <span className="sunny-dashboard-sidebar-icon">
+                    <DashboardIcon name="plus" />
+                  </span>
+                  <span className="sunny-dashboard-sidebar-label">新建</span>
+                </>
+              }
+              triggerAriaLabel="新建内容"
+              triggerClassName="sunny-dashboard-sidebar-action"
             >
-              {option.label}
-            </AppDropdownMenuItem>
-          ))}
-        </AppDropdownMenu>
-        <button
-          aria-pressed={draftFilter}
-          className={`sunny-dashboard-sidebar-action${draftFilter ? " is-active" : ""}`}
-          onClick={toggleDraftFilter}
-          type="button"
-        >
-          <span className="sunny-dashboard-sidebar-icon">
-            <DashboardIcon name="archive" />
-          </span>
-          <span className="sunny-dashboard-sidebar-label">草稿</span>
-        </button>
-        <button
-          aria-pressed={showArchivedCategories}
-          className={`sunny-dashboard-sidebar-action${showArchivedCategories ? " is-active" : ""}`}
-          onClick={handleToggleArchivedCategories}
-          type="button"
-        >
-          <span className="sunny-dashboard-sidebar-icon">
-            <DashboardIcon name="layers" />
-          </span>
-          <span className="sunny-dashboard-sidebar-label">归档</span>
-        </button>
-        <button
-          className="sunny-dashboard-sidebar-action"
-          onClick={() => setSearchOpen(true)}
-          type="button"
-        >
-          <span className="sunny-dashboard-sidebar-icon">
-            <DashboardIcon name="search" />
-          </span>
-          <span className="sunny-dashboard-sidebar-label">搜索</span>
-        </button>
+              <AppDropdownMenuLabel>新建</AppDropdownMenuLabel>
+              {createOptions.map((option) => (
+                <AppDropdownMenuItem
+                  key={option.collection}
+                  onSelect={() => handleCreateDocument(option.collection)}
+                >
+                  {option.label}
+                </AppDropdownMenuItem>
+              ))}
+            </AppDropdownMenu>
+            <button
+              aria-pressed={draftFilter}
+              className={`sunny-dashboard-sidebar-action${draftFilter ? " is-active" : ""}`}
+              onClick={toggleDraftFilter}
+              type="button"
+            >
+              <span className="sunny-dashboard-sidebar-icon">
+                <DashboardIcon name="archive" />
+              </span>
+              <span className="sunny-dashboard-sidebar-label">草稿</span>
+            </button>
+            <button
+              aria-pressed={showArchivedCategories}
+              className={`sunny-dashboard-sidebar-action${showArchivedCategories ? " is-active" : ""}`}
+              onClick={handleToggleArchivedCategories}
+              type="button"
+            >
+              <span className="sunny-dashboard-sidebar-icon">
+                <DashboardIcon name="layers" />
+              </span>
+              <span className="sunny-dashboard-sidebar-label">归档</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="sunny-writing-rail-section">
+          <span className="sunny-writing-rail-section-label">工具</span>
+          <div className="sunny-writing-rail-section-actions">
+            <button
+              className="sunny-dashboard-sidebar-action"
+              onClick={() => setSearchOpen(true)}
+              type="button"
+            >
+              <span className="sunny-dashboard-sidebar-icon">
+                <DashboardIcon name="search" />
+              </span>
+              <span className="sunny-dashboard-sidebar-label">搜索</span>
+            </button>
+            <DashboardSettingsMenu
+              locale={locale}
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+              palette={palette}
+              triggerClassName="sunny-dashboard-sidebar-action sunny-dashboard-sidebar-settings-trigger"
+              trigger={
+                <>
+                  <span className="sunny-dashboard-sidebar-icon">
+                    <DashboardIcon name="settings" />
+                  </span>
+                  <span className="sunny-dashboard-sidebar-label">设置</span>
+                </>
+              }
+            />
+          </div>
+        </div>
       </div>
 
       <WritingLibrarySearchDialog

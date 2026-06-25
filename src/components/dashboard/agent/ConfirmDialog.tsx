@@ -7,6 +7,7 @@ export type ConfirmDialogProps = {
   title: string;
   message: string;
   confirmLabel: string;
+  cancelLabel?: string;
   variant: "warning" | "danger";
   busy?: boolean;
   onConfirm: () => void;
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   title,
   message,
   confirmLabel,
+  cancelLabel = "取消",
   variant,
   busy = false,
   onConfirm,
@@ -25,6 +27,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <AppDialog
+      cancelLabel={cancelLabel}
       confirmLabel={confirmLabel}
       confirmVariant={variant === "danger" ? "danger" : "primary"}
       description={message}

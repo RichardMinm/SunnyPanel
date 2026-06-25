@@ -19,6 +19,7 @@ export type AppDropdownMenuProps = {
   sideOffset?: number;
   triggerAriaLabel?: string;
   triggerClassName?: string;
+  triggerTitle?: string;
 };
 
 export function AppDropdownMenu({
@@ -35,6 +36,7 @@ export function AppDropdownMenu({
   sideOffset = 6,
   triggerAriaLabel,
   triggerClassName,
+  triggerTitle,
 }: AppDropdownMenuProps) {
   return (
     <DropdownMenuPrimitive.Root modal={modal} onOpenChange={onOpenChange} open={open}>
@@ -44,6 +46,7 @@ export function AppDropdownMenu({
           aria-label={triggerAriaLabel}
           className={triggerClassName}
           onClick={onTriggerClick}
+          title={triggerTitle}
         >
           {trigger}
         </button>

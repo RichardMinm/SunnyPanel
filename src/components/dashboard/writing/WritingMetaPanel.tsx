@@ -7,11 +7,8 @@ import { DashboardIcon } from "@/components/dashboard/icons";
 import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 
 import { WritingInspectorSection } from "./WritingInspectorSection";
-import { WritingOutlinePanel } from "./WritingOutlinePanel";
 import { WritingPublishControls } from "./WritingPublishControls";
-import { WritingStats } from "./WritingStats";
 import type { WritingMetadataDraft } from "./writing-metadata";
-import { showsSummaryField } from "./writing-metadata";
 import type {
   WritingDocument,
   WritingDraft,
@@ -29,7 +26,6 @@ type WritingMetaPanelProps = {
     key: Key,
     value: WritingMetadataDraft[Key],
   ) => void;
-  onUpdateSummary?: (summary: string) => void;
   saveState: WritingSaveState;
 };
 
@@ -123,7 +119,6 @@ export function WritingMetaPanel({
   onPin,
   onUnpublish,
   onUpdateMetadata,
-  onUpdateSummary,
   saveState,
 }: WritingMetaPanelProps) {
   const title = useMemo(() => {
@@ -181,70 +176,60 @@ export function WritingMetaPanel({
       </div>
 
       <WritingInspectorSection defaultOpen={false} title="基本信息">
-        {document.collection === "updates" ? (
+        {(document.collection === "posts" || document.collection === "pages") ? (
           <label className="sunny-writing-field">
-            <span>类型</span>
-            <select
-              onChange={(event) =>
-                onUpdateMetadata("type", event.target.value as WritingMetadataDraft["type"])
-              }
-              value={draft.metadata.type}
-            >
-              {updateTypes.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-
-        {document.collection === "updates" ? (
-          <label className="sunny-writing-field">
-            <span>关联链接</span>
-            {draft.metadata.link ? (
-              <input
-                onChange={(event) => onUpdateMetadata("link", event.target.value)}
-                placeholder="https://..."
-                value={draft.metadata.link}
-              />
-            ) : (
-              <EmptyMuted>暂无所属层级</EmptyMuted>
-            )}
-          </label>
-        ) : null}
-      </WritingInspectorSection>
-
-      <WritingInspectorSection defaultOpen={false} title="发布设置">
-        <WritingPublishControls
-          document={document}
-          onUnpublish={onUnpublish}
-          saveState={saveState}
-        />
-      </WritingInspectorSection>
-
-      <WritingInspectorSection defaultOpen={false} sectionId="outline" title="内容结构">
-        {showsSummaryField(document.collection) && onUpdateSummary ? (
-          <label className="sunny-writing-field">
-            <span>摘要</span>
-            <textarea
-              className="sunny-writing-summary-input"
-              onChange={(event) => onUpdateSummary(event.target.value)}
-              placeholder="写一句摘要，帮助读者快速理解这篇内容..."
-              rows={3}
-              value={draft.summary}
+            <span>Slug</span>
+            <input
+              onChange={(event) => onUpdateMetadata("slug", event.target.value)}
+              placeholder="my-writing"
+              value={draft.metadata.slug}
             />
           </label>
         ) : null}
 
-        {document.collection === "posts" ? (
-          <label className="sunny-writing-field">
-            <span>标签</span>
-            <TagsChipInput
-              onChange={(value) => onUpdateMetadata("tags", value)}
-              value={draft.metadata.tags}
-            />
-          </label>
+        <label className="sunny-writing-field">
+          <span>可见性</span>
+          <select
+            onChange={(event) =>
+              onUpdateMetadata("visibility", event.target.value as WritingMetadataDraft["visibility"])
+            }
+            value={draft.metadata.visibility}
+          >
+            <option value="private">私有</option>
+            <option value="public">公开</option>
+          </select>
+        </label>
+
+        {document.collection === "updates" ? (
+          <>
+            <label className="sunny-writing-field">
+              <span>类型</span>
+              <select
+                onChange={(event) =>
+                  onUpdateMetadata("type", event.target.value as WritingMetadataDraft["type"])
+                }
+                value={draft.metadata.type}
+              >
+                {updateTypes.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="sunny-writing-field">
+              <span>关联链接</span>
+              {draft.metadata.link ? (
+                <input
+                  onChange={(event) => onUpdateMetadata("link", event.target.value)}
+                  placeholder="https://..."
+                  value={draft.metadata.link}
+                />
+              ) : (
+                <EmptyMuted>暂无链接</EmptyMuted>
+              )}
+            </label>
+          </>
         ) : null}
 
         {document.collection === "notes" ? (
@@ -278,40 +263,47 @@ export function WritingMetaPanel({
             </label>
           </>
         ) : null}
+      </WritingInspectorSection>
 
-        <WritingOutlinePanel outline={document.contentOutline} />
-        <WritingStats
-          contentJson={draft.contentRich}
-          lastEdited={document.updatedAt}
-          title={draft.title}
+      <WritingInspectorSection defaultOpen={false} title="发布设置">
+        <WritingPublishControls
+          document={document}
+          onUnpublish={onUnpublish}
+          saveState={saveState}
         />
       </WritingInspectorSection>
 
+      <WritingInspectorSection defaultOpen={false} title="标签">
+        {document.collection === "posts" ? (
+          <TagsChipInput
+            onChange={(value) => onUpdateMetadata("tags", value)}
+            value={draft.metadata.tags}
+          />
+        ) : (
+          <EmptyMuted>当前内容类型不支持标签</EmptyMuted>
+        )}
+      </WritingInspectorSection>
+
+      <WritingInspectorSection defaultOpen={false} title="版本历史">
+        <EmptyMuted>版本历史即将推出</EmptyMuted>
+      </WritingInspectorSection>
+
+      <WritingInspectorSection defaultOpen={false} title="关联">
+        <div className="sunny-writing-related-links">
+          <Link className="sunny-writing-related-link" href="/dashboard?mode=checklist">
+            关联清单
+          </Link>
+          <Link className="sunny-writing-related-link" href="/dashboard?mode=plans">
+            关联计划
+          </Link>
+          <Link className="sunny-writing-related-link" href="/dashboard?mode=timeline">
+            关联时间线
+          </Link>
+        </div>
+        <EmptyMuted>关联功能即将推出，可先通过 Agent 工作流生成</EmptyMuted>
+      </WritingInspectorSection>
+
       <WritingInspectorSection defaultOpen={false} sectionId="advanced" title="高级设置">
-        <label className="sunny-writing-field">
-          <span>可见性</span>
-          <select
-            onChange={(event) =>
-              onUpdateMetadata("visibility", event.target.value as WritingMetadataDraft["visibility"])
-            }
-            value={draft.metadata.visibility}
-          >
-            <option value="private">私有</option>
-            <option value="public">公开</option>
-          </select>
-        </label>
-
-        {(document.collection === "posts" || document.collection === "pages") ? (
-          <label className="sunny-writing-field">
-            <span>Slug</span>
-            <input
-              onChange={(event) => onUpdateMetadata("slug", event.target.value)}
-              placeholder="my-writing"
-              value={draft.metadata.slug}
-            />
-          </label>
-        ) : null}
-
         <div className="sunny-writing-advanced-links">
           <Link className="sunny-writing-admin-link" href={document.advancedAdminHref}>
             高级 Admin

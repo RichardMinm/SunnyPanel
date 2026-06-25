@@ -1,0 +1,360 @@
+/* ── 3. Embedded library (sidebar) ── */
+
+.sunny-writing-library.is-embedded {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.35rem;
+  overflow: hidden;
+  border-right: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.sunny-writing-library.is-embedded .sunny-writing-library-head {
+  padding-inline: 0.15rem;
+}
+
+.sunny-writing-library.is-embedded .sunny-writing-document-list {
+  padding-inline: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.sunny-writing-library-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  min-width: 0;
+  padding-block: 0.15rem 0.35rem;
+}
+
+.sunny-writing-library-space-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  color: color-mix(in srgb, var(--writing-text) 78%, var(--writing-muted));
+}
+
+.sunny-writing-library-space-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  color: var(--writing-muted);
+  flex: 0 0 auto;
+}
+
+.sunny-writing-library-space-title {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunny-writing-library-eyebrow {
+  margin: 0;
+  color: var(--writing-muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.sunny-writing-document-list {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.1rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+/* ── 4. Library tree (Outline-style) ── */
+
+.sunny-writing-tree-node {
+  --writing-tree-indent: 1.35rem;
+  display: grid;
+  gap: 0.05rem;
+}
+
+.sunny-writing-tree-row-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: 0.375rem;
+}
+
+.sunny-writing-tree-row-wrap.is-active {
+  background: color-mix(in srgb, var(--writing-text) 8%, transparent);
+}
+
+.sunny-writing-tree-row-wrap:hover:not(.is-active) {
+  background: color-mix(in srgb, var(--writing-text) 4%, transparent);
+}
+
+.sunny-writing-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--writing-text) 82%, var(--writing-muted));
+  font-family: var(--sunny-font-sans);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 0.3rem 0.35rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sunny-writing-tree-row-wrap.is-folder .sunny-writing-tree-row {
+  padding-right: 3.25rem;
+}
+
+.sunny-writing-tree-row.is-document {
+  color: color-mix(in srgb, var(--writing-text) 74%, var(--writing-muted));
+  font-weight: 480;
+}
+
+.sunny-writing-tree-row-wrap.is-document .sunny-writing-tree-row {
+  padding-left: 0.55rem;
+  padding-right: 2rem;
+}
+
+.sunny-writing-tree-row-wrap:hover .sunny-writing-tree-row.is-folder,
+.sunny-writing-tree-row-wrap:has(.sunny-writing-tree-action.is-open) .sunny-writing-tree-row.is-folder {
+  padding-right: 4.5rem;
+}
+
+.sunny-writing-tree-row-wrap:hover .sunny-writing-tree-row.is-document,
+.sunny-writing-tree-row-wrap:has(.sunny-writing-tree-action.is-open) .sunny-writing-tree-row.is-document {
+  padding-right: 2.35rem;
+}
+
+.sunny-writing-tree-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: color-mix(in srgb, var(--writing-muted) 88%, transparent);
+  flex: 0 0 auto;
+  transition: transform 140ms ease;
+}
+
+.sunny-writing-tree-chevron[data-open="false"] {
+  transform: rotate(-90deg);
+}
+
+.sunny-writing-tree-label,
+.sunny-writing-document-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunny-writing-tree-row-actions {
+  position: absolute;
+  top: 50%;
+  right: 0.15rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.05rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 140ms ease;
+}
+
+.sunny-writing-tree-row-wrap:hover .sunny-writing-tree-row-actions,
+.sunny-writing-tree-row-wrap:has(.sunny-writing-tree-action.is-open) .sunny-writing-tree-row-actions,
+.sunny-writing-tree-row-wrap:focus-within .sunny-writing-tree-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sunny-writing-tree-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--writing-muted);
+  cursor: pointer;
+}
+
+.sunny-writing-tree-action:hover,
+.sunny-writing-tree-action.is-open {
+  background: color-mix(in srgb, var(--writing-text) 6%, transparent);
+  color: var(--writing-text);
+}
+
+.sunny-writing-tree-children {
+  display: grid;
+  gap: 0.05rem;
+  margin-left: 0.55rem;
+  padding-left: var(--writing-tree-indent);
+  border-left: 1px solid color-mix(in srgb, var(--writing-muted) 16%, transparent);
+}
+
+.sunny-writing-tree-item {
+  min-width: 0;
+}
+
+.sunny-writing-tree-empty {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: 0.15rem;
+  padding: 0.25rem 0.35rem 0.25rem 0.35rem;
+  color: var(--writing-muted);
+  font-size: var(--text-2xs);
+}
+
+.sunny-writing-tree-empty-create {
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sunny-writing-tree-empty-create:hover {
+  text-decoration: underline;
+}
+
+/* Legacy aliases kept for dark-mode + rename input hooks */
+.sunny-writing-category-group,
+.sunny-writing-uncategorized-group {
+  display: contents;
+}
+
+.sunny-writing-library-footer {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: auto;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--writing-rule);
+}
+
+.sunny-writing-library-footer-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  border: 1px solid var(--writing-rule);
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--writing-text);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+}
+
+.sunny-writing-library-footer-action:hover,
+.sunny-writing-library-footer-action.is-active {
+  background: var(--writing-hover);
+}
+
+.sunny-writing-create-category-dialog {
+  display: grid;
+  gap: 1rem;
+}
+
+.sunny-writing-create-category-field {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.sunny-writing-create-category-field > span,
+.sunny-writing-create-category-field > legend {
+  color: var(--writing-text);
+  font-size: var(--text-sm-compact);
+  font-weight: 600;
+}
+
+.sunny-writing-create-category-field input {
+  min-height: 2.25rem;
+  border: 1px solid var(--writing-rule);
+  border-radius: 0.55rem;
+  background: var(--writing-control-bg);
+  color: var(--writing-text);
+  font-size: var(--text-sm-compact);
+  padding: 0 0.65rem;
+}
+
+.sunny-writing-create-category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.sunny-writing-create-category-grid.is-tints {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sunny-writing-create-category-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  min-height: 2rem;
+  border: 1px solid var(--writing-rule);
+  border-radius: 0.55rem;
+  background: transparent;
+  color: var(--writing-text);
+  font-size: var(--text-2xs);
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+}
+
+.sunny-writing-create-category-chip[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--writing-category-tint, var(--accent)) 36%, transparent);
+  background: color-mix(in srgb, var(--writing-category-tint, var(--accent)) 10%, transparent);
+}
+
+.sunny-writing-create-category-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--writing-category-tint, var(--accent));
+}
+
+.sunny-writing-library-error {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 0.75rem;
+}
+
+.sunny-writing-library-error button {
+  justify-self: start;
+  border: 0;
+  border-radius: 0.375rem;
+  background: var(--writing-hover);
+  color: var(--writing-text);
+  cursor: pointer;
+  font: inherit;
+  padding: 0.35rem 0.75rem;
+}

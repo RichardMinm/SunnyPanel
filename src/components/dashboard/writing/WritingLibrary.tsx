@@ -26,10 +26,12 @@ export function WritingLibrary({ onClose, variant = "column" }: WritingLibraryPr
     createDocument,
     documents,
     duplicateDocument,
+    error,
     handleDeleteRequest,
     handleSelectDocument,
     isLoading,
     isLoadingCategories,
+    loadDocuments,
     moveDocumentToCategory,
     renameDocument,
     selectedDocument,
@@ -37,7 +39,7 @@ export function WritingLibrary({ onClose, variant = "column" }: WritingLibraryPr
     updateCategory,
   } = useWritingDocumentsContext();
 
-  const { draftFilter, showArchivedCategories } = useWritingLibraryFiltersContext();
+  const { draftFilter, setCreateCategoryOpen, showArchivedCategories } = useWritingLibraryFiltersContext();
 
   const filteredDocuments = useMemo(() => {
     if (!draftFilter) {
@@ -58,12 +60,18 @@ export function WritingLibrary({ onClose, variant = "column" }: WritingLibraryPr
   );
 
   const hasDocuments = filteredDocuments.length > 0;
-  const showEmptyState =
+  const showGlobalEmptyState =
     !isLoading &&
     !isLoadingCategories &&
     !hasDocuments &&
     visibleCategories.length === 0 &&
-    draftFilter;
+    !showArchivedCategories;
+  const showDraftEmptyState =
+    !isLoading &&
+    !isLoadingCategories &&
+    !hasDocuments &&
+    draftFilter &&
+    !showGlobalEmptyState;
 
   const handleCreateDocument = (collection: DashboardContentCollection) => {
     void createDocument(collection, { categoryId: activeCategoryId });
@@ -97,12 +105,22 @@ export function WritingLibrary({ onClose, variant = "column" }: WritingLibraryPr
       <WritingLibraryHeader onClose={onClose} showClose={Boolean(onClose)} />
 
       <div className="sunny-writing-document-list" role="list">
-        {isLoading || isLoadingCategories ? (
+        {error && !isLoading ? (
+          <div className="sunny-writing-library-error">
+            <p className="sunny-writing-inline-error">{error}</p>
+            <button onClick={() => void loadDocuments()} type="button">
+              重试
+            </button>
+          </div>
+        ) : isLoading || isLoadingCategories ? (
           <p className="sunny-writing-empty">正在整理内容...</p>
-        ) : showEmptyState ? (
+        ) : showGlobalEmptyState ? (
+          <WritingEmptyState onCreateCategory={() => setCreateCategoryOpen(true)} variant="library" />
+        ) : showDraftEmptyState ? (
           <WritingEmptyState
             collection={selectedDocument?.collection ?? "posts"}
             onCreate={handleCreateDocument}
+            variant="draft-filter"
           />
         ) : (
           <>
@@ -115,6 +133,7 @@ export function WritingLibrary({ onClose, variant = "column" }: WritingLibraryPr
                 onArchiveCategory={handleArchiveCategory}
                 onRenameCategory={handleRenameCategory}
                 onSelectCategory={() => setActiveCategoryId(category.id)}
+                onCreateDocument={handleCreateDocument}
               />
             ))}
             {!showArchivedCategories ? (
