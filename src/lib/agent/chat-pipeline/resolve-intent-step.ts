@@ -1,7 +1,12 @@
+import { appendFileSync } from "node:fs";
+
 import { recordAgentConfirmationDecision, recordBatchConfirmationDecision } from "@/lib/agent/audit";
+import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/heuristics/knowledge";
 import {
+  buildAnswerModelUnavailableMessage,
   generateStreamingReply,
   type GenerateStreamingReplyArgs,
+  type GenerateStreamingReplyResult,
   type StreamTokenCallback,
 } from "@/lib/agent/client";
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
@@ -14,8 +19,18 @@ import {
 } from "@/lib/agent/chat-pipeline/confirmation-step";
 import { buildIntentTraceSummary } from "@/lib/agent/chat-pipeline/intent-trace";
 import { resolveAgentIntent, type AgentModelIntentResolver } from "@/lib/agent/intent-resolution";
+import { isConversationalIntent } from "@/lib/agent/schemas";
+import {
+  shouldTrustOrchestratorPreResolve,
+  type OrchestratorPlanSource,
+} from "@/lib/agent/orchestration/plan-source";
 import { logAgentEvent } from "@/lib/agent/logger";
 import type { AgentArbitrationDecision } from "@/lib/agent/intent/arbitration";
+import type { LLMRouterOutput } from "../router/llm-router-schema";
+import type { ToolPlan } from "../plan/tool-plan";
+import { normalizeRouterOutput } from "@/lib/agent/router/normalize-router-output";
+import { agentRouterToLLMRouter } from "@/lib/agent/router/llm-router-to-agent-router";
+import type { AgentRouterOutput } from "@/lib/agent/router/types";
 import {
   buildCognitiveAdvisoryAnswerWithModel,
   shouldUseCognitiveAdvisory,
@@ -45,22 +60,24 @@ export type IntentResolution = {
   arbitration?: AgentArbitrationDecision;
   engine: AgentEngine;
   intent: AgentIntent;
+  llmRouterOutput?: LLMRouterOutput;
+  routerOutput?: AgentRouterOutput;
+  toolPlan?: ToolPlan;
   tokenUsage?: AgentChatResponse["tokenUsage"];
 };
 
 export type ResolveIntentStepParams = {
   confirmationSignals: ConfirmationSignals;
   context: BuildContextStepResult["context"];
+  conversationState?: import("@/lib/agent/conversation/types").AgentConversationState | null;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void;
-  generateStreamingReplyFn?: (args: GenerateStreamingReplyArgs) => Promise<{
-    tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
-    text: string;
-  } | null>;
+  generateStreamingReplyFn?: (args: GenerateStreamingReplyArgs) => Promise<GenerateStreamingReplyResult | null>;
   intentModelEngine: AgentEngine;
   message: string;
   modelResolver: AgentModelIntentResolver;
+  orchestratorPlanSource?: null | OrchestratorPlanSource;
   pendingAction: null | PendingAction;
   preResolvedIntent?: AgentIntent | null;
   recordAgentConfirmationDecisionFn?: typeof recordAgentConfirmationDecision;
@@ -79,6 +96,7 @@ export type ResolveIntentStepParams = {
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { id: number };
+  userPreferences?: import("@/lib/agent/user-preferences").UserPreferences | null;
   workbenchMode?: AgentWorkbenchMode | null;
   writingAssistRunner?: (request: WritingAssistRequest) => Promise<WritingAssistResult>;
 };
@@ -147,6 +165,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
   const {
     confirmationSignals,
     context,
+    conversationState = null,
     emitStatus,
     emitToken,
     emitUsage,
@@ -154,6 +173,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     intentModelEngine,
     message,
     modelResolver,
+    orchestratorPlanSource,
     pendingAction,
     preResolvedIntent,
     recordAgentConfirmationDecisionFn = recordAgentConfirmationDecision,
@@ -166,6 +186,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     tokenUsage: tokenUsageIn,
     trace,
     user,
+    userPreferences,
     workbenchMode,
     writingAssistRunner,
   } = params;
@@ -181,6 +202,25 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     fallbackText?: string;
     intent: AgentIntent;
   }): Promise<undefined | string> => {
+    if (
+      intent.intent === "answer_question" &&
+      intent.args.openDomainTopic
+    ) {
+      return undefined;
+    }
+
+    if (
+      intent.intent === "answer_question" &&
+      intent.args.answer.trim().length === 0 &&
+      !intent.args.openDomainTopic
+    ) {
+      return undefined;
+    }
+
+    if (isConversationalIntent(intent.intent) && "answer" in intent.args && intent.args.answer.trim().length === 0) {
+      return undefined;
+    }
+
     if (!shouldUseCognitiveAdvisory({ intent, message, pendingAction })) {
       return fallbackText;
     }
@@ -509,9 +549,12 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     };
   }
 
-  if (preResolvedIntent) {
+  if (
+    preResolvedIntent &&
+    shouldTrustOrchestratorPreResolve(preResolvedIntent, orchestratorPlanSource)
+  ) {
     stream?.progress({
-      detail: `编排器已给出 ${preResolvedIntent.intent}，跳过重复 LLM 仲裁。`,
+      detail: `编排器已给出 ${preResolvedIntent.intent}（source=${orchestratorPlanSource ?? "llm"}），跳过重复 LLM 仲裁。`,
       message: "使用编排预解析意图",
       stageId: "stage-arbitration",
     });
@@ -548,13 +591,21 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
         fallbackText: preResolvedText,
         intent: preResolvedIntent,
       });
+      let preResolvedStreamedReply = "";
       const replyResult = await generateStreamingReplyFn({
         context,
         groundedAnswer,
         history: resolvedHistory,
         message,
-        onToken: (token) => emitToken(token, 'response'),
+        onToken: (token) => {
+          preResolvedStreamedReply += token;
+          emitToken(token, 'response');
+        },
       });
+      const preResolvedOpenTopic =
+        preResolvedIntent.intent === "answer_question"
+          ? preResolvedIntent.args.openDomainTopic ?? null
+          : null;
       if (replyResult && replyResult.text.trim().length > 0) {
         preResolvedIntent.reply = replyResult.text;
         tokenUsage = {
@@ -565,13 +616,33 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
           providerOutputTokens: replyResult.tokenUsage.providerOutputTokens,
           source: replyResult.tokenUsage.source,
         };
-      } else {
-        // Fallback: stream pre-resolved text word by word when LLM is unavailable
-        if (typeof groundedAnswer === "string" && groundedAnswer.length > 0) {
-          for (const token of splitIntoWordTokens(groundedAnswer)) {
-            emitToken(token, 'response');
-            await new Promise((r) => setTimeout(r, 6));
-          }
+      } else if (preResolvedStreamedReply.trim().length > 0) {
+        preResolvedIntent.reply = preResolvedStreamedReply.trim();
+      } else if (
+        typeof groundedAnswer === "string" &&
+        groundedAnswer.trim().length > 0 &&
+        !preResolvedOpenTopic
+      ) {
+        preResolvedIntent.reply = groundedAnswer;
+        for (const token of splitIntoWordTokens(groundedAnswer)) {
+          emitToken(token, 'response');
+          await new Promise((r) => setTimeout(r, 6));
+        }
+      } else if (!preResolvedIntent.reply?.trim() && preResolvedIntent.intent === "answer_question") {
+        const parsedDefinition = parseDefinitionQuestionIntent(message);
+        const openTopic =
+          preResolvedIntent.args.openDomainTopic ??
+          (parsedDefinition?.intent === "answer_question"
+            ? parsedDefinition.args.openDomainTopic ?? null
+            : null);
+        const fallbackText = buildAnswerModelUnavailableMessage(
+          openTopic,
+          replyResult?.failureHttpStatus,
+        );
+        preResolvedIntent.reply = fallbackText;
+        for (const token of splitIntoWordTokens(fallbackText)) {
+          emitToken(token, 'response');
+          await new Promise((r) => setTimeout(r, 6));
         }
       }
       stream?.complete("stage-response", "回复已生成");
@@ -750,14 +821,28 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     status: "running",
     title: "正在判断你的真实意图",
   });
-  const resolution = await resolveAgentIntent({
+  const resolved = await resolveAgentIntent({
     context,
+    conversationState,
     history: resolvedHistory,
     intentModelEngine,
     message,
     modelResolver,
     pendingAction,
+    userContext: { preferences: userPreferences, userId: user.id },
   });
+  const routerOutput =
+    resolved.routerOutput ??
+    normalizeRouterOutput({
+      arbitration: resolved.arbitration,
+      intent: resolved.intent,
+    });
+  const llmRouterOutput = resolved.llmRouterOutput ?? agentRouterToLLMRouter(routerOutput);
+  const resolution: IntentResolution = {
+    ...resolved,
+    llmRouterOutput,
+    routerOutput,
+  };
   if (resolution.tokenUsage) {
     tokenUsage = resolution.tokenUsage;
     emitUsage(tokenUsage);
@@ -807,11 +892,16 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
   });
 
   // Stream conversational replies with true LLM token streaming
-  const conversationalIntent = resolution.intent.intent === "answer_question" || resolution.intent.intent === "clarify";
+  const conversationalIntent =
+    resolution.intent.intent === "answer_question" ||
+    resolution.intent.intent === "clarify" ||
+    isConversationalIntent(resolution.intent.intent);
   if (conversationalIntent) {
     const intent = resolution.intent;
     const preResolvedText =
-      (intent.intent === "answer_question" ? intent.args.answer : null)
+      intent.intent === "answer_question" && intent.args.openDomainTopic
+        ? undefined
+        : (intent.intent === "answer_question" ? intent.args.answer : null)
       ?? (intent.intent === "clarify" ? intent.args.question : null)
       ?? ('reply' in intent ? (intent as { reply?: string }).reply : undefined);
 
@@ -831,13 +921,25 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
       fallbackText: typeof preResolvedText === "string" ? preResolvedText : undefined,
       intent,
     });
+    let streamedReply = "";
     const replyResult = await generateStreamingReplyFn({
       context,
       groundedAnswer,
       history: resolvedHistory,
       message,
-      onToken: (token) => emitToken(token, 'response'),
+      onToken: (token) => {
+        streamedReply += token;
+        emitToken(token, 'response');
+      },
     });
+    // #region agent log
+    if (process.env.AGENT_DEBUG_LOG) {
+      fetch('http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'961715'},body:JSON.stringify({sessionId:'961715',location:'resolve-intent-step.ts:reply-gen',message:'conversational reply generation',data:{intent:intent.intent,openDomainTopic: intent.intent==='answer_question'?intent.args.openDomainTopic:null,groundedAnswerLen:typeof groundedAnswer==='string'?groundedAnswer.length:null,replyResultLen:replyResult?.text?.length??null,replyResultNull:replyResult===null,streamedReplyLen:streamedReply.length},timestamp:Date.now(),hypothesisId:'H1-H2'})}).catch(()=>{});
+    }
+    // #endregion
+
+    const openDomainTopic =
+      intent.intent === "answer_question" ? intent.args.openDomainTopic ?? null : null;
 
     if (replyResult && replyResult.text.trim().length > 0) {
       resolution.intent.reply = replyResult.text;
@@ -849,13 +951,65 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
         providerOutputTokens: replyResult.tokenUsage.providerOutputTokens,
         source: replyResult.tokenUsage.source,
       };
-    } else if (typeof groundedAnswer === "string" && groundedAnswer.length > 0) {
-      // Fallback: progressive word-by-word streaming of pre-resolved text
+    } else if (streamedReply.trim().length > 0) {
+      resolution.intent.reply = streamedReply.trim();
+    } else if (
+      typeof groundedAnswer === "string" &&
+      groundedAnswer.trim().length > 0 &&
+      !openDomainTopic
+    ) {
+      resolution.intent.reply = groundedAnswer;
       for (const token of splitIntoWordTokens(groundedAnswer)) {
         emitToken(token, 'response');
         await new Promise((r) => setTimeout(r, 6));
       }
+    } else if (!resolution.intent.reply?.trim() && intent.intent === "answer_question") {
+      const parsedDefinition = parseDefinitionQuestionIntent(message);
+      const openTopic =
+        intent.args.openDomainTopic ??
+        (parsedDefinition?.intent === "answer_question"
+          ? parsedDefinition.args.openDomainTopic ?? null
+          : null);
+      const fallbackText = buildAnswerModelUnavailableMessage(
+        openTopic,
+        replyResult?.failureHttpStatus,
+      );
+      resolution.intent.reply = fallbackText;
+      for (const token of splitIntoWordTokens(fallbackText)) {
+        emitToken(token, 'response');
+        await new Promise((r) => setTimeout(r, 6));
+      }
     }
+    // #region agent log
+    if (process.env.AGENT_DEBUG_LOG) {
+      try {
+        appendFileSync(
+          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          `${JSON.stringify({
+            sessionId: "961715",
+            location: "resolve-intent-step.ts:reply-final",
+            message: "conversational reply finalized",
+            data: {
+              intent: intent.intent,
+              openDomainTopic:
+                intent.intent === "answer_question" ? intent.args.openDomainTopic ?? null : null,
+              replyLen: resolution.intent.reply?.length ?? 0,
+              replyResultLen: replyResult?.text?.length ?? null,
+              failureHttpStatus: replyResult?.failureHttpStatus ?? null,
+              streamedReplyLen: streamedReply.length,
+              groundedAnswerLen: typeof groundedAnswer === "string" ? groundedAnswer.length : null,
+            },
+            timestamp: Date.now(),
+            hypothesisId: "H6-H9",
+            runId: "post-fix-2",
+          })}\n`,
+        );
+      } catch {
+        // ignore debug log failures
+      }
+      fetch('http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'961715'},body:JSON.stringify({sessionId:'961715',location:'resolve-intent-step.ts:reply-gen',message:'conversational reply generation',data:{intent:intent.intent,openDomainTopic: intent.intent==='answer_question'?intent.args.openDomainTopic:null,groundedAnswerLen:typeof groundedAnswer==='string'?groundedAnswer.length:null,replyResultLen:replyResult?.text?.length??null,replyResultNull:replyResult===null,finalReplyLen:resolution.intent.reply?.length??0},timestamp:Date.now(),hypothesisId:'H1-H2'})}).catch(()=>{});
+    }
+    // #endregion
     stream?.complete("stage-response", "回复已生成");
   } else {
     // Emit intent analysis token so the user sees what was identified during the wait

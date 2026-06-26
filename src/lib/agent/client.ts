@@ -1,3 +1,6 @@
+import { appendFileSync } from "node:fs";
+
+import { parseDefinitionQuestionIntent } from "./intent/heuristics/knowledge";
 import { buildAgentSystemPrompt, type AgentPromptContext } from "./prompts";
 import { parseAgentArbitrationResult, type AgentArbitrationDecision } from "./intent/arbitration";
 import {
@@ -9,9 +12,29 @@ import {
 } from "./schemas";
 import { createTokenUsageSnapshot, estimateTokenCount, mergeProviderTokenUsage } from "./token-usage";
 import { getPayloadClient } from "@/lib/payload/client";
+import type { CapabilityGateInput } from "./capabilities/types";
+import { getDefaultExposableCapabilities } from "./capabilities/tool-gate";
+import {
+  buildCapabilityFunctionTools,
+  intentFromCapabilityCall,
+} from "./capabilities/function-tools";
+import {
+  getCapability,
+  isDraftCapabilityName,
+  isReadCapabilityName,
+  isSideEffectPreviewCapability,
+} from "./capabilities/registry";
+import { mapLLMRouterToIntent } from "./router/map-llm-router-to-intent";
+import { isLLMRouterV2Enabled, parseLLMRouterOutput } from "./router/llm-router-schema";
 
-const defaultModelBaseUrl = process.env.ZAI_BASE_URL || "https://api.openai.com/v1";
-const defaultModelName = process.env.ZAI_MODEL || "gpt-4o";
+const defaultModelBaseUrl =
+  process.env.DEEPSEEK_BASE_URL?.trim() ||
+  process.env.ZAI_BASE_URL ||
+  "https://api.openai.com/v1";
+const defaultModelName =
+  process.env.DEEPSEEK_MODEL?.trim() ||
+  process.env.ZAI_MODEL ||
+  "gpt-4o";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -33,9 +56,14 @@ export const fetchWithRetry = async (
 
       clearTimeout(timer);
 
-      if (response.status >= 500 && attempt < maxRetries) {
-        lastError = new Error(`Server error ${response.status}`);
-        await sleep(Math.min(1000 * 2 ** attempt, 4000));
+      if ((response.status >= 500 || response.status === 429) && attempt < maxRetries) {
+        lastError = new Error(`HTTP ${response.status}`);
+        const retryAfterRaw = response.headers.get("retry-after");
+        const retryAfterMs =
+          retryAfterRaw && Number.isFinite(Number(retryAfterRaw))
+            ? Math.max(Number(retryAfterRaw) * 1000, 1000)
+            : Math.min(1500 * 2 ** attempt, 12_000);
+        await sleep(retryAfterMs);
         continue;
       }
 
@@ -65,7 +93,10 @@ const normalizeBaseUrl = (value: string) => value.replace(/\/+$/, "");
 
 export const getAgentModelConfig = async () => {
   // Check env vars first — allows LLM use without Payload DB access (e.g. tests)
-  const envApiKey = process.env.OPENAI_API_KEY?.trim() || process.env.ZAI_API_KEY?.trim();
+  const envApiKey =
+    process.env.DEEPSEEK_API_KEY?.trim() ||
+    process.env.OPENAI_API_KEY?.trim() ||
+    process.env.ZAI_API_KEY?.trim();
 
   let storedApiKey = "";
   let storedBaseUrl = "";
@@ -94,19 +125,31 @@ export const getAgentModelConfig = async () => {
     return null;
   }
 
-  const defaultBaseUrl = provider === "openai" ? "https://api.openai.com/v1" : defaultModelBaseUrl;
-  const defaultModel = provider === "openai" ? "gpt-4.1-mini" : defaultModelName;
+  const defaultBaseUrl =
+    provider === "openai"
+      ? "https://api.openai.com/v1"
+      : provider === "deepseek"
+        ? "https://api.deepseek.com/v1"
+        : defaultModelBaseUrl;
+  const defaultModel =
+    provider === "openai"
+      ? "gpt-4.1-mini"
+      : provider === "deepseek"
+        ? "deepseek-chat"
+        : defaultModelName;
 
   return {
     apiKey,
     baseUrl: normalizeBaseUrl(
       storedBaseUrl ||
+        process.env.DEEPSEEK_BASE_URL?.trim() ||
         process.env.OPENAI_BASE_URL?.trim() ||
         process.env.ZAI_BASE_URL?.trim() ||
         defaultBaseUrl,
     ),
     model:
       storedModel ||
+      process.env.DEEPSEEK_MODEL?.trim() ||
       process.env.OPENAI_MODEL?.trim() ||
       process.env.ZAI_MODEL?.trim() ||
       defaultModel,
@@ -126,7 +169,7 @@ export const getAgentIntentModelEngine = async (): Promise<AgentEngine> => {
     return "openai";
   }
 
-  if (cfg.provider === "openai-compatible") {
+  if (cfg.provider === "openai-compatible" || cfg.provider === "deepseek") {
     return "openai-compatible";
   }
 
@@ -173,11 +216,21 @@ export const isReactLoopEnabled = async (): Promise<boolean> => {
   return isFunctionCallingEnabled();
 };
 
-/** 执行只读工具并返回可读观察文本，供 ReAct 循环回灌 LLM。 */
+/** 执行只读/草案 capability 并返回可读观察文本，供 ReAct 循环回灌 LLM。 */
 export const executeReadToolObservation = async (call: {
   args: Record<string, unknown>;
   name: string;
 }): Promise<string> => {
+  if (isReadCapabilityName(call.name) || isDraftCapabilityName(call.name)) {
+    const cap = getCapability(call.name);
+
+    if (cap) {
+      const result = await cap.execute(call.args, {});
+
+      return result.summary;
+    }
+  }
+
   const { executeAgentIntent } = await import("./executor");
   const intent = parseAgentIntentResult({
     args: call.args,
@@ -199,6 +252,7 @@ export type GenerateIntentDeps = {
     turn: import("./react-loop").ReactModelTurn | null;
     usage?: OpenAICompatibleResponse["usage"];
   }>;
+  capabilityGate?: CapabilityGateInput;
   executeReadTool?: (call: { args: Record<string, unknown>; name: string }) => Promise<string>;
 };
 
@@ -244,17 +298,24 @@ export const generateIntentWithAgentModel = async ({
     inputTokens: estimateTokenCount(message),
   });
   const {
-    buildAgentFunctionTools,
     buildAgentReadTools,
     intentFromFunctionCall,
     isFunctionCallingEnabled,
-    isWriteToolName,
+    isReadToolName,
     parseModelTurn,
   } = await import("./function-tools");
   const { runReactToolLoop } = await import("./react-loop");
   const { parseLLMRouterOutput } = await import("./router/llm-router-schema");
   const useFunctionCalling = await isFunctionCallingEnabled();
   const useReactLoop = useFunctionCalling && (await isReactLoopEnabled());
+  const exposableCapabilities = deps.capabilityGate
+    ? (await import("./capabilities/tool-gate")).getAllowedCapabilities(deps.capabilityGate).exposableToLLM
+    : getDefaultExposableCapabilities();
+  const capabilityTools = buildCapabilityFunctionTools(exposableCapabilities);
+  const isWriteCapability = (name: string) =>
+    isSideEffectPreviewCapability(name) || name.startsWith("execute_");
+  const isAllowedCapability = (name: string) =>
+    exposableCapabilities.includes(name) || isReadToolName(name);
 
   let accumulatedOutputTokens = 0;
   let providerUsage: OpenAICompatibleResponse["usage"] | undefined;
@@ -268,8 +329,8 @@ export const generateIntentWithAgentModel = async ({
 
     if (useFunctionCalling) {
       requestBody.tools = useReactLoop
-        ? [...buildAgentReadTools(), ...buildAgentFunctionTools()]
-        : buildAgentFunctionTools();
+        ? [...buildAgentReadTools(), ...capabilityTools]
+        : capabilityTools;
       requestBody.tool_choice = "auto";
     }
 
@@ -312,8 +373,23 @@ export const generateIntentWithAgentModel = async ({
     );
   };
 
-  const intentFromCall = (toolCall: { args: Record<string, unknown>; name: string }) =>
-    intentFromFunctionCall(toolCall.name, JSON.stringify(toolCall.args));
+  const intentFromCall = (toolCall: { args: Record<string, unknown>; name: string }) => {
+    if (isSideEffectPreviewCapability(toolCall.name)) {
+      return intentFromCapabilityCall(toolCall.name, toolCall.args);
+    }
+
+    const legacy = intentFromFunctionCall(toolCall.name, JSON.stringify(toolCall.args));
+
+    if (legacy) {
+      return legacy;
+    }
+
+    if (isReadCapabilityName(toolCall.name) || isDraftCapabilityName(toolCall.name)) {
+      return null;
+    }
+
+    return null;
+  };
 
   const parseFinalContent = (content: string) => {
     const jsonString = extractJSONObject(content);
@@ -324,14 +400,25 @@ export const generateIntentWithAgentModel = async ({
 
     try {
       const parsed = JSON.parse(jsonString) as unknown;
-      const arbitration = parseAgentArbitrationResult(parsed);
-      const intent = arbitration?.intent ?? parseAgentIntentResult(parsed);
+
+      if (isLLMRouterV2Enabled()) {
+        const routerOutput = parseLLMRouterOutput(parsed);
+
+        if (routerOutput) {
+          const intent = mapLLMRouterToIntent(routerOutput, message);
+
+          return { arbitration: undefined, intent, llmRouterOutput: routerOutput };
+        }
+      }
+
+      const parsedArbitration = parseAgentArbitrationResult(parsed);
+      const intent = parsedArbitration?.intent ?? parseAgentIntentResult(parsed);
 
       if (!intent) {
         return null;
       }
 
-      return { arbitration: arbitration ?? undefined, intent, llmRouterOutput: parseLLMRouterOutput(parsed) ?? undefined };
+      return { arbitration: parsedArbitration ?? undefined, intent, llmRouterOutput: parseLLMRouterOutput(parsed) ?? undefined };
     } catch {
       return null;
     }
@@ -365,7 +452,8 @@ export const generateIntentWithAgentModel = async ({
         content: item.content,
         role: item.role as "assistant" | "system" | "tool" | "user",
       })),
-      isWriteTool: isWriteToolName,
+      isWriteTool: isWriteCapability,
+      isAllowedTool: isAllowedCapability,
       maxSteps: 5,
     });
 
@@ -406,7 +494,8 @@ export const generateIntentWithAgentModel = async ({
   }
 
   if (result.turn.type === "tool_calls") {
-    const writeCall = result.turn.toolCalls.find((call) => isWriteToolName(call.name)) ?? result.turn.toolCalls[0];
+    const writeCall =
+      result.turn.toolCalls.find((call) => isWriteCapability(call.name)) ?? result.turn.toolCalls[0];
     const intent = writeCall ? intentFromCall(writeCall) : null;
 
     if (intent) {
@@ -447,7 +536,7 @@ export const streamChatCompletion = async ({
   onToken: StreamTokenCallback;
   signal?: AbortSignal;
   temperature?: number;
-}): Promise<{ promptTokens: number; completionTokens: number } | null> => {
+}): Promise<{ httpStatus: number; usage: { promptTokens: number; completionTokens: number } | null }> => {
   const response = await fetchWithRetry(`${baseUrl}/chat/completions`, {
     body: JSON.stringify({ messages, model, stream: true, temperature }),
     headers: {
@@ -456,10 +545,33 @@ export const streamChatCompletion = async ({
     },
     method: "POST",
     signal,
-  });
+  }, { maxRetries: 3 });
 
   if (!response.ok || !response.body) {
-    return null;
+    // #region agent log
+    if (process.env.AGENT_DEBUG_LOG) {
+      try {
+        appendFileSync(
+          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          `${JSON.stringify({
+            sessionId: "961715",
+            location: "client.ts:streamChatCompletion",
+            message: "stream chat completion unavailable",
+            data: {
+              httpStatus: response.status,
+              hasBody: Boolean(response.body),
+            },
+            timestamp: Date.now(),
+            hypothesisId: "H19",
+            runId: "post-fix-8",
+          })}\n`,
+        );
+      } catch {
+        // ignore debug log failures
+      }
+    }
+    // #endregion
+    return { httpStatus: response.status, usage: null };
   }
 
   const reader = response.body.getReader();
@@ -505,16 +617,107 @@ export const streamChatCompletion = async ({
     reader.releaseLock();
   }
 
-  return usage;
+  return { httpStatus: response.status, usage };
+};
+
+const fetchChatCompletionText = async ({
+  apiKey,
+  baseUrl,
+  messages,
+  model,
+  temperature = 0.6,
+}: {
+  apiKey: string;
+  baseUrl: string;
+  messages: Array<{ content: string; role: string }>;
+  model: string;
+  temperature?: number;
+}): Promise<{ httpStatus: number; text: string | null; usage?: OpenAICompatibleResponse["usage"] }> => {
+  const response = await fetchWithRetry(`${baseUrl}/chat/completions`, {
+    body: JSON.stringify({ messages, model, stream: false, temperature }),
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  }, { maxRetries: 3 });
+
+  if (!response.ok) {
+    // #region agent log
+    if (process.env.AGENT_DEBUG_LOG) {
+      try {
+        appendFileSync(
+          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          `${JSON.stringify({
+            sessionId: "961715",
+            location: "client.ts:fetchChatCompletionText",
+            message: "non-stream chat completion failed",
+            data: { httpStatus: response.status },
+            timestamp: Date.now(),
+            hypothesisId: "H19",
+            runId: "post-fix-8",
+          })}\n`,
+        );
+      } catch {
+        // ignore debug log failures
+      }
+    }
+    // #endregion
+    return { httpStatus: response.status, text: null };
+  }
+
+  const data = (await response.json()) as OpenAICompatibleResponse;
+  const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+
+  if (!text) {
+    return { httpStatus: response.status, text: null, usage: data.usage };
+  }
+
+  return { httpStatus: response.status, text, usage: data.usage };
+};
+
+export const buildAnswerModelUnavailableMessage = (
+  openTopic: string | null,
+  failureHttpStatus?: number | null,
+) => {
+  if (failureHttpStatus === 429) {
+    return openTopic
+      ? `关于「${openTopic}」：回答模型当前请求过于频繁（429），请稍等片刻后再试。`
+      : "回答模型当前请求过于频繁（429），请稍等片刻后再试。";
+  }
+
+  if (failureHttpStatus === 401 || failureHttpStatus === 403) {
+    return openTopic
+      ? `关于「${openTopic}」：回答模型鉴权失败（${failureHttpStatus}），请检查 Agent 设置中的 API Key。`
+      : `回答模型鉴权失败（${failureHttpStatus}），请检查 Agent 设置中的 API Key。`;
+  }
+
+  return openTopic
+    ? `关于「${openTopic}」：我暂时无法连接回答模型，请检查 Agent 设置中的 API Key 与模型配置后重试。`
+    : "我暂时无法生成回答，请检查 Agent 设置中的 API Key 与模型配置后重试。";
 };
 
 const REPLY_SYSTEM_PROMPT =
   "你是 SunnyPanel 的 AI Agent，一个个人长期工作台的智能助手。请用自然、友好的中文直接回答用户的问题。不要输出 JSON 格式，直接输出对话回复。回答要简洁、有帮助。";
 
-const buildReplySystemPrompt = (groundedAnswer?: string) =>
-  groundedAnswer && groundedAnswer.trim().length > 0
+const OPEN_DOMAIN_REPLY_PROMPT =
+  "你是 SunnyPanel 的 AI Agent。用户是在问一个开放域百科/常识类问题。请直接用中文给出准确、简洁的事实性介绍，不要套用学习路径、学科框架、计划草稿或「这门学科」之类模板，也不要反问用户是否要制定计划。";
+
+const buildReplySystemPrompt = (groundedAnswer?: string, message?: string) => {
+  const definitionIntent = message ? parseDefinitionQuestionIntent(message) : null;
+  const openDomainTopic =
+    definitionIntent?.intent === "answer_question"
+      ? definitionIntent.args.openDomainTopic
+      : null;
+
+  if (openDomainTopic) {
+    return OPEN_DOMAIN_REPLY_PROMPT;
+  }
+
+  return groundedAnswer && groundedAnswer.trim().length > 0
     ? `${REPLY_SYSTEM_PROMPT}\n\n当前工作流已经基于 SunnyPanel 工作台上下文生成了一份答案。你可以润色和组织语言，但必须保留其中的事实、对象名称、行动建议和约束，不要改写成泛泛建议：\n${groundedAnswer}`
     : REPLY_SYSTEM_PROMPT;
+};
 
 export type GenerateStreamingReplyArgs = {
   context?: AgentPromptContext;
@@ -525,6 +728,12 @@ export type GenerateStreamingReplyArgs = {
   signal?: AbortSignal;
 };
 
+export type GenerateStreamingReplyResult = {
+  failureHttpStatus?: number;
+  tokenUsage: ReturnType<typeof createTokenUsageSnapshot>;
+  text: string;
+};
+
 /** Generate a conversational reply with true LLM token streaming. Returns token usage + full text, or null if unavailable. */
 export const generateStreamingReply = async ({
   groundedAnswer,
@@ -532,12 +741,17 @@ export const generateStreamingReply = async ({
   message,
   onToken,
   signal,
-}: GenerateStreamingReplyArgs): Promise<{ tokenUsage: ReturnType<typeof createTokenUsageSnapshot>; text: string } | null> => {
+}: GenerateStreamingReplyArgs): Promise<GenerateStreamingReplyResult | null> => {
   const config = await getAgentModelConfig();
+  // #region agent log
+  if (process.env.AGENT_DEBUG_LOG) {
+    fetch('http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'961715'},body:JSON.stringify({sessionId:'961715',location:'client.ts:generateStreamingReply',message:'streaming reply entry',data:{hasConfig:Boolean(config),groundedAnswerLen:typeof groundedAnswer==='string'?groundedAnswer.length:null,messagePreview:message.slice(0,40)},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+  }
+  // #endregion
   if (!config) return null;
 
   const messages = [
-    { content: buildReplySystemPrompt(groundedAnswer), role: "system" as const },
+    { content: buildReplySystemPrompt(groundedAnswer, message), role: "system" as const },
     ...history.slice(-8).map((item) => ({
       content: item.content,
       role: item.role,
@@ -553,7 +767,7 @@ export const generateStreamingReply = async ({
   let streamedText = "";
 
   try {
-    const providerUsage = await streamChatCompletion({
+    const streamResult = await streamChatCompletion({
       apiKey: config.apiKey,
       baseUrl: config.baseUrl,
       messages,
@@ -565,25 +779,178 @@ export const generateStreamingReply = async ({
       signal,
       temperature: 0.6,
     });
+    const providerUsage = streamResult.usage;
 
-    const tokenUsage = providerUsage
-      ? mergeProviderTokenUsage(
-          {
-            ...estimatedUsage,
-            outputTokens: providerUsage.completionTokens,
-            totalTokens:
-              estimatedUsage.contextTokens + estimatedUsage.inputTokens + providerUsage.completionTokens,
-          },
-          {
-            completion_tokens: providerUsage.completionTokens,
-            prompt_tokens: providerUsage.promptTokens,
-            total_tokens: providerUsage.promptTokens + providerUsage.completionTokens,
-          },
-        )
-      : estimatedUsage;
+    if (streamedText.trim().length > 0) {
+      const tokenUsage = providerUsage
+        ? mergeProviderTokenUsage(
+            {
+              ...estimatedUsage,
+              outputTokens: providerUsage.completionTokens,
+              totalTokens:
+                estimatedUsage.contextTokens + estimatedUsage.inputTokens + providerUsage.completionTokens,
+            },
+            {
+              completion_tokens: providerUsage.completionTokens,
+              prompt_tokens: providerUsage.promptTokens,
+              total_tokens: providerUsage.promptTokens + providerUsage.completionTokens,
+            },
+          )
+        : estimatedUsage;
 
-    return { tokenUsage, text: streamedText || "" };
-  } catch {
+      // #region agent log
+      if (process.env.AGENT_DEBUG_LOG) {
+        try {
+          appendFileSync(
+            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            `${JSON.stringify({
+              sessionId: "961715",
+              location: "client.ts:generateStreamingReply",
+              message: "streaming reply succeeded",
+              data: {
+                streamedTextLen: streamedText.length,
+                usedNonStreamFallback: false,
+              },
+              timestamp: Date.now(),
+              hypothesisId: "H20",
+              runId: "post-fix-8",
+            })}\n`,
+          );
+        } catch {
+          // ignore debug log failures
+        }
+      }
+      // #endregion
+
+      return { tokenUsage, text: streamedText };
+    }
+
+    if (streamResult.httpStatus === 429) {
+      // #region agent log
+      if (process.env.AGENT_DEBUG_LOG) {
+        try {
+          appendFileSync(
+            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            `${JSON.stringify({
+              sessionId: "961715",
+              location: "client.ts:generateStreamingReply",
+              message: "stream rate limited, skipping duplicate non-stream call",
+              data: { httpStatus: 429 },
+              timestamp: Date.now(),
+              hypothesisId: "H19",
+              runId: "post-fix-8",
+            })}\n`,
+          );
+        } catch {
+          // ignore debug log failures
+        }
+      }
+      // #endregion
+      return { failureHttpStatus: 429, text: "", tokenUsage: estimatedUsage };
+    }
+
+    const nonStream = await fetchChatCompletionText({
+      apiKey: config.apiKey,
+      baseUrl: config.baseUrl,
+      messages,
+      model: config.model,
+      temperature: 0.6,
+    });
+
+    if (nonStream.text) {
+      onToken(nonStream.text);
+      const tokenUsage = mergeProviderTokenUsage(
+        {
+          ...estimatedUsage,
+          outputTokens: estimateTokenCount(nonStream.text),
+          totalTokens:
+            estimatedUsage.contextTokens +
+            estimatedUsage.inputTokens +
+            estimateTokenCount(nonStream.text),
+        },
+        nonStream.usage,
+      );
+
+      // #region agent log
+      if (process.env.AGENT_DEBUG_LOG) {
+        try {
+          appendFileSync(
+            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            `${JSON.stringify({
+              sessionId: "961715",
+              location: "client.ts:generateStreamingReply",
+              message: "streaming empty, non-stream fallback succeeded",
+              data: {
+                streamedTextLen: streamedText.length,
+                nonStreamTextLen: nonStream.text.length,
+                httpStatus: nonStream.httpStatus,
+                usedNonStreamFallback: true,
+              },
+              timestamp: Date.now(),
+              hypothesisId: "H20",
+              runId: "post-fix-8",
+            })}\n`,
+          );
+        } catch {
+          // ignore debug log failures
+        }
+      }
+      // #endregion
+
+      return { tokenUsage, text: nonStream.text };
+    }
+
+    const failureHttpStatus = nonStream.httpStatus !== 200 ? nonStream.httpStatus : streamResult.httpStatus;
+
+    // #region agent log
+    if (process.env.AGENT_DEBUG_LOG) {
+      try {
+        appendFileSync(
+          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          `${JSON.stringify({
+            sessionId: "961715",
+            location: "client.ts:generateStreamingReply",
+            message: "streaming and non-stream both empty",
+            data: {
+              streamedTextLen: streamedText.length,
+              failureHttpStatus,
+              usedNonStreamFallback: true,
+            },
+            timestamp: Date.now(),
+            hypothesisId: "H19-H20",
+            runId: "post-fix-8",
+          })}\n`,
+        );
+      } catch {
+        // ignore debug log failures
+      }
+    }
+    // #endregion
+
+    return { failureHttpStatus, text: "", tokenUsage: estimatedUsage };
+  } catch (error) {
+    // #region agent log
+    if (process.env.AGENT_DEBUG_LOG) {
+      try {
+        appendFileSync(
+          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          `${JSON.stringify({
+            sessionId: "961715",
+            location: "client.ts:generateStreamingReply",
+            message: "streaming reply threw",
+            data: {
+              error: error instanceof Error ? error.message : String(error),
+            },
+            timestamp: Date.now(),
+            hypothesisId: "H19",
+            runId: "post-fix-7",
+          })}\n`,
+        );
+      } catch {
+        // ignore debug log failures
+      }
+    }
+    // #endregion
     return null;
   }
 };

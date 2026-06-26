@@ -821,27 +821,29 @@ export const resolveAgentIntent = async ({
 
     if (learningFollowupIntent) {
       // #region agent log
-      try {
-        appendFileSync(
-          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
-          `${JSON.stringify({
-            sessionId: "961715",
-            location: "intent-resolution.ts:learning-followup-override",
-            message: "learning followup override applied",
-            data: {
-              pendingPolicy: resolution.arbitration.pendingPolicy,
-              openDomainTopic:
-                resolution.intent.intent === "answer_question"
-                  ? resolution.intent.args.openDomainTopic ?? null
-                  : null,
-            },
-            timestamp: Date.now(),
-            hypothesisId: "H18",
-            runId: "post-fix-6",
-          })}\n`,
-        );
-      } catch {
-        // ignore debug log failures
+      if (process.env.AGENT_DEBUG_LOG) {
+        try {
+          appendFileSync(
+            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            `${JSON.stringify({
+              sessionId: "961715",
+              location: "intent-resolution.ts:learning-followup-override",
+              message: "learning followup override applied",
+              data: {
+                pendingPolicy: resolution.arbitration.pendingPolicy,
+                openDomainTopic:
+                  resolution.intent.intent === "answer_question"
+                    ? resolution.intent.args.openDomainTopic ?? null
+                    : null,
+              },
+              timestamp: Date.now(),
+              hypothesisId: "H18",
+              runId: "post-fix-6",
+            })}\n`,
+          );
+        } catch {
+          // ignore debug log failures
+        }
       }
       // #endregion
       return {

@@ -1,6 +1,17 @@
+import { appendFileSync } from "node:fs";
+
 import { executeAgentIntent, executeAgentIntentsTransactional } from "@/lib/agent/executor";
 import type { IntentResolution } from "@/lib/agent/chat-pipeline/resolve-intent-step";
+import type { StructuredConfirmation } from "@/lib/agent/chat-pipeline/confirmation-step";
 import type { StreamTokenCallback } from "@/lib/agent/client";
+import { applyPolicyGuard } from "@/lib/agent/policy/guard";
+import { normalizeRouterOutput } from "@/lib/agent/router/normalize-router-output";
+import {
+  capabilityForLegacyIntent,
+  executeCapabilityForPreview,
+  runExecuteCapability,
+} from "@/lib/agent/capabilities/adapters";
+import type { AgentWriteIntentName } from "@/lib/agent/schemas";
 import { logAgentEvent } from "@/lib/agent/logger";
 import { isRollbackPayloadExecutable } from "@/lib/agent/rollback-parse";
 import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
@@ -15,8 +26,10 @@ export type ExecuteAndPersistStepParams = {
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   executionApproved?: boolean;
+  executedCapability?: (name: string) => void;
   isDirectAnswer: boolean;
   nextPendingAfterExecute?: null | PendingAction;
+  pendingAction?: null | PendingAction;
   persistAgentTurn: (args: {
     assistantMessage: string;
     confidence?: number;
@@ -27,6 +40,7 @@ export type ExecuteAndPersistStepParams = {
   pushTrace: (step: AgentTraceStep) => void;
   resolution: IntentResolution;
   stream?: AgentStreamController;
+  structuredConfirmation?: null | StructuredConfirmation;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { id: number };
@@ -65,18 +79,46 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     emitStatus,
     emitToken,
     executionApproved = false,
+    executedCapability,
     isDirectAnswer,
     nextPendingAfterExecute,
+    pendingAction = null,
     persistAgentTurn,
     pushTrace,
     resolution,
     stream,
+    structuredConfirmation = null,
     tokenUsage: tokenUsageIn,
     trace,
     user,
   } = params;
 
   let tokenUsage = tokenUsageIn;
+
+  // #region agent log
+  if (process.env.AGENT_DEBUG_LOG) {
+    try {
+      appendFileSync(
+        "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+        `${JSON.stringify({
+          sessionId: "961715",
+          location: "execute-and-persist-step.ts:entry",
+          message: "execute step entered",
+          data: {
+            isDirectAnswer,
+            intent: resolution.intent.intent,
+            replyLen: "reply" in resolution.intent ? resolution.intent.reply?.length ?? null : null,
+          },
+          timestamp: Date.now(),
+          hypothesisId: "H12-H13",
+          runId: "post-fix-3",
+        })}\n`,
+      );
+    } catch {
+      // ignore debug log failures
+    }
+  }
+  // #endregion
 
   if (batchExecuteIntents && batchExecuteIntents.length > 0) {
     emitStatus(`正在批量执行 ${batchExecuteIntents.length} 项操作...`);
@@ -242,14 +284,160 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     title: isDirectAnswer ? "准备生成回答" : "准备执行对应动作",
   });
 
-  const execution = await executeAgentIntent(resolution.intent, pushTrace, {
-    userId: user.id,
-  });
+  if (!isDirectAnswer && (confirmedActionId || executionApproved)) {
+    const routerOutput =
+      resolution.routerOutput ??
+      normalizeRouterOutput({ arbitration: resolution.arbitration, intent: resolution.intent });
+    const policyGuardOutput = applyPolicyGuard({ router: routerOutput });
+
+    if (!policyGuardOutput.allowExecute) {
+      const assistantMessage = `该操作尚未通过 execute Policy Guard：${policyGuardOutput.reason}`;
+      pushTrace({
+        detail: policyGuardOutput.reason,
+        id: "policy-guard-execute-block",
+        kind: "error",
+        status: "error",
+        title: "Policy Guard 禁止 Execute",
+      });
+      const updatedThread = await persistAgentTurn({
+        assistantMessage,
+        confidence: resolution.intent.confidence,
+        engine: resolution.engine,
+        intent: resolution.intent.intent,
+        nextPendingAction: null,
+      });
+
+      return {
+        assistantMessage,
+        confidence: resolution.intent.confidence,
+        engine: resolution.engine,
+        intent: resolution.intent.intent,
+        pendingAction: null,
+        trace,
+        threadId: updatedThread.id,
+        tokenUsage,
+      };
+    }
+  }
+
+  let execution: Awaited<ReturnType<typeof executeAgentIntent>>;
+  const pendingProposal =
+    pendingAction?.type === "await_confirmation" && pendingAction.action.id === confirmedActionId
+      ? pendingAction.action
+      : null;
+  const previewCapability =
+    pendingProposal?.capability ??
+    structuredConfirmation?.capability ??
+    capabilityForLegacyIntent(resolution.intent.intent as AgentWriteIntentName, "preview");
+  const executeCapability =
+    previewCapability && executeCapabilityForPreview(previewCapability)
+      ? executeCapabilityForPreview(previewCapability)
+      : capabilityForLegacyIntent(resolution.intent.intent as AgentWriteIntentName, "execute");
+
+  if (
+    !isDirectAnswer &&
+    (confirmedActionId || executionApproved) &&
+    executeCapability &&
+    pendingProposal
+  ) {
+    const capabilityResult = await runExecuteCapability(executeCapability, pendingProposal.args ?? {}, {
+      confirmedPreviewId: confirmedActionId,
+      pendingAction: pendingProposal,
+      structuredCapability: structuredConfirmation?.capability ?? null,
+      userId: user.id,
+    });
+
+    if (!capabilityResult.ok) {
+      const assistantMessage = capabilityResult.summary;
+      pushTrace({
+        detail: capabilityResult.error ?? capabilityResult.summary,
+        id: "capability-execute-block",
+        kind: "error",
+        status: "error",
+        title: "Execute 能力校验失败",
+      });
+      const updatedThread = await persistAgentTurn({
+        assistantMessage,
+        confidence: resolution.intent.confidence,
+        engine: resolution.engine,
+        intent: resolution.intent.intent,
+        nextPendingAction: null,
+      });
+
+      return {
+        assistantMessage,
+        confidence: resolution.intent.confidence,
+        engine: resolution.engine,
+        intent: resolution.intent.intent,
+        pendingAction: null,
+        trace,
+        threadId: updatedThread.id,
+        tokenUsage,
+      };
+    }
+
+    executedCapability?.(executeCapability);
+    execution = {
+      assistantMessage: capabilityResult.summary,
+      pendingAction: null,
+      status: "completed",
+    };
+  } else {
+    execution = await executeAgentIntent(resolution.intent, pushTrace, {
+      userId: user.id,
+    });
+
+    if (executeCapability && (confirmedActionId || executionApproved)) {
+      executedCapability?.(executeCapability);
+    }
+  }
   const resolvedPending = execution.pendingAction ?? nextPendingAfterExecute ?? null;
-  const assistantMessage =
+  let assistantMessage =
     nextPendingAfterExecute && !execution.pendingAction
       ? `${execution.assistantMessage}\n\n${describePendingActionForExecution(nextPendingAfterExecute)}`
       : execution.assistantMessage;
+  if (
+    !assistantMessage?.trim() &&
+    "reply" in resolution.intent &&
+    typeof resolution.intent.reply === "string" &&
+    resolution.intent.reply.trim().length > 0
+  ) {
+    assistantMessage = resolution.intent.reply;
+  }
+  // #region agent log
+  if (process.env.AGENT_DEBUG_LOG) {
+    try {
+      appendFileSync(
+        "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+        `${JSON.stringify({
+          sessionId: "961715",
+          location: "execute-and-persist-step.ts:assistantMessage",
+          message: "final assistant message",
+          data: {
+            isDirectAnswer,
+            intent: resolution.intent.intent,
+            openDomainTopic:
+              resolution.intent.intent === "answer_question"
+                ? resolution.intent.args.openDomainTopic ?? null
+                : null,
+            replyLen: resolution.intent.reply?.length ?? null,
+            answerLen:
+              resolution.intent.intent === "answer_question"
+                ? resolution.intent.args.answer.length
+                : null,
+            assistantMessageLen: assistantMessage?.length ?? 0,
+          },
+          timestamp: Date.now(),
+          hypothesisId: "H3-H4",
+          runId: "post-fix-2",
+        })}\n`,
+      );
+    } catch {
+      // ignore debug log failures
+    }
+    fetch('http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'961715'},body:JSON.stringify({sessionId:'961715',location:'execute-and-persist-step.ts:assistantMessage',message:'final assistant message',data:{isDirectAnswer,intent:resolution.intent.intent,openDomainTopic:resolution.intent.intent==='answer_question'?resolution.intent.args.openDomainTopic:null,replyLen:resolution.intent.reply?.length??null,answerLen:resolution.intent.intent==='answer_question'?resolution.intent.args.answer.length:null,assistantMessageLen:assistantMessage?.length??0},timestamp:Date.now(),hypothesisId:'H3-H4'})}).catch(()=>{});
+  }
+  // #endregion
   if (!isDirectAnswer && assistantMessage) {
     stream?.start({
       id: "stage-response",

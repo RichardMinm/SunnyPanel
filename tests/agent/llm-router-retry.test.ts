@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-const { parseLLMRouterOutputWithRetry } = await import(
-  "../../src/lib/agent/router/llm-router-schema"
-);
+import { parseLLMRouterOutputWithRetry } from "../../src/lib/agent/router/llm-router-schema";
 
 test("retries on first invalid JSON instead of throwing", async () => {
   let parseCalls = 0;

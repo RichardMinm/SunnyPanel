@@ -1,3 +1,5 @@
+import { appendFileSync } from "node:fs";
+
 import { NextResponse } from "next/server";
 
 import { type AgentChatResponse, type AgentTraceStep } from "@/lib/agent/schemas";
@@ -152,6 +154,7 @@ export const createAgentChatStream = (
         let streamedOutputTokens = 0;
         let contextPlusInput = 0;
         let tokensWereStreamed = false;
+        let streamedResponseText = "";
 
         const payload = await runner(
           (status) => enqueue("status", { status }),
@@ -164,6 +167,9 @@ export const createAgentChatStream = (
           },
           (token, block) => {
             tokensWereStreamed = true;
+            if (block === "response" || block === undefined) {
+              streamedResponseText += token;
+            }
             streamedOutputTokens += 1;
             enqueue("token", {
               content: token,
@@ -182,9 +188,18 @@ export const createAgentChatStream = (
           (event) => enqueue("change", event),
         );
 
+        const resolvedAssistantMessage =
+          typeof payload.assistantMessage === "string" && payload.assistantMessage.trim().length > 0
+            ? payload.assistantMessage
+            : streamedResponseText.trim() || payload.assistantMessage;
+        const finalPayload = {
+          ...payload,
+          assistantMessage: resolvedAssistantMessage,
+        };
+
         // If the pipeline didn't stream any tokens (e.g. write intents with deterministic text),
         // fall back to progressive word-by-word streaming of the assistantMessage.
-        if (!tokensWereStreamed && payload.assistantMessage) {
+        if (!tokensWereStreamed && finalPayload.assistantMessage) {
           const baseUsage = payload.tokenUsage
             ? { ...payload.tokenUsage, outputTokens: 0, totalTokens: (payload.tokenUsage.contextTokens + payload.tokenUsage.inputTokens) }
             : createTokenUsageSnapshot();
@@ -198,22 +213,49 @@ export const createAgentChatStream = (
             tokenUsage: baseUsage,
             turnId: payload.turnId,
           });
-          await emitProgressiveTokens(payload.assistantMessage, enqueue, baseUsage, 'response');
+          await emitProgressiveTokens(finalPayload.assistantMessage, enqueue, baseUsage, 'response');
         }
 
         enqueue("meta", {
-          confidence: payload.confidence,
-          contextSummary: payload.contextSummary,
-          engine: payload.engine,
-          intent: payload.intent,
-          pendingAction: payload.pendingAction,
-          suggestedMode: intentToSuggestedMode[payload.intent],
-          threadId: payload.threadId,
-          tokenUsage: payload.tokenUsage,
-          turnId: payload.turnId,
+          confidence: finalPayload.confidence,
+          contextSummary: finalPayload.contextSummary,
+          engine: finalPayload.engine,
+          intent: finalPayload.intent,
+          pendingAction: finalPayload.pendingAction,
+          suggestedMode: intentToSuggestedMode[finalPayload.intent],
+          threadId: finalPayload.threadId,
+          tokenUsage: finalPayload.tokenUsage,
+          turnId: finalPayload.turnId,
         });
 
-        enqueue("done", payload);
+        enqueue("done", finalPayload);
+        // #region agent log
+        if (process.env.AGENT_DEBUG_LOG) {
+          try {
+            appendFileSync(
+              "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+              `${JSON.stringify({
+                sessionId: "961715",
+                location: "stream-envelope.ts:done",
+                message: "sse done payload",
+                data: {
+                  payloadAssistantLen: payload.assistantMessage?.length ?? 0,
+                  streamedResponseLen: streamedResponseText.length,
+                  finalAssistantLen:
+                    typeof finalPayload.assistantMessage === "string"
+                      ? finalPayload.assistantMessage.length
+                      : null,
+                },
+                timestamp: Date.now(),
+                hypothesisId: "H15",
+                runId: "post-fix-3",
+              })}\n`,
+            );
+          } catch {
+            // ignore debug log failures
+          }
+        }
+        // #endregion
       } catch (error) {
         enqueue("error", {
           assistantMessage: "Agent 执行失败，我已经把失败记录写入审计日志。",

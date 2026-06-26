@@ -523,25 +523,27 @@ export const createRunFullLangGraphAgentChatPipeline = (
         assistantMessage: resolvedAssistantMessage,
       };
       // #region agent log
-      try {
-        appendFileSync(
-          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
-          `${JSON.stringify({
-            sessionId: "961715",
-            location: "full-adapter.ts:persistTurn",
-            message: "persist turn",
-            data: {
-              bufferedTurnLen: bufferedTurn?.assistantMessage?.length ?? null,
-              responseAssistantLen: response.assistantMessage?.length ?? 0,
-              resolvedAssistantLen: resolvedAssistantMessage.length,
-            },
-            timestamp: Date.now(),
-            hypothesisId: "H13-H14",
-            runId: "post-fix-3",
-          })}\n`,
-        );
-      } catch {
-        // ignore debug log failures
+      if (process.env.AGENT_DEBUG_LOG) {
+        try {
+          appendFileSync(
+            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            `${JSON.stringify({
+              sessionId: "961715",
+              location: "full-adapter.ts:persistTurn",
+              message: "persist turn",
+              data: {
+                bufferedTurnLen: bufferedTurn?.assistantMessage?.length ?? null,
+                responseAssistantLen: response.assistantMessage?.length ?? 0,
+                resolvedAssistantLen: resolvedAssistantMessage.length,
+              },
+              timestamp: Date.now(),
+              hypothesisId: "H13-H14",
+              runId: "post-fix-3",
+            })}\n`,
+          );
+        } catch {
+          // ignore debug log failures
+        }
       }
       // #endregion
       if (finalizeTurn) {
@@ -788,26 +790,28 @@ export const createRunFullLangGraphAgentChatPipeline = (
         tokenUsage: usage,
       }) => {
         // #region agent log
-        try {
-          appendFileSync(
-            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
-            `${JSON.stringify({
-              sessionId: "961715",
-              location: "full-adapter.ts:execute",
-              message: "langgraph execute node",
-              data: {
-                intent: resolution.intent.intent,
-                replyLen:
-                  "reply" in resolution.intent ? resolution.intent.reply?.length ?? null : null,
-                isDirectAnswer: dryRun.isDirectAnswer,
-              },
-              timestamp: Date.now(),
-              hypothesisId: "H12",
-              runId: "post-fix-3",
-            })}\n`,
-          );
-        } catch {
-          // ignore debug log failures
+        if (process.env.AGENT_DEBUG_LOG) {
+          try {
+            appendFileSync(
+              "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+              `${JSON.stringify({
+                sessionId: "961715",
+                location: "full-adapter.ts:execute",
+                message: "langgraph execute node",
+                data: {
+                  intent: resolution.intent.intent,
+                  replyLen:
+                    "reply" in resolution.intent ? resolution.intent.reply?.length ?? null : null,
+                  isDirectAnswer: dryRun.isDirectAnswer,
+                },
+                timestamp: Date.now(),
+                hypothesisId: "H12",
+                runId: "post-fix-3",
+              })}\n`,
+            );
+          } catch {
+            // ignore debug log failures
+          }
         }
         // #endregion
         const executeStep = () =>
@@ -943,30 +947,32 @@ export const createRunFullLangGraphAgentChatPipeline = (
           !getInterruptedAgentResponse(result);
 
         // #region agent log
-        try {
-          appendFileSync(
-            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
-            `${JSON.stringify({
-              sessionId: "961715",
-              location: "full-adapter.ts:resume-invoke",
-              message: "langgraph resume invoke result",
-              data: {
-                hasPendingAction: Boolean(pendingAction),
-                hasCheckpointInterrupt,
-                forceFreshPipeline,
-                resumeAssistantLen: result.response?.assistantMessage?.length ?? 0,
-                resumeTurnId: result.response?.turnId ?? null,
-                currentTurnId: turnId,
-                staleResume: isStaleResumeResponse(result.response),
-                willFallbackToInitial,
-              },
-              timestamp: Date.now(),
-              hypothesisId: "H16-H17",
-              runId: "post-fix-5",
-            })}\n`,
-          );
-        } catch {
-          // ignore debug log failures
+        if (process.env.AGENT_DEBUG_LOG) {
+          try {
+            appendFileSync(
+              "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+              `${JSON.stringify({
+                sessionId: "961715",
+                location: "full-adapter.ts:resume-invoke",
+                message: "langgraph resume invoke result",
+                data: {
+                  hasPendingAction: Boolean(pendingAction),
+                  hasCheckpointInterrupt,
+                  forceFreshPipeline,
+                  resumeAssistantLen: result.response?.assistantMessage?.length ?? 0,
+                  resumeTurnId: result.response?.turnId ?? null,
+                  currentTurnId: turnId,
+                  staleResume: isStaleResumeResponse(result.response),
+                  willFallbackToInitial,
+                },
+                timestamp: Date.now(),
+                hypothesisId: "H16-H17",
+                runId: "post-fix-5",
+              })}\n`,
+            );
+          } catch {
+            // ignore debug log failures
+          }
         }
         // #endregion
 
@@ -982,26 +988,28 @@ export const createRunFullLangGraphAgentChatPipeline = (
       }
     } else {
       // #region agent log
-      try {
-        appendFileSync(
-          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
-          `${JSON.stringify({
-            sessionId: "961715",
-            location: "full-adapter.ts:fresh-invoke",
-            message: "langgraph fresh pipeline invoke",
-            data: {
-              forceFreshPipeline,
-              hasPendingAction: Boolean(pendingAction),
-              hasCheckpointInterrupt,
-              currentTurnId: turnId,
-            },
-            timestamp: Date.now(),
-            hypothesisId: "H17",
-            runId: "post-fix-5",
-          })}\n`,
-        );
-      } catch {
-        // ignore debug log failures
+      if (process.env.AGENT_DEBUG_LOG) {
+        try {
+          appendFileSync(
+            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            `${JSON.stringify({
+              sessionId: "961715",
+              location: "full-adapter.ts:fresh-invoke",
+              message: "langgraph fresh pipeline invoke",
+              data: {
+                forceFreshPipeline,
+                hasPendingAction: Boolean(pendingAction),
+                hasCheckpointInterrupt,
+                currentTurnId: turnId,
+              },
+              timestamp: Date.now(),
+              hypothesisId: "H17",
+              runId: "post-fix-5",
+            })}\n`,
+          );
+        } catch {
+          // ignore debug log failures
+        }
       }
       // #endregion
       result = await invokeGraph(initialInput, checkpointConfig);
@@ -1031,24 +1039,26 @@ export const createRunFullLangGraphAgentChatPipeline = (
     }
 
     // #region agent log
-    try {
-      appendFileSync(
-        "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
-        `${JSON.stringify({
-          sessionId: "961715",
-          location: "full-adapter.ts:graph-result",
-          message: "langgraph invoke completed",
-          data: {
-            assistantMessageLen: graphResponse.assistantMessage?.length ?? 0,
-            bufferedTurnLen: (bufferedTurn as BufferedTurn | null)?.assistantMessage?.length ?? null,
-          },
-          timestamp: Date.now(),
-          hypothesisId: "H14",
-          runId: "post-fix-3",
-        })}\n`,
-      );
-    } catch {
-      // ignore debug log failures
+    if (process.env.AGENT_DEBUG_LOG) {
+      try {
+        appendFileSync(
+          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          `${JSON.stringify({
+            sessionId: "961715",
+            location: "full-adapter.ts:graph-result",
+            message: "langgraph invoke completed",
+            data: {
+              assistantMessageLen: graphResponse.assistantMessage?.length ?? 0,
+              bufferedTurnLen: (bufferedTurn as BufferedTurn | null)?.assistantMessage?.length ?? null,
+            },
+            timestamp: Date.now(),
+            hypothesisId: "H14",
+            runId: "post-fix-3",
+          })}\n`,
+        );
+      } catch {
+        // ignore debug log failures
+      }
     }
     // #endregion
 
