@@ -53,6 +53,12 @@ const intentToAction = (intent: AgentIntent): AgentRouterAction => {
     return "create";
   }
 
+  // Handle draft intents for checklist / writing that the LLM router may output
+  // but that aren't yet in the AgentIntent discriminated union.
+  if (intent.intent === ("draft_checklist" as string) || intent.intent === ("draft_writing_outline" as string)) {
+    return "create";
+  }
+
   return "answer";
 };
 
