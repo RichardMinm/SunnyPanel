@@ -1,4 +1,5 @@
 import type { AgentPromptContext } from "./prompts";
+import { appendFileSync } from "node:fs";
 import {
   cleanupText,
   extractConsultationTopic,
@@ -12,6 +13,9 @@ import {
   parseKnowledgeAnswerIntent,
   shouldSkipPendingAction,
 } from "./heuristic-intent-resolver";
+import { buildConversationalIntent } from "./conversation/answer-generator";
+import { classifyFollowUpIntent, routeDefinitionIntent, routeFollowUpIntent } from "./conversation/follow-up-router";
+import type { AgentConversationState } from "./conversation/types";
 import { intentRequiresWrite } from "./intent/arbitration";
 import type { AgentArbitrationDecision } from "./intent/arbitration";
 import {
@@ -26,6 +30,7 @@ import {
 
 export type AgentModelIntentResolver = (input: {
   context: AgentPromptContext;
+  deps?: import("./client").GenerateIntentDeps;
   history: AgentChatMessage[];
   message: string;
 }) => Promise<null | {
@@ -38,6 +43,9 @@ export type AgentIntentResolutionResult = {
   arbitration?: AgentArbitrationDecision;
   engine: AgentEngine;
   intent: AgentIntent;
+  llmRouterOutput?: import("./router/llm-router-schema").LLMRouterOutput;
+  routerOutput?: import("./router/types").AgentRouterOutput;
+  routerSource?: import("./router/resolve-router-chain").RouterChainSource;
   tokenUsage?: AgentTokenUsage;
 };
 
@@ -530,6 +538,12 @@ const resolveLearningFollowupIntent = (pendingAction: PendingAction, message: st
     return null;
   }
 
+  if (classifyFollowUpIntent(message)) {
+    const kind = classifyFollowUpIntent(message)!;
+
+    return buildConversationalIntent(kind, pendingAction.subject, message);
+  }
+
   if (isDirectLearningPathFollowup(message)) {
     const pathIntent =
       parseKnowledgeAnswerIntent(pendingAction.originalMessage) ??
@@ -623,15 +637,35 @@ const resolveLearningFollowupIntent = (pendingAction: PendingAction, message: st
 
 export const resolveOrchestrationPreflightIntent = ({
   context,
+  conversationState = null,
+  history = [],
   message,
   pendingAction,
 }: {
   context: AgentPromptContext;
+  conversationState?: AgentConversationState | null;
+  history?: AgentChatMessage[];
   message: string;
   pendingAction: null | PendingAction;
 }): AgentIntent | null => {
+  const openDomainDefinition = routeDefinitionIntent(message);
+
+  if (openDomainDefinition?.intent === "answer_question" && openDomainDefinition.args.openDomainTopic) {
+    return openDomainDefinition;
+  }
+
   if (pendingAction?.type === "await_learning_followup") {
     return resolveLearningFollowupIntent(pendingAction, message);
+  }
+
+  const followUpIntent = routeFollowUpIntent({
+    conversationState,
+    history,
+    message,
+  });
+
+  if (followUpIntent) {
+    return enrichLearningAdviceWithWorkspaceContext(followUpIntent, context);
   }
 
   if (
@@ -640,6 +674,12 @@ export const resolveOrchestrationPreflightIntent = ({
     pendingAction.type !== "await_completion_note"
   ) {
     return null;
+  }
+
+  const definitionIntent = routeDefinitionIntent(message);
+
+  if (definitionIntent) {
+    return enrichLearningAdviceWithWorkspaceContext(definitionIntent, context);
   }
 
   const deterministicKnowledgeIntent = parseKnowledgeAnswerIntent(message);
@@ -651,20 +691,37 @@ export const resolveOrchestrationPreflightIntent = ({
   return resolveGeneralConsultationIntent(message, context);
 };
 
+const withRouterChain = (
+  result: AgentIntentResolutionResult,
+  routerChain: import("./router/resolve-router-chain").RouterChainResult | null,
+): AgentIntentResolutionResult =>
+  routerChain && routerChain.intent.intent === result.intent.intent
+    ? {
+        ...result,
+        llmRouterOutput: routerChain.llmRouterOutput,
+        routerOutput: routerChain.routerOutput,
+        routerSource: routerChain.source,
+      }
+    : result;
+
 export const resolveAgentIntent = async ({
   context,
+  conversationState = null,
   history,
   intentModelEngine,
   message,
   modelResolver,
   pendingAction,
+  userContext,
 }: {
   context: AgentPromptContext;
+  conversationState?: AgentConversationState | null;
   history: AgentChatMessage[];
   intentModelEngine?: AgentEngine;
   message: string;
   modelResolver?: AgentModelIntentResolver;
   pendingAction: null | PendingAction;
+  userContext?: { preferences?: import("./user-preferences").UserPreferences | null; userId: number };
 }): Promise<AgentIntentResolutionResult> => {
   if (pendingAction?.type === "await_completion_note" && !isNegativeReply(message) && !isNewCommand(message)) {
     return {
@@ -683,23 +740,35 @@ export const resolveAgentIntent = async ({
   }
 
   const { resolveUnifiedIntent } = await import("./intent/llm-unified");
+  const { resolveRouterChain } = await import("./router/resolve-router-chain");
+  const routerChain = resolveRouterChain({
+    conversationState,
+    history,
+    message,
+    pendingAction,
+  });
   const deterministicIntent =
-    pendingAction?.type === "await_learning_followup"
+    routerChain?.intent ??
+    (pendingAction?.type === "await_learning_followup"
       ? null
       : resolveOrchestrationPreflightIntent({
           context,
+          conversationState,
+          history,
           message,
           pendingAction,
-        });
+        }));
 
   const resolution = await resolveUnifiedIntent({
     context,
+    conversationState,
     deterministicIntent,
     history,
     intentModelEngine,
     message,
     modelResolver,
     pendingAction,
+    userContext,
   });
 
   if (
@@ -707,10 +776,13 @@ export const resolveAgentIntent = async ({
     (resolution.arbitration.pendingPolicy === "correct_pending_intent" ||
       resolution.arbitration.route === "cancel_pending")
   ) {
-    return {
-      ...resolution,
-      engine: "workflow" as const,
-    };
+    return withRouterChain(
+      {
+        ...resolution,
+        engine: "workflow" as const,
+      },
+      routerChain,
+    );
   }
 
   if (pendingAction?.type === "await_clarification" && resolution.arbitration.route === "resume_pending") {
@@ -732,14 +804,46 @@ export const resolveAgentIntent = async ({
     }
   }
 
+  const openDomainInterrupt = (() => {
+    const definitionIntent = routeDefinitionIntent(message);
+    return Boolean(
+      definitionIntent?.intent === "answer_question" && definitionIntent.args.openDomainTopic,
+    );
+  })();
+
   if (
     pendingAction?.type === "await_learning_followup" &&
     resolution.arbitration.pendingPolicy !== "correct_pending_intent" &&
-    resolution.arbitration.route !== "cancel_pending"
+    resolution.arbitration.route !== "cancel_pending" &&
+    !(resolution.arbitration.pendingPolicy === "start_new_intent" && openDomainInterrupt)
   ) {
     const learningFollowupIntent = resolveLearningFollowupIntent(pendingAction, message);
 
     if (learningFollowupIntent) {
+      // #region agent log
+      try {
+        appendFileSync(
+          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          `${JSON.stringify({
+            sessionId: "961715",
+            location: "intent-resolution.ts:learning-followup-override",
+            message: "learning followup override applied",
+            data: {
+              pendingPolicy: resolution.arbitration.pendingPolicy,
+              openDomainTopic:
+                resolution.intent.intent === "answer_question"
+                  ? resolution.intent.args.openDomainTopic ?? null
+                  : null,
+            },
+            timestamp: Date.now(),
+            hypothesisId: "H18",
+            runId: "post-fix-6",
+          })}\n`,
+        );
+      } catch {
+        // ignore debug log failures
+      }
+      // #endregion
       return {
         ...resolution,
         arbitration: {
@@ -756,5 +860,5 @@ export const resolveAgentIntent = async ({
     }
   }
 
-  return resolution;
+  return withRouterChain(resolution, routerChain);
 };
