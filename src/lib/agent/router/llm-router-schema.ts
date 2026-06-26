@@ -181,7 +181,13 @@ export const parseLLMRouterOutputWithRetry = async (
   retry: () => Promise<string | null>,
 ): Promise<{ output: LLMRouterOutput; retried: boolean }> => {
   const first = parseContent();
-  const firstParsed = first ? parseLLMRouterOutput(JSON.parse(first)) : null;
+  let firstParsed: LLMRouterOutput | null = null;
+
+  try {
+    firstParsed = first ? parseLLMRouterOutput(JSON.parse(first)) : null;
+  } catch {
+    // first parse failed, will retry below
+  }
 
   if (firstParsed) {
     return { output: firstParsed, retried: false };
