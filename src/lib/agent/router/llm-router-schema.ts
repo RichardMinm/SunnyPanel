@@ -93,8 +93,9 @@ const VALID_TARGETS = new Set<LLMRouterTarget>([
 
 const VALID_RISK = new Set<LLMRouterRiskLevel>(["none", "low", "medium", "high"]);
 
+/** LLM Router V2 默认开启。设置 AGENT_LLM_ROUTER_V2=0 可关闭回退到旧解析路径。 */
 export const isLLMRouterV2Enabled = () =>
-  process.env.AGENT_LLM_ROUTER_V2 === "1" || process.env.AGENT_LLM_ROUTER_V2 === "true";
+  process.env.AGENT_LLM_ROUTER_V2 !== "0" && process.env.AGENT_LLM_ROUTER_V2 !== "false";
 
 export const createClarifyRouterOutput = (question: string, reason?: string): LLMRouterOutput => ({
   action: "clarify",
