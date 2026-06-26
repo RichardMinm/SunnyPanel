@@ -329,6 +329,48 @@ test("create checklist: previewForTarget returns checklist caps", () => {
   assert.ok(plan.plannedCapabilities.includes("draft_checklist"));
 });
 
+test("create writing: previewForTarget returns writing caps", () => {
+  const router: LLMRouterOutput = {
+    action: "create",
+    confidence: 0.9,
+    needsClarification: false,
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    slots: { sourceText: "写一篇文章", title: "新文章" },
+    target: "writing",
+    userVisibleReason: "创建写作",
+    writeRequired: true,
+  };
+  const gate = gateForRouter(router);
+  const plan = buildToolPlan({ allowedCapabilities: gate.allowed, router });
+
+  assert.equal(plan.workflow, "create");
+  assert.ok(plan.plannedCapabilities.includes("draft_writing_outline"));
+  assert.ok(!plan.plannedCapabilities.includes("preview_create_plan"));
+  assert.ok(!plan.plannedCapabilities.includes("draft_plan"));
+});
+
+test("create memory: previewForTarget returns memory search caps", () => {
+  const router: LLMRouterOutput = {
+    action: "create",
+    confidence: 0.9,
+    needsClarification: false,
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    slots: { sourceText: "记住我喜欢蓝色" },
+    target: "memory",
+    userVisibleReason: "保存记忆",
+    writeRequired: true,
+  };
+  const gate = gateForRouter(router);
+  const plan = buildToolPlan({ allowedCapabilities: gate.allowed, router });
+
+  assert.equal(plan.workflow, "create");
+  assert.ok(plan.plannedCapabilities.includes("search_memory"));
+  assert.ok(!plan.plannedCapabilities.includes("preview_create_plan"));
+  assert.ok(!plan.plannedCapabilities.includes("draft_plan"));
+});
+
 test("invalid router JSON falls back to clarify output", () => {
   const clarify = createClarifyRouterOutput("请补充信息");
 

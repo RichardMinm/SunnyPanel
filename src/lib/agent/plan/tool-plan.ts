@@ -26,20 +26,8 @@ const previewForTarget = (action: LLMRouterOutput["action"], target: LLMRouterOu
       return ["search_schedules"];
     }
 
-    if (target === "checklist") {
-      return ["search_checklists"];
-    }
-
     if (target === "plan") {
       return ["search_plans"];
-    }
-
-    if (target === "memory") {
-      return ["search_memory"];
-    }
-
-    if (target === "timeline") {
-      return ["search_timeline"];
     }
 
     return ["search_plans", "search_schedules"];
@@ -70,30 +58,10 @@ const previewForTarget = (action: LLMRouterOutput["action"], target: LLMRouterOu
   }
 
   if (action === "update") {
-    if (target === "schedule") {
-      return ["search_schedules", "preview_update_schedule"];
-    }
-
-    if (target === "checklist") {
-      return ["search_checklists", "preview_update_checklist"];
-    }
-
     return ["search_plans", "preview_update_plan"];
   }
 
   if (action === "delete" || action === "cancel") {
-    if (target === "schedule") {
-      return ["search_schedules", "preview_delete_schedule"];
-    }
-
-    if (target === "checklist") {
-      return ["search_checklists", "preview_delete_checklist"];
-    }
-
-    if (target === "timeline") {
-      return ["search_timeline", "preview_delete_timeline"];
-    }
-
     return ["search_plans", "preview_delete_plan"];
   }
 

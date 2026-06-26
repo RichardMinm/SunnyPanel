@@ -108,11 +108,32 @@ export const mapLLMRouterToIntent = (
     }
 
     if (router.target === "checklist") {
+      // FIXME: `draft_checklist` and `draft_writing_outline` are not yet
+      // members of the AgentIntent discriminated union (schemas.ts). Once
+      // the union is updated, the cast can be removed.
       return {
         args: { checklistTitle: slots.title ?? sourceText.slice(0, 40) },
         confidence: router.confidence,
         intent: "draft_checklist",
       } as unknown as AgentIntent;
+    }
+
+    if (router.target === "writing") {
+      // FIXME: `draft_writing_outline` is not yet a member of the
+      // AgentIntent discriminated union (schemas.ts).
+      return {
+        args: { sourceText },
+        confidence: router.confidence,
+        intent: "draft_writing_outline",
+      } as unknown as AgentIntent;
+    }
+
+    if (router.target === "memory") {
+      return {
+        args: { content: sourceText },
+        confidence: router.confidence,
+        intent: "save_memory",
+      };
     }
 
     return {
