@@ -1,9 +1,12 @@
+import { appendFileSync } from "node:fs";
+
 import {
   Command,
   EmptyInputError,
   type BaseCheckpointSaver,
 } from "@langchain/langgraph";
 
+import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/heuristics/knowledge";
 import {
   createPayloadActionReceiptStore,
   runIdempotentAgentAction,
@@ -511,17 +514,47 @@ export const createRunFullLangGraphAgentChatPipeline = (
         intent: response.intent,
         nextPendingAction: response.pendingAction,
       };
+      const resolvedAssistantMessage =
+        response.assistantMessage?.trim() ||
+        turn.assistantMessage?.trim() ||
+        "我暂时无法生成回答，请检查 Agent 设置中的 API Key 与模型配置后重试。";
+      const normalizedTurn = {
+        ...turn,
+        assistantMessage: resolvedAssistantMessage,
+      };
+      // #region agent log
+      try {
+        appendFileSync(
+          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          `${JSON.stringify({
+            sessionId: "961715",
+            location: "full-adapter.ts:persistTurn",
+            message: "persist turn",
+            data: {
+              bufferedTurnLen: bufferedTurn?.assistantMessage?.length ?? null,
+              responseAssistantLen: response.assistantMessage?.length ?? 0,
+              resolvedAssistantLen: resolvedAssistantMessage.length,
+            },
+            timestamp: Date.now(),
+            hypothesisId: "H13-H14",
+            runId: "post-fix-3",
+          })}\n`,
+        );
+      } catch {
+        // ignore debug log failures
+      }
+      // #endregion
       if (finalizeTurn) {
         const finalized = await finalizeTurn({
           existingMemories: currentContextMemories ?? [],
           pushTrace,
           response: {
             ...response,
-            assistantMessage: turn.assistantMessage,
-            confidence: turn.confidence ?? response.confidence,
-            engine: turn.engine,
-            intent: turn.intent,
-            pendingAction: turn.nextPendingAction,
+            assistantMessage: normalizedTurn.assistantMessage,
+            confidence: normalizedTurn.confidence ?? response.confidence,
+            engine: normalizedTurn.engine,
+            intent: normalizedTurn.intent,
+            pendingAction: normalizedTurn.nextPendingAction,
             trace: mergeTrace(response.trace, trace),
             workbenchMode: workbenchMode ?? undefined,
           },
@@ -544,11 +577,11 @@ export const createRunFullLangGraphAgentChatPipeline = (
         title: "正在保存会话上下文",
       });
       const updatedThread = await steps.appendAgentThreadTurn({
-        assistantMessage: turn.assistantMessage,
-        confidence: turn.confidence,
-        engine: turn.engine,
-        intent: turn.intent,
-        pendingAction: turn.nextPendingAction,
+        assistantMessage: normalizedTurn.assistantMessage,
+        confidence: normalizedTurn.confidence,
+        engine: normalizedTurn.engine,
+        intent: normalizedTurn.intent,
+        pendingAction: normalizedTurn.nextPendingAction,
         thread,
         userMessage: message,
       });
@@ -560,11 +593,11 @@ export const createRunFullLangGraphAgentChatPipeline = (
         title: "会话上下文已保存",
       });
       await steps.runAgentLearningLoop({
-        assistantMessage: turn.assistantMessage,
+        assistantMessage: normalizedTurn.assistantMessage,
         existingMemories: currentContextMemories ?? [],
-        intent: turn.intent,
+        intent: normalizedTurn.intent,
         message,
-        pendingActionAfter: turn.nextPendingAction,
+        pendingActionAfter: normalizedTurn.nextPendingAction,
         pendingActionBefore: pendingAction,
         pushTrace,
         sourceThread: updatedThread.id,
@@ -573,11 +606,11 @@ export const createRunFullLangGraphAgentChatPipeline = (
       });
       finalizedResponse = {
         ...response,
-        assistantMessage: turn.assistantMessage,
-        confidence: turn.confidence ?? response.confidence,
-        engine: turn.engine,
-        intent: turn.intent,
-        pendingAction: turn.nextPendingAction,
+        assistantMessage: normalizedTurn.assistantMessage,
+        confidence: normalizedTurn.confidence ?? response.confidence,
+        engine: normalizedTurn.engine,
+        intent: normalizedTurn.intent,
+        pendingAction: normalizedTurn.nextPendingAction,
         threadId: updatedThread.id,
         trace: mergeTrace(response.trace, trace),
         workbenchMode: workbenchMode ?? undefined,
@@ -646,6 +679,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
         }
 
         return {
+          orchestratorPlanSource: result.data.orchestratorPlanSource,
           preResolvedIntent: result.data.preResolvedIntent,
           tokenUsage,
           type: "continue",
@@ -664,6 +698,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
       resolveIntent: async ({
         context,
         input: graphInput,
+        orchestratorPlanSource,
         preResolvedIntent,
         tokenUsage: usage,
       }) => {
@@ -680,6 +715,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
           intentModelEngine,
           message: graphInput.message,
           modelResolver,
+          orchestratorPlanSource,
           pendingAction: graphInput.pendingAction,
           persistAgentTurn: bufferAgentTurn,
           preResolvedIntent,
@@ -751,6 +787,29 @@ export const createRunFullLangGraphAgentChatPipeline = (
         resolutionData,
         tokenUsage: usage,
       }) => {
+        // #region agent log
+        try {
+          appendFileSync(
+            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            `${JSON.stringify({
+              sessionId: "961715",
+              location: "full-adapter.ts:execute",
+              message: "langgraph execute node",
+              data: {
+                intent: resolution.intent.intent,
+                replyLen:
+                  "reply" in resolution.intent ? resolution.intent.reply?.length ?? null : null,
+                isDirectAnswer: dryRun.isDirectAnswer,
+              },
+              timestamp: Date.now(),
+              hypothesisId: "H12",
+              runId: "post-fix-3",
+            })}\n`,
+          );
+        } catch {
+          // ignore debug log failures
+        }
+        // #endregion
         const executeStep = () =>
           steps.runExecuteAndPersistStep({
             batchExecuteIntents: resolutionData.batchExecuteIntents,
@@ -817,6 +876,11 @@ export const createRunFullLangGraphAgentChatPipeline = (
     });
     emitUsage(tokenUsage);
     emitToken("正在通过 LangGraph 分析你的请求...\n", "thinking");
+    const openDomainDefinition = parseDefinitionQuestionIntent(message);
+    const forceFreshPipeline =
+      openDomainDefinition?.intent === "answer_question" &&
+      Boolean(openDomainDefinition.args.openDomainTopic);
+    const effectivePendingAction = forceFreshPipeline ? null : pendingAction;
     const initialInput = {
       compoundPlan: null,
       compoundResult: null,
@@ -827,13 +891,14 @@ export const createRunFullLangGraphAgentChatPipeline = (
       input: {
         baseTokenUsage,
         message,
-        pendingAction,
+        pendingAction: effectivePendingAction,
         resolvedHistory,
         structuredConfirmation,
         threadId: thread.id,
         turnId,
         userId: user.id,
       },
+      orchestratorPlanSource: null,
       preResolvedIntent: null,
       resolution: null,
       resolutionData: null,
@@ -846,10 +911,22 @@ export const createRunFullLangGraphAgentChatPipeline = (
     const hasCheckpointInterrupt =
       checkpointState.next.includes("await_user") ||
       checkpointState.tasks.some((task) => task.interrupts.length > 0);
+    const invokeGraph = async (...args: Parameters<typeof graph.invoke>) => {
+      bufferedTurn = null;
+      return graph.invoke(...args);
+    };
 
-    if (hasCheckpointInterrupt || pendingAction) {
+    const hasUsableGraphResponse = (
+      value: AgentChatResponse | null | undefined,
+    ): value is AgentChatResponse =>
+      Boolean(value?.assistantMessage?.trim());
+
+    const isStaleResumeResponse = (value: AgentChatResponse | null | undefined) =>
+      hasUsableGraphResponse(value) && value.turnId != null && value.turnId !== turnId;
+
+    if ((hasCheckpointInterrupt || pendingAction) && !forceFreshPipeline) {
       try {
-        result = await graph.invoke(
+        result = await invokeGraph(
           new Command({
             resume: {
               message,
@@ -861,18 +938,73 @@ export const createRunFullLangGraphAgentChatPipeline = (
           checkpointConfig,
         );
 
-        if (!result.response && !getInterruptedAgentResponse(result)) {
-          result = await graph.invoke(initialInput, checkpointConfig);
+        const willFallbackToInitial =
+          (!hasUsableGraphResponse(result.response) || isStaleResumeResponse(result.response)) &&
+          !getInterruptedAgentResponse(result);
+
+        // #region agent log
+        try {
+          appendFileSync(
+            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            `${JSON.stringify({
+              sessionId: "961715",
+              location: "full-adapter.ts:resume-invoke",
+              message: "langgraph resume invoke result",
+              data: {
+                hasPendingAction: Boolean(pendingAction),
+                hasCheckpointInterrupt,
+                forceFreshPipeline,
+                resumeAssistantLen: result.response?.assistantMessage?.length ?? 0,
+                resumeTurnId: result.response?.turnId ?? null,
+                currentTurnId: turnId,
+                staleResume: isStaleResumeResponse(result.response),
+                willFallbackToInitial,
+              },
+              timestamp: Date.now(),
+              hypothesisId: "H16-H17",
+              runId: "post-fix-5",
+            })}\n`,
+          );
+        } catch {
+          // ignore debug log failures
+        }
+        // #endregion
+
+        if (willFallbackToInitial) {
+          result = await invokeGraph(initialInput, checkpointConfig);
         }
       } catch (error) {
         if (!(error instanceof EmptyInputError)) {
           throw error;
         }
 
-        result = await graph.invoke(initialInput, checkpointConfig);
+        result = await invokeGraph(initialInput, checkpointConfig);
       }
     } else {
-      result = await graph.invoke(initialInput, checkpointConfig);
+      // #region agent log
+      try {
+        appendFileSync(
+          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          `${JSON.stringify({
+            sessionId: "961715",
+            location: "full-adapter.ts:fresh-invoke",
+            message: "langgraph fresh pipeline invoke",
+            data: {
+              forceFreshPipeline,
+              hasPendingAction: Boolean(pendingAction),
+              hasCheckpointInterrupt,
+              currentTurnId: turnId,
+            },
+            timestamp: Date.now(),
+            hypothesisId: "H17",
+            runId: "post-fix-5",
+          })}\n`,
+        );
+      } catch {
+        // ignore debug log failures
+      }
+      // #endregion
+      result = await invokeGraph(initialInput, checkpointConfig);
     }
     const interruptedCompound =
       getInterruptedCompoundResult(result);
@@ -892,10 +1024,34 @@ export const createRunFullLangGraphAgentChatPipeline = (
       return persistTurn(interruptedResponse);
     }
 
-    if (!result.response) {
+    const graphResponse = result.response as AgentChatResponse | null | undefined;
+
+    if (!graphResponse) {
       throw new Error("LangGraph did not produce a response.");
     }
 
-    return result.response;
+    // #region agent log
+    try {
+      appendFileSync(
+        "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+        `${JSON.stringify({
+          sessionId: "961715",
+          location: "full-adapter.ts:graph-result",
+          message: "langgraph invoke completed",
+          data: {
+            assistantMessageLen: graphResponse.assistantMessage?.length ?? 0,
+            bufferedTurnLen: (bufferedTurn as BufferedTurn | null)?.assistantMessage?.length ?? null,
+          },
+          timestamp: Date.now(),
+          hypothesisId: "H14",
+          runId: "post-fix-3",
+        })}\n`,
+      );
+    } catch {
+      // ignore debug log failures
+    }
+    // #endregion
+
+    return graphResponse;
   };
 };
