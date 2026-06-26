@@ -65,15 +65,15 @@ test("migrates legacy conversationState to schemaVersion=1", () => {
 });
 
 test("migrates legacy with pending confirmation", () => {
-  const legacy: AgentConversationState = {
+  const legacy = {
     lastTopic: "考研复习计划",
-    lastAnswerDepth: "expanded",
+    lastAnswerDepth: "expanded" as const,
     lastAssistantAnswerSummary: "建议制定考研复习计划",
     lastMentionedEntities: ["考研", "数学"],
     lastUserIntent: "compose_plan",
     pendingConfirmation: { actionId: "action_123" },
     updatedAt: "2026-02-20T08:00:00.000Z",
-  };
+  } as unknown as AgentConversationState;
   const session = normalizeSessionState(legacy);
   assert.equal(session.schemaVersion, 1);
   assert.equal(session.semantic.stage, "confirming"); // pending → confirming
@@ -122,28 +122,28 @@ test("migrates legacy with writing topic", () => {
 });
 
 test("migrates legacy with planning topic", () => {
-  const legacy: AgentConversationState = {
+  const legacy = {
     lastTopic: "制定一个健身计划",
-    lastAnswerDepth: "brief",
+    lastAnswerDepth: "brief" as const,
     lastAssistantAnswerSummary: "建议分3个阶段",
     lastMentionedEntities: ["健身"],
     lastUserIntent: "compose_plan",
     updatedAt: "2026-05-15T00:00:00.000Z",
-  };
+  } as unknown as AgentConversationState;
   const session = normalizeSessionState(legacy);
   assert.equal(session.semantic.domain, "planning");
   assert.equal(session.semantic.stage, "drafting"); // compose_plan → drafting
 });
 
 test("migrates legacy with schedule topic", () => {
-  const legacy: AgentConversationState = {
+  const legacy = {
     lastTopic: "安排明天的日程",
-    lastAnswerDepth: "brief",
+    lastAnswerDepth: "brief" as const,
     lastAssistantAnswerSummary: "已安排",
     lastMentionedEntities: [],
     lastUserIntent: "compose_schedule_item",
     updatedAt: "2026-06-01T00:00:00.000Z",
-  };
+  } as unknown as AgentConversationState;
   const session = normalizeSessionState(legacy);
   assert.equal(session.semantic.domain, "schedule");
   assert.equal(session.semantic.stage, "drafting");
