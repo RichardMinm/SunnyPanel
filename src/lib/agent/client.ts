@@ -215,6 +215,7 @@ export const generateIntentWithAgentModel = async ({
 }): Promise<null | {
   arbitration?: AgentArbitrationDecision;
   intent: AgentIntent;
+  llmRouterOutput?: import("./router/llm-router-schema").LLMRouterOutput;
   reactSteps?: import("./react-loop").ReactStepTrace[];
   tokenUsage: ReturnType<typeof createTokenUsageSnapshot>;
 }> => {
@@ -251,6 +252,7 @@ export const generateIntentWithAgentModel = async ({
     parseModelTurn,
   } = await import("./function-tools");
   const { runReactToolLoop } = await import("./react-loop");
+  const { parseLLMRouterOutput } = await import("./router/llm-router-schema");
   const useFunctionCalling = await isFunctionCallingEnabled();
   const useReactLoop = useFunctionCalling && (await isReactLoopEnabled());
 
@@ -329,7 +331,7 @@ export const generateIntentWithAgentModel = async ({
         return null;
       }
 
-      return { arbitration: arbitration ?? undefined, intent };
+      return { arbitration: arbitration ?? undefined, intent, llmRouterOutput: parseLLMRouterOutput(parsed) ?? undefined };
     } catch {
       return null;
     }
@@ -382,6 +384,7 @@ export const generateIntentWithAgentModel = async ({
         return {
           intent: parsed.intent,
           ...(parsed.arbitration ? { arbitration: parsed.arbitration } : {}),
+          ...(parsed.llmRouterOutput ? { llmRouterOutput: parsed.llmRouterOutput } : {}),
           reactSteps: loopResult.steps,
           tokenUsage: finalizeUsage(loopResult.content),
         };
@@ -422,6 +425,7 @@ export const generateIntentWithAgentModel = async ({
   return {
     intent: parsed.intent,
     ...(parsed.arbitration ? { arbitration: parsed.arbitration } : {}),
+    ...(parsed.llmRouterOutput ? { llmRouterOutput: parsed.llmRouterOutput } : {}),
     tokenUsage: finalizeUsage(result.turn.content),
   };
 };
