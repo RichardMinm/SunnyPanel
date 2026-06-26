@@ -61,9 +61,11 @@ test("shouldUpdateSession=false ignores patch even with valid data", () => {
 
 /* ──── Acceptance Criterion 7: shouldUpdateSession=true → only updates specified fields ──── */
 
-test("shouldUpdateSession=true with empty patch returns updated clone (updatedAt changed)", () => {
+test("shouldUpdateSession=true with empty patch returns updated clone (updatedAt changed)", async () => {
   const session = createDefaultSessionState();
-  const originalTime = session.updatedAt;
+  session.updatedAt = "2020-01-01T00:00:00.000Z"; // fixed old timestamp
+  // small delay to ensure new timestamp differs
+  await new Promise((r) => setTimeout(r, 2));
   const transition = makeTransition({
     shouldUpdateSession: true,
     sessionPatch: {},
@@ -71,7 +73,8 @@ test("shouldUpdateSession=true with empty patch returns updated clone (updatedAt
 
   const result = applySessionPatch(session, transition.sessionPatch, transition);
   assert.notStrictEqual(result, session);
-  assert.notStrictEqual(result.updatedAt, originalTime);
+  assert.notStrictEqual(result.updatedAt, "2020-01-01T00:00:00.000Z");
+  assert.ok(new Date(result.updatedAt).getTime() > new Date("2020-01-01").getTime());
 });
 
 test("patch.domain only updates domain, leaving other semantic fields unchanged", () => {
