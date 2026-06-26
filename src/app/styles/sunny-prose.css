@@ -130,7 +130,7 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
 .sunny-rich-content-display :where(.sunny-rich-content-code-block code.hljs) {
   background: transparent;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.92rem;
+  font-size: var(--text-base);
   line-height: 1.6;
 }
 

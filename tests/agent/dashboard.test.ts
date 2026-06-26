@@ -107,13 +107,13 @@ describe("Dashboard layout contracts", () => {
     // Pin button
     assert.match(sidebar, /sunny-sidebar-pin-button/);
     assert.match(sidebar, /sunny-sidebar-pin-button is-square/);
-    assert.match(sidebar, /sunny-codex-sidebar-brand-row/);
+    assert.match(sidebar, /sunny-dashboard-sidebar-brand-row/);
     assert.match(sidebar, /handleTogglePin/);
     assert.doesNotMatch(
       sidebar,
       /sunny-dashboard-icon-bar-bottom[\s\S]*?sunny-sidebar-pin-button/,
     );
-    assert.match(sidebar, /sunny-codex-sidebar-settings-trigger/);
+    assert.match(sidebar, /sunny-dashboard-sidebar-settings-trigger/);
 
     // CSS variables
     assert.match(shellCss, /--dashboard-sidebar-collapsed-width:\s*56px/);
@@ -121,9 +121,10 @@ describe("Dashboard layout contracts", () => {
     assert.match(shellCss, /is-sidebar-auto-collapsed/);
     assert.match(shellCss, /is-sidebar-expanded/);
     assert.match(shellCss, /is-auto-collapsed/);
-    assert.match(shellCss, /\.sunny-codex-sidebar-brand-row/);
+    assert.match(shellCss, /\.sunny-dashboard-sidebar-brand-row/);
     assert.match(shellCss, /\.sunny-sidebar-pin-button\.is-square/);
-    assert.match(shellCss, /\.sunny-codex-sidebar-settings-trigger[\s\S]*min-height:\s*2\.75rem/);
+    assert.match(sidebar, /triggerClassName="sunny-dashboard-sidebar-action sunny-dashboard-sidebar-settings-trigger"/);
+    assert.match(shellCss, /\.sunny-dashboard-settings-popover/);
     assert.doesNotMatch(shellCss, /is-hover-expanded[\s\S]*position:\s*fixed/);
 
     // Push layout: grid column width animates with sidebar expand/collapse
@@ -143,7 +144,7 @@ describe("Dashboard layout contracts", () => {
 
     assert.match(sidebar, /const isWritingMode = activeMode === "writing"/);
     assert.match(sidebar, /const showSessionSidebar = activeMode === "agent"/);
-    assert.match(sidebar, /showSessionSidebar \? \([\s\S]*sunny-codex-sidebar-search/);
+    assert.match(sidebar, /showSessionSidebar \? \([\s\S]*sunny-dashboard-sidebar-search/);
     assert.match(sidebar, /showSessionSidebar \? \([\s\S]*aria-label="会话"/);
     assert.match(sidebar, /showSessionSidebar \? \([\s\S]*aria-label="已归档"/);
     assert.match(sidebar, /isWritingMode \? <WritingLibraryRail/);
@@ -155,12 +156,12 @@ describe("Dashboard layout contracts", () => {
     const shellCss = read("src/app/styles/sunny-dashboard-shell.css");
     const agentCss = read("src/app/styles/sunny-agent.css");
 
-    assert.match(sidebar, /sunny-codex-thread-section\$\{threadsOpen \? "" : " is-collapsed"\}/);
-    assert.match(sidebar, /sunny-codex-archive-section\$\{archiveOpen \? "" : " is-collapsed"\}/);
-    assert.match(shellCss, /\.sunny-codex-thread-section,\s*\.sunny-codex-archive-section/);
-    assert.match(shellCss, /\.sunny-codex-thread-section\.is-collapsed,\s*\.sunny-codex-archive-section\.is-collapsed/);
-    assert.doesNotMatch(agentCss, /\.sunny-codex-archive-section\s*\{/);
-    assert.doesNotMatch(agentCss, /\.sunny-codex-archive-section\[aria-expanded="false"\]/);
+    assert.match(sidebar, /sunny-dashboard-thread-section\$\{threadsOpen \? "" : " is-collapsed"\}/);
+    assert.match(sidebar, /sunny-dashboard-archive-section\$\{archiveOpen \? "" : " is-collapsed"\}/);
+    assert.match(shellCss, /\.sunny-dashboard-thread-section,\s*\.sunny-dashboard-archive-section/);
+    assert.match(shellCss, /\.sunny-dashboard-thread-section\.is-collapsed,\s*\.sunny-dashboard-archive-section\.is-collapsed/);
+    assert.doesNotMatch(agentCss, /\.sunny-dashboard-archive-section\s*\{/);
+    assert.doesNotMatch(agentCss, /\.sunny-dashboard-archive-section\[aria-expanded="false"\]/);
   });
 
   test("Sidebar is icon-first and does not own the right Inspector toggle", () => {
@@ -188,7 +189,7 @@ describe("Dashboard layout contracts", () => {
     assert.match(shellCss, /--dashboard-sidebar-width/);
     assert.match(shellCss, /--dashboard-icon-bar-width:\s*var\(--dashboard-sidebar-width\)/);
     assert.match(shellCss, /grid-template-columns:\s*var\(--dashboard-icon-bar-width\)/);
-    assert.match(shellCss, /\.sunny-codex-sidebar/);
+    assert.match(shellCss, /\.sunny-dashboard-sidebar/);
     assert.match(shellCss, /\.sunny-dashboard-right-panel/);
     assert.match(rightPanelCss, /\.sunny-dashboard-right-panel[\s\S]*position:\s*fixed/);
     assert.match(rightPanelCss, /\.sunny-dashboard-right-panel[\s\S]*max-height:/);
@@ -291,7 +292,7 @@ describe("Dashboard layout contracts", () => {
     assert.match(searchToolbar, /DashboardIcon name="search"/);
     assert.match(searchToolbar, /aria-expanded=\{searchOpen\}/);
     assert.match(searchToolbar, /sunny-dashboard-inspector-search/);
-    assert.match(searchToolbar, /sunny-codex-search-wrapper/);
+    assert.match(searchToolbar, /sunny-dashboard-search-wrapper/);
     assert.match(searchToolbar, /Escape/);
     assert.match(rightPanel, /ContextInspector/);
     assert.match(contextInspector, /bare\?: boolean/);

@@ -51,7 +51,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--writing-chrome-muted);
-  font-size: 0.9375rem;
+  font-size: var(--text-base);
   line-height: 1.4;
 }
 
@@ -86,7 +86,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--writing-chrome-muted);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 400;
 }
 
@@ -183,7 +183,7 @@
   gap: 0;
   margin: 0.625rem 0 0;
   color: var(--writing-chrome-muted);
-  font-size: 0.9375rem;
+  font-size: var(--text-base);
   line-height: 1.5;
 }
 
@@ -194,7 +194,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--writing-chrome-muted) 10%, transparent);
   color: var(--writing-chrome-muted);
-  font-size: 0.8125rem;
+  font-size: var(--text-sm-compact);
   font-weight: 500;
 }
 
@@ -382,7 +382,7 @@
 
 .sunny-writing-quick-label {
   color: var(--writing-chrome-muted);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 400;
 }
 
@@ -392,7 +392,7 @@
   background: transparent;
   color: var(--writing-chrome-muted);
   font-family: var(--sunny-font-sans);
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 500;
   padding: 0.2rem 0.45rem;
   cursor: pointer;
@@ -783,7 +783,7 @@ html[data-theme="dark"] .sunny-writing-workspace .ProseMirror p.is-editor-empty:
   left: -2.75rem;
   width: 2rem;
   color: var(--writing-chrome-muted);
-  font-size: 0.6875rem;
+  font-size: var(--text-2xs);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-align: right;

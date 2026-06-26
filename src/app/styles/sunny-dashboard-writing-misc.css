@@ -387,7 +387,7 @@
 }
 
 .sunny-rich-editor-slash-popup .sunny-rich-editor-slash-label {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
   font-weight: 500;
   line-height: 1.25;
   white-space: nowrap;
