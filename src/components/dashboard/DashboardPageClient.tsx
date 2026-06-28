@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 
 import { AgentWorkbench } from "@/components/dashboard/agent";
 import { useAgentDashboardChat } from "@/components/dashboard/agent-chat/use-agent-dashboard-chat";
@@ -14,6 +14,16 @@ export function DashboardPageClient({
   initialThreadId,
 }: DashboardPageClientProps) {
   const chat = useAgentDashboardChat({ initialThreadId });
+
+  /* Phase P2: Fire suggestion sync after mount — non-blocking, non-critical.
+     Previously this ran server-side on every dashboard page load, blocking
+     the HTML response for up to 23s (LLM call + 22+ DB queries). */
+  useEffect(() => {
+    fetch("/api/agent/suggestions/sync", { method: "POST" }).catch(() => {
+      /* Fire-and-forget — failures are silent; GET /api/agent/suggestions
+         already serves cached suggestions from the last successful sync. */
+    });
+  }, []);
 
   const handleArchiveThread = useCallback(
     async (id: number) => {
@@ -52,6 +62,7 @@ export function DashboardPageClient({
       lastRollbackResult={chat.lastRollbackResult}
       messages={chat.messages}
       traceSteps={chat.traceSteps}
+      turnAudit={chat.turnAudit}
       tokenUsage={chat.tokenUsage}
       onArchiveThread={handleArchiveThread}
       onDeleteThread={handleDeleteThread}

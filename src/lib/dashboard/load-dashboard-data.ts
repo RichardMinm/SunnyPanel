@@ -1,8 +1,5 @@
 import "server-only";
 
-import { getPendingAgentSuggestions, syncAgentSuggestionsFromWorkspaceSnapshot, type AgentInboxSuggestion } from "@/lib/agent/suggestions";
-import { getCachedWorkspaceSnapshot } from "@/lib/payload/workspace-cache";
-
 export type DashboardSearchParams = {
   collection?: string | string[];
   id?: string | string[];
@@ -13,7 +10,6 @@ export type DashboardSearchParams = {
 
 export type LoadedDashboardData = {
   initialThreadId?: number;
-  initialSuggestions: AgentInboxSuggestion[];
 };
 
 export const parseDashboardThreadId = (value?: string | string[]) => {
@@ -28,20 +24,24 @@ export const parseDashboardThreadId = (value?: string | string[]) => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+/**
+ * Dashboard server-component data loader — critical path only.
+ *
+ * Phase P2: Only parses the threadId from URL search params.
+ * The workspace snapshot, suggestion sync, and pending suggestions
+ * have been moved out of the HTML response critical path:
+ *
+ *   - Workspace snapshot → triggered on-demand by agent pipeline
+ *   - Suggestion sync → POST /api/agent/suggestions/sync (client fires after mount)
+ *   - Pending suggestions → GET /api/agent/suggestions (client fetches on mount)
+ *
+ * This keeps the root document response fast (≤ 500ms target).
+ */
 export const loadDashboardData = async (
   searchParams: DashboardSearchParams,
-  redirectPath?: string,
+  _redirectPath?: string,
 ): Promise<LoadedDashboardData> => {
   const initialThreadId = parseDashboardThreadId(searchParams.threadId);
 
-  const snapshot = await getCachedWorkspaceSnapshot(redirectPath);
-
-  await syncAgentSuggestionsFromWorkspaceSnapshot(snapshot);
-
-  const initialSuggestions = await getPendingAgentSuggestions(6);
-
-  return {
-    initialThreadId,
-    initialSuggestions,
-  };
+  return { initialThreadId };
 };

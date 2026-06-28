@@ -1,5 +1,10 @@
+import { redirect } from "next/navigation";
+
 import { DashboardPageClient } from "@/components/dashboard/DashboardPageClient";
 import { loadDashboardData } from "@/lib/dashboard/load-dashboard-data";
+import { createServerTiming } from "@/lib/observability/server-timing";
+import { getPayloadAuthResult } from "@/lib/payload/auth";
+import { getPayloadClient } from "@/lib/payload/client";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +33,46 @@ export const buildDashboardRedirectPath = (params: DashboardPageSearchParams) =>
   return query ? `/dashboard?${query}` : "/dashboard";
 };
 
+const buildAdminRoute = (path: string, redirectPath: string) =>
+  `${path}?redirect=${encodeURIComponent(redirectPath)}`;
+
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
-  const params = await searchParams;
+  const timing = createServerTiming("/dashboard");
+
+  /* Phase P2: Lightweight auth check — only JWT verification, no workspace loading.
+     The full workspace snapshot and suggestion sync are now triggered client-side
+     via POST /api/agent/suggestions/sync (non-blocking). */
+  const authResult = await timing.measure("auth", () => getPayloadAuthResult());
+
+  if (!authResult.user) {
+    const payload = await getPayloadClient();
+    const existingUsers = await payload.find({
+      collection: "users",
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+      pagination: false,
+    });
+
+    if (existingUsers.totalDocs === 0) {
+      const params = await searchParams;
+      const redirectPath = buildDashboardRedirectPath(params);
+      redirect(buildAdminRoute("/admin/create-first-user", redirectPath));
+    }
+
+    const params = await searchParams;
+    const redirectPath = buildDashboardRedirectPath(params);
+    redirect(buildAdminRoute("/admin/login", redirectPath));
+  }
+
+  /* Parse initialThreadId from URL params — the only server data needed for the shell. */
+  const params = await timing.measure("parse-params", () => searchParams);
   const redirectPath = buildDashboardRedirectPath(params);
-  const { initialThreadId } = await loadDashboardData(params, redirectPath);
+  const { initialThreadId } = await timing.measure("load-dashboard-data", () =>
+    loadDashboardData(params, redirectPath),
+  );
+
+  timing.log();
 
   return (
     <DashboardPageClient
