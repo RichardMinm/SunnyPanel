@@ -37,9 +37,11 @@ export function WritingUncategorizedGroup({
   const [open, setOpen] = useState(hasActiveDocument || documents.length > 0);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- auto-expand uncategorized documents when the active document lives there */
     if (hasActiveDocument) {
       setOpen(true);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [hasActiveDocument]);
 
   const sortedDocuments = useMemo(() => sortDocumentsByUpdatedAt(documents), [documents]);

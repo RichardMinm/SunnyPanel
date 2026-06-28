@@ -4,10 +4,13 @@ import { useState } from "react";
 
 import { DashboardSettingsMenu } from "@/components/dashboard/DashboardSettingsMenu";
 import { DashboardIcon } from "@/components/dashboard/icons";
+import { SidebarItem } from "@/components/layout/SidebarItem";
+import { SidebarSection } from "@/components/layout/SidebarSection";
 import {
   AppDropdownMenu,
   AppDropdownMenuItem,
   AppDropdownMenuLabel,
+  AppDropdownMenuSeparator,
 } from "@/components/primitives/AppDropdownMenu";
 import { useSitePreferences } from "@/components/shared/SitePreferencesProvider";
 import {
@@ -76,36 +79,27 @@ export function WritingSidebarBottomRail() {
   return (
     <>
       <div className="sunny-writing-sidebar-bottom-rail">
-        <div className="sunny-writing-rail-section">
-          <span className="sunny-writing-rail-section-label">内容</span>
+        <SidebarSection
+          className="sunny-writing-rail-section"
+          title="内容"
+        >
           <div className="sunny-writing-rail-section-actions">
-            <button
-              className="sunny-dashboard-sidebar-action"
-              onClick={() => setCreateCategoryOpen(true)}
-              type="button"
-            >
-              <span className="sunny-dashboard-sidebar-icon">
-                <DashboardIcon name="plus" />
-              </span>
-              <span className="sunny-dashboard-sidebar-label">新建文档集</span>
-            </button>
             <AppDropdownMenu
               align="start"
               className="sunny-writing-menu"
               side="top"
               sideOffset={6}
+              triggerAriaLabel="新建"
+              triggerAsChild
               trigger={
-                <>
-                  <span className="sunny-dashboard-sidebar-icon">
-                    <DashboardIcon name="plus" />
-                  </span>
-                  <span className="sunny-dashboard-sidebar-label">新建</span>
-                </>
+                <SidebarItem
+                  className="sunny-dashboard-sidebar-action"
+                  icon={<DashboardIcon name="plus" />}
+                  label="新建"
+                />
               }
-              triggerAriaLabel="新建内容"
-              triggerClassName="sunny-dashboard-sidebar-action"
             >
-              <AppDropdownMenuLabel>新建</AppDropdownMenuLabel>
+              <AppDropdownMenuLabel>新建文章</AppDropdownMenuLabel>
               {createOptions.map((option) => (
                 <AppDropdownMenuItem
                   key={option.collection}
@@ -114,62 +108,56 @@ export function WritingSidebarBottomRail() {
                   {option.label}
                 </AppDropdownMenuItem>
               ))}
+              <AppDropdownMenuSeparator />
+              <AppDropdownMenuItem onSelect={() => setCreateCategoryOpen(true)}>
+                新建文档集
+              </AppDropdownMenuItem>
             </AppDropdownMenu>
-            <button
-              aria-pressed={draftFilter}
-              className={`sunny-dashboard-sidebar-action${draftFilter ? " is-active" : ""}`}
-              onClick={toggleDraftFilter}
-              type="button"
-            >
-              <span className="sunny-dashboard-sidebar-icon">
-                <DashboardIcon name="archive" />
-              </span>
-              <span className="sunny-dashboard-sidebar-label">草稿</span>
-            </button>
-            <button
-              aria-pressed={showArchivedCategories}
-              className={`sunny-dashboard-sidebar-action${showArchivedCategories ? " is-active" : ""}`}
-              onClick={handleToggleArchivedCategories}
-              type="button"
-            >
-              <span className="sunny-dashboard-sidebar-icon">
-                <DashboardIcon name="layers" />
-              </span>
-              <span className="sunny-dashboard-sidebar-label">归档</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="sunny-writing-rail-section">
-          <span className="sunny-writing-rail-section-label">工具</span>
-          <div className="sunny-writing-rail-section-actions">
-            <button
+            <SidebarItem
+              active={draftFilter}
               className="sunny-dashboard-sidebar-action"
+              icon={<DashboardIcon name="archive" />}
+              label="草稿"
+              onClick={toggleDraftFilter}
+            />
+            <SidebarItem
+              active={showArchivedCategories}
+              className="sunny-dashboard-sidebar-action"
+              icon={<DashboardIcon name="layers" />}
+              label="归档"
+              onClick={handleToggleArchivedCategories}
+            />
+          </div>
+        </SidebarSection>
+
+        <SidebarSection
+          className="sunny-writing-rail-section"
+          title="工具"
+        >
+          <div className="sunny-writing-rail-section-actions">
+            <SidebarItem
+              className="sunny-dashboard-sidebar-action"
+              icon={<DashboardIcon name="search" />}
+              label="搜索"
               onClick={() => setSearchOpen(true)}
-              type="button"
-            >
-              <span className="sunny-dashboard-sidebar-icon">
-                <DashboardIcon name="search" />
-              </span>
-              <span className="sunny-dashboard-sidebar-label">搜索</span>
-            </button>
+            />
             <DashboardSettingsMenu
               locale={locale}
               open={settingsOpen}
               onOpenChange={setSettingsOpen}
               palette={palette}
-              triggerClassName="sunny-dashboard-sidebar-action sunny-dashboard-sidebar-settings-trigger"
+              triggerAsChild
               trigger={
-                <>
-                  <span className="sunny-dashboard-sidebar-icon">
-                    <DashboardIcon name="settings" />
-                  </span>
-                  <span className="sunny-dashboard-sidebar-label">设置</span>
-                </>
+                <SidebarItem
+                  className="sunny-dashboard-sidebar-action sunny-dashboard-sidebar-settings-trigger"
+                  icon={<DashboardIcon name="settings" />}
+                  label="设置"
+                  tooltip="设置"
+                />
               }
             />
           </div>
-        </div>
+        </SidebarSection>
       </div>
 
       <WritingLibrarySearchDialog

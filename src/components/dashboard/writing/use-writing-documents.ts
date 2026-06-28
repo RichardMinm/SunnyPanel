@@ -560,7 +560,9 @@ export function useWritingDocuments() {
     }
 
     const firstDocument = documents[0];
+    /* eslint-disable react-hooks/set-state-in-effect -- select the first available document after the list hydrates */
     void loadDocument(firstDocument.collection, firstDocument.id);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [documents, loadDocument]);
 
   useEffect(() => () => clearAutosaveTimer(), [clearAutosaveTimer]);

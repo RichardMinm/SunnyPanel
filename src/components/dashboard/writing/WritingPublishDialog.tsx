@@ -24,9 +24,11 @@ export function WritingPublishDialog({
   const [visibility, setVisibility] = useState<WritingPublishVisibility>("public");
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- reset the dialog choice each time the publish dialog opens */
     if (open) {
       setVisibility("public");
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [open]);
 
   return (

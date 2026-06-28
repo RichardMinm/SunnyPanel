@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppTooltip } from "@/components/primitives/AppTooltip";
 import { DashboardIcon } from "@/components/dashboard/icons";
@@ -238,9 +238,9 @@ export function WritingWorkspace({
           onMouseEnter={handlePeekEnter}
           onMouseLeave={handlePeekLeave}
         >
-          <AppTooltip content="打开属性面板">
+          <AppTooltip content="展开属性栏">
             <button
-              aria-label="打开属性面板"
+              aria-label="展开属性栏"
               className="sunny-writing-panel-toggle is-inspector"
               onClick={() => {
                 setInspectorOpen(true);

@@ -101,7 +101,6 @@ export function WritingEditorPane({
   isDirty,
   isLoadingDocument = false,
   onCreateDocument,
-  onFlushSave,
   onOpenInspector,
   onPrefillComposer,
   onPublish,
@@ -288,7 +287,7 @@ export function WritingEditorPane({
         <div className="sunny-writing-empty-state">
           <p>{headerLabel}</p>
           <h2>输入标题，开始写作</h2>
-          <p className="sunny-writing-side-muted">或从左侧内容库选择一篇文档。</p>
+          <p className="sunny-writing-side-muted">或从左侧文档集选择一篇文档。</p>
           {onCreateDocument ? (
             <div className="sunny-writing-empty-create-actions">
               {createOptions.map((option) => (

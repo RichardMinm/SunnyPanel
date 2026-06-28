@@ -11,16 +11,16 @@
   --writing-muted: var(--muted);
   --writing-chrome-muted: var(--muted);
   --writing-chrome-title: var(--foreground);
-  --writing-chrome-placeholder: color-mix(in srgb, var(--muted) 72%, transparent);
+  --writing-chrome-placeholder: color-mix(in oklch, var(--muted) 72%, transparent);
   --writing-chrome-divider: var(--border);
   --writing-accent: var(--accent);
   --writing-active-bg: var(--tone-info-bg);
   --writing-rail-bg: var(--writing-rail-bg, var(--surface-strong));
   --writing-panel-bg: var(--surface-strong);
   --writing-control-bg: var(--surface-strong);
-  --writing-rule: color-mix(in srgb, var(--border) 72%, transparent);
-  --writing-rule-strong: color-mix(in srgb, var(--writing-text) 14%, var(--writing-border));
-  --writing-hover: color-mix(in srgb, var(--writing-text) 5%, transparent);
+  --writing-rule: color-mix(in oklch, var(--border) 72%, transparent);
+  --writing-rule-strong: color-mix(in oklch, var(--writing-text) 14%, var(--writing-border));
+  --writing-hover: color-mix(in oklch, var(--writing-text) 5%, transparent);
   --writing-active: var(--writing-active-bg);
   --writing-active-text: var(--writing-accent);
   --writing-shadow: var(--shadow-soft);
@@ -100,5 +100,5 @@
   overscroll-behavior: contain;
   padding: 1rem 0.85rem;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 28%, transparent) transparent;
+  scrollbar-color: color-mix(in oklch, var(--muted) 28%, transparent) transparent;
 }

@@ -14,8 +14,6 @@ import { SlashCommandList, useSlashCommandState } from "./SlashCommandList";
 import type { SlashCommandHandlers } from "./slash-commands";
 import { FloatingFormatMenu } from "./FloatingFormatMenu";
 import { SlashCommandMenu } from "./SlashCommandMenu";
-import { WritingEmptyQuickActions } from "./WritingEmptyQuickActions";
-
 import "katex/dist/katex.min.css";
 
 type ContentEditorProps = {
@@ -109,7 +107,6 @@ export function ContentEditor({
           <div className="sunny-writing-tiptap-editor sunny-writing-editor-body">
             <EditorContent editor={editor} />
             <BlockControlsOverlay editor={editor} />
-            <WritingEmptyQuickActions editor={editor} onWritingAssist={onWritingAssist} />
           </div>
         </>
       ) : (

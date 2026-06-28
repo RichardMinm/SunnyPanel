@@ -17,6 +17,10 @@ export type AppPopoverProps = {
   open?: boolean;
   side?: "top" | "right" | "bottom" | "left";
   sideOffset?: number;
+  /** When true, trigger is rendered directly as the PopoverPrimitive.Trigger child
+   *  (no wrapper <button>). The trigger element must be a single element that
+   *  accepts a ref. triggerClassName is ignored in this mode. */
+  triggerAsChild?: boolean;
   triggerClassName?: string;
   width?: number | string;
 };
@@ -33,16 +37,23 @@ export function AppPopover({
   open,
   side = "bottom",
   sideOffset = 10,
+  triggerAsChild = false,
   triggerClassName,
   width,
 }: AppPopoverProps) {
   return (
     <PopoverPrimitive.Root modal={modal} onOpenChange={onOpenChange} open={open}>
-      <PopoverPrimitive.Trigger asChild>
-        <button type="button" className={cn("app-popover-trigger", triggerClassName)}>
+      {triggerAsChild ? (
+        <PopoverPrimitive.Trigger asChild>
           {trigger}
-        </button>
-      </PopoverPrimitive.Trigger>
+        </PopoverPrimitive.Trigger>
+      ) : (
+        <PopoverPrimitive.Trigger asChild>
+          <button type="button" className={cn("app-popover-trigger", triggerClassName)}>
+            {trigger}
+          </button>
+        </PopoverPrimitive.Trigger>
+      )}
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           align={align}

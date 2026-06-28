@@ -53,9 +53,11 @@ export function WritingCategoryGroup({
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- auto-expand the category that contains the active document */
     if (hasActiveDocument) {
       setOpen(true);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [hasActiveDocument]);
 
   const sortedDocuments = useMemo(() => sortDocumentsByUpdatedAt(documents), [documents]);

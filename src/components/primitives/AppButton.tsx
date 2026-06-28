@@ -42,6 +42,7 @@ export const AppButton = forwardRef<HTMLButtonElement, AppButtonProps>(function 
     disabled,
     loading = false,
     size = "md",
+    type,
     variant = "secondary",
     children,
     ...props
@@ -49,6 +50,13 @@ export const AppButton = forwardRef<HTMLButtonElement, AppButtonProps>(function 
   ref,
 ) {
   const Comp = asChild ? Slot : "button";
+
+  /* When rendering as a native <button>, default type to "button" so the
+   * button does not accidentally submit a parent <form>. Callers can still
+   * pass type="submit" or type="reset" explicitly to override.
+   * When asChild is true, type is left undefined — the child element
+   * owns its own type semantics. */
+  const resolvedType = asChild ? undefined : (type ?? "button");
 
   return (
     <Comp
@@ -63,6 +71,7 @@ export const AppButton = forwardRef<HTMLButtonElement, AppButtonProps>(function 
         className,
       )}
       disabled={disabled || loading}
+      type={resolvedType}
       {...props}
     >
       {loading ? <span aria-hidden="true" className="app-button__spinner" /> : null}

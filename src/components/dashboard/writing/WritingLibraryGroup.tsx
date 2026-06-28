@@ -36,9 +36,11 @@ export function WritingLibraryGroup({
   const [open, setOpen] = useState(hasActiveDocument);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- auto-expand the collection that contains the active document */
     if (hasActiveDocument) {
       setOpen(true);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [hasActiveDocument]);
 
   const toggleOpen = useCallback(() => {

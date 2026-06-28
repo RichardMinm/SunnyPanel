@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { AgentChatMessage, AgentTraceStep, AgentTokenUsage, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
+import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type { AgentInspectorTab, AgentRunDetail, AgentThreadSummary, ContextPreferences } from "@/components/dashboard/agent/types";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
@@ -54,6 +55,7 @@ type DashboardShellProps = {
   lastRollbackResult?: AgentRollbackExecutionResult | null;
   messages: AgentChatMessage[];
   traceSteps: AgentTraceStep[];
+  turnAudit?: AgentTurnTrace | null;
   tokenUsage: AgentTokenUsage;
   onInspectorTabChange: (tab: AgentInspectorTab) => void;
   onArtifactsRollback?: () => void;
@@ -157,6 +159,7 @@ export function DashboardShell({
   threads,
   tokenUsage,
   traceSteps,
+  turnAudit,
   onWorkbenchModeChange,
   workbenchMode,
 }: DashboardShellProps) {
@@ -208,9 +211,11 @@ export function DashboardShell({
   }, []);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- clear transient writing save status when leaving writing mode */
     if (activeMode !== "writing") {
       setWritingSaveStatus(null);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [activeMode]);
 
   // Wrap the inspector tab change to clear the persisted action when the user
@@ -506,6 +511,7 @@ export function DashboardShell({
             threadId={threadId}
             tokenUsage={tokenUsage}
             traceSteps={traceSteps}
+            turnAudit={turnAudit ?? null}
             workbenchMode={workbenchMode}
           />
 

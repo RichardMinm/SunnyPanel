@@ -13,6 +13,7 @@ type DashboardSettingsMenuProps = {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   trigger: React.ReactNode;
+  triggerAsChild?: boolean;
   triggerClassName?: string;
 };
 
@@ -24,6 +25,7 @@ export function DashboardSettingsMenu({
   open,
   onOpenChange,
   trigger,
+  triggerAsChild = false,
   triggerClassName = "sunny-dashboard-sidebar-action",
 }: DashboardSettingsMenuProps) {
   return (
@@ -31,6 +33,7 @@ export function DashboardSettingsMenu({
       open={open}
       onOpenChange={onOpenChange}
       trigger={trigger}
+      triggerAsChild={triggerAsChild}
       triggerClassName={triggerClassName}
     >
       <PreferencesPanel

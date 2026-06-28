@@ -23,10 +23,12 @@ export function AppInspectorSection({
   const [open, setOpen] = useState(defaultOpen);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- hydrate persisted inspector section state from localStorage */
     if (!storageKey || typeof window === "undefined") return;
     const stored = window.localStorage.getItem(storageKey);
     if (stored === "open") setOpen(true);
     if (stored === "closed") setOpen(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [storageKey]);
 
   const handleOpenChange = (next: boolean) => {

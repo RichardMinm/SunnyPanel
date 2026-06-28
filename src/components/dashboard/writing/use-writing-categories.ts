@@ -152,7 +152,9 @@ export function useWritingCategories() {
   }, []);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- initial category fetch hydrates hook state from the dashboard API */
     void loadCategories();
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [loadCategories]);
 
   return {

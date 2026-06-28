@@ -41,14 +41,18 @@ export function AppCommandMenu({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- reset keyboard navigation when the command menu opens */
     if (open) {
       setActiveIndex(0);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [open]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- reset keyboard navigation when command results change */
     setActiveIndex(0);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [query, items.length]);
 
   useEffect(() => {

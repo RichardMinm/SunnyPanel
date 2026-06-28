@@ -1,7 +1,5 @@
 "use client";
 
-import { DashboardIcon } from "@/components/dashboard/icons";
-
 import { useWritingLayoutContext } from "./WritingLayoutContext";
 import { WritingLibrary } from "./WritingLibrary";
 
@@ -12,29 +10,18 @@ export function WritingLibraryRail() {
     return null;
   }
 
+  const open = layout.libraryOpen;
+
   return (
     <section
-      aria-label="内容库"
-      className={`sunny-dashboard-sidebar-section sunny-dashboard-writing-library-section${layout.libraryOpen ? "" : " is-collapsed"}`}
+      aria-label="文档集"
+      className={`sunny-dashboard-sidebar-section sunny-dashboard-writing-library-section${open ? "" : " is-collapsed"}`}
     >
-      {!layout.libraryOpen ? (
-        <button
-          aria-expanded={false}
-          className="sunny-dashboard-sidebar-collapse-toggle"
-          onClick={() => setLibraryOpen(true)}
-          type="button"
-        >
-          <span className="sunny-sidebar-fold-arrow" data-open={false}>
-            <DashboardIcon name="chevronDown" />
-          </span>
-          <span className="sunny-dashboard-sidebar-icon">
-            <DashboardIcon name="pencil" />
-          </span>
-          <span className="sunny-dashboard-sidebar-label">内容库</span>
-        </button>
-      ) : (
-        <WritingLibrary onClose={() => setLibraryOpen(false)} variant="embedded" />
-      )}
+      <WritingLibrary
+        libraryOpen={open}
+        onToggle={() => setLibraryOpen(!open)}
+        variant="embedded"
+      />
     </section>
   );
 }

@@ -3,6 +3,8 @@
 import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
 import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 
+import { AppEmptyState } from "@/components/primitives/AppEmptyState";
+
 type WritingEmptyStateProps = {
   collection?: DashboardContentCollection;
   onCreate?: (collection: DashboardContentCollection) => void;
@@ -20,31 +22,37 @@ export function WritingEmptyState({
 
   if (variant === "draft-filter") {
     return (
-      <div className="sunny-writing-empty-state is-library">
-        <p>暂无草稿</p>
-        <h3>当前没有草稿内容</h3>
-        {onCreate ? (
-          <button className="sunny-writing-primary-button" onClick={() => onCreate(collection)} type="button">
-            新建{label}
-          </button>
-        ) : null}
-      </div>
+      <AppEmptyState
+        className="sunny-writing-empty-state is-library"
+        title="当前没有草稿内容"
+        description="暂无草稿"
+        action={
+          onCreate ? (
+            <button className="sunny-writing-primary-button" onClick={() => onCreate(collection)} type="button">
+              新建{label}
+            </button>
+          ) : undefined
+        }
+      />
     );
   }
 
   return (
-    <div className="sunny-writing-empty-state is-library">
-      <p>暂无文档集</p>
-      <h3>点击新建文档集开始整理内容</h3>
-      {onCreateCategory ? (
-        <button className="sunny-writing-primary-button" onClick={onCreateCategory} type="button">
-          新建文档集
-        </button>
-      ) : onCreate ? (
-        <button className="sunny-writing-primary-button" onClick={() => onCreate(collection)} type="button">
-          新建{label}
-        </button>
-      ) : null}
-    </div>
+    <AppEmptyState
+      className="sunny-writing-empty-state is-library"
+      title="点击新建文档集开始整理内容"
+      description="暂无文档集"
+      action={
+        onCreateCategory ? (
+          <button className="sunny-writing-primary-button" onClick={onCreateCategory} type="button">
+            新建文档集
+          </button>
+        ) : onCreate ? (
+          <button className="sunny-writing-primary-button" onClick={() => onCreate(collection)} type="button">
+            新建{label}
+          </button>
+        ) : undefined
+      }
+    />
   );
 }

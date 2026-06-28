@@ -12,7 +12,7 @@
   --dashboard-status-height: 1.5rem;
   --dashboard-app-bg: var(--background);
   --dashboard-card-shadow: 0 12px 32px var(--card-shadow);
-  --dashboard-card-border: color-mix(in srgb, var(--border) 82%, transparent);
+  --dashboard-card-border: color-mix(in oklch, var(--border) 82%, transparent);
   --dashboard-blue-soft: var(--tone-info-bg);
 }
 
@@ -77,7 +77,7 @@ position: relative;
   width: var(--dashboard-icon-bar-width);
   grid-row: 1 / -1;
   grid-column: 1;
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 88%, transparent);
   border-right: 1px solid var(--dashboard-card-border);
   padding: 0.75rem 0;
   gap: 0.35rem;
@@ -90,22 +90,36 @@ position: relative;
     padding var(--motion-duration-ui) var(--motion-ease-standard);
 }
 
+/* Phase E6A: AppSidebar compatibility.
+   AppSidebar brings its own .app-sidebar defaults (width, background, border, padding).
+   Compound selectors (0-2-0) override those defaults so the dashboard sidebar
+   retains its existing visual appearance. */
+.sunny-dashboard-icon-bar.app-sidebar {
+  width: var(--dashboard-icon-bar-width);
+  background: color-mix(in oklch, var(--surface-strong) 88%, transparent);
+  border-right: 1px solid var(--dashboard-card-border);
+}
+
+.sunny-dashboard-icon-bar .app-sidebar__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
 /* Auto-collapsed sidebar visual state */
 .sunny-dashboard-icon-bar.is-auto-collapsed {
 padding: 0.75rem 0.35rem;
   align-items: center;
 }
 
-.sunny-dashboard-icon-bar .sunny-codex-sidebar-label,
-.sunny-dashboard-icon-bar .sunny-codex-project-row > span:last-child,
-.sunny-dashboard-icon-bar .sunny-codex-sidebar-section > p,
-.sunny-dashboard-icon-bar .sunny-codex-sidebar-collapse-toggle .sunny-codex-sidebar-label,
-.sunny-dashboard-icon-bar .sunny-codex-project-row span:not(.sunny-codex-project-mark):not(.sunny-codex-sidebar-icon),
 .sunny-dashboard-icon-bar .sunny-dashboard-sidebar-label,
 .sunny-dashboard-icon-bar .sunny-dashboard-project-row > span:last-child,
 .sunny-dashboard-icon-bar .sunny-dashboard-sidebar-section > p,
 .sunny-dashboard-icon-bar .sunny-dashboard-sidebar-collapse-toggle .sunny-dashboard-sidebar-label,
-.sunny-dashboard-icon-bar .sunny-dashboard-project-row span:not(.sunny-dashboard-project-mark):not(.sunny-dashboard-sidebar-icon) {
+.sunny-dashboard-icon-bar .sunny-dashboard-project-row span:not(.sunny-dashboard-project-mark):not(.sunny-dashboard-sidebar-icon),
+/* Phase E4a: SidebarItem label needs the same expand/collapse transition */
+.sunny-dashboard-icon-bar .app-sidebar-item__label {
 opacity: 1;
   max-width: 12.8rem;
   overflow: hidden;
@@ -116,9 +130,6 @@ opacity: 1;
   transition-delay: 80ms;
 }
 
-.sunny-dashboard-icon-bar .sunny-codex-sidebar-search,
-.sunny-dashboard-icon-bar .sunny-codex-thread-section,
-.sunny-dashboard-icon-bar .sunny-codex-archive-section,
 .sunny-dashboard-icon-bar .sunny-dashboard-sidebar-search,
 .sunny-dashboard-icon-bar .sunny-dashboard-thread-section,
 .sunny-dashboard-icon-bar .sunny-dashboard-archive-section {
@@ -131,14 +142,10 @@ opacity: 1;
   transition-delay: 80ms;
 }
 
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-label,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-project-row > span:last-child,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-section > p,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-collapse-toggle .sunny-codex-sidebar-label,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-project-row span:not(.sunny-codex-project-mark):not(.sunny-codex-sidebar-icon),
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-sidebar-label,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-project-row > span:last-child,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-sidebar-section > p,
+.sunny-dashboard-icon-bar.is-auto-collapsed .app-sidebar-section__title,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-sidebar-collapse-toggle .sunny-dashboard-sidebar-label,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-project-row span:not(.sunny-dashboard-project-mark):not(.sunny-dashboard-sidebar-icon) {
 opacity: 0;
@@ -149,9 +156,6 @@ opacity: 0;
   transition-delay: 0ms;
 }
 
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-search,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-thread-section,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-archive-section,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-sidebar-search,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-thread-section,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-archive-section {
@@ -164,15 +168,24 @@ opacity: 0;
 }
 
 /* Center icons in collapsed mode */
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-project-row,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-sidebar-action,
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-mode-row,
-/* Center icons in collapsed mode */
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-project-row,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-sidebar-action,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-mode-row {
 justify-content: center;
   padding: 0;
+}
+
+/* Phase E4a: Hide SidebarItem labels in collapsed mode.
+   SidebarItem uses .app-sidebar-item__label, not .sunny-dashboard-sidebar-label.
+   This compound selector (0-3-0) ensures the label fades out during collapse transition,
+   matching the existing .sunny-dashboard-sidebar-label collapsed behavior. */
+.sunny-dashboard-icon-bar.is-auto-collapsed .app-sidebar-item__label {
+  opacity: 0;
+  max-width: 0;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  transition-delay: 0ms;
 }
 
 /* Pin button in sidebar footer */
@@ -191,7 +204,7 @@ display: inline-flex;
 }
 
 .sunny-sidebar-pin-button:hover {
-background: color-mix(in srgb, var(--foreground) 6%, transparent);
+background: color-mix(in oklch, var(--foreground) 6%, transparent);
   color: var(--foreground);
 }
 
@@ -200,17 +213,15 @@ color: var(--accent);
   background: var(--overlay-accent-08);
 }
 
-.sunny-codex-sidebar,
 .sunny-dashboard-sidebar {
 align-items: stretch;
   width: var(--dashboard-sidebar-width);
   padding: 0.9rem 0.65rem;
-  background: color-mix(in srgb, var(--surface-tint) 88%, var(--background));
-  border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in oklch, var(--surface-tint) 88%, var(--background));
+  border-right: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
   color: var(--foreground);
 }
 
-.sunny-codex-sidebar-top,
 .sunny-dashboard-sidebar-top {
 display: flex;
   min-height: 0;
@@ -221,15 +232,10 @@ display: flex;
   padding-bottom: 0.35rem;
 }
 
-.sunny-codex-sidebar-top > :not(.sunny-codex-thread-section):not(.sunny-codex-archive-section),
 .sunny-dashboard-sidebar-top > :not(.sunny-dashboard-thread-section):not(.sunny-dashboard-archive-section) {
 flex-shrink: 0;
 }
 
-.sunny-codex-project-row,
-.sunny-codex-sidebar-action,
-.sunny-codex-mode-row,
-.sunny-codex-thread-row,
 .sunny-dashboard-project-row,
 .sunny-dashboard-sidebar-action,
 .sunny-dashboard-mode-row,
@@ -240,14 +246,13 @@ display: flex;
   width: 100%;
   border: 0;
   background: transparent;
-  color: color-mix(in srgb, var(--foreground) 84%, var(--muted));
+  color: color-mix(in oklch, var(--foreground) 84%, var(--muted));
   font-family: var(--sunny-font-sans);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
 }
 
-.sunny-codex-project-row,
 .sunny-dashboard-project-row {
 gap: 0.55rem;
   min-height: 2rem;
@@ -257,30 +262,24 @@ gap: 0.55rem;
   font-weight: 650;
 }
 
-.sunny-codex-project-row:hover,
-.sunny-codex-sidebar-action:hover,
-.sunny-codex-mode-row:hover,
-.sunny-codex-thread-row:hover,
-.sunny-dashboard-project-row:hover,
-.sunny-dashboard-sidebar-action:hover,
-.sunny-dashboard-mode-row:hover,
+.sunny-dashboard-project-row:hover
+.sunny-dashboard-sidebar-action:hover
+.sunny-dashboard-mode-row:hover
 .sunny-dashboard-thread-row:hover {
-background: color-mix(in srgb, var(--foreground) 6%, transparent);
+background: color-mix(in oklch, var(--foreground) 6%, transparent);
 }
 
-.sunny-codex-project-row.is-static,
 .sunny-dashboard-project-row.is-static {
 cursor: default;
 }
 
-.sunny-codex-project-mark,
 .sunny-dashboard-project-mark {
 display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 1.35rem;
   height: 1.35rem;
-  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
   border-radius: 0.42rem;
   background: var(--surface-strong);
   color: var(--accent);
@@ -289,13 +288,11 @@ display: inline-flex;
   flex: 0 0 auto;
 }
 
-.sunny-codex-sidebar-actions,
 .sunny-dashboard-sidebar-actions {
 display: grid;
   gap: 0.2rem;
 }
 
-.sunny-codex-sidebar-action,
 .sunny-dashboard-sidebar-action {
 gap: 0.65rem;
   min-height: 2rem;
@@ -305,7 +302,6 @@ gap: 0.65rem;
   font-weight: 500;
 }
 
-.sunny-codex-sidebar-icon,
 .sunny-dashboard-sidebar-icon {
 display: inline-flex;
   align-items: center;
@@ -322,7 +318,6 @@ display: block;
   height: 1.1rem;
 }
 
-.sunny-codex-sidebar-label,
 .sunny-dashboard-sidebar-label {
 min-width: 0;
   overflow: hidden;
@@ -330,30 +325,40 @@ min-width: 0;
   white-space: nowrap;
 }
 
-.sunny-codex-project-icon,
 .sunny-dashboard-project-icon {
-border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
   border-radius: 0.42rem;
   background: var(--surface-strong);
   color: var(--accent);
 }
 
-.sunny-codex-sidebar-section,
 .sunny-dashboard-sidebar-section {
 display: grid;
   gap: 0.22rem;
 }
 
-.sunny-codex-sidebar-section p,
+/* Phase E3: SidebarSection compatibility — preserve grid layout when SidebarSection adds app-sidebar-section class.
+   SidebarSection renders display:flex which would conflict with the grid layout above.
+   This compound selector (0-2-0) beats both single-class selectors (0-1-0). */
+.sunny-dashboard-sidebar-section.app-sidebar-section {
+  display: grid;
+  gap: 0.22rem;
+}
+
+/* Phase E3: prevent SidebarSection's adjacent-sibling margin from adding extra space
+   between consecutive dashboard sidebar sections */
+.sunny-dashboard-sidebar-section.app-sidebar-section + .sunny-dashboard-sidebar-section.app-sidebar-section {
+  margin-top: 0;
+}
+
 .sunny-dashboard-sidebar-section p {
 margin: 0;
   padding: 0 0.5rem 0.1rem;
-  color: color-mix(in srgb, var(--muted) 82%, transparent);
+  color: color-mix(in oklch, var(--muted) 82%, transparent);
   font-size: var(--text-2xs);
   font-weight: 650;
 }
 
-.sunny-codex-sidebar-collapse-toggle,
 .sunny-dashboard-sidebar-collapse-toggle {
 display: flex;
   align-items: center;
@@ -365,63 +370,49 @@ display: flex;
   cursor: pointer;
   font-size: var(--text-2xs);
   font-weight: 650;
-  color: color-mix(in srgb, var(--muted) 82%, transparent);
+  color: color-mix(in oklch, var(--muted) 82%, transparent);
   text-align: left;
 }
 
-.sunny-codex-sidebar-collapse-toggle:hover,
 .sunny-dashboard-sidebar-collapse-toggle:hover {
 color: var(--foreground);
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
   border-radius: 0.55rem;
 }
 
-.sunny-codex-collapse-caret {
-display: inline-flex;
+/* Phase E5D: SidebarCollapseToggle BEM sub-element classes.
+   .sidebar-collapse-toggle__arrow uses data-open for rotation.,
+   .sidebar-collapse-toggle__label flexes to fill available space.,
+   .sidebar-collapse-toggle__count is a muted badge. */
+.sidebar-collapse-toggle__arrow {
+  display: inline-flex;
   width: 0.75rem;
   justify-content: center;
   transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
   transform: rotate(-90deg);
 }
 
-.sunny-codex-collapse-caret.is-open {
-transform: rotate(0deg);
+.sidebar-collapse-toggle__arrow[data-open="true"] {
+  transform: rotate(0deg);
 }
 
-.sunny-codex-collapsible-body {
-overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    max-height var(--motion-duration-panel) var(--motion-ease-standard),
-    opacity var(--motion-duration-ui) var(--motion-ease-out);
+.sidebar-collapse-toggle__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.sunny-codex-collapsible-body.is-open {
-opacity: 1;
-  pointer-events: auto;
+.sidebar-collapse-toggle__count {
+  color: var(--muted);
+  font-weight: 500;
 }
 
-.sunny-codex-collapsible-body.is-thread.is-open {
-display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  max-height: none;
-}
-
-.sunny-codex-collapsible-body.is-archive.is-open {
-max-height: min(50vh, 480px);
-}
-
-.sunny-codex-mode-list,
 .sunny-dashboard-mode-list {
 display: grid;
   gap: 0.18rem;
 }
 
-.sunny-codex-mode-row,
 .sunny-dashboard-mode-row {
 position: relative;
   overflow: hidden;
@@ -434,42 +425,48 @@ position: relative;
   transition: color var(--motion-duration-ui) var(--motion-ease-out);
 }
 
-.sunny-codex-mode-pill,
-.sunny-dashboard-mode-pill {
-position: absolute;
-  inset: 0;
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--tone-info-bg) 70%, transparent);
-  pointer-events: none;
+/* Phase E2/E3: SidebarItem compatibility — lock mode-row font-size on the compound selector.
+   Without this, .app-sidebar-item { font-size: var(--text-sm) } and
+   .sunny-dashboard-mode-row { font-size: var(--text-xs) } have equal specificity,
+   making font-size dependent on CSS import order.
+   Compound selector (0-2-0) beats both single-class selectors (0-1-0). */
+.sunny-dashboard-mode-row.app-sidebar-item {
+  font-size: var(--text-xs);
 }
 
-.sunny-codex-mode-row .sunny-codex-sidebar-icon,
-.sunny-codex-mode-row .sunny-codex-sidebar-label,
+/* Phase E4c: SidebarItem compatibility — lock sidebar-action font-size and spacing.
+   Without this, .app-sidebar-item { font-size: var(--text-sm) } and
+   .sunny-dashboard-sidebar-action { font-size: var(--text-sm-compact) } have equal specificity,
+   making font-size dependent on CSS import order.
+   Compound selector (0-2-0) beats both single-class selectors (0-1-0). */
+.sunny-dashboard-sidebar-action.app-sidebar-item {
+  font-size: var(--text-sm-compact);
+  gap: 0.65rem;
+  min-height: 2rem;
+  padding: 0 0.5rem;
+  border-radius: 0.55rem;
+}
+
 .sunny-dashboard-mode-row .sunny-dashboard-sidebar-icon,
 .sunny-dashboard-mode-row .sunny-dashboard-sidebar-label {
 position: relative;
   z-index: 1;
 }
 
-.sunny-codex-thread-row.is-active,
 .sunny-dashboard-thread-row.is-active {
 color: var(--accent-strong);
 }
 
-.sunny-codex-mode-row.is-active,
 .sunny-dashboard-mode-row.is-active {
 background: transparent;
-  color: color-mix(in srgb, var(--foreground) 64%, var(--muted));
+  color: color-mix(in oklch, var(--foreground) 64%, var(--muted));
   font-weight: 560;
 }
 
-.sunny-codex-thread-row.is-active,
 .sunny-dashboard-thread-row.is-active {
-background: color-mix(in srgb, var(--tone-info-bg) 70%, transparent);
+background: color-mix(in oklch, var(--tone-info-bg) 70%, transparent);
 }
 
-.sunny-codex-thread-section,
-.sunny-codex-archive-section,
 .sunny-dashboard-thread-section,
 .sunny-dashboard-archive-section {
 display: flex;
@@ -478,25 +475,20 @@ display: flex;
   overflow: hidden;
 }
 
-.sunny-codex-thread-section,
 .sunny-dashboard-thread-section {
 flex: 1 1 auto;
 }
 
-.sunny-codex-archive-section,
 .sunny-dashboard-archive-section {
 flex: 0 0 auto;
   margin-top: 0.25rem;
 }
 
-.sunny-codex-thread-section.is-collapsed,
-.sunny-codex-archive-section.is-collapsed,
 .sunny-dashboard-thread-section.is-collapsed,
 .sunny-dashboard-archive-section.is-collapsed {
 flex: 0 0 auto;
 }
 
-.sunny-codex-thread-list,
 .sunny-dashboard-thread-list {
 display: grid;
   flex: 1 1 auto;
@@ -505,10 +497,9 @@ display: grid;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 28%, transparent) transparent;
+  scrollbar-color: color-mix(in oklch, var(--muted) 28%, transparent) transparent;
 }
 
-.sunny-codex-thread-row,
 .sunny-dashboard-thread-row {
 display: grid;
   gap: 0.06rem;
@@ -517,8 +508,6 @@ display: grid;
   border-radius: 0.58rem;
 }
 
-.sunny-codex-thread-row span,
-.sunny-codex-thread-row small,
 .sunny-dashboard-thread-row span,
 .sunny-dashboard-thread-row small {
 overflow: hidden;
@@ -526,26 +515,21 @@ overflow: hidden;
   white-space: nowrap;
 }
 
-.sunny-codex-thread-row span,
 .sunny-dashboard-thread-row span {
 font-size: var(--text-xs);
   font-weight: 560;
 }
 
-.sunny-codex-thread-row small,
-.sunny-codex-empty-label,
 .sunny-dashboard-thread-row small,
 .sunny-dashboard-empty-label {
 color: var(--muted);
   font-size: var(--text-2xs);
 }
 
-.sunny-codex-empty-label,
 .sunny-dashboard-empty-label {
 padding: 0.35rem 0.5rem;
 }
 
-.sunny-codex-sidebar-bottom,
 .sunny-dashboard-sidebar-bottom {
 align-items: stretch;
   gap: 0.2rem;
@@ -553,7 +537,6 @@ align-items: stretch;
   margin-top: 0.85rem;
 }
 
-.sunny-codex-sidebar .sunny-dashboard-settings-popover,
 .sunny-dashboard-sidebar .sunny-dashboard-settings-popover {
 left: 0;
   bottom: 2.35rem;
@@ -564,14 +547,6 @@ html[data-theme="dark"] .sunny-dashboard-icon-bar {
 background: var(--surface);
 }
 
-.sunny-dashboard-icon-bar-top {
-display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  flex-shrink: 0;
-}
-
 .sunny-dashboard-icon-bar-bottom {
 display: flex;
   flex-direction: column;
@@ -579,98 +554,6 @@ display: flex;
   gap: 0.35rem;
   margin-top: auto;
   flex-shrink: 0;
-}
-
-/* 品牌标识 */
-.sunny-dashboard-icon-brand {
-display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.35rem;
-  height: 2.35rem;
-  border-radius: 0.75rem;
-  background: var(--accent);
-  color: var(--agent-text-on-accent);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-title);
-  font-family: var(--sunny-font-sans);
-  line-height: 1;
-  flex-shrink: 0;
-  cursor: default;
-  user-select: none;
-}
-
-html[data-theme="dark"] .sunny-dashboard-icon-brand {
-color: color-mix(in srgb, var(--background) 88%, var(--foreground));
-}
-
-/* 图标按钮 */
-.sunny-dashboard-icon-btn {
-position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  border: none;
-  border-radius: 0.75rem;
-  background: transparent;
-  color: var(--muted);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 140ms ease, color 140ms ease;
-}
-
-.sunny-dashboard-icon-btn:hover {
-background: color-mix(in srgb, var(--tone-info-bg) 88%, transparent);
-  color: var(--foreground);
-}
-
-html[data-theme="dark"] .sunny-dashboard-icon-btn:hover {
-background: color-mix(in srgb, var(--surface-strong) 88%, var(--foreground) 4%);
-}
-
-.sunny-dashboard-icon-btn.is-active {
-color: var(--accent-strong);
-  background: var(--tone-info-bg);
-}
-
-.sunny-dashboard-icon-btn.is-active::before {
-position: absolute;
-  left: -0.57rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 1.45rem;
-  border-radius: 0 2px 2px 0;
-  background: var(--accent);
-  content: "";
-}
-
-.sunny-dashboard-icon-btn[data-tooltip]::after {
-position: absolute;
-  left: calc(100% + 0.55rem);
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 60;
-  pointer-events: none;
-  opacity: 0;
-  padding: 0.28rem 0.5rem;
-  border-radius: 0.45rem;
-  background: var(--surface);
-  color: var(--agent-text-on-accent);
-  content: attr(data-tooltip);
-  font-size: var(--text-2xs);
-  line-height: 1;
-  white-space: nowrap;
-  box-shadow: 0 8px 20px var(--shadow-elevated);
-  transition: opacity 120ms ease, transform 120ms ease;
-}
-
-.sunny-dashboard-icon-btn[data-tooltip]:hover::after {
-opacity: 1;
-  transform: translate(0.12rem, -50%);
 }
 
 .sunny-dashboard-settings {
@@ -698,14 +581,6 @@ margin: 0 0 0.5rem;
 }
 
 /* 分隔线 */
-.sunny-dashboard-icon-separator {
-width: 1.5rem;
-  height: 1px;
-  background: var(--border);
-  flex-shrink: 0;
-  margin: 0.15rem 0;
-}
-
 .sunny-context-panel-resize-handle {
 position: absolute;
   left: -0.4rem;
@@ -726,7 +601,7 @@ position: absolute;
   bottom: 0;
   width: 2px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in oklch, var(--accent) 42%, transparent);
   content: "";
   opacity: 0;
   transition: opacity 140ms ease;
@@ -753,19 +628,19 @@ position: fixed;
   justify-content: center;
   width: 2rem;
   height: 2.6rem;
-  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 68%, transparent);
   border-radius: 0.75rem 0 0 0.75rem;
-  background: color-mix(in srgb, var(--surface-strong) 92%, var(--surface));
-  color: color-mix(in srgb, var(--foreground) 76%, var(--muted));
+  background: color-mix(in oklch, var(--surface-strong) 92%, var(--surface));
+  color: color-mix(in oklch, var(--foreground) 76%, var(--muted));
   box-shadow: 0 12px 28px var(--shadow-soft);
   cursor: pointer;
   transform: translateY(-50%);
   transition: right 220ms ease, border-color 140ms ease, color 140ms ease;
 }
 
-.sunny-dashboard-inspector-toggle:hover,
+.sunny-dashboard-inspector-toggle:hover
 .sunny-dashboard-inspector-toggle:focus-visible {
-border-color: color-mix(in srgb, var(--accent-strong) 70%, var(--border));
+border-color: color-mix(in oklch, var(--accent-strong) 70%, var(--border));
   color: var(--accent-strong);
 }
 
@@ -782,11 +657,11 @@ display: flex;
   grid-column: 2 / -1;
   height: var(--dashboard-status-height);
   padding: 0 0.65rem;
-  border-top: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
-  background: color-mix(in srgb, var(--dashboard-app-bg) 92%, transparent);
+  border-top: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  background: color-mix(in oklch, var(--dashboard-app-bg) 92%, transparent);
   font-size: var(--text-2xs);
   font-family: var(--sunny-font-mono);
-  color: color-mix(in srgb, var(--muted) 74%, transparent);
+  color: color-mix(in oklch, var(--muted) 74%, transparent);
   line-height: 1;
   z-index: 15;
   gap: 0.75rem;
@@ -824,47 +699,6 @@ color: var(--muted);
   opacity: 0.7;
 }
 
-/* ── Recent session section (today mode) ── */
-
-.sunny-codex-recent-section {
-display: flex;
-  flex-direction: column;
-  gap: 0.22rem;
-  flex-shrink: 0;
-}
-
-.sunny-codex-recent-header {
-margin: 0 !important;
-  padding: 0 0.55rem 0.1rem !important;
-  color: color-mix(in srgb, var(--muted) 82%, transparent) !important;
-  font-size: var(--text-2xs) !important;
-  font-weight: 650 !important;
-}
-
-.sunny-codex-view-all,
-.sunny-dashboard-view-all {
-display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 1.85rem;
-  padding: 0.3rem 0.5rem;
-  border: none;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: var(--muted);
-  font-size: var(--text-2xs);
-  font-weight: 560;
-  cursor: pointer;
-  transition: all 160ms ease;
-}
-
-.sunny-codex-view-all:hover,
-.sunny-dashboard-view-all:hover {
-background: color-mix(in srgb, var(--foreground) 6%, transparent);
-  color: var(--foreground);
-}
-
 /* ── Thread status badge ── */
 
 .sunny-thread-status-badge {
@@ -877,17 +711,17 @@ display: inline-block;
 }
 
 .sunny-thread-status-badge.is-executing {
-background: color-mix(in srgb, var(--accent) 15%, transparent);
+background: color-mix(in oklch, var(--accent) 15%, transparent);
   color: var(--accent-strong, var(--accent));
 }
 
 .sunny-thread-status-badge.is-warning {
-background: color-mix(in srgb, var(--tone-warning-text) 15%, transparent);
+background: color-mix(in oklch, var(--tone-warning-text) 15%, transparent);
   color: var(--tone-warning-text);
 }
 
 .sunny-thread-status-badge.is-danger {
-background: color-mix(in srgb, var(--tone-danger-text) 15%, transparent);
+background: color-mix(in oklch, var(--tone-danger-text) 15%, transparent);
   color: var(--tone-danger-text);
 }
 
@@ -937,11 +771,11 @@ background: var(--background);
 
 html[data-theme="dark"] .sunny-agent-capability-card {
 background: var(--surface);
-  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  border-color: color-mix(in oklch, var(--border) 70%, transparent);
 }
 
 html[data-theme="dark"] .sunny-agent-capability-card-icon {
-background: color-mix(in srgb, var(--foreground) 8%, transparent);
+background: color-mix(in oklch, var(--foreground) 8%, transparent);
 }
 
 /* ── 响应式：隐藏右面板 ── */
@@ -961,49 +795,6 @@ background: color-mix(in srgb, var(--foreground) 8%, transparent);
     grid-template-columns: var(--dashboard-icon-bar-width) minmax(0, 1fr);
   }
 
-  .sunny-codex-sidebar {
-    padding: 0.75rem 0.45rem;
-  }
-
-  .sunny-codex-sidebar-section p,
-  .sunny-codex-thread-section,
-  .sunny-codex-project-row.is-static,
-  .sunny-codex-sidebar-label {
-    display: none;
-  }
-
-  .sunny-codex-project-row,
-  .sunny-codex-sidebar-action,
-  .sunny-codex-mode-row {
-    justify-content: center;
-    padding: 0;
-    min-height: 2.25rem;
-  }
-
-  .sunny-codex-project-row > span:not(.sunny-codex-project-mark):not(.sunny-codex-sidebar-icon),
-  .sunny-codex-sidebar-bottom .sunny-codex-sidebar-label {
-    color: transparent;
-  }
-
-  .sunny-codex-project-row > span:not(.sunny-codex-project-mark):not(.sunny-codex-sidebar-icon) {
-    display: none;
-  }
-
-  .sunny-codex-sidebar-bottom .sunny-codex-sidebar-icon {
-    color: var(--muted);
-  }
-
-  .sunny-codex-sidebar-top {
-    gap: 0.55rem;
-    align-items: center;
-  }
-
-  .sunny-codex-sidebar-actions,
-  .sunny-codex-mode-list {
-    gap: 0.25rem;
-    justify-items: center;
-  }
-
   .sunny-dashboard-shell .sunny-dashboard-main {
     grid-column: 2;
   }
@@ -1019,28 +810,15 @@ background: color-mix(in srgb, var(--foreground) 8%, transparent);
     transition: none;
   }
 
-  .sunny-dashboard-icon-bar,
-  .sunny-dashboard-icon-bar .sunny-codex-sidebar-label,
-  .sunny-dashboard-icon-bar .sunny-codex-sidebar-search,
-  .sunny-dashboard-icon-bar .sunny-codex-thread-section,
-  .sunny-dashboard-icon-bar .sunny-codex-archive-section {
+  .sunny-dashboard-icon-bar {
     transition: none;
   }
 
   .sunny-dashboard-shell .sunny-dashboard-right-panel {
     transition: none;
   }
-
-  .sunny-dashboard-icon-btn,
-  .sunny-codex-mode-row,
-  .sunny-codex-collapse-caret,
-  .sunny-codex-collapsible-body {
-    transition: none;
-  }
 }
 
-/* ── ThreadRowMenu ── */
-.sunny-codex-thread-row,
 /* ── ThreadRowMenu ── */
 .sunny-dashboard-thread-row {
 display: flex;
@@ -1052,7 +830,6 @@ display: flex;
   border-radius: 0.625rem;
 }
 
-.sunny-codex-thread-row-btn,
 .sunny-dashboard-thread-row-btn {
 flex: 1;
   display: grid;
@@ -1067,7 +844,6 @@ flex: 1;
   font: inherit;
 }
 
-.sunny-codex-thread-row-btn span,
 .sunny-dashboard-thread-row-btn span {
 display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -1079,7 +855,6 @@ display: -webkit-box;
   line-height: 1.35;
 }
 
-.sunny-codex-thread-row-btn small,
 .sunny-dashboard-thread-row-btn small {
 display: flex;
   align-items: center;
@@ -1091,27 +866,71 @@ display: flex;
   white-space: nowrap;
 }
 
-/* ── Sidebar Search ── */
+/* Phase E5B: SidebarThreadItem BEM sub-element classes.
+   These sit alongside the old sunny-dashboard-thread-row* classes
+   to provide component-level semantics without changing layout.
+   .sidebar-thread-item__menu / .sidebar-thread-item__marker are
+   flex-shrink: 0 wrappers that preserve the existing flex layout. */
+.sidebar-thread-item__main {
+  flex: 1;
+  display: grid;
+  gap: 0.06rem;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
 
-.sunny-codex-search-wrapper,
+.sidebar-thread-item__title {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  font-size: var(--text-xs);
+  font-weight: 560;
+  line-height: 1.35;
+}
+
+.sidebar-thread-item__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-thread-item__menu {
+  flex-shrink: 0;
+}
+
+.sidebar-thread-item__marker {
+  flex-shrink: 0;
+}
+
 /* ── Sidebar Search ── */
 
 .sunny-dashboard-search-wrapper {
 display: flex;
   align-items: center;
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
   border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--muted) 8%, transparent);
+  background: color-mix(in oklch, var(--muted) 8%, transparent);
   padding: 0 0.5rem;
   transition: border-color 160ms ease;
 }
 
-.sunny-codex-search-wrapper:focus-within,
 .sunny-dashboard-search-wrapper:focus-within {
-border-color: color-mix(in srgb, var(--accent-ring-strong, var(--accent)) 45%, transparent);
+border-color: color-mix(in oklch, var(--accent-ring-strong, var(--accent)) 45%, transparent);
 }
 
-.sunny-codex-sidebar-search-input,
 .sunny-dashboard-sidebar-search-input {
 flex: 1;
   min-width: 0;
@@ -1123,12 +942,10 @@ flex: 1;
   outline: none;
 }
 
-.sunny-codex-sidebar-search-input::placeholder,
 .sunny-dashboard-sidebar-search-input::placeholder {
 color: var(--muted);
 }
 
-.sunny-codex-sidebar-search-clear,
 .sunny-dashboard-sidebar-search-clear {
 flex-shrink: 0;
   display: inline-flex;
@@ -1145,10 +962,44 @@ flex-shrink: 0;
   line-height: 1;
 }
 
-.sunny-codex-sidebar-search-clear:hover,
 .sunny-dashboard-sidebar-search-clear:hover {
-background: color-mix(in srgb, var(--muted) 15%, transparent);
+background: color-mix(in oklch, var(--muted) 15%, transparent);
   color: var(--foreground);
+}
+
+/* Phase E5A: AppSearchInput in DashboardIconBar sidebar.
+   AppInput provides a default input wrapper (.app-input) with its own border,
+   background, focus-ring, padding, and font-size. The sidebar search needs a
+   more compact, subtler appearance. Compound selectors (0-2-0 / 0-3-0)
+   override the AppInput defaults without affecting AppSearchInput usage
+   elsewhere (e.g. MemoryCardGrid). */
+.sunny-dashboard-search-wrapper.app-input {
+  border-color: color-mix(in oklch, var(--border) 60%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in oklch, var(--muted) 8%, transparent);
+  padding: 0 0.5rem;
+  min-height: unset;
+  gap: 0;
+}
+
+.sunny-dashboard-search-wrapper.app-input:focus-within {
+  border-color: color-mix(in oklch, var(--accent-ring-strong, var(--accent)) 45%, transparent);
+  box-shadow: none;
+}
+
+.sunny-dashboard-search-wrapper .app-input__field {
+  font-size: var(--text-xs);
+  padding: 0.35rem 0;
+  color: var(--foreground);
+}
+
+.sunny-dashboard-search-wrapper .app-input__field::placeholder {
+  color: var(--muted);
+}
+
+/* AppSearchInput's left search icon in sidebar — keep it compact */
+.sunny-dashboard-search-wrapper .app-input__left-icon {
+  color: var(--muted);
 }
 
 .sunny-thread-row-menu {
@@ -1171,15 +1022,13 @@ display: none;
   line-height: 1;
 }
 
-.sunny-codex-thread-row:hover .sunny-thread-row-menu-trigger,
-.sunny-codex-thread-row:focus-within .sunny-thread-row-menu-trigger,
-.sunny-dashboard-thread-row:hover .sunny-thread-row-menu-trigger,
+.sunny-dashboard-thread-row:hover .sunny-thread-row-menu-trigger
 .sunny-dashboard-thread-row:focus-within .sunny-thread-row-menu-trigger {
 display: flex;
 }
 
 .sunny-thread-row-menu-trigger:hover {
-background: color-mix(in srgb, var(--muted) 12%, transparent);
+background: color-mix(in oklch, var(--muted) 12%, transparent);
   color: var(--foreground);
 }
 
@@ -1192,7 +1041,7 @@ position: absolute;
   padding: 0.25rem;
   border-radius: 0.5rem;
   background: var(--background);
-  border: 1px solid color-mix(in srgb, var(--muted) 20%, transparent);
+  border: 1px solid color-mix(in oklch, var(--muted) 20%, transparent);
   box-shadow: var(--shadow-soft);
 }
 
@@ -1217,7 +1066,7 @@ display: flex;
 }
 
 .sunny-thread-row-menu-item:hover {
-background: color-mix(in srgb, var(--muted) 12%, transparent);
+background: color-mix(in oklch, var(--muted) 12%, transparent);
 }
 
 /* ── ConfirmDialog ── */
@@ -1237,7 +1086,7 @@ min-width: 18rem;
   padding: 1.25rem;
   border-radius: 0.75rem;
   background: var(--background);
-  border: 1px solid color-mix(in srgb, var(--muted) 20%, transparent);
+  border: 1px solid color-mix(in oklch, var(--muted) 20%, transparent);
   box-shadow: var(--shadow-elevated);
 }
 
@@ -1262,7 +1111,7 @@ display: flex;
 
 .sunny-confirm-btn-cancel {
 padding: 0.4rem 0.9rem;
-  border: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+  border: 1px solid color-mix(in oklch, var(--muted) 25%, transparent);
   border-radius: 0.4rem;
   background: transparent;
   color: var(--foreground);
@@ -1271,7 +1120,7 @@ padding: 0.4rem 0.9rem;
 }
 
 .sunny-confirm-btn-cancel:hover {
-background: color-mix(in srgb, var(--muted) 8%, transparent);
+background: color-mix(in oklch, var(--muted) 8%, transparent);
 }
 
 .sunny-confirm-btn-warning {
@@ -1305,8 +1154,6 @@ background: var(--tone-danger-text);
 }
 
 /* ── Archive section ── */
-.sunny-codex-archive-list,
-/* ── Archive section ── */
 .sunny-dashboard-archive-list {
 display: grid;
   gap: 0.22rem;
@@ -1315,11 +1162,9 @@ display: grid;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 28%, transparent) transparent;
-  /* match .sunny-codex-thread-list grid layout */
+  scrollbar-color: color-mix(in oklch, var(--muted) 28%, transparent) transparent;
 }
 
-.sunny-codex-archive-thread,
 .sunny-dashboard-archive-thread {
 position: relative;
   display: flex;
@@ -1331,20 +1176,16 @@ position: relative;
   border-radius: 0.625rem;
 }
 
-.sunny-codex-archive-thread:hover,
 .sunny-dashboard-archive-thread:hover {
-background: color-mix(in srgb, var(--muted) 8%, transparent);
+background: color-mix(in oklch, var(--muted) 8%, transparent);
 }
 
-.sunny-codex-archive-actions,
 .sunny-dashboard-archive-actions {
 display: flex;
   align-items: center;
   gap: 0.25rem;
 }
 
-.sunny-codex-archive-restore-btn,
-.sunny-codex-archive-delete-btn,
 .sunny-dashboard-archive-restore-btn,
 .sunny-dashboard-archive-delete-btn {
 padding: 0.15rem 0.45rem;
@@ -1356,31 +1197,34 @@ padding: 0.15rem 0.45rem;
   cursor: pointer;
 }
 
-.sunny-codex-archive-restore-btn:hover,
 .sunny-dashboard-archive-restore-btn:hover {
-background: color-mix(in srgb, var(--accent) 15%, transparent);
+background: color-mix(in oklch, var(--accent) 15%, transparent);
   color: var(--accent);
 }
 
-.sunny-codex-archive-delete-btn:hover,
 .sunny-dashboard-archive-delete-btn:hover {
-background: color-mix(in srgb, var(--tone-danger-text) 12%, transparent);
+background: color-mix(in oklch, var(--tone-danger-text) 12%, transparent);
   color: var(--tone-danger-text);
 }
 
-/* Archive thread content: title + time (matching thread-row layout) */
-.sunny-codex-archive-thread-content,
-/* Archive thread content: title + time (matching thread-row layout) */
-.sunny-dashboard-archive-thread-content {
-display: grid;
-  gap: 0.06rem;
-  min-width: 0;
-  flex: 1;
+/* Show the ⋮ trigger for archive rows on hover (same as active thread rows) */
+.sunny-dashboard-archive-thread:hover .sunny-thread-row-menu-trigger
+.sunny-dashboard-archive-thread:focus-within .sunny-thread-row-menu-trigger {
+display: flex;
 }
 
-.sunny-codex-archive-thread-content span,
-.sunny-dashboard-archive-thread-content span {
-display: -webkit-box;
+/* Phase E5C: SidebarArchiveItem BEM sub-element classes.
+   These sit alongside the old sunny-dashboard-archive-* classes
+   to provide component-level semantics without changing layout.
+   .sidebar-archive-item__menu is a flex-shrink: 0 wrapper. */
+.sidebar-archive-item__main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sidebar-archive-item__title {
+  display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
@@ -1388,25 +1232,19 @@ display: -webkit-box;
   font-size: var(--text-xs);
   font-weight: 560;
   line-height: 1.35;
-  color: color-mix(in srgb, var(--foreground) 84%, var(--muted));
 }
 
-.sunny-codex-archive-thread-content small,
-.sunny-dashboard-archive-thread-content small {
-color: var(--muted);
+.sidebar-archive-item__meta {
+  display: block;
+  color: var(--muted);
   font-size: var(--text-2xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Show the ⋮ trigger for archive rows on hover (same as active thread rows) */
-.sunny-codex-archive-thread:hover .sunny-thread-row-menu-trigger,
-.sunny-codex-archive-thread:focus-within .sunny-thread-row-menu-trigger,
-/* Show the ⋮ trigger for archive rows on hover (same as active thread rows) */
-.sunny-dashboard-archive-thread:hover .sunny-thread-row-menu-trigger,
-.sunny-dashboard-archive-thread:focus-within .sunny-thread-row-menu-trigger {
-display: flex;
+.sidebar-archive-item__menu {
+  flex-shrink: 0;
 }
 
 .sunny-thread-row-menu-item.is-danger {
@@ -1414,17 +1252,15 @@ color: var(--tone-danger-text);
 }
 
 .sunny-thread-row-menu-item.is-danger:hover {
-background: color-mix(in srgb, var(--tone-danger-text) 12%, transparent);
+background: color-mix(in oklch, var(--tone-danger-text) 12%, transparent);
 }
 
-html[data-theme="dark"] .sunny-codex-archive-thread,
 html[data-theme="dark"] .sunny-dashboard-archive-thread {
 background: var(--surface-strong);
   border-color: var(--border);
   color: var(--muted);
 }
 
-html[data-theme="dark"] .sunny-codex-archive-thread:hover,
 html[data-theme="dark"] .sunny-dashboard-archive-thread:hover {
 background: var(--surface-strong);
 }
@@ -1444,47 +1280,36 @@ background: var(--background);
 
 /* Sidebar / nav */
 html[data-theme="dark"] .sunny-dashboard-icon-bar,
-html[data-theme="dark"] .sunny-codex-sidebar,
 html[data-theme="dark"] .sunny-dashboard-sidebar {
 background: var(--surface);
   border-right-color: var(--border);
 }
 
-html[data-theme="dark"] .sunny-codex-project-row,
 html[data-theme="dark"] .sunny-dashboard-project-row {
-color: color-mix(in srgb, var(--foreground) 84%, var(--muted));
+color: color-mix(in oklch, var(--foreground) 84%, var(--muted));
 }
 
-html[data-theme="dark"] .sunny-codex-project-row:hover,
 html[data-theme="dark"] .sunny-dashboard-project-row:hover {
 background: var(--surface-strong);
 }
 
-html[data-theme="dark"] .sunny-codex-project-mark,
 html[data-theme="dark"] .sunny-dashboard-project-mark {
 background: var(--accent);
   color: var(--agent-text-on-accent);
 }
 
 /* Sidebar sections */
-html[data-theme="dark"] .sunny-codex-sidebar-section p,
 /* Sidebar sections */
 html[data-theme="dark"] .sunny-dashboard-sidebar-section p {
 color: var(--muted);
 }
 
-html[data-theme="dark"] .sunny-codex-sidebar-action,
-html[data-theme="dark"] .sunny-codex-mode-row,
-html[data-theme="dark"] .sunny-codex-thread-row,
 html[data-theme="dark"] .sunny-dashboard-sidebar-action,
 html[data-theme="dark"] .sunny-dashboard-mode-row,
 html[data-theme="dark"] .sunny-dashboard-thread-row {
 color: var(--muted);
 }
 
-html[data-theme="dark"] .sunny-codex-sidebar-action:hover,
-html[data-theme="dark"] .sunny-codex-mode-row:hover,
-html[data-theme="dark"] .sunny-codex-thread-row:hover,
 html[data-theme="dark"] .sunny-dashboard-sidebar-action:hover,
 html[data-theme="dark"] .sunny-dashboard-mode-row:hover,
 html[data-theme="dark"] .sunny-dashboard-thread-row:hover {
@@ -1492,32 +1317,26 @@ background: var(--surface-strong);
   color: var(--foreground);
 }
 
-html[data-theme="dark"] .sunny-codex-mode-row.is-active,
-html[data-theme="dark"] .sunny-codex-thread-row.is-active,
 html[data-theme="dark"] .sunny-dashboard-mode-row.is-active,
 html[data-theme="dark"] .sunny-dashboard-thread-row.is-active {
-background: color-mix(in srgb, var(--accent) 14%, transparent);
+background: color-mix(in oklch, var(--accent) 14%, transparent);
   color: var(--accent-strong);
 }
 
-html[data-theme="dark"] .sunny-codex-sidebar-icon,
 html[data-theme="dark"] .sunny-dashboard-sidebar-icon {
 color: var(--muted);
 }
 
-html[data-theme="dark"] .sunny-codex-sidebar-label,
 html[data-theme="dark"] .sunny-dashboard-sidebar-label {
 color: var(--muted);
 }
 
 /* Collapse */
-html[data-theme="dark"] .sunny-codex-sidebar-collapse-toggle,
 /* Collapse */
 html[data-theme="dark"] .sunny-dashboard-sidebar-collapse-toggle {
 color: var(--muted);
 }
 
-html[data-theme="dark"] .sunny-codex-sidebar-collapse-toggle:hover,
 html[data-theme="dark"] .sunny-dashboard-sidebar-collapse-toggle:hover {
 color: var(--foreground);
   background: var(--surface-strong);
@@ -1535,41 +1354,35 @@ background: var(--surface-strong);
 
 html[data-theme="dark"] .sunny-sidebar-pin-button.is-pinned {
 color: var(--accent-strong);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
 }
 
 /* Thread list */
-html[data-theme="dark"] .sunny-codex-thread-row-btn,
 /* Thread list */
 html[data-theme="dark"] .sunny-dashboard-thread-row-btn {
 color: var(--muted);
 }
 
-html[data-theme="dark"] .sunny-codex-thread-row-btn:hover,
 html[data-theme="dark"] .sunny-dashboard-thread-row-btn:hover {
 color: var(--foreground);
 }
 
-html[data-theme="dark"] .sunny-codex-thread-row small,
 html[data-theme="dark"] .sunny-dashboard-thread-row small {
 color: var(--muted);
 }
 
 /* Search */
-html[data-theme="dark"] .sunny-codex-search-wrapper,
 /* Search */
 html[data-theme="dark"] .sunny-dashboard-search-wrapper {
-background: color-mix(in srgb, var(--muted) 10%, transparent);
-  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+background: color-mix(in oklch, var(--muted) 10%, transparent);
+  border-color: color-mix(in oklch, var(--border) 70%, transparent);
 }
 
-html[data-theme="dark"] .sunny-codex-sidebar-search-input,
 html[data-theme="dark"] .sunny-dashboard-sidebar-search-input {
 background: transparent;
   color: var(--foreground);
 }
 
-html[data-theme="dark"] .sunny-codex-sidebar-search-input::placeholder,
 html[data-theme="dark"] .sunny-dashboard-sidebar-search-input::placeholder {
 color: var(--muted);
 }
@@ -1579,20 +1392,6 @@ html[data-theme="dark"] .sunny-dashboard-status-bar {
 background: var(--surface);
   border-top-color: var(--border);
   color: var(--muted);
-}
-
-/* Mode pills */
-html[data-theme="dark"] .sunny-codex-mode-pill,
-/* Mode pills */
-html[data-theme="dark"] .sunny-dashboard-mode-pill {
-background: var(--surface-strong);
-  color: var(--muted);
-}
-
-html[data-theme="dark"] .sunny-codex-mode-pill.is-active,
-html[data-theme="dark"] .sunny-dashboard-mode-pill.is-active {
-background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent-strong);
 }
 
 /* Dashboard settings */
@@ -1645,7 +1444,7 @@ background: var(--overlay-success-12);
 }
 
 html[data-theme="dark"] .sunny-agent-badge-running {
-background: color-mix(in srgb, var(--accent) 14%, transparent);
+background: color-mix(in oklch, var(--accent) 14%, transparent);
   color: var(--accent-strong);
 }
 
@@ -1662,15 +1461,6 @@ html[data-theme="dark"] .sunny-thread-row-menu-trigger:hover {
 color: var(--foreground);
 }
 
-html[data-theme="dark"] .sunny-codex-view-all,
-html[data-theme="dark"] .sunny-dashboard-view-all {
-color: var(--accent-strong);
-}
-
-html[data-theme="dark"] .sunny-codex-view-all:hover,
-html[data-theme="dark"] .sunny-dashboard-view-all:hover {
-background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
 
 
 
@@ -1692,7 +1482,7 @@ background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .sunny-dashboard-icon-bar.is-writing-mode .sunny-dashboard-mode-row.is-active {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
   color: var(--accent-strong);
   font-weight: 650;
 }
@@ -1709,7 +1499,6 @@ background: color-mix(in srgb, var(--accent) 10%, transparent);
   min-height: 1.85rem;
 }
 
-.sunny-codex-writing-library-section,
 .sunny-dashboard-writing-library-section {
   display: flex;
   flex-direction: column;
@@ -1718,12 +1507,10 @@ background: color-mix(in srgb, var(--accent) 10%, transparent);
   flex: 1 1 auto;
 }
 
-.sunny-codex-writing-library-section.is-collapsed,
 .sunny-dashboard-writing-library-section.is-collapsed {
   flex: 0 0 auto;
 }
 
-.sunny-dashboard-icon-bar .sunny-codex-writing-library-section,
 .sunny-dashboard-icon-bar .sunny-dashboard-writing-library-section {
   opacity: 1;
   max-height: 40rem;
@@ -1734,7 +1521,6 @@ background: color-mix(in srgb, var(--accent) 10%, transparent);
   transition-delay: 80ms;
 }
 
-.sunny-dashboard-icon-bar.is-auto-collapsed .sunny-codex-writing-library-section,
 .sunny-dashboard-icon-bar.is-auto-collapsed .sunny-dashboard-writing-library-section {
   opacity: 0;
   max-height: 0;
@@ -1748,6 +1534,36 @@ background: color-mix(in srgb, var(--accent) 10%, transparent);
   margin-top: 0.35rem;
   padding-top: 0.5rem;
   border-top: 1px solid var(--dashboard-card-border);
+}
+
+/* Phase W1B: Writing library collapse animation.
+   The header (WritingLibraryHeader) stays visible at all times.
+   Only the document list animates max-height + opacity.
+   The header button becomes an expand button when collapsed (chevronRight). */
+.sunny-dashboard-writing-library-section.is-collapsed .sunny-writing-document-list {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.sunny-dashboard-writing-library-section.is-collapsed .sunny-writing-library-head {
+  cursor: pointer;
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.35rem;
+  transition: background 150ms ease;
+}
+
+.sunny-dashboard-writing-library-section.is-collapsed .sunny-writing-library-head:hover {
+  background: var(--writing-hover);
+}
+
+/* Header transitions on open/close */
+.sunny-writing-document-list {
+  transition:
+    max-height var(--motion-duration-layout) var(--motion-ease-standard),
+    opacity var(--motion-duration-ui) var(--motion-ease-out);
+  max-height: 80rem;
+  opacity: 1;
 }
 
 .sunny-dashboard-icon-bar.is-writing-mode .sunny-dashboard-sidebar-top {
@@ -1815,6 +1631,6 @@ background: color-mix(in srgb, var(--accent) 10%, transparent);
 
 .sunny-dashboard-icon-bar.is-writing-mode .sunny-writing-sidebar-bottom-rail .sunny-dashboard-sidebar-action.is-active,
 .sunny-dashboard-icon-bar.is-writing-mode .sunny-writing-sidebar-bottom-rail .sunny-dashboard-sidebar-action[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
   color: var(--accent-strong);
 }

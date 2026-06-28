@@ -14,11 +14,18 @@ import { groupDocumentsByCategory } from "./writing-library-groups";
 import type { WritingDocumentListItem } from "./writing-types";
 
 type WritingLibraryProps = {
+  libraryOpen?: boolean;
   onClose?: () => void;
+  onToggle?: () => void;
   variant?: "column" | "embedded";
 };
 
-export function WritingLibrary({ onClose, variant = "column" }: WritingLibraryProps) {
+export function WritingLibrary({
+  libraryOpen = true,
+  onClose,
+  onToggle,
+  variant = "column",
+}: WritingLibraryProps) {
   const {
     activeCategoryId,
     archiveCategory,
@@ -100,9 +107,14 @@ export function WritingLibrary({ onClose, variant = "column" }: WritingLibraryPr
   return (
     <aside
       className={`sunny-writing-library${variant === "embedded" ? " is-embedded" : ""}`}
-      aria-label="内容库"
+      aria-label="文档集"
     >
-      <WritingLibraryHeader onClose={onClose} showClose={Boolean(onClose)} />
+      <WritingLibraryHeader
+        libraryOpen={libraryOpen}
+        onClose={onClose}
+        onToggle={onToggle}
+        showClose={Boolean(onClose)}
+      />
 
       <div className="sunny-writing-document-list" role="list">
         {error && !isLoading ? (

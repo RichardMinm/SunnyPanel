@@ -4,7 +4,7 @@
 .sunny-writing-icon-button:hover,
 .sunny-writing-ai-inline-button:hover {
   background: var(--writing-hover);
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--writing-rule));
+  border-color: color-mix(in oklch, var(--accent) 18%, var(--writing-rule));
 }
 
 .sunny-writing-secondary-button:disabled,
@@ -17,7 +17,7 @@
 .sunny-writing-panel-toggle:hover {
   background: var(--writing-active);
   color: var(--writing-active-text);
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--writing-rule));
+  border-color: color-mix(in oklch, var(--accent) 24%, var(--writing-rule));
 }
 
 /* Inline rename input inside document row */
@@ -25,7 +25,7 @@
   position: absolute;
   inset: 0.35rem;
   z-index: 5;
-  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--writing-rule));
+  border: 1px solid color-mix(in oklch, var(--accent) 34%, var(--writing-rule));
   border-radius: 10px;
   background: var(--writing-control-bg);
   color: var(--foreground);
@@ -36,7 +36,7 @@
 }
 
 .sunny-writing-document-rename:focus {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 10%, transparent);
 }
 
 /* Preview rich content */
@@ -70,10 +70,10 @@
 }
 
 .sunny-writing-preview-rich blockquote {
-  border-left: 3px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-left: 3px solid color-mix(in oklch, var(--accent) 34%, var(--border));
   margin: 1rem 0;
   padding-left: 1rem;
-  color: color-mix(in srgb, var(--foreground) 74%, var(--muted));
+  color: color-mix(in oklch, var(--foreground) 74%, var(--muted));
 }
 
 .sunny-writing-preview-rich ul:not(.sunny-rich-content-task-list),
@@ -480,8 +480,8 @@
 
 .sunny-writing-meta-pin-button.is-pinned {
   color: var(--writing-accent);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 30%, transparent);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
 }
 
 /* ── Section collapse ── */

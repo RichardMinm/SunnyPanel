@@ -129,7 +129,7 @@ html[data-theme="dark"] .sunny-writing-preview-pane {
 }
 
 html[data-theme="dark"] .sunny-writing-preview-article h1 {
-  color: var(--background);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-writing-preview-summary {
@@ -396,7 +396,8 @@ html[data-theme="dark"] .sunny-writing-meta-pin-button .sunny-dashboard-nav-icon
 }
 
 .sunny-writing-summary-input::placeholder {
-  color: var(--writing-chrome-placeholder);
+  color: color-mix(in oklch, var(--muted) 54%, transparent);
+  font-size: 0.9375rem;
 }
 
 /* Summary ghost AI button — sparkle icon */

@@ -49,14 +49,18 @@ export function AppCombobox({
   };
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- reset keyboard navigation when the combobox opens */
     if (open) {
       setActiveIndex(0);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [open]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- reset keyboard navigation when search results change */
     setActiveIndex(0);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [query, options.length]);
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
