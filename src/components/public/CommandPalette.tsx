@@ -109,7 +109,7 @@ export function CommandPalette({ locale }: { locale: SiteLocale }) {
     setDebouncedQuery("");
     setActiveIndex(0);
     window.setTimeout(() => triggerRef.current?.focus(), 0);
-  }, []);
+  }, [triggerRef]);
 
   const runCommand = useCallback((command: CommandSearchItem) => {
     closePalette();

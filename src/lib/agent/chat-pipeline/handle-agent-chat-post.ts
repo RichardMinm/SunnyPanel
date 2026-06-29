@@ -16,6 +16,7 @@ import { buildLangGraphFailureResponse } from "@/lib/agent/langgraph/failure-res
 import { createRunProductionLangGraphAgentChatPipeline } from "@/lib/agent/langgraph/production-adapter";
 import { logAgentEvent } from "@/lib/agent/logger";
 import { runAgentLearningLoop } from "@/lib/agent/learning-loop";
+import { resolveConversationState } from "@/lib/agent/conversation/conversation-state";
 import { parsePendingAction, sanitizeChatMessages } from "@/lib/agent/schemas";
 import {
   claimAgentTurn,
@@ -37,6 +38,8 @@ import {
   estimateTokenCount,
 } from "@/lib/agent/token-usage";
 import { getUserPreferences } from "@/lib/agent/user-preferences";
+import { createPerformanceTimer, isPerfTraceEnabled } from "@/lib/agent/trace/perf-trace";
+import { isSessionCoordinatorEnabled } from "@/lib/agent/session/coordinator-feature-flag";
 import { getPayloadClient } from "@/lib/payload/client";
 import { isRecord } from "@/lib/shared/is-record";
 
@@ -186,6 +189,10 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     canonicalThread.pendingAction ??
     getThreadPendingAction(thread) ??
     parsePendingAction(body.pendingAction);
+  const conversationState = resolveConversationState(
+    (thread as { conversationState?: unknown }).conversationState ?? null,
+    resolvedHistory,
+  );
   const baseTokenUsage = createTokenUsageSnapshot({
     contextTokens: estimateMessagesTokenCount(resolvedHistory) + estimateTokenCount(pendingAction),
     inputTokens: estimateTokenCount(message),
@@ -225,6 +232,7 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
   const intentModelEngine = await getAgentIntentModelEngine();
   const userPreferences = await getUserPreferences(user.id);
   const finalizeTurn = createAgentTurnFinalizer({
+    conversationStateBefore: conversationState,
     eventStore,
     message,
     pendingBefore: pendingAction,
@@ -235,6 +243,7 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
         id: thread.id,
         overrideAccess: true,
       }),
+    resolvedHistory,
     runLearningLoop: runAgentLearningLoop,
     suggestionSource,
     thread,
@@ -242,15 +251,20 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     user,
     workbenchMode,
   });
+  const perfTimer = isPerfTraceEnabled()
+    ? createPerformanceTimer(turnId)
+    : null;
   const pipelineDeps = {
     baseTokenUsage,
     contextPreferences,
+    conversationState,
     finalizeTurn,
     generateIntentWithAgentModel,
     intentModelEngine,
     message,
     payload: payload as unknown as Payload,
     pendingAction,
+    perfTimer,
     resolvedHistory,
     structuredConfirmation,
     thread,
@@ -268,13 +282,41 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
   });
   const runPipeline: typeof selectedRunner = async (...args) => {
     try {
-      return await selectedRunner(...args);
+      const result = await selectedRunner(...args);
+      if (perfTimer) {
+        const perfTrace = perfTimer.snapshotForSSE({
+          phases: {},
+          threadId: thread.id,
+          userId: user.id,
+          streamingEnabled: shouldStream,
+          coordinatorEnabled: isSessionCoordinatorEnabled(),
+        });
+        return { ...result, perfTrace } as typeof result;
+      }
+      return result;
     } catch (error) {
-      logAgentEvent("error", "chat.runtime_failure", {
-        error: error instanceof Error ? error.message : String(error),
-        threadId: thread.id,
-        userId: user.id,
-      });
+      if (perfTimer) {
+        const perfTrace = perfTimer.snapshotForSSE({
+          phases: {},
+          threadId: thread.id,
+          userId: user.id,
+          streamingEnabled: shouldStream,
+          coordinatorEnabled: isSessionCoordinatorEnabled(),
+        });
+        logAgentEvent("error", "chat.runtime_failure", {
+          error: error instanceof Error ? error.message : String(error),
+          threadId: thread.id,
+          userId: user.id,
+          perfRequestId: perfTrace.requestId,
+          perfTotalMs: perfTrace.totalMs,
+        });
+      } else {
+        logAgentEvent("error", "chat.runtime_failure", {
+          error: error instanceof Error ? error.message : String(error),
+          threadId: thread.id,
+          userId: user.id,
+        });
+      }
 
       const response =
         runtimeConfig.mode === "legacy"

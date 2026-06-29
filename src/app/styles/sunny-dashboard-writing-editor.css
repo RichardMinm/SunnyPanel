@@ -410,9 +410,47 @@
   display: flex;
   align-items: center;
   gap: 0.15rem;
-  transform: translateY(-50%);
   opacity: 0.92;
   pointer-events: auto;
+}
+
+/*
+ * Left-positioned: anchored at text left edge, controls sit fully in the
+ * left gutter with an 8px gap.  translate(-100%, -50%) ensures zero overlap
+ * regardless of the controls' pixel width.
+ */
+.sunny-block-controls--left {
+  animation: blockControlsFadeInLeft 150ms ease forwards;
+}
+
+/*
+ * Right-positioned: anchored at text right edge, controls sit 8px to the
+ * right.  Fallback for narrow viewports where the left gutter is too small.
+ */
+.sunny-block-controls--right {
+  animation: blockControlsFadeInRight 150ms ease forwards;
+}
+
+@keyframes blockControlsFadeInLeft {
+  from {
+    opacity: 0;
+    transform: translate(calc(-100% - 2px), -50%);
+  }
+  to {
+    opacity: 0.92;
+    transform: translate(calc(-100% - 8px), -50%);
+  }
+}
+
+@keyframes blockControlsFadeInRight {
+  from {
+    opacity: 0;
+    transform: translate(2px, -50%);
+  }
+  to {
+    opacity: 0.92;
+    transform: translate(8px, -50%);
+  }
 }
 
 .sunny-block-controls-handle,

@@ -155,6 +155,8 @@ export const createAgentChatStream = (
         let contextPlusInput = 0;
         let tokensWereStreamed = false;
         let streamedResponseText = "";
+        let firstResponseTokenSent = false;
+        const streamStartMs = performance.now();
 
         const payload = await runner(
           (status) => enqueue("status", { status }),
@@ -167,8 +169,17 @@ export const createAgentChatStream = (
           },
           (token, block) => {
             tokensWereStreamed = true;
-            if (block === "response" || block === undefined) {
+            const isResponse = block === "response" || block === undefined;
+            if (isResponse) {
               streamedResponseText += token;
+              if (!firstResponseTokenSent) {
+                firstResponseTokenSent = true;
+                const serverFirstTokenMs = performance.now() - streamStartMs;
+                enqueue("perf", {
+                  event: "server_first_token",
+                  ms: serverFirstTokenMs,
+                });
+              }
             }
             streamedOutputTokens += 1;
             enqueue("token", {

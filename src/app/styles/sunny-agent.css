@@ -53,7 +53,7 @@ html[data-theme="dark"] .sunny-agent-conversation-surface{
 .sunny-agent-confirm-button{
   min-height: var(--btn-md-height);
   padding: var(--btn-md-padding);
-  border: 1px solid color-mix(in srgb, var(--accent-strong) 18%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent-strong) 18%, transparent);
   background: var(--accent);
   color: var(--agent-text-on-accent);
 }.sunny-agent-new-task-button{
@@ -76,13 +76,13 @@ html[data-theme="dark"] .sunny-agent-conversation-surface{
   background: var(--agent-control-bg);
   color: var(--foreground);
 }.sunny-agent-edit-button{
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-color: color-mix(in oklch, var(--accent) 24%, var(--border));
   color: var(--accent-strong);
 }.sunny-agent-edit-button:hover{
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
   border-color: var(--accent-strong);
 }.sunny-agent-cancel-button-v2:hover{
-  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  background: color-mix(in oklch, var(--foreground) 4%, transparent);
 }html[data-theme="dark"] .sunny-agent-cancel-button-v2{
   background: var(--agent-control-bg);
 }.sunny-agent-composer{
@@ -94,7 +94,7 @@ html[data-theme="dark"] .sunny-agent-conversation-surface{
   margin: 0 auto;
   min-height: var(--composer-min-height);
   padding: 0 var(--composer-padding-x);
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
   border-radius: var(--composer-radius);
   background: var(--surface);
   box-shadow: var(--shadow-lg);
@@ -118,7 +118,7 @@ html[data-theme="dark"] .sunny-agent-conversation-surface{
   align-items: center;
   gap: 0.3rem;
   padding: 0.3rem 0.65rem;
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
   border-radius: 999px;
   background: var(--agent-control-bg);
   color: var(--muted);
@@ -296,7 +296,7 @@ html[data-theme="dark"] .sunny-agent-inspector-tabs .active{
 }.sunny-agent-proposal-card{
   display: grid;
   gap: 0.65rem;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
   border-radius: 0.68rem;
   background: var(--agent-control-bg);
   padding: 0.68rem;
@@ -336,8 +336,8 @@ html[data-theme="dark"] .sunny-agent-inspector-tabs .active{
   border: 1px solid var(--tone-warning-border);
   background: var(--tone-warning-bg);
 }.sunny-agent-proposal-brief{
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent) 18%, var(--border));
+  background: color-mix(in oklch, var(--accent) 7%, transparent);
 }.sunny-agent-run-tabs{
   align-self: flex-start;
 }.sunny-agent-run-surface,
@@ -391,7 +391,7 @@ html[data-theme="dark"] .sunny-agent-inspector-tabs .active{
 .sunny-agent-change-row{
   border: 1px solid var(--border);
   border-radius: 0.65rem;
-  background: color-mix(in srgb, var(--surface-strong) 34%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 34%, transparent);
 }.sunny-agent-inspector-hint{
   margin: 0;
   color: var(--muted);
@@ -429,11 +429,11 @@ html[data-theme="dark"] .sunny-agent-change-row{
   display: grid;
   gap: 0.72rem;
   padding: 0.78rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border: 1px solid color-mix(in oklch, var(--accent) 22%, var(--border));
   border-radius: 0.78rem;
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 58%),
-    color-mix(in srgb, var(--surface-strong) 42%, transparent);
+    linear-gradient(135deg, color-mix(in oklch, var(--accent) 9%, transparent), transparent 58%),
+    color-mix(in oklch, var(--surface-strong) 42%, transparent);
 }
 
 .sunny-plan-operating-card-head {
@@ -538,8 +538,8 @@ html[data-theme="dark"] .sunny-agent-change-row{
 }
 
 .sunny-plan-operating-actions button:hover {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  background: color-mix(in srgb, var(--accent) 9%, var(--agent-control-bg));
+  border-color: color-mix(in oklch, var(--accent) 42%, var(--border));
+  background: color-mix(in oklch, var(--accent) 9%, var(--agent-control-bg));
   color: var(--accent-strong);
 }
 
@@ -570,9 +570,9 @@ html[data-theme="dark"] .sunny-agent-change-row{
 
 .sunny-agent-debug-details{
   margin-top: 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 62%, transparent);
   border-radius: 0.65rem;
-  background: color-mix(in srgb, var(--muted) 4%, transparent);
+  background: color-mix(in oklch, var(--muted) 4%, transparent);
   padding: 0.6rem 0.75rem;
 }.sunny-agent-debug-details summary{
   color: var(--muted);
@@ -591,9 +591,9 @@ html[data-theme="dark"] .sunny-agent-change-row{
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.3rem 0.5rem;
   padding: 0.45rem 0.55rem;
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 50%, transparent);
   border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--surface) 40%, transparent);
+  background: color-mix(in oklch, var(--surface) 40%, transparent);
 }.sunny-agent-debug-token-info span{
   color: var(--muted);
   font-size: var(--text-2xs);
@@ -631,7 +631,7 @@ html[data-theme="dark"] .sunny-agent-change-row{
   width: 0.78rem;
   height: 0.78rem;
   margin-top: 0.44rem;
-  border: 2px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border: 2px solid color-mix(in oklch, var(--accent) 34%, transparent);
   border-radius: var(--radius-pill);
   background: var(--surface-strong);
 }.sunny-agent-run-empty-v2 > span.live,
@@ -885,7 +885,27 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   display: grid;
   gap: 0.65rem;
   min-width: 0;
-}.sunny-agent-inspector-summary{
+}
+/* Phase E4b: InspectorPanel bare mode — strip shell padding when embedded
+   inside agent inspector panels. Compound selector (0-2-0) beats
+   .app-inspector-panel__head / .app-inspector-panel__body (0-1-0). */
+.sunny-agent-inspector-panel .app-inspector-panel__head{
+  padding: 0;
+  border-bottom: none;
+}
+.sunny-agent-inspector-panel .app-inspector-panel__body{
+  padding: 0;
+  overflow: visible;
+}
+.sunny-agent-inspector-panel .app-inspector-panel__title{
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-kicker);
+}
+.sunny-agent-inspector-panel .app-inspector-panel__subtitle{
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.sunny-agent-inspector-summary{
   display: grid;
   gap: 0.35rem;
 }.sunny-agent-inspector-summary h3,
@@ -973,7 +993,7 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   gap: 0.5rem;
   padding: 0.35rem 0.5rem;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  background: color-mix(in oklch, var(--foreground) 3%, transparent);
 }.sunny-agent-context-item-label{
   flex: 1;
   font-size: var(--text-sm-compact);
@@ -999,16 +1019,16 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   transition: background 0.15s, color 0.15s;
   color: var(--muted);
 }.sunny-agent-context-pin-btn:hover{
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
   color: var(--accent);
 }.sunny-agent-context-pin-btn.is-active{
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
   color: var(--accent);
 }.sunny-agent-context-exclude-btn:hover{
-  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  background: color-mix(in oklch, var(--destructive) 12%, transparent);
   color: var(--destructive);
 }.sunny-agent-context-exclude-btn.is-active{
-  background: color-mix(in srgb, var(--destructive) 18%, transparent);
+  background: color-mix(in oklch, var(--destructive) 18%, transparent);
   color: var(--destructive);
 }.sunny-agent-change-row,
 .sunny-agent-artifact-row,
@@ -1071,9 +1091,9 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   display: grid;
   gap: 0.12rem;
   min-width: 0;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--foreground) 2.5%, transparent);
+  background: color-mix(in oklch, var(--foreground) 2.5%, transparent);
   padding: 0.48rem 0.42rem;
 }.sunny-agent-context-metric-strip strong{
   color: var(--foreground);
@@ -1118,7 +1138,7 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   background: var(--overlay-light-20);
   font-size: var(--text-sm-compact);
 }html[data-theme="dark"] .sunny-agent-memory-entry{
-  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  background: color-mix(in oklch, var(--foreground) 3%, transparent);
 }.sunny-agent-memory-source{
   color: var(--muted);
   font-size: var(--text-xs);
@@ -1147,13 +1167,13 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
 }.sunny-agent-token-meter-bar{
   height: 0.35rem;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  background: color-mix(in oklch, var(--foreground) 8%, transparent);
   overflow: hidden;
 }.sunny-agent-token-meter-bar > span{
   display: block;
   height: 100%;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--accent) 70%, var(--foreground));
+  background: color-mix(in oklch, var(--accent) 70%, var(--foreground));
 }.sunny-agent-token-meter-toggle{
   all: unset;
   cursor: pointer;
@@ -1165,7 +1185,7 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   transition: background 0.15s;
   margin-inline-start: auto;
 }.sunny-agent-token-meter-toggle:hover{
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
 }.sunny-agent-token-meter-note{
   margin: 0;
   color: var(--muted);
@@ -1177,7 +1197,7 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   font-size: var(--text-sm-compact);
 }.sunny-agent-token-meter-detail-row td{
   padding: 0.2rem 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 6%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--foreground) 6%, transparent);
 }.sunny-agent-token-meter-detail-label{
   color: var(--muted);
   cursor: help;
@@ -1193,7 +1213,7 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   font-weight: var(--font-weight-kicker);
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--foreground) 10%, transparent);
 }.sunny-agent-debug-trace-count{
   margin: 0.55rem 0 0;
   color: var(--muted);
@@ -1534,7 +1554,7 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   }
 
   .sunny-plan-runway-lane {
-    border-block-start: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+    border-block-start: 1px solid color-mix(in oklch, var(--accent) 16%, var(--border));
     border-inline-start: 0;
     padding-block-start: 0.8rem;
     padding-inline-start: 0;
@@ -1604,7 +1624,7 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   position: relative;
   height: 2px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
   border-radius: 1px;
 }.sunny-agent-shimmer-bar::after{
   content: '';
@@ -1661,7 +1681,7 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   font-size: var(--text-base);
   color: var(--agent-thinking-text);
 }.sunny-agent-thinking-panel-header:hover{
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
 }.sunny-agent-thinking-chevron{
   transition: transform 0.2s ease;
   font-size: var(--text-xs);
@@ -1692,13 +1712,13 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   overflow: hidden;
   border-radius: 10px;
   background: var(--agent-thinking-bg, var(--background));
-  border: 1px solid color-mix(in srgb, var(--foreground) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--foreground) 72%, transparent);
   margin: 8px 0;
   transition: border-color 200ms ease;
 }.sunny-agent-progress-panel.is-running{
-  border-color: color-mix(in srgb, var(--accent-strong) 40%, var(--foreground));
+  border-color: color-mix(in oklch, var(--accent-strong) 40%, var(--foreground));
 }.sunny-agent-progress-panel.is-complete{
-  border-color: color-mix(in srgb, var(--tone-success-border) 40%, var(--foreground));
+  border-color: color-mix(in oklch, var(--tone-success-border) 40%, var(--foreground));
 }.sunny-agent-progress-header{
   display: flex;
   align-items: center;
@@ -1783,7 +1803,7 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
 
 .sunny-agent-progress-debug{
   margin-top: 10px;
-  border-top: 1px dashed color-mix(in srgb, var(--border) 60%, transparent);
+  border-top: 1px dashed color-mix(in oklch, var(--border) 60%, transparent);
   padding-top: 8px;
 }.sunny-agent-progress-debug summary{
   color: var(--muted);
@@ -1808,21 +1828,21 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
 }/* ── Dark mode ── */
 
 html[data-theme="dark"] .sunny-agent-progress-panel{
-  background: color-mix(in srgb, var(--foreground) 4%, transparent);
-  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in oklch, var(--foreground) 4%, transparent);
+  border-color: color-mix(in oklch, var(--border) 70%, transparent);
 }html[data-theme="dark"] .sunny-agent-progress-header{
   color: var(--foreground);
 }html[data-theme="dark"] .sunny-agent-user-step-label{
   color: var(--foreground);
 }html[data-theme="dark"] .sunny-agent-user-step-icon.is-pending{
-  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  background: color-mix(in oklch, var(--foreground) 8%, transparent);
 }html[data-theme="dark"] .sunny-agent-progress-notice.is-info{
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 25%, transparent);
   color: var(--accent-strong);
 }html[data-theme="dark"] .sunny-agent-progress-notice.is-warning{
-  background: color-mix(in srgb, var(--tone-warning-text) 12%, transparent);
-  border-color: color-mix(in srgb, var(--tone-warning-text) 25%, transparent);
+  background: color-mix(in oklch, var(--tone-warning-text) 12%, transparent);
+  border-color: color-mix(in oklch, var(--tone-warning-text) 25%, transparent);
   color: var(--tone-star);
 }/* ─── D3: Trace Step Status Markers ─── */
 
@@ -1875,7 +1895,7 @@ html[data-theme="dark"] .sunny-agent-progress-panel{
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.8; }
 }.sunny-agent-skeleton{
-  background: color-mix(in srgb, var(--foreground) 12%, transparent);
+  background: color-mix(in oklch, var(--foreground) 12%, transparent);
   border-radius: 6px;
   animation: sunny-agent-skeleton-pulse 1.5s ease-in-out infinite;
 }.sunny-agent-skeleton-line{
@@ -2014,16 +2034,16 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   background: transparent;
 }/* Inner panels keep subtle borders for separation */
 .sunny-agent-center-surface{
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 50%, transparent);
   border-radius: var(--agent-radius-shell);
   background: var(--surface);
   overflow: hidden;
 }.sunny-agent-left-rail-column{
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 50%, transparent);
   border-radius: var(--agent-radius-shell);
   background: var(--surface);
 }.sunny-agent-inspector-shell{
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 50%, transparent);
   border-radius: var(--agent-radius-shell);
   background: var(--surface);
 }/* ── Responsive: Tablet ── */
@@ -2101,7 +2121,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
 }.sunny-agent-slash-chip{
   display: inline-flex;
   align-items: center;
-  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 50%, transparent);
   border-radius: var(--radius-pill);
   padding: 0.15rem 0.55rem;
   font-size: var(--text-xs);
@@ -2118,7 +2138,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
 .sunny-agent-center-surface{
   flex: 1 1 auto;
   min-height: 0;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
   border-radius: 1rem;
   background: var(--background);
   box-shadow: var(--shadow-xl);
@@ -2126,7 +2146,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   padding: 0.85rem;
   gap: 0.8rem;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 34%, transparent) transparent;
+  scrollbar-color: color-mix(in oklch, var(--muted) 34%, transparent) transparent;
 }.sunny-agent-conversation-surface,
 .sunny-memory-workspace{
   display: flex;
@@ -2143,7 +2163,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   justify-content: space-between;
   gap: 1rem;
   padding: 0.35rem 0.2rem 0.8rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
 }.sunny-agent-run-surface-head p,
 .sunny-memory-workspace-head p{
   margin: 0 0 0.18rem;
@@ -2166,7 +2186,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   align-items: center;
   min-height: 1.55rem;
   padding: 0 0.55rem;
-  border: 1px solid color-mix(in srgb, var(--accent-strong) 34%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent-strong) 34%, transparent);
   border-radius: var(--radius-pill);
   background: var(--tone-info-bg);
   color: var(--accent-strong);
@@ -2178,14 +2198,14 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   overflow-y: auto;
   padding: 1rem 0.35rem 0.4rem;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 34%, transparent) transparent;
+  scrollbar-color: color-mix(in oklch, var(--muted) 34%, transparent) transparent;
 }.sunny-agent-empty-state{
   display: grid;
   gap: 0.35rem;
   margin: 2rem auto;
   max-width: 26rem;
   padding: 1.25rem;
-  border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  border: 1px dashed color-mix(in oklch, var(--border) 80%, transparent);
   border-radius: 1rem;
   background: var(--background);
   text-align: center;
@@ -2243,7 +2263,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
     transform 160ms ease;
   box-shadow: var(--shadow-chip-md);
 }.sunny-agent-capability-card:hover{
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--foreground));
+  border-color: color-mix(in oklch, var(--accent) 40%, var(--foreground));
   box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }.sunny-agent-capability-card:active{
@@ -2296,7 +2316,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   align-items: center;
   gap: 0.3rem;
   padding: 0.2rem;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
   border-radius: 0.75rem;
   background: var(--background);
 }.sunny-agent-composer-modes button{
@@ -2313,12 +2333,12 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   font-weight: 600;
   cursor: pointer;
 }.sunny-agent-composer-modes button.is-active{
-  border-color: color-mix(in srgb, var(--accent-strong) 40%, transparent);
+  border-color: color-mix(in oklch, var(--accent-strong) 40%, transparent);
   background: var(--tone-info-bg);
   color: var(--accent-strong);
 }.sunny-agent-composer-modes button:hover{
   color: var(--foreground);
-  border-color: color-mix(in srgb, var(--accent-strong) 45%, transparent);
+  border-color: color-mix(in oklch, var(--accent-strong) 45%, transparent);
 }/* Composer row — mode | input | actions (+, panel, send) */
 .sunny-agent-composer-row{
   display: grid;
@@ -2366,7 +2386,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   min-width: unset;
   border-radius: 50%;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--accent-strong) 18%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent-strong) 18%, transparent);
   background: var(--accent);
   color: var(--agent-text-on-accent);
   font-size: var(--text-sm);
@@ -2396,7 +2416,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   padding: 1rem 0.2rem;
 }.sunny-memory-card,
 .sunny-memory-editor{
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
   border-radius: 1rem;
   background: var(--surface-strong);
   padding: 0.95rem;
@@ -2426,7 +2446,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   margin: 0 0.2rem;
 }.sunny-memory-editor textarea{
   min-height: 9rem;
-  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 74%, transparent);
   border-radius: 0.8rem;
   background: var(--background);
   padding: 0.75rem;
@@ -2460,7 +2480,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   width: min(100%, 860px);
   margin: 0 auto;
   padding: 1.35rem 1rem 0.85rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 54%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 54%, transparent);
 }.sunny-agent-conversation-scroll{
   padding: 0.45rem max(1rem, calc((100% - 860px) / 2)) 4.5rem;
 }.sunny-agent-message-row{
@@ -2496,8 +2516,8 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 0.45rem;
-  background: color-mix(in srgb, var(--foreground) 8%, var(--surface-strong));
-  color: color-mix(in srgb, var(--foreground) 72%, var(--muted));
+  background: color-mix(in oklch, var(--foreground) 8%, var(--surface-strong));
+  color: color-mix(in oklch, var(--foreground) 72%, var(--muted));
   font-size: var(--text-2xs);
   font-weight: 750;
   line-height: 1;
@@ -2515,8 +2535,8 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   padding: 0.25rem 0;
   line-height: 1.72;
 }.sunny-message-card-assistant .sunny-message-card-body{
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+  border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+  background: color-mix(in oklch, var(--accent) 4%, var(--surface));
   border-radius: 0.85rem;
   padding: 0.65rem 0.8rem;
 }.sunny-message-card-assistant .sunny-message-card-body .sunny-agent-bubble-plain,
@@ -2541,9 +2561,9 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
 }.sunny-agent-result-card{
   display: grid;
   gap: 0.55rem;
-  border: 1px solid color-mix(in srgb, var(--cat-plan-dot) 24%, var(--border));
+  border: 1px solid color-mix(in oklch, var(--cat-plan-dot) 24%, var(--border));
   border-radius: 0.9rem;
-  background: color-mix(in srgb, var(--cat-plan-bg) 72%, var(--surface-strong));
+  background: color-mix(in oklch, var(--cat-plan-bg) 72%, var(--surface-strong));
   padding: 0.8rem 0.9rem;
 }.sunny-agent-result-card-kicker{
   margin: 0;
@@ -2563,7 +2583,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   gap: 0.45rem;
 }.sunny-agent-result-card-grid > div{
   min-width: 0;
-  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
   border-radius: 0.7rem;
   background: var(--surface-strong);
   padding: 0.5rem 0.6rem;
@@ -2586,7 +2606,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   display: inline-flex;
   align-items: center;
   min-height: 1.9rem;
-  border: 1px solid color-mix(in srgb, var(--cat-plan-dot) 30%, var(--border));
+  border: 1px solid color-mix(in oklch, var(--cat-plan-dot) 30%, var(--border));
   border-radius: 0.65rem;
   background: var(--surface-strong);
   color: var(--mode-plan-text);
@@ -2599,22 +2619,22 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
 }/* ── Result Card Variants ── */
 
 .sunny-agent-result-card-plan{
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
-  background: color-mix(in srgb, var(--tone-info-bg) 72%, var(--surface-strong));
+  border-color: color-mix(in oklch, var(--accent) 24%, var(--border));
+  background: color-mix(in oklch, var(--tone-info-bg) 72%, var(--surface-strong));
 }.sunny-agent-result-card-plan .sunny-agent-result-card-kicker{
   color: var(--accent-strong);
 }.sunny-agent-result-card-plan .sunny-agent-result-card-link{
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-color: color-mix(in oklch, var(--accent) 30%, var(--border));
   color: var(--accent-strong);
 }.sunny-agent-result-card-plan .sunny-agent-result-card-link:hover{
   background: var(--tone-info-bg);
 }.sunny-agent-result-card-checklist{
-  border-color: color-mix(in srgb, var(--tone-success-text) 24%, var(--border));
-  background: color-mix(in srgb, var(--cat-plan-bg) 72%, var(--surface-strong));
+  border-color: color-mix(in oklch, var(--tone-success-text) 24%, var(--border));
+  background: color-mix(in oklch, var(--cat-plan-bg) 72%, var(--surface-strong));
 }.sunny-agent-result-card-checklist .sunny-agent-result-card-kicker{
   color: var(--mode-plan-text);
 }.sunny-agent-result-card-checklist .sunny-agent-result-card-link{
-  border-color: color-mix(in srgb, var(--tone-success-text) 30%, var(--border));
+  border-color: color-mix(in oklch, var(--tone-success-text) 30%, var(--border));
   color: var(--mode-plan-text);
 }.sunny-agent-result-card-checklist .sunny-agent-result-card-link:hover{
   background: var(--cat-plan-bg);
@@ -2624,7 +2644,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   width: 100%;
   height: 0.4rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--border) 40%, transparent);
+  background: color-mix(in oklch, var(--border) 40%, transparent);
   overflow: hidden;
 }.sunny-agent-progress-bar-fill{
   display: block;
@@ -2805,7 +2825,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
 }.sunny-agent-thinking-step{
   display: grid;
   gap: 0.12rem;
-  border-left: 2px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-left: 2px solid color-mix(in oklch, var(--border) 78%, transparent);
   padding-left: 0.65rem;
 }.sunny-agent-thinking-step.is-running{
   border-left-color: var(--accent);
@@ -2886,7 +2906,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
 }.sunny-agent-stage-title-row span{
   padding: 0.08rem 0.32rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--foreground) 6%, var(--surface-strong));
+  background: color-mix(in oklch, var(--foreground) 6%, var(--surface-strong));
   font-weight: 700;
 }.sunny-agent-stage-copy p{
   margin: 0;
@@ -2902,9 +2922,9 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   align-items: center;
   max-width: 100%;
   min-height: 1.25rem;
-  border: 1px solid color-mix(in srgb, var(--tone-info-border) 55%, transparent);
+  border: 1px solid color-mix(in oklch, var(--tone-info-border) 55%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  background: color-mix(in oklch, var(--accent) 10%, var(--surface-strong));
   padding: 0 0.45rem;
   color: var(--accent-strong);
   font-size: var(--text-2xs);
@@ -2931,7 +2951,7 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   padding: 1rem var(--composer-padding-x) 0.65rem;
   background: var(--surface);
   backdrop-filter: blur(8px);
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
   border-radius: var(--composer-radius);
   box-shadow: var(--shadow-lg);
   transition:
@@ -2966,16 +2986,16 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   font-weight: var(--font-weight-ui);
   line-height: 1.5;
 }.sunny-agent-badge-ready{
-  background: color-mix(in srgb, var(--color-green-500, var(--cat-plan-dot)) 15%, transparent);
+  background: color-mix(in oklch, var(--color-green-500, var(--cat-plan-dot)) 15%, transparent);
   color: var(--color-green-600, var(--tone-success-text));
 }.sunny-agent-badge-running{
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  background: color-mix(in oklch, var(--accent) 15%, transparent);
   color: var(--accent-strong, var(--accent));
 }.sunny-agent-badge-waiting{
-  background: color-mix(in srgb, var(--color-amber-500, var(--tone-warning-text)) 15%, transparent);
+  background: color-mix(in oklch, var(--color-amber-500, var(--tone-warning-text)) 15%, transparent);
   color: var(--color-amber-600, var(--tone-warning-text));
 }.sunny-agent-badge-risky{
-  background: color-mix(in srgb, var(--color-red-500, var(--tone-danger-text)) 15%, transparent);
+  background: color-mix(in oklch, var(--color-red-500, var(--tone-danger-text)) 15%, transparent);
   color: var(--color-red-600, var(--tone-danger-text));
 }/* ── Title ── */
 
@@ -3037,18 +3057,18 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   width: 2.25rem;
   height: 2.25rem;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 66%, transparent);
   border-radius: 0.58rem;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  color: color-mix(in srgb, var(--foreground) 78%, var(--muted));
+  background: color-mix(in oklch, var(--surface) 92%, transparent);
+  color: color-mix(in oklch, var(--foreground) 78%, var(--muted));
   cursor: pointer;
 }.sunny-agent-thread-header-icon-button .sunny-dashboard-nav-icon{
   width: 1.05rem;
   height: 1.05rem;
 }.sunny-agent-thread-header-icon-button:hover,
 .sunny-agent-thread-header-icon-button.is-active{
-  border-color: color-mix(in srgb, var(--accent-strong) 58%, var(--border));
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-color: color-mix(in oklch, var(--accent-strong) 58%, var(--border));
+  background: color-mix(in oklch, var(--accent) 12%, var(--surface));
   color: var(--accent-strong);
 }/* ── Context Filter Card (search + tabs merged) ── */
 
@@ -3151,13 +3171,13 @@ html[data-theme="dark"] .sunny-context-filter-card{
   border-color: var(--border);
   background: var(--surface);
 }html[data-theme="dark"] .sunny-context-filter-search input{
-  background: color-mix(in srgb, var(--surface) 70%, var(--foreground));
+  background: color-mix(in oklch, var(--surface) 70%, var(--foreground));
   color: var(--foreground);
 }html[data-theme="dark"] .sunny-context-filter-search input:focus{
   background: var(--surface);
   box-shadow: 0 0 0 3px var(--accent-ring-strong);
 }html[data-theme="dark"] .sunny-context-filter-divider{
-  background: color-mix(in srgb, var(--border) 40%, transparent);
+  background: color-mix(in oklch, var(--border) 40%, transparent);
 }html[data-theme="dark"] .sunny-context-filter-results li button:hover,
 html[data-theme="dark"] .sunny-context-filter-empty{
   background: var(--surface);
@@ -3191,13 +3211,13 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   background: var(--tone-danger-text);
   border: 1.5px solid var(--surface);
 }.sunny-inspector-tab-bar button.is-active{
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  background: color-mix(in oklch, var(--accent) 14%, var(--surface));
   color: var(--accent-strong);
 }.sunny-agent-badge-mode{
-  background: color-mix(in srgb, var(--tone-info-bg) 74%, transparent);
+  background: color-mix(in oklch, var(--tone-info-bg) 74%, transparent);
   color: var(--accent-strong);
 }.sunny-agent-badge-write{
-  background: color-mix(in srgb, var(--surface-tint) 92%, transparent);
+  background: color-mix(in oklch, var(--surface-tint) 92%, transparent);
   color: var(--muted);
 }.sunny-agent-thread-action-area{
   width: min(100%, 860px);
@@ -3207,19 +3227,19 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   margin-top: 0.15rem;
   margin-bottom: 0.35rem;
 }.sunny-agent-conversation-scroll .sunny-agent-approval-banner{
-  border: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 62%, transparent);
   border-radius: 1rem;
   background: var(--surface-strong);
   box-shadow: var(--shadow-xl);
   padding: 0.9rem;
 }.sunny-agent-conversation-scroll .sunny-agent-approval-banner-high{
-  border-color: color-mix(in srgb, var(--tone-danger-text) 34%, var(--border));
-  background: color-mix(in srgb, var(--cat-exam-bg) 72%, var(--surface-strong));
+  border-color: color-mix(in oklch, var(--tone-danger-text) 34%, var(--border));
+  background: color-mix(in oklch, var(--cat-exam-bg) 72%, var(--surface-strong));
 }.sunny-agent-conversation-scroll .sunny-agent-approval-banner-medium,
 .sunny-agent-conversation-scroll .sunny-agent-approval-banner-batch{
-  border-color: color-mix(in srgb, var(--tone-warning-text) 28%, var(--border));
+  border-color: color-mix(in oklch, var(--tone-warning-text) 28%, var(--border));
 }.sunny-agent-conversation-scroll .sunny-agent-approval-banner-low{
-  border-color: color-mix(in srgb, var(--cat-plan-dot) 24%, var(--border));
+  border-color: color-mix(in oklch, var(--cat-plan-dot) 24%, var(--border));
 }.sunny-agent-confirmation-grid{
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3227,9 +3247,9 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   margin-top: 0.85rem;
 }.sunny-agent-confirmation-grid > div{
   min-width: 0;
-  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 66%, transparent);
   border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--background) 92%, transparent);
+  background: color-mix(in oklch, var(--background) 92%, transparent);
   padding: 0.6rem 0.65rem;
 }.sunny-agent-confirmation-grid span,
 .sunny-agent-confirmation-next > span,
@@ -3250,9 +3270,9 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   white-space: nowrap;
 }.sunny-agent-confirmation-next{
   margin-top: 0.85rem;
-  border: 1px solid color-mix(in srgb, var(--tone-info-border) 54%, transparent);
+  border: 1px solid color-mix(in oklch, var(--tone-info-border) 54%, transparent);
   border-radius: 0.8rem;
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface-strong));
+  background: color-mix(in oklch, var(--accent) 8%, var(--surface-strong));
   padding: 0.75rem 0.85rem;
 }.sunny-agent-confirmation-next ul,
 .sunny-agent-confirmation-effects{
@@ -3273,7 +3293,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   margin-top: 0.85rem;
 }.sunny-agent-confirmation-phrase input{
   width: min(100%, 18rem);
-  border: 1px solid color-mix(in srgb, var(--tone-danger-text) 42%, var(--border));
+  border: 1px solid color-mix(in oklch, var(--tone-danger-text) 42%, var(--border));
   border-radius: 0.7rem;
   background: var(--surface-strong);
   color: var(--foreground);
@@ -3366,7 +3386,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   z-index: 40;
   display: grid;
   gap: 0.2rem;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
   border-radius: 1.2rem;
   background: var(--surface);
   box-shadow: var(--shadow-panel);
@@ -3378,7 +3398,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 28%, transparent) transparent;
+  scrollbar-color: color-mix(in oklch, var(--muted) 28%, transparent) transparent;
 }.sunny-agent-composer-quick-menu{
   right: 0;
   min-width: 9.5rem;
@@ -3404,7 +3424,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
 }.sunny-agent-composer-mode-menu button:hover,
 .sunny-agent-composer-mode-menu button.is-active,
 .sunny-agent-composer-quick-menu button:hover{
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  background: color-mix(in oklch, var(--accent) 12%, var(--surface));
 }.sunny-agent-composer-quick-menu button{
   padding: 0.48rem 0.55rem;
   font-size: var(--text-xs);
@@ -3413,7 +3433,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
 .sunny-agent-composer-quick-submenu{
   margin-left: 0.6rem;
   padding: 0.2rem 0 0.2rem 0.5rem;
-  border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-left: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
 }.sunny-agent-composer-quick-submenu button{
   display: block;
   width: 100%;
@@ -3426,7 +3446,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   text-align: left;
   cursor: pointer;
 }.sunny-agent-composer-quick-submenu button:hover{
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  background: color-mix(in oklch, var(--accent) 10%, var(--surface));
   color: var(--foreground);
 }/* @mention 下拉 */
 .sunny-agent-composer-mention-dropdown{
@@ -3437,7 +3457,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   min-width: 14rem;
   max-height: 12rem;
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
   border-radius: 0.75rem;
   background: var(--surface);
   box-shadow: var(--shadow-card);
@@ -3457,7 +3477,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   text-align: left;
 }.sunny-agent-composer-mention-dropdown button:hover,
 .sunny-agent-composer-mention-dropdown button:focus{
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  background: color-mix(in oklch, var(--accent) 10%, var(--surface));
 }.sunny-agent-composer-mention-dropdown button small{
   color: var(--muted);
   font-size: var(--text-2xs);
@@ -3662,7 +3682,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 34%, transparent) transparent;
+  scrollbar-color: color-mix(in oklch, var(--muted) 34%, transparent) transparent;
 }/* ── Welcome Header ── */
 
 .sunny-workbench-welcome{
@@ -3874,7 +3894,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
 }/* ── Suggestions ── */
 
 .sunny-workbench-suggestions{
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--foreground));
+  border-color: color-mix(in oklch, var(--accent) 30%, var(--foreground));
 }.sunny-workbench-suggestion-list{
   list-style: none;
   margin: 0;
@@ -4033,7 +4053,7 @@ html[data-theme="dark"] .sunny-context-filter-empty{
 
 html[data-theme="dark"] .sunny-workbench-card{
   background: var(--surface);
-  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  border-color: color-mix(in oklch, var(--border) 70%, transparent);
 }html[data-theme="dark"] .sunny-workbench-welcome-text h1,
 html[data-theme="dark"] .sunny-workbench-welcome-text strong,
 html[data-theme="dark"] .sunny-workbench-card-head h2,
@@ -4045,18 +4065,18 @@ html[data-theme="dark"] .sunny-workbench-composer-input{
   color: var(--foreground);
 }html[data-theme="dark"] .sunny-workbench-chip{
   background: var(--surface);
-  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  border-color: color-mix(in oklch, var(--border) 70%, transparent);
   color: var(--foreground);
 }html[data-theme="dark"] .sunny-workbench-stat{
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
 }html[data-theme="dark"] .sunny-workbench-schedule-item,
 html[data-theme="dark"] .sunny-workbench-suggestion-item{
-  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  background: color-mix(in oklch, var(--foreground) 4%, transparent);
 }html[data-theme="dark"] .sunny-workbench-progress-bar{
-  background: color-mix(in srgb, var(--foreground) 10%, transparent);
+  background: color-mix(in oklch, var(--foreground) 10%, transparent);
 }html[data-theme="dark"] .sunny-workbench-composer{
   background: var(--surface);
-  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  border-color: color-mix(in oklch, var(--border) 70%, transparent);
 }/* ── Responsive ── */
 
 @media (max-width: 1100px){
@@ -4114,7 +4134,7 @@ html[data-theme="dark"] .sunny-agent-composer-mode-trigger{
   color: var(--muted);
   border-right-color: var(--composer-divider);
 }html[data-theme="dark"] .sunny-agent-composer-mode-trigger:hover{
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
   color: var(--foreground);
 }html[data-theme="dark"] .sunny-agent-composer-model-name{
   color: var(--muted);
@@ -4122,19 +4142,19 @@ html[data-theme="dark"] .sunny-agent-composer-mode-trigger{
 html[data-theme="dark"] .sunny-agent-composer-icon-button{
   color: var(--muted);
 }html[data-theme="dark"] .sunny-agent-composer-icon-button:hover{
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
   color: var(--foreground);
 }html[data-theme="dark"] .sunny-agent-composer-icon-button.is-active{
   background: var(--composer-aux-active-bg);
   color: var(--accent-strong);
 }html[data-theme="dark"]{
-  --composer-aux-hover-bg: color-mix(in srgb, var(--foreground) 6%, transparent);
+  --composer-aux-hover-bg: color-mix(in oklch, var(--foreground) 6%, transparent);
   --composer-aux-icon-hover: var(--foreground);
   --composer-placeholder: var(--muted);
 }/* Composer send button */
 html[data-theme="dark"] .sunny-agent-composer .sunny-agent-composer-send{
   background: var(--accent);
-  border-color: color-mix(in srgb, var(--accent-strong) 18%, transparent);
+  border-color: color-mix(in oklch, var(--accent-strong) 18%, transparent);
   color: var(--agent-text-on-accent);
 }html[data-theme="dark"] .sunny-agent-composer .sunny-agent-composer-send:hover:not(:disabled){
   background: var(--accent-strong);
@@ -4266,7 +4286,7 @@ html[data-theme="dark"] .sunny-agent-empty-state{
   color: var(--foreground);
 }/* Debug details */
 html[data-theme="dark"] .sunny-agent-debug-details{
-  background: color-mix(in srgb, var(--foreground) 3%, transparent);
+  background: color-mix(in oklch, var(--foreground) 3%, transparent);
   border-color: var(--border);
 }html[data-theme="dark"] .sunny-agent-debug-details summary{
   color: var(--muted);
@@ -4376,4 +4396,93 @@ html[data-theme="dark"] .sunny-agent-layout-switcher{
 html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   background: var(--surface-strong);
   color: var(--foreground);
+}
+
+.sunny-agent-capability-audit{
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.sunny-agent-capability-audit summary{
+  cursor: pointer;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.sunny-agent-capability-audit-body{
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+.sunny-agent-capability-audit-meta{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sunny-agent-capability-audit-meta strong{
+  color: var(--foreground);
+}
+.sunny-agent-capability-audit-group p{
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sunny-agent-capability-chip-list{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sunny-agent-capability-chip{
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+}
+.sunny-agent-capability-chip.is-allowed{
+  border-color: color-mix(in oklch, var(--success) 40%, var(--border));
+}
+.sunny-agent-capability-chip.is-blocked{
+  border-color: color-mix(in oklch, var(--danger) 35%, var(--border));
+  opacity: 0.92;
+}
+.sunny-agent-capability-audit-plan{
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sunny-agent-capability-badge{
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  vertical-align: middle;
+  border: 1px solid var(--border);
+}
+.sunny-agent-capability-badge.sunny-agent-capability-preview{
+  color: var(--warning);
+  border-color: color-mix(in oklch, var(--warning) 45%, var(--border));
+}
+.sunny-agent-capability-badge.sunny-agent-capability-draft{
+  color: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 45%, var(--border));
+}
+.sunny-agent-capability-badge.sunny-agent-capability-read{
+  color: var(--muted);
+}
+.sunny-agent-capability-flow-hint{
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
 }

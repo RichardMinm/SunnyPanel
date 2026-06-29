@@ -79,6 +79,8 @@ export type OrchestrationStepParams = {
   }) => Promise<AgentThread>;
   pushTrace: (step: AgentTraceStep) => void;
   replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
+  conversationState?: import("@/lib/agent/conversation/types").AgentConversationState | null;
+  resolvedHistory?: import("@/lib/agent/schemas").AgentChatMessage[];
   runOrchestratorFn?: typeof runOrchestrator;
   stream?: AgentStreamController;
   terminalizeCompoundExecution?: boolean;
@@ -99,6 +101,7 @@ export type OrchestrationStepResult =
   | {
       outcome: "continue";
       data: {
+        orchestratorPlanSource?: "heuristic" | "llm" | null;
         preResolvedIntent: AgentIntent | null;
         tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
       };
@@ -156,6 +159,8 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     persistAgentTurn,
     pushTrace,
     replanTaskFailure,
+    conversationState = null,
+    resolvedHistory = [],
     runOrchestratorFn = runOrchestrator,
     stream,
     terminalizeCompoundExecution = false,
@@ -268,7 +273,11 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     });
     return {
       outcome: "continue",
-      data: { preResolvedIntent: null, tokenUsage: tokenUsageIn },
+      data: {
+        orchestratorPlanSource: null,
+        preResolvedIntent: null,
+        tokenUsage: tokenUsageIn,
+      },
     };
   }
 
@@ -521,6 +530,8 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
 
   const preflightIntent = resolveOrchestrationPreflightIntent({
     context,
+    conversationState,
+    history: resolvedHistory,
     message,
     pendingAction,
   });
@@ -542,6 +553,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     return {
       outcome: "continue",
       data: {
+        orchestratorPlanSource: "llm",
         preResolvedIntent: preflightIntent,
         tokenUsage,
       },
@@ -723,6 +735,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
   return {
     outcome: "continue",
     data: {
+      orchestratorPlanSource: plan.source ?? "llm",
       preResolvedIntent,
       tokenUsage,
     },

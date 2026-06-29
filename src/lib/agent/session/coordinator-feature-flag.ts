@@ -17,4 +17,4 @@
  */
 
 export const isSessionCoordinatorEnabled = (): boolean =>
-  process.env.AGENT_SESSION_COORDINATOR === "1";
+  process.env.AGENT_SESSION_COORDINATOR !== "0";

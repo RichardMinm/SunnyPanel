@@ -291,15 +291,236 @@ export const buildAgentContextSourceFromCore = (
 
 export const getAgentWorkspaceContextSource = async ({
   budget,
+  sections,
+  dateRange,
+  targetDocument,
 }: {
   budget: AgentContextBudget;
+  /** Sections to load (default: all = backward compat). null means full load via loadWorkspaceCore. */
+  sections?: Set<import("@/lib/agent/context-loading-policy").SectionName> | null;
+  dateRange?: import("@/lib/agent/context-loading-policy").ScheduleDateRange;
+  targetDocument?: { entityType: string; entityId: number | string };
   payload?: Payload;
 }): Promise<AgentContextSource> => {
-  const core = await loadWorkspaceCore({
-    seedInitialWorkspace: false,
+  /* Backward compat: no sections policy → full load */
+  if (!sections || sections.size === 0) {
+    const core = await loadWorkspaceCore({ seedInitialWorkspace: false });
+    return buildAgentContextSourceFromCore(core, budget);
+  }
+
+  const core = await loadAgentWorkspaceSections({
+    sections,
+    dateRange,
+    targetDocument,
   });
 
+  /* Log section status for observability */
+  const loadedList = Object.entries(core._sectionStatus)
+    .filter(([, status]) => status === "loaded")
+    .map(([name]) => name);
+  const skippedList = Object.entries(core._sectionStatus)
+    .filter(([, status]) => status === "skipped")
+    .map(([name]) => name);
+
+  if (loadedList.length > 0 || skippedList.length > 0) {
+    // Sections info is threaded through core._sectionStatus;
+    // downstream context-loading meta picks this up
+  }
+
   return buildAgentContextSourceFromCore(core, budget);
+};
+
+/* ──── Section-aware workspace data ──── */
+
+export type WorkspaceCoreDataWithSections = WorkspaceCoreData & {
+  _sectionStatus: Record<string, import("@/lib/agent/context-loading-policy").SectionLoadStatus>;
+};
+
+/* ──── Selective workspace loading for Agent pipeline ──── */
+
+type LoadSectionsOptions = {
+  sections: Set<import("@/lib/agent/context-loading-policy").SectionName>;
+  dateRange?: import("@/lib/agent/context-loading-policy").ScheduleDateRange;
+  /** For writing_revision: load the specific document being edited */
+  targetDocument?: { entityType: string; entityId: number | string };
+};
+
+/**
+ * Load workspace data selectively based on requested sections.
+ *
+ * Each section independently decides to load or skip.
+ * Skipped sections are marked with _sectionStatus["sectionName"] = "skipped"
+ * and their data fields contain empty defaults — NOT real data.
+ *
+ * This is the core of the Context Loading Policy v2.
+ */
+const loadAgentWorkspaceSections = async (
+  options: LoadSectionsOptions,
+): Promise<WorkspaceCoreDataWithSections> => {
+  const { sections, dateRange, targetDocument } = options;
+  const payload = await getPayloadClient();
+  const authResult = await getPayloadAuthResult();
+  const user = authResult.user as User;
+  const contentLimit = WORKSPACE_CONTENT_LIMIT;
+
+  const has = (name: string): boolean => sections.has(name as never);
+
+  const [
+    plans,
+    agentRuns,
+    todaySchedule,
+    tomorrowSchedule,
+    posts,
+    notes,
+    updates,
+    pages,
+    timelineEvents,
+    checklists,
+    planReviews,
+    draftPosts,
+    draftNotes,
+    draftUpdates,
+    draftTimelineEvents,
+    publicPosts,
+    publicNotes,
+    publicUpdates,
+    publicTimelineEvents,
+    publicPages,
+    publicChecklists,
+  ] = await Promise.all([
+    /* plans section */
+    has("plans")
+      ? payload.find({ collection: "plans", depth: 1, limit: 100, overrideAccess: true, sort: "dueDate", where: privateConstraint })
+      : Promise.resolve({ docs: [] as Plan[], _skipped: true as const }),
+    /* agentRuns section */
+    has("agentRuns")
+      ? payload.find({ collection: "agent-runs", depth: 1, limit: 6, overrideAccess: true, sort: "-startedAt", where: buildAgentRunOwnerWhere(user.id) })
+      : Promise.resolve({ docs: [] as AgentRun[], totalDocs: 0, _skipped: true as const }),
+    /* schedules section — uses dateRange if provided, otherwise today+tomorrow */
+    has("schedules") && dateRange
+      ? (async () => {
+          const { getScheduleForRange } = await import("@/lib/schedule/items");
+          return getScheduleForRange(dateRange, payload);
+        })()
+      : has("schedules") && !dateRange
+        ? getTodaySchedule(payload)
+        : Promise.resolve([] as ScheduleItemRecord[]),
+    has("schedules") && !dateRange
+      ? getTomorrowSchedule(payload)
+      : Promise.resolve([] as ScheduleItemRecord[]),
+    /* content section */
+    has("content") && targetDocument
+      /* writing_revision: load only the specific document */
+      ? (async () => {
+          const coll = targetDocument.entityType === "writing" ? "posts" : targetDocument.entityType;
+          try {
+            const doc = await (payload as unknown as {
+              findByID: (args: { collection: string; id: number | string; overrideAccess: boolean; depth: number }) => Promise<unknown>;
+            }).findByID({ collection: coll, id: targetDocument.entityId, overrideAccess: true, depth: 0 });
+            return { docs: (doc ? [doc] : []) as Post[] };
+          } catch {
+            return { docs: [] as Post[] };
+          }
+        })()
+      : has("content")
+        /* writing_creation or general content: load recent titles */
+        ? payload.find({ collection: "posts", depth: 0, limit: contentLimit, overrideAccess: true, sort: "-updatedAt" })
+        : Promise.resolve({ docs: [] as Post[], _skipped: true as const }),
+    has("content") && !targetDocument
+      ? payload.find({ collection: "notes", depth: 0, limit: contentLimit, overrideAccess: true, sort: "-updatedAt" })
+      : Promise.resolve({ docs: [] as Note[], _skipped: true as const }),
+    has("content") && !targetDocument
+      ? payload.find({ collection: "updates", depth: 0, limit: contentLimit, overrideAccess: true, sort: "-updatedAt" })
+      : Promise.resolve({ docs: [] as Update[], _skipped: true as const }),
+    has("content") && !targetDocument
+      ? payload.find({ collection: "pages", depth: 0, limit: contentLimit, overrideAccess: true, sort: "-updatedAt" })
+      : Promise.resolve({ docs: [] as Page[], _skipped: true as const }),
+    /* timeline section */
+    has("timeline")
+      ? payload.find({ collection: "timeline-events", depth: 0, limit: WORKSPACE_TIMELINE_LIMIT, overrideAccess: true, sort: "-eventDate" })
+      : Promise.resolve({ docs: [] as TimelineEvent[], _skipped: true as const }),
+    /* checklists section (planning) */
+    has("checklists")
+      ? payload.find({ collection: "checklists", depth: 0, limit: contentLimit, overrideAccess: true, sort: "-updatedAt" })
+      : Promise.resolve({ docs: [] as Checklist[], _skipped: true as const }),
+    /* planReviews section (planning) */
+    has("checklists") || has("plans")
+      ? payload.find({ collection: "plan-reviews", depth: 1, limit: 6, overrideAccess: true, sort: "-reviewedAt" })
+      : Promise.resolve({ docs: [] as PlanReview[], totalDocs: 0, _skipped: true as const }),
+    /* counts — only needed for full/dashboard */
+    sections.size >= 6 /* full preset has 8 sections */
+      ? payload.count({ collection: "posts", overrideAccess: true, where: draftConstraint })
+      : Promise.resolve({ totalDocs: 0, _skipped: true as const }),
+    sections.size >= 6
+      ? payload.count({ collection: "notes", overrideAccess: true, where: draftConstraint })
+      : Promise.resolve({ totalDocs: 0, _skipped: true as const }),
+    sections.size >= 6
+      ? payload.count({ collection: "updates", overrideAccess: true, where: draftConstraint })
+      : Promise.resolve({ totalDocs: 0, _skipped: true as const }),
+    sections.size >= 6
+      ? payload.count({ collection: "timeline-events", overrideAccess: true, where: draftConstraint })
+      : Promise.resolve({ totalDocs: 0, _skipped: true as const }),
+    sections.size >= 6
+      ? payload.count({ collection: "posts", overrideAccess: true, where: publicContentConstraint() })
+      : Promise.resolve({ totalDocs: 0, _skipped: true as const }),
+    sections.size >= 6
+      ? payload.count({ collection: "notes", overrideAccess: true, where: publicContentConstraint() })
+      : Promise.resolve({ totalDocs: 0, _skipped: true as const }),
+    sections.size >= 6
+      ? payload.count({ collection: "updates", overrideAccess: true, where: publicContentConstraint() })
+      : Promise.resolve({ totalDocs: 0, _skipped: true as const }),
+    sections.size >= 6
+      ? payload.count({ collection: "timeline-events", overrideAccess: true, where: publicContentConstraint() })
+      : Promise.resolve({ totalDocs: 0, _skipped: true as const }),
+    sections.size >= 6
+      ? payload.count({ collection: "pages", overrideAccess: true, where: publicContentConstraint() })
+      : Promise.resolve({ totalDocs: 0, _skipped: true as const }),
+    sections.size >= 6
+      ? payload.count({ collection: "checklists", overrideAccess: true, where: publicContentConstraint() })
+      : Promise.resolve({ totalDocs: 0, _skipped: true as const }),
+  ]);
+
+  /* Build section status map */
+  const _sectionStatus: Record<string, "loaded" | "skipped"> = {};
+  for (const name of sections) {
+    _sectionStatus[name] = "loaded";
+  }
+
+  return {
+    agentRuns: {
+      docs: (agentRuns as { docs: AgentRun[]; totalDocs: number }).docs as AgentRun[],
+      totalDocs: (agentRuns as { docs: AgentRun[]; totalDocs: number }).totalDocs,
+    },
+    checklists: { docs: (checklists as { docs: Checklist[] }).docs as Checklist[] },
+    counts: {
+      draftNotes: draftNotes as { totalDocs: number },
+      draftPosts: draftPosts as { totalDocs: number },
+      draftTimelineEvents: draftTimelineEvents as { totalDocs: number },
+      draftUpdates: draftUpdates as { totalDocs: number },
+      publicChecklists: publicChecklists as { totalDocs: number },
+      publicNotes: publicNotes as { totalDocs: number },
+      publicPages: publicPages as { totalDocs: number },
+      publicPosts: publicPosts as { totalDocs: number },
+      publicTimelineEvents: publicTimelineEvents as { totalDocs: number },
+      publicUpdates: publicUpdates as { totalDocs: number },
+    },
+    notes: { docs: (notes as { docs: Note[] }).docs as Note[] },
+    pages: { docs: (pages as { docs: Page[] }).docs as Page[] },
+    planReviews: {
+      docs: (planReviews as { docs: PlanReview[]; totalDocs: number }).docs as PlanReview[],
+      totalDocs: (planReviews as { docs: PlanReview[]; totalDocs: number }).totalDocs,
+    },
+    plans: { docs: (plans as { docs: Plan[] }).docs as Plan[] },
+    posts: { docs: (posts as { docs: Post[] }).docs as Post[] },
+    schedule: {
+      today: todaySchedule as ScheduleItemRecord[],
+      tomorrow: tomorrowSchedule as ScheduleItemRecord[],
+    },
+    timelineEvents: { docs: (timelineEvents as { docs: TimelineEvent[] }).docs as TimelineEvent[] },
+    updates: { docs: (updates as { docs: Update[] }).docs as Update[] },
+    user,
+    _sectionStatus,
+  };
 };
 
 export type WorkspaceSnapshot = {

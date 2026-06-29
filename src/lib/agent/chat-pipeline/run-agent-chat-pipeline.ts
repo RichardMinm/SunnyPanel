@@ -21,6 +21,7 @@ import {
   type AgentEngine,
   type AgentIntent,
   type AgentTraceStep,
+  type AgentWriteIntentName,
   type PendingAction,
 } from "@/lib/agent/schemas";
 import { appendAgentThreadTurn } from "@/lib/agent/thread";
@@ -36,16 +37,51 @@ import {
   type AgentStreamProgressEvent,
   type AgentStreamStageEvent,
 } from "@/lib/agent/stream-events";
+import { normalizeRouterOutput } from "@/lib/agent/router/normalize-router-output";
+import { evaluatePolicyGuard } from "@/lib/agent/policy/tool-gate";
+import { applyPolicyGuard } from "@/lib/agent/policy/guard";
+import { getAllowedCapabilities } from "@/lib/agent/capabilities/tool-gate";
+import { buildToolPlan } from "@/lib/agent/plan/tool-plan";
+import { agentRouterToLLMRouter } from "@/lib/agent/router/llm-router-to-agent-router";
+import { dispatchWorkflow } from "@/lib/agent/workflow/router";
+import {
+  assertPlannedVsActual,
+  capabilityNameForIntent,
+  createEmptyTurnTrace,
+  pendingActionToConfirmationState,
+  recordActualTool,
+  recordCapabilityGateTrace,
+  recordPolicyGuardOutputTrace,
+  recordPolicyTrace,
+  recordRawUserInputTrace,
+  recordRouterTrace,
+  recordToolPlanTrace,
+  type AgentTurnTrace,
+} from "@/lib/agent/trace/agent-turn-trace";
+import type { AgentPerformanceTimer } from "@/lib/agent/trace/perf-trace";
+import { isPerfTraceEnabled } from "@/lib/agent/trace/perf-trace";
+import {
+  resolveContextLoadingPolicy,
+  getRequiredSectionsForIntent,
+  getMissingSectionsForSecondPass,
+  mergeSectionsForSecondPass,
+  isContextLoadingPolicyEnabled,
+  isContextLoadingPolicyShadow,
+  type ContextLoadingMeta,
+} from "@/lib/agent/context-loading-policy";
 
 export type RunAgentChatPipelineDeps = {
   baseTokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   contextPreferences?: ContextPreferences | null;
+  conversationState?: import("@/lib/agent/conversation/types").AgentConversationState | null;
   finalizeTurn?: AgentTurnFinalizer;
   generateIntentWithAgentModel: typeof generateIntentWithAgentModel;
   intentModelEngine: AgentEngine;
   message: string;
   payload: Payload;
   pendingAction: null | PendingAction;
+  /** Performance timer (null when AGENT_PERF_TRACE≠1) */
+  perfTimer?: AgentPerformanceTimer | null;
   resolvedHistory: AgentChatMessage[];
   structuredConfirmation: null | StructuredConfirmation;
   thread: AgentThread;
@@ -59,12 +95,14 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
   const {
     baseTokenUsage,
     contextPreferences,
+    conversationState = null,
     finalizeTurn,
     generateIntentWithAgentModel: modelResolver,
     intentModelEngine,
     message,
     payload,
     pendingAction,
+    perfTimer = null,
     resolvedHistory,
     structuredConfirmation,
     thread,
@@ -89,11 +127,6 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     userPreferences,
   };
 
-  const attachMeta = (response: AgentChatResponse): AgentChatResponse => ({
-    ...response,
-    workbenchMode: workbenchMode ?? undefined,
-  });
-
   return async (
     emitStatus: (status: string) => void = () => undefined,
     emitTrace: (step: AgentTraceStep) => void = () => undefined,
@@ -104,6 +137,13 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     emitChange: (event: AgentStreamChangeEvent) => void = () => undefined,
   ): Promise<AgentChatResponse> => {
     const trace: AgentTraceStep[] = [];
+    const turnAudit: AgentTurnTrace = createEmptyTurnTrace(deps.turnId);
+    Object.assign(turnAudit, recordRawUserInputTrace(turnAudit, message));
+    const attachMeta = (response: AgentChatResponse): AgentChatResponse => ({
+      ...response,
+      turnAudit,
+      workbenchMode: workbenchMode ?? undefined,
+    });
     const stream = createAgentStreamController({
       emitChange,
       emitProgress,
@@ -122,6 +162,26 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       }
 
       emitTrace(step);
+    };
+
+    /** Phase timing helper — no-op when perfTimer is null */
+    const timePhase = async <T>(
+      name: string,
+      topLevel: import("@/lib/agent/trace/perf-trace").TopLevelPhaseName,
+      fn: () => Promise<T>,
+    ): Promise<T> => {
+      if (!perfTimer) return fn();
+      perfTimer.startPhase(name);
+      try {
+        const result = await fn();
+        const duration = perfTimer.endPhase(name, true);
+        perfTimer.recordTopLevelPhase(topLevel, duration);
+        return result;
+      } catch (err) {
+        const duration = perfTimer.endPhase(name, false, err instanceof Error ? err.message : String(err));
+        perfTimer.recordTopLevelPhase(topLevel, duration, true);
+        throw err;
+      }
     };
     let bufferedTurn: {
       assistantMessage: string;
@@ -208,30 +268,64 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     emitToken("正在分析你的请求...\n", 'thinking');
 
     // Build context once (refreshed per-loop iteration when needed)
+    const policyOn = isContextLoadingPolicyEnabled();
+    const policyShadow = isContextLoadingPolicyShadow();
+    const policyActive = policyOn || policyShadow;
+
+    const loadingPolicy = resolveContextLoadingPolicy({
+      workbenchMode,
+      message,
+      pendingAction,
+      lastIntent: thread.lastIntent as string | null,
+    });
+
+    /* Determine sections to load:
+     *   policyOn=true   → sections from the policy (selective load)
+     *   policyShadow    → null (full load + log would-be sections)
+     *   otherwise       → null (full load, no policy computation)
+     */
+    const effectiveSections = policyOn
+      ? loadingPolicy.sections
+      : null;  // full load for shadow and off modes
+
     stream.start({
       id: "stage-context",
       phase: "context",
       title: "构建上下文",
     });
     stream.progress({
-      detail: "读取计划、清单、记忆、时间线和最近 AgentRun。",
+      detail: `读取工作区数据（策略: ${loadingPolicy.meta.reason}, level=${loadingPolicy.meta.level}, sections=[${[...loadingPolicy.sections].join(",")}]）`,
       message: "加载工作区数据",
       stageId: "stage-context",
     });
-    let contextStep = await runBuildContextStep({
-      baseTokenUsage,
-      contextPreferences: contextPreferences ?? undefined,
-      emitStatus,
-      emitToken,
-      emitUsage,
-      message,
-      payload,
-      pendingAction,
-      pushTrace,
-      stream,
-      threadSummary,
-      workbenchMode,
-    });
+    let contextStep = await timePhase("contextBuilder", "context", () =>
+      runBuildContextStep({
+        baseTokenUsage,
+        contextPreferences: contextPreferences ?? undefined,
+        emitStatus,
+        emitToken,
+        emitUsage,
+        loadingSections: effectiveSections,
+        dateRange: loadingPolicy.meta.dateRange,
+        targetDocument: loadingPolicy.meta.targetDocument,
+        message,
+        payload,
+        pendingAction,
+        pushTrace,
+        stream,
+        threadSummary,
+        workbenchMode,
+      }),
+    );
+
+    /* Attach context loading meta for second-pass and observability */
+    let contextLoadingMeta: ContextLoadingMeta = {
+      ...loadingPolicy.meta,
+      loadedSections: effectiveSections ? [...effectiveSections] : loadingPolicy.meta.sections,
+      skippedSections: effectiveSections
+        ? loadingPolicy.meta.sections.filter((s) => !effectiveSections.has(s))
+        : [],
+    };
     stream.progress({
       detail: [
         `${contextStep.context.plans.length} 个计划`,
@@ -272,21 +366,25 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         message: "检查复合意图",
         stageId: "stage-orchestration",
       });
-      const orchestrationResult = await runOrchestrationStep({
-        autoApproval,
-        context: currentContext,
-        emitStatus,
-        emitToken,
-        message,
-        payload,
-        pendingAction: currentPendingAction,
-        persistAgentTurn,
-        pushTrace,
-        stream,
-        tokenUsage,
-        trace,
-        user,
-      });
+      const orchestrationResult = await timePhase("orchestration", "orchestration", () =>
+        runOrchestrationStep({
+          autoApproval,
+          context: currentContext,
+          conversationState,
+          emitStatus,
+          emitToken,
+          message,
+          payload,
+          pendingAction: currentPendingAction,
+          persistAgentTurn,
+          pushTrace,
+          resolvedHistory,
+          stream,
+          tokenUsage,
+          trace,
+          user,
+        }),
+      );
       stream.complete(
         "stage-orchestration",
         orchestrationResult.outcome === "early_exit" ? "编排已生成结果" : "编排检查完成",
@@ -326,27 +424,32 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         message: "判断用户真实目标",
         stageId: "stage-arbitration",
       });
-      const intentResult = await runResolveIntentStep({
-        confirmationSignals,
-        context: currentContext,
-        emitStatus,
-        emitToken,
-        emitUsage,
-        intentModelEngine,
-        message,
-        modelResolver,
-        pendingAction: currentPendingAction,
-        preResolvedIntent: orchestrationResult.data.preResolvedIntent,
-        persistAgentTurn,
-        pushTrace,
-        resolvedHistory,
-        stream,
-        thread,
-        tokenUsage,
-        trace,
-        user,
-        workbenchMode,
-      });
+      const intentResult = await timePhase("llmRouter", "router", () =>
+        runResolveIntentStep({
+          confirmationSignals,
+          context: currentContext,
+          conversationState,
+          emitStatus,
+          emitToken,
+          emitUsage,
+          intentModelEngine,
+          message,
+          modelResolver,
+          pendingAction: currentPendingAction,
+          preResolvedIntent: orchestrationResult.data.preResolvedIntent,
+          orchestratorPlanSource: orchestrationResult.data.orchestratorPlanSource,
+          persistAgentTurn,
+          pushTrace,
+          resolvedHistory,
+          stream,
+          thread,
+          tokenUsage,
+          trace,
+          user,
+          userPreferences,
+          workbenchMode,
+        }),
+      );
       stream.complete(
         "stage-arbitration",
         intentResult.outcome === "early_exit" ? "意图仲裁已完成" : "已决定下一步路线",
@@ -367,6 +470,93 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       } = intentResult.data;
       tokenUsage = tokenAfterIntent;
 
+      /* ── Second-Pass Context Loading (only when policy is ON, not shadow) ── */
+      if (policyOn && contextLoadingMeta.allowSecondPass) {
+        const requiredSections = getRequiredSectionsForIntent(resolution.intent.intent);
+        const loadedSet = new Set(contextLoadingMeta.loadedSections);
+        const missing = getMissingSectionsForSecondPass(requiredSections, loadedSet);
+
+        if (missing.length > 0) {
+          stream.progress({
+            detail: `Router intent=${resolution.intent.intent} 需要 sections=[${[...requiredSections].join(",")}]，当前缺失 [${missing.join(",")}]，触发 second pass`,
+            message: "补载缺失上下文",
+            stageId: "stage-context",
+          });
+
+          const mergedSections = mergeSectionsForSecondPass(
+            loadedSet,
+            missing,
+          );
+
+          contextStep = await timePhase("contextBuilder", "context", () =>
+            runBuildContextStep({
+              baseTokenUsage,
+              contextPreferences: contextPreferences ?? undefined,
+              emitStatus,
+              emitToken,
+              emitUsage,
+              loadingSections: mergedSections,
+              dateRange: contextLoadingMeta.dateRange,
+              targetDocument: contextLoadingMeta.targetDocument,
+              message,
+              payload,
+              pendingAction: currentPendingAction,
+              pushTrace,
+              stream,
+              streamStageId: "stage-context-2nd",
+              threadSummary,
+              workbenchMode,
+            }),
+          );
+
+          /* Update context and meta */
+          currentContext = contextStep.context;
+          currentContextMemories = contextStep.context.memories ?? [];
+          tokenUsage = { ...tokenUsage, contextTokens: contextStep.tokenUsage.contextTokens };
+          controller.budget.consumeContext(contextStep.tokenUsage.contextTokens);
+          lastContextSummary = contextStep.contextSummary;
+
+          contextLoadingMeta.secondPassTriggered = true;
+          contextLoadingMeta.secondPassAddedSections = missing;
+          contextLoadingMeta.loadedSections = [...mergedSections];
+          contextLoadingMeta.skippedSections = contextLoadingMeta.sections.filter(
+            (s) => !mergedSections.has(s),
+          );
+        }
+      }
+
+      const routerOutput =
+        resolution.routerOutput ??
+        normalizeRouterOutput({ arbitration: resolution.arbitration, intent: resolution.intent });
+      const llmRouterOutput = resolution.llmRouterOutput ?? agentRouterToLLMRouter(routerOutput);
+      const capabilityGate = getAllowedCapabilities({
+        intent: resolution.intent,
+        router: routerOutput,
+        userContext: { preferences: userPreferences, userId: user.id },
+      });
+      const toolPlan = buildToolPlan({
+        allowedCapabilities: capabilityGate.allowed,
+        router: llmRouterOutput,
+      });
+      resolution.toolPlan = toolPlan;
+      Object.assign(turnAudit, recordCapabilityGateTrace(turnAudit, capabilityGate));
+      Object.assign(
+        turnAudit,
+        recordRouterTrace(turnAudit, routerOutput, { llmRouterOutput, toolPlan }),
+      );
+      Object.assign(
+        turnAudit,
+        recordPolicyTrace(
+          turnAudit,
+          evaluatePolicyGuard(routerOutput, {
+            userContext: { preferences: userPreferences, userId: user.id },
+          }),
+        ),
+      );
+      Object.assign(turnAudit, recordPolicyGuardOutputTrace(turnAudit, applyPolicyGuard({ router: routerOutput })));
+      Object.assign(turnAudit, recordToolPlanTrace(turnAudit, toolPlan));
+      dispatchWorkflow({ confirmed: Boolean(confirmedActionId), router: llmRouterOutput, toolPlan });
+
       if (batchExecuteIntents && batchExecuteIntents.length > 0) {
         stream.start({
           id: "stage-execution",
@@ -379,20 +569,22 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           stageId: "stage-execution",
         });
         lastResponse = attachMeta(
-          await runExecuteAndPersistStep({
-            batchExecuteIntents,
-            confirmedActionId,
-            emitStatus,
-            emitToken,
-            isDirectAnswer: false,
-            persistAgentTurn,
-            pushTrace,
-            resolution,
+          await timePhase("toolExecution", "execution", () =>
+            runExecuteAndPersistStep({
+              batchExecuteIntents,
+              confirmedActionId,
+              emitStatus,
+              emitToken,
+              isDirectAnswer: false,
+              persistAgentTurn,
+              pushTrace,
+              resolution,
             stream,
             tokenUsage,
             trace,
             user,
-          }),
+            }),
+          ),
         );
         stream.complete("stage-execution", "执行完成");
         controller.setLastResponse(lastResponse.assistantMessage, lastResponse.pendingAction);
@@ -431,7 +623,9 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           stream,
           tokenUsage,
           trace,
+          turnAudit,
           user,
+          userPreferences,
         });
         if (isWriteLike || confirmedActionId) {
           stream.complete(
@@ -461,20 +655,46 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             stageId: isDirectAnswer ? "stage-response" : "stage-execution",
           });
         }
-        const execResult = await runExecuteAndPersistStep({
-          confirmedActionId,
-          emitStatus,
-          emitToken,
-          executionApproved,
-          isDirectAnswer,
-          nextPendingAfterExecute,
-          persistAgentTurn,
-          pushTrace,
-          resolution,
-          stream,
-          tokenUsage,
-          trace,
-          user,
+        let executedCapabilityName: string | null = null;
+        const execResult = await timePhase("toolExecution", "execution", () =>
+          runExecuteAndPersistStep({
+            confirmedActionId,
+            emitStatus,
+            emitToken,
+            executionApproved,
+            executedCapability: (name) => {
+              executedCapabilityName = name;
+            },
+            isDirectAnswer,
+            nextPendingAfterExecute,
+            pendingAction: currentPendingAction,
+            persistAgentTurn,
+            pushTrace,
+            resolution,
+            stream,
+            structuredConfirmation,
+            tokenUsage,
+            trace,
+            user,
+          }),
+        );
+        if (!isDirectAnswer && (executionApproved || confirmedActionId)) {
+          const actualName =
+            executedCapabilityName ??
+            capabilityNameForIntent(resolution.intent.intent as AgentWriteIntentName, "execute");
+          Object.assign(turnAudit, recordActualTool(turnAudit, actualName));
+        }
+        turnAudit.confirmationState = pendingActionToConfirmationState(
+          execResult.pendingAction,
+          executionApproved || Boolean(confirmedActionId),
+        );
+        const consistency = assertPlannedVsActual(turnAudit);
+        pushTrace({
+          detail: consistency.reason,
+          id: "tool-plan-consistency",
+          kind: consistency.ok ? "complete" : "error",
+          status: consistency.ok ? "done" : "error",
+          title: consistency.ok ? "工具计划一致" : "工具计划不一致",
         });
         if (!isDirectAnswer || confirmedActionId) {
           stream.complete(isDirectAnswer ? "stage-response" : "stage-execution", isDirectAnswer ? "回复已完成" : "执行完成");
@@ -491,12 +711,23 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             phase: "context",
             title: "刷新上下文",
           });
+          /* Re-resolve policy: after first iteration we may have a new pendingAction or lastIntent */
+          const refreshPolicy = resolveContextLoadingPolicy({
+            workbenchMode,
+            message,
+            pendingAction: currentPendingAction,
+            lastIntent: (lastResponse as { intent?: string } | null)?.intent ?? thread.lastIntent as string | null,
+          });
+          const refreshSections = policyOn ? refreshPolicy.sections : null;
           contextStep = await runBuildContextStep({
             baseTokenUsage,
             contextPreferences: contextPreferences ?? undefined,
             emitStatus,
             emitToken,
             emitUsage,
+            loadingSections: refreshSections,
+            dateRange: refreshPolicy.meta.dateRange,
+            targetDocument: refreshPolicy.meta.targetDocument,
             message,
             payload,
             pendingAction: currentPendingAction,
@@ -506,6 +737,14 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             threadSummary,
             workbenchMode,
           });
+          /* Update meta for second-pass on next iteration */
+          contextLoadingMeta = {
+            ...refreshPolicy.meta,
+            loadedSections: refreshSections ? [...refreshSections] : [],
+            skippedSections: refreshSections
+              ? refreshPolicy.meta.sections.filter((s) => !refreshSections.has(s))
+              : [],
+          };
           currentContext = contextStep.context;
           currentContextMemories = currentContext.memories ?? [];
           tokenUsage = { ...tokenUsage, contextTokens: contextStep.tokenUsage.contextTokens };

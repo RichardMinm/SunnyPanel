@@ -804,6 +804,11 @@ background: color-mix(in oklch, var(--foreground) 8%, transparent);
   }
 }
 
+/* ── Mode workspace loading placeholder ── */
+.sunny-dashboard-mode-loading {
+  min-height: 60vh;
+}
+
 /* ── 减少动画 ── */
 @media (prefers-reduced-motion: reduce) {
 .sunny-dashboard-shell {

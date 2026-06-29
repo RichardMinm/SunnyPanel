@@ -5,6 +5,7 @@ import {
   isAgentStreamProgressEvent,
   isAgentStreamStageEvent,
   type AgentStreamChangeEvent,
+  type AgentStreamPerfEvent,
   type AgentStreamProgressEvent,
   type AgentStreamStageEvent,
 } from "@/lib/agent/stream-events";
@@ -20,6 +21,7 @@ export type AgentChatStreamHandlers = {
   onErrorMessage: (assistantMessage: string) => void;
   onMeta: (data: unknown) => void;
   onProgress?: (event: AgentStreamProgressEvent) => void;
+  onPerf?: (event: AgentStreamPerfEvent) => void;
   onStage?: (event: AgentStreamStageEvent) => void;
   onStatus: (status: string) => void;
   onStreamStart: () => void;
@@ -43,6 +45,7 @@ export async function readAgentChatStream(
   const decoder = new TextDecoder();
   let buffer = "";
   let doneData: AgentChatStreamDone | null = null;
+  let streamedResponseText = "";
 
   handlers.onStreamStart();
   handlers.setStreamingState("thinking");
@@ -143,6 +146,7 @@ export async function readAgentChatStream(
           if (block === "thinking") {
             handlers.onThinkingToken(content);
           } else {
+            streamedResponseText += content;
             handlers.setStreamingState("responding");
             handlers.appendAssistantToken(content);
           }
@@ -162,6 +166,15 @@ export async function readAgentChatStream(
         if (nextTokenUsage) {
           handlers.onTokenUsage(nextTokenUsage);
         }
+      }
+
+      if (
+        parsedBlock.event === "perf" &&
+        typeof parsedBlock.data === "object" &&
+        parsedBlock.data &&
+        "event" in parsedBlock.data
+      ) {
+        handlers.onPerf?.(parsedBlock.data as AgentStreamPerfEvent);
       }
 
       if (
@@ -192,6 +205,13 @@ export async function readAgentChatStream(
       doneData = parsedBlock.data as AgentChatStreamDone;
       handlers.onDone(doneData);
     }
+  }
+
+  if (doneData && !doneData.assistantMessage?.trim() && streamedResponseText.trim()) {
+    doneData = {
+      ...doneData,
+      assistantMessage: streamedResponseText.trim(),
+    };
   }
 
   if (typeof doneData?.assistantMessage === "string") {

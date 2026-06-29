@@ -2,7 +2,9 @@
 
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
+import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
 
+import { AgentCapabilityAuditPanel } from "./AgentCapabilityAuditPanel";
 import type { ContextPreferences } from "./types";
 import { getPendingActionLabel } from "./utils";
 
@@ -56,6 +58,7 @@ type AgentDebugPanelProps = {
   threadId: null | number;
   tokenUsage: AgentTokenUsage;
   traceSteps: AgentTraceStep[];
+  turnAudit?: AgentTurnTrace | null;
   workbenchMode?: AgentWorkbenchMode | null;
 };
 
@@ -70,6 +73,7 @@ export function AgentDebugPanel({
   threadId,
   tokenUsage,
   traceSteps,
+  turnAudit,
   workbenchMode,
 }: AgentDebugPanelProps) {
   const contextSteps = traceSteps.filter((step) => step.kind === "context");
@@ -147,6 +151,8 @@ export function AgentDebugPanel({
           ))}
         </div>
       ) : null}
+
+      <AgentCapabilityAuditPanel turnAudit={turnAudit ?? null} />
 
       {toolSteps.length > 0 ? (
         <div className="sunny-agent-debug-tool-calls">

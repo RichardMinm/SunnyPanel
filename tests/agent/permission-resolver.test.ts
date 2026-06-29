@@ -89,7 +89,7 @@ test("autonomy level 2 auto-approves previously confirmed medium-risk scope", ()
   assert.match(levelTwoDecision.reason, /同领域|相同操作|Level 2/);
 });
 
-test("autonomy level 3 can approve high-risk actions after the first action", () => {
+test("high risk actions never auto approve even at autonomy level 3", () => {
   const highRiskAction = makeAction({
     changes: [
       {
@@ -110,8 +110,33 @@ test("autonomy level 3 can approve high-risk actions after the first action", ()
     }),
   );
 
-  assert.equal(decision.approved, true);
-  assert.match(decision.reason, /Level 3|全部自动/);
+  assert.equal(decision.approved, false);
+  assert.match(decision.reason, /高风险/);
+});
+
+test("delete_record never auto approves", () => {
+  const deleteAction = makeAction({
+    changes: [
+      {
+        collection: "plans",
+        operation: "delete",
+        preview: "删除计划",
+      },
+    ],
+    intent: "delete_record",
+    riskLevel: "high",
+    summary: "删除计划",
+  });
+
+  const decision = shouldAutoApprove(
+    deleteAction,
+    makeContext({
+      userPreferences: makePreferences({ autonomyLevel: 3 }),
+    }),
+  );
+
+  assert.equal(decision.approved, false);
+  assert.match(decision.reason, /删除/);
 });
 
 test("denied intents and consecutive caps still block level 3 auto approval", () => {

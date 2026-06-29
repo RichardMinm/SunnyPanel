@@ -182,17 +182,17 @@ export const completeStructuredStreaming = async <T>({
     const parsed = parse(JSON.parse(jsonString));
     if (!parsed) throw new Error("JSON failed schema validation");
 
-    const tokenUsage = providerUsage
+    const tokenUsage = providerUsage.usage
       ? mergeProviderTokenUsage(
           {
             ...estimatedUsage,
-            outputTokens: providerUsage.completionTokens,
-            totalTokens: estimatedUsage.contextTokens + estimatedUsage.inputTokens + providerUsage.completionTokens,
+            outputTokens: providerUsage.usage.completionTokens,
+            totalTokens: estimatedUsage.contextTokens + estimatedUsage.inputTokens + providerUsage.usage.completionTokens,
           },
           {
-            completion_tokens: providerUsage.completionTokens,
-            prompt_tokens: providerUsage.promptTokens,
-            total_tokens: providerUsage.promptTokens + providerUsage.completionTokens,
+            completion_tokens: providerUsage.usage.completionTokens,
+            prompt_tokens: providerUsage.usage.promptTokens,
+            total_tokens: providerUsage.usage.promptTokens + providerUsage.usage.completionTokens,
           },
         )
       : mergeProviderTokenUsage(

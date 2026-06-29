@@ -9,6 +9,7 @@ export type SettingsPopoverProps = {
   trigger: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  triggerAsChild?: boolean;
   triggerClassName?: string;
 };
 
@@ -17,6 +18,7 @@ export function SettingsPopover({
   trigger,
   open,
   onOpenChange,
+  triggerAsChild = false,
   triggerClassName = "settings-popover-trigger",
 }: SettingsPopoverProps) {
   return (
@@ -29,6 +31,7 @@ export function SettingsPopover({
       side="bottom"
       sideOffset={10}
       trigger={trigger}
+      triggerAsChild={triggerAsChild}
       triggerClassName={triggerClassName}
       width="var(--settings-width, 360px)"
     >

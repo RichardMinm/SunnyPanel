@@ -48,11 +48,11 @@ export const shouldAutoApprove = (
     return { approved: false, reason: `连续自动批准已达上限 ${context.userPreferences.maxConsecutiveAutoApprovals}` };
   }
 
-  if (action.riskLevel === "high") {
-    if (autonomyLevel >= 3) {
-      return { approved: true, reason: "Level 3 全部自动模式允许高风险操作自动执行" };
-    }
+  if (action.intent === "delete_record") {
+    return { approved: false, reason: "删除操作必须手动确认，禁止自动批准" };
+  }
 
+  if (action.riskLevel === "high") {
     return { approved: false, reason: "高风险操作必须手动确认" };
   }
 

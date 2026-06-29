@@ -1,5 +1,12 @@
 import type { Payload } from "payload";
 
+import { evaluatePolicyGuard } from "@/lib/agent/policy/tool-gate";
+import { applyPolicyGuard } from "@/lib/agent/policy/guard";
+import { attachCapabilityToProposedAction } from "@/lib/agent/capabilities/adapters";
+import { normalizeRouterOutput } from "@/lib/agent/router/normalize-router-output";
+import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
+import { recordDryRunTrace, recordPolicyGuardOutputTrace, recordPolicyTrace, recordResolverTrace, recordToolPlanTrace } from "@/lib/agent/trace/agent-turn-trace";
+import { resolveDeleteTarget, resolveModifyTarget } from "@/lib/agent/resolver/target-resolver";
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
 import type { IntentResolution } from "@/lib/agent/chat-pipeline/resolve-intent-step";
 import { getAgentModelConfig, type StreamTokenCallback } from "@/lib/agent/client";
@@ -9,6 +16,7 @@ import { buildConfirmedIntentSet, getConsecutiveAutoCount, incrementAutoCount, s
 import { buildProposedActionMessage, dryRunAgentIntent } from "@/lib/agent/safety";
 import type { AutoApprovalContext } from "@/lib/agent/safety";
 import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, ComposePlanArgs, PendingAction } from "@/lib/agent/schemas";
+import { isConversationalIntent } from "@/lib/agent/schemas";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 import { detectScheduleConflicts, getScheduleItemById } from "@/lib/schedule/items";
@@ -43,7 +51,9 @@ export type DryRunAndProposeStepParams = {
   stream?: AgentStreamController;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
+  turnAudit?: AgentTurnTrace;
   user: { id: number };
+  userPreferences?: import("@/lib/agent/user-preferences").UserPreferences | null;
 };
 
 export type DryRunAndProposeStepNext = {
@@ -71,11 +81,206 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     stream,
     tokenUsage: tokenUsageIn,
     trace,
+    turnAudit,
     user,
+    userPreferences,
   } = params;
 
   let tokenUsage = tokenUsageIn;
-  const isDirectAnswer = resolution.intent.intent === "answer_question";
+  const isDirectAnswer =
+    resolution.intent.intent === "answer_question" ||
+    isConversationalIntent(resolution.intent.intent) ||
+    resolution.intent.intent === "clarify";
+
+  if (!isDirectAnswer && !confirmedActionId) {
+    const routerOutput =
+      resolution.routerOutput ??
+      normalizeRouterOutput({ arbitration: resolution.arbitration, intent: resolution.intent });
+
+    let resolverStatus: import("@/lib/agent/resolver/target-resolver").TargetResolutionStatus | undefined;
+
+    if (resolution.intent.intent === "delete_record") {
+      const targetResult = await resolveDeleteTarget(resolution.intent.args, { payload });
+      resolverStatus = targetResult.status;
+
+      if (turnAudit) {
+        Object.assign(turnAudit, recordResolverTrace(turnAudit, targetResult));
+      }
+
+      if (targetResult.status !== "unique") {
+        const assistantMessage =
+          targetResult.question ??
+          (targetResult.status === "ambiguous" || targetResult.status === "multiple"
+            ? "找到多个匹配目标，请明确指定要操作哪一个。"
+            : "未找到匹配的目标，无法继续预览或执行。");
+        pushTrace({
+          detail: assistantMessage,
+          id: "target-resolver-block",
+          kind: "error",
+          status: "error",
+          title: "目标解析失败",
+        });
+        const updatedThread = await persistAgentTurn({
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: "clarify",
+          nextPendingAction: null,
+        });
+
+        return {
+          outcome: "early_exit",
+          response: {
+            assistantMessage,
+            confidence: resolution.intent.confidence,
+            engine: resolution.engine,
+            intent: "clarify",
+            pendingAction: null,
+            trace,
+            threadId: updatedThread.id,
+            tokenUsage,
+            turnAudit,
+          },
+        };
+      }
+    }
+
+    if (resolution.intent.intent === "modify_record") {
+      const targetResult = await resolveModifyTarget(resolution.intent.args);
+      resolverStatus = targetResult.status;
+
+      if (turnAudit) {
+        Object.assign(turnAudit, recordResolverTrace(turnAudit, targetResult));
+      }
+
+      if (targetResult.status !== "unique") {
+        const assistantMessage =
+          targetResult.question ??
+          (targetResult.status === "ambiguous" || targetResult.status === "multiple"
+            ? "找到多个匹配目标，请明确指定要修改哪一个。"
+            : "未找到匹配的目标，无法继续预览或执行。");
+        pushTrace({
+          detail: assistantMessage,
+          id: "target-resolver-block",
+          kind: "error",
+          status: "error",
+          title: "目标解析失败",
+        });
+        const updatedThread = await persistAgentTurn({
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: "clarify",
+          nextPendingAction: null,
+        });
+
+        return {
+          outcome: "early_exit",
+          response: {
+            assistantMessage,
+            confidence: resolution.intent.confidence,
+            engine: resolution.engine,
+            intent: "clarify",
+            pendingAction: null,
+            trace,
+            threadId: updatedThread.id,
+            tokenUsage,
+            turnAudit,
+          },
+        };
+      }
+    }
+
+    const policy = evaluatePolicyGuard(routerOutput, {
+      resolverStatus,
+      userContext: { preferences: userPreferences, userId: user.id },
+    });
+    const policyGuardOutput = applyPolicyGuard({ resolverStatus, router: routerOutput });
+
+    if (turnAudit) {
+      Object.assign(turnAudit, recordPolicyTrace(turnAudit, policy));
+      Object.assign(turnAudit, recordPolicyGuardOutputTrace(turnAudit, policyGuardOutput));
+      if (resolution.llmRouterOutput) {
+        const { buildToolPlan } = await import("@/lib/agent/plan/tool-plan");
+        const rebuiltPlan = buildToolPlan({
+          allowedCapabilities: policy.allowedCapabilities ?? [],
+          resolverResult:
+            resolverStatus && resolverStatus !== "unique"
+              ? { question: null, resolved: null, status: resolverStatus }
+              : undefined,
+          router: resolution.llmRouterOutput,
+        });
+        Object.assign(turnAudit, recordToolPlanTrace(turnAudit, rebuiltPlan));
+        resolution.toolPlan = rebuiltPlan;
+      }
+    }
+
+    if (!policy.allowed) {
+      const assistantMessage = `当前动作未通过安全策略：${policy.reason}。请换一种说法，或明确你要查询/创建/修改/删除的对象。`;
+      pushTrace({
+        detail: policy.reason,
+        id: "policy-guard-block",
+        kind: "error",
+        status: "error",
+        title: "Policy Guard 拒绝",
+      });
+      const updatedThread = await persistAgentTurn({
+        assistantMessage,
+        confidence: resolution.intent.confidence,
+        engine: resolution.engine,
+        intent: "clarify",
+        nextPendingAction: null,
+      });
+
+      return {
+        outcome: "early_exit",
+        response: {
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: "clarify",
+          pendingAction: null,
+          trace,
+          threadId: updatedThread.id,
+          tokenUsage,
+          turnAudit,
+        },
+      };
+    }
+
+    if (!policyGuardOutput.allowDryRun && routerOutput.requiresWrite) {
+      const assistantMessage = `当前动作未通过 Policy Guard：${policyGuardOutput.reason}。请补充或澄清目标后再试。`;
+      pushTrace({
+        detail: policyGuardOutput.reason,
+        id: "policy-guard-dry-run-block",
+        kind: "error",
+        status: "error",
+        title: "Policy Guard 禁止 DryRun",
+      });
+      const updatedThread = await persistAgentTurn({
+        assistantMessage,
+        confidence: resolution.intent.confidence,
+        engine: resolution.engine,
+        intent: "clarify",
+        nextPendingAction: null,
+      });
+
+      return {
+        outcome: "early_exit",
+        response: {
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: "clarify",
+          pendingAction: null,
+          trace,
+          threadId: updatedThread.id,
+          tokenUsage,
+          turnAudit,
+        },
+      };
+    }
+  }
 
   if (resolution.intent.intent === "compose_plan" && !confirmedActionId) {
     const normalizedArgs = normalizeComposePlanArgs(
@@ -160,6 +365,10 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         resolveScheduleItem: (itemId) => getScheduleItemById(itemId, payload),
       });
 
+  if (turnAudit && dryRunResult.type !== "bypass") {
+    Object.assign(turnAudit, recordDryRunTrace(turnAudit, dryRunResult));
+  }
+
   if (dryRunResult.type === "clarify") {
     emitStatus("Dry-run 发现信息不完整，需要补充...");
     stream?.progress({
@@ -221,10 +430,11 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     };
   }
 
-  const proposedAction =
+  const proposedActionRaw =
     dryRunResult.type === "proposed_action" || dryRunResult.type === "bypass"
       ? dryRunResult.action ?? null
       : null;
+  const proposedAction = proposedActionRaw ? attachCapabilityToProposedAction(proposedActionRaw) : null;
 
   if (proposedAction && proposedAction.requiresConfirmation === false) {
     const hasWriteChange =

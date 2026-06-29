@@ -7,8 +7,11 @@ import type { ProposedAgentAction } from "@/lib/agent/schemas";
 
 import {
   formatCollectionLabel,
+  formatCapabilityLabel,
+  formatCapabilityPhaseLabel,
   formatIntentLabel,
   formatPriorityLabel,
+  getCapabilityPhase,
   operationLabelMap,
   riskLevelLabelMap,
   visibilityLabelMap,
@@ -105,7 +108,16 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
   const confirmDisabled = Boolean(disabled || (isHighRisk && confirmPhrase.trim() !== "确认执行"));
   const affectedCount = action.affectedDocuments?.length ?? action.changes.length;
   const writesDatabase = action.changes.length > 0;
-  const operationType = formatIntentLabel(action.intent);
+  const operationType = action.capability
+    ? formatCapabilityLabel(action.capability)
+    : formatIntentLabel(action.intent);
+  const capabilityPhase = action.capability ? getCapabilityPhase(action.capability) : null;
+  const capabilityFlowHint =
+    action.capability?.startsWith("preview_") && action.riskLevel !== "high"
+      ? "预览提案 → 确认后执行"
+      : action.capability?.startsWith("preview_") && action.riskLevel === "high"
+        ? "高风险预览 → 确认短语后执行"
+        : null;
   const scheduleTimeRange = scheduleProposal
     ? scheduleProposal.isAllDay
       ? `${scheduleProposal.date} · 全天`
@@ -138,8 +150,16 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
     >
       <div className="sunny-agent-approval-banner-main">
         <div>
-          <p>等待确认 · {operationType}</p>
+          <p>
+            等待确认 · {operationType}
+            {capabilityPhase && capabilityPhase !== "unknown" ? (
+              <span className={`sunny-agent-capability-badge sunny-agent-capability-${capabilityPhase}`}>
+                {formatCapabilityPhaseLabel(action.capability!)}
+              </span>
+            ) : null}
+          </p>
           <h3 id="agent-pending-approval-title">{action.summary}</h3>
+          {capabilityFlowHint ? <p className="sunny-agent-capability-flow-hint">{capabilityFlowHint}</p> : null}
         </div>
         <span className={`sunny-agent-risk-pill-v2 sunny-agent-risk-${action.riskLevel}`}>
           {riskLevelLabelMap[action.riskLevel]}
@@ -185,7 +205,7 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
       <details className="sunny-agent-confirmation-details">
         <summary>查看详情</summary>
         <div className="sunny-agent-approval-banner-meta" aria-describedby="agent-pending-approval-title">
-          <span>{formatIntentLabel(action.intent)}</span>
+          <span>{action.capability ? formatCapabilityLabel(action.capability) : formatIntentLabel(action.intent)}</span>
           <span>{firstChange ? operationLabelMap[firstChange.operation] : "待确认"}</span>
           <span>{firstChange ? `${formatCollectionLabel(firstChange.collection)}${firstChange.documentId ? ` #${firstChange.documentId}` : ""}` : "未解析"}</span>
           <span>{firstChange?.visibility ? visibilityLabelMap[firstChange.visibility] : "未知可见性"}</span>
@@ -328,7 +348,17 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
           </div>
         ) : null}
       </details>
-      {isHighRisk ? (
+      {isHighRisk && action.intent === "delete_record" ? (
+        <label className="sunny-agent-confirmation-phrase">
+          <span>删除操作：请输入“确认执行”后才会删除，此操作不可撤销（可从快照回滚）。</span>
+          <input
+            value={confirmPhrase}
+            onChange={(event) => setConfirmationDraft({ actionId: action.id, phrase: event.target.value })}
+            placeholder="确认执行"
+            disabled={disabled}
+          />
+        </label>
+      ) : isHighRisk ? (
         <label className="sunny-agent-confirmation-phrase">
           <span>高风险操作：请输入“确认执行”后才会执行。</span>
           <input

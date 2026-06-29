@@ -50,13 +50,27 @@ const dayInMs = 24 * 60 * 60 * 1000;
 
 const normalizeText = (value: null | string | undefined) => value?.trim() ?? "";
 
-const startOfDate = (date: string | Date) => {
+export const startOfDate = (date: string | Date) => {
   const value = typeof date === "string" ? new Date(date) : date;
 
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
 };
 
-const endOfDate = (date: string | Date) => new Date(startOfDate(date).getTime() + dayInMs);
+export const endOfDate = (date: string | Date) => new Date(startOfDate(date).getTime() + dayInMs);
+
+/** Get Monday 00:00 of the week containing `date`. */
+export const startOfWeek = (date: Date = new Date()): Date => {
+  const d = startOfDate(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // Monday-based week
+  return new Date(d.getTime() + diff * dayInMs);
+};
+
+/** Get Sunday 23:59:59.999 of the week containing `date`. */
+export const endOfWeek = (date: Date = new Date()): Date => {
+  const start = startOfWeek(date);
+  return new Date(start.getTime() + 7 * dayInMs - 1);
+};
 
 const getPayload = async (payload?: Payload) => payload ?? getPayloadClient();
 
@@ -114,6 +128,52 @@ export const getTodaySchedule = (payload?: Payload) => getScheduleForDate(new Da
 
 export const getTomorrowSchedule = (payload?: Payload) =>
   getScheduleForDate(new Date(Date.now() + dayInMs), payload);
+
+/**
+ * Get schedule items for a date range (inclusive start, exclusive end).
+ * Uses multiple single-day queries to stay within existing query patterns.
+ */
+export const getScheduleForDateRange = async (
+  startDate: Date,
+  endDate: Date,
+  payload?: Payload,
+): Promise<ScheduleItemRecord[]> => {
+  const days: Date[] = [];
+  let cursor = startOfDate(startDate);
+  const end = startOfDate(endDate);
+  while (cursor <= end) {
+    days.push(cursor);
+    cursor = new Date(cursor.getTime() + dayInMs);
+  }
+  const results = await Promise.all(days.map((d) => getScheduleForDate(d, payload)));
+  return results.flat();
+};
+
+/**
+ * Get schedule items for a semantic date range.
+ */
+export const getScheduleForRange = async (
+  range: import("@/lib/agent/context-loading-policy").ScheduleDateRange,
+  payload?: Payload,
+): Promise<ScheduleItemRecord[]> => {
+  const now = new Date();
+  switch (range.type) {
+    case "today":
+      return getTodaySchedule(payload);
+    case "tomorrow":
+      return getTomorrowSchedule(payload);
+    case "this_week":
+      return getScheduleForDateRange(startOfWeek(now), endOfWeek(now), payload);
+    case "next_week": {
+      const nextWeek = new Date(now.getTime() + 7 * dayInMs);
+      return getScheduleForDateRange(startOfWeek(nextWeek), endOfWeek(nextWeek), payload);
+    }
+    case "custom":
+      return getScheduleForDateRange(new Date(range.start), new Date(range.end), payload);
+    default:
+      return getTodaySchedule(payload);
+  }
+};
 
 export const detectScheduleConflicts = async (
   date: string,

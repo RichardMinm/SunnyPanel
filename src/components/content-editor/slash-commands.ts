@@ -9,7 +9,6 @@ import {
   type WritingWorkflowActionId,
 } from "@/lib/dashboard/writing-workflow-actions";
 import { uploadDashboardImage } from "@/lib/editor/upload-dashboard-image";
-import { uploadDashboardMedia } from "@/lib/editor/upload-dashboard-media";
 
 import type { SlashCommandIconName } from "./SlashCommandIcon";
 
@@ -58,15 +57,6 @@ const pickFile = (accept: string) =>
     input.click();
   });
 
-const promptText = (message: string, defaultValue = "") => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const value = window.prompt(message, defaultValue)?.trim();
-  return value || null;
-};
-
 const insertCallout = (editor: Editor, tone: string) => {
   editor
     .chain()
@@ -75,23 +65,6 @@ const insertCallout = (editor: Editor, tone: string) => {
       attrs: { tone },
       content: [{ type: "paragraph" }],
       type: "callout",
-    })
-    .run();
-};
-
-const insertMediaEmbed = (
-  editor: Editor,
-  kind: "file" | "pdf" | "video",
-  src: string,
-  title: string,
-  filename = "",
-) => {
-  editor
-    .chain()
-    .focus()
-    .insertContent({
-      attrs: { filename, kind, src, title },
-      type: "mediaEmbed",
     })
     .run();
 };

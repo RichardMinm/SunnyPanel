@@ -97,6 +97,41 @@ export const intentLabelMap: Record<string, string> = {
   weekly_review: "本周回顾",
 };
 
+export const capabilityLabelMap: Record<string, string> = {
+  draft_checklist: "草案：清单",
+  draft_plan: "草案：计划",
+  draft_timeline_event: "草案：时间线",
+  draft_writing_outline: "草案：写作大纲",
+  execute_bulk_delete_plans: "执行：批量删除计划",
+  execute_clear_schedule_day: "执行：清空日程",
+  execute_create_plan: "执行：创建计划",
+  execute_create_schedule: "执行：创建日程",
+  execute_delete_plan: "执行：删除计划",
+  execute_delete_schedule: "执行：取消日程",
+  execute_update_plan: "执行：更新计划",
+  execute_update_schedule: "执行：更新日程",
+  preview_create_plan: "预览：创建计划",
+  preview_create_schedule: "预览：创建日程",
+  preview_delete_plan: "预览：删除计划",
+  preview_delete_schedule: "预览：取消日程",
+  preview_update_plan: "预览：更新计划",
+  preview_update_schedule: "预览：更新日程",
+  preview_update_checklist: "预览：更新清单",
+  preview_delete_checklist: "预览：删除清单",
+  preview_create_timeline: "预览：创建时间线",
+  preview_delete_timeline: "预览：删除时间线",
+  execute_update_checklist: "执行：更新清单",
+  execute_delete_checklist: "执行：删除清单",
+  execute_create_timeline: "执行：创建时间线",
+  execute_delete_timeline: "执行：删除时间线",
+  publish_private_content: "发布私有内容",
+  search_checklists: "搜索清单",
+  search_memory: "搜索记忆",
+  search_plans: "搜索计划",
+  search_schedules: "搜索日程",
+  search_timeline: "搜索时间线",
+};
+
 export const collectionLabelMap: Record<string, string> = {
   "agent-memories": "记忆",
   "agent-runs": "执行记录",
@@ -120,6 +155,48 @@ export function formatCollectionLabel(collection: string) {
 
 export function formatIntentLabel(intent: string) {
   return intentLabelMap[intent] ?? intent;
+}
+
+export function formatCapabilityLabel(capability: string) {
+  return capabilityLabelMap[capability] ?? formatIntentLabel(capability);
+}
+
+export type CapabilityPhase = "draft" | "execute" | "preview" | "read" | "unknown";
+
+export function getCapabilityPhase(capability: string): CapabilityPhase {
+  if (capability.startsWith("search_")) {
+    return "read";
+  }
+
+  if (capability.startsWith("draft_")) {
+    return "draft";
+  }
+
+  if (capability.startsWith("preview_")) {
+    return "preview";
+  }
+
+  if (capability.startsWith("execute_")) {
+    return "execute";
+  }
+
+  return "unknown";
+}
+
+export function getCapabilityPhaseLabel(capability: string): CapabilityPhase {
+  return getCapabilityPhase(capability);
+}
+
+export const capabilityPhaseDisplayMap: Record<CapabilityPhase, string> = {
+  draft: "草案",
+  execute: "执行",
+  preview: "预览",
+  read: "读取",
+  unknown: "能力",
+};
+
+export function formatCapabilityPhaseLabel(capability: string) {
+  return capabilityPhaseDisplayMap[getCapabilityPhase(capability)];
 }
 
 export function formatPriorityLabel(priority: string | null | undefined) {

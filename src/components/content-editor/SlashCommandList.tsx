@@ -54,13 +54,10 @@ export function useSlashCommandState(
   const [position, setPosition] = useState({ left: 0, top: 0 });
   const [placement, setPlacement] = useState<"bottom-start" | "top-start">("bottom-start");
   const rangeRef = useRef<{ from: number; to: number } | null>(null);
-  const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
 
   const allItems = useMemo(
-    () => createSlashCommandItems(handlersRef.current),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers compared by ref
-    [handlers.onWritingAssist, handlers.onWorkflow],
+    () => createSlashCommandItems(handlers),
+    [handlers],
   );
 
   const items = filterSlashCommandItems(query, allItems);
@@ -113,7 +110,7 @@ export function useSlashCommandState(
       setSelectedIndex(0);
 
       const coords = editor.view.coordsAtPos($from.pos);
-      const filtered = filterSlashCommandItems(nextQuery, createSlashCommandItems(handlersRef.current));
+      const filtered = filterSlashCommandItems(nextQuery, allItems);
       const nextPosition = computeMenuPosition(coords, filtered.length);
       setPosition({ left: nextPosition.left, top: nextPosition.top });
       setPlacement(nextPosition.placement);
@@ -126,12 +123,14 @@ export function useSlashCommandState(
       editor.off("selectionUpdate", updateFromEditor);
       editor.off("update", updateFromEditor);
     };
-  }, [close, editor]);
+  }, [allItems, close, editor]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- keep keyboard selection inside the current filtered slash-command list */
     setSelectedIndex((current) =>
       items.length === 0 ? 0 : Math.min(current, items.length - 1),
     );
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [items.length, query]);
 
   useEffect(() => {

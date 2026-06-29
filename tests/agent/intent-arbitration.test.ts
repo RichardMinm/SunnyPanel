@@ -174,6 +174,38 @@ test("write safety blocks implicit write intents when the user only asks for adv
   assert.equal(assessment.explicitWriteSignal, false);
 });
 
+test("open domain definition interrupts stale await_learning_followup in resolveAgentIntent", async () => {
+  const pendingAction = {
+    originalMessage: "什么是农夫山泉？",
+    requestedAction: "compose_plan",
+    subject: "这门学科",
+    type: "await_learning_followup",
+  } as PendingAction;
+  const result = await resolveAgentIntent({
+    context: baseContext(pendingAction),
+    history: [],
+    message: "什么是农夫山泉？",
+    modelResolver: async () => ({
+      intent: {
+        args: {
+          answer: "",
+        },
+        confidence: 0.7,
+        intent: "answer_question",
+      },
+    }),
+    pendingAction,
+  });
+
+  assert.equal(result.arbitration?.pendingPolicy, "start_new_intent");
+  assert.equal(
+    result.intent.intent === "answer_question" ? result.intent.args.openDomainTopic : null,
+    "农夫山泉",
+  );
+  assert.doesNotMatch(result.intent.intent === "answer_question" ? result.intent.args.answer : "", /拆成计划/);
+  assert.doesNotMatch(result.intent.intent === "answer_question" ? result.intent.args.answer : "", /这门学科/);
+});
+
 test("resolveAgentIntent exposes arbitration metadata for trace and audit", async () => {
   const result = await resolveAgentIntent({
     context: baseContext(),

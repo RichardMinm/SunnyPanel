@@ -29,7 +29,7 @@ export function PaletteToggle({ currentPalette, locale, onPaletteChange, variant
     applySitePalette(palette);
     onPaletteChange?.(palette);
 
-    fetch("/api/site-palette", {
+    void fetch("/api/site-palette", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

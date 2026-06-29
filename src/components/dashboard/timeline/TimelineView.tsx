@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { categoryDotClass, type CategoryId } from "@/lib/category-styles";
+import { AppEmptyState } from "@/components/primitives/AppEmptyState";
 import { DashboardIcon } from "../icons";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
 
@@ -236,25 +237,32 @@ export function TimelineView({
         {loading ? (
           <p className="sunny-schedule-empty-day">加载中…</p>
         ) : groupedEvents.size === 0 ? (
-          <div className="sunny-timeline-empty-state">
-            <div className="sunny-timeline-empty-icon">
-              <DashboardIcon name="calendar" />
-            </div>
-            <h3 className="sunny-timeline-empty-title">本月暂无时间线事件</h3>
-            <p className="sunny-timeline-empty-desc">
-              当你完成清单、推进计划、结束日程或记录重要事件时，
-              <br />
-              SunnyPanel 会自动沉淀为你的成长时间线。
-            </p>
-            <div className="sunny-timeline-empty-actions">
-              <button type="button" className="sunny-schedule-empty-add-btn" onClick={() => onModeChange?.("checklist")}>
-                <DashboardIcon name="checklist" /> 查看清单
-              </button>
-              <button type="button" className="sunny-schedule-btn-new" onClick={() => onNewTimelineEvent?.()}>
-                <DashboardIcon name="plus" /> 添加里程碑
-              </button>
-            </div>
-          </div>
+          <AppEmptyState
+            className="sunny-timeline-empty-state"
+            icon={
+              <span className="sunny-timeline-empty-icon">
+                <DashboardIcon name="calendar" />
+              </span>
+            }
+            title="本月暂无时间线事件"
+            description={
+              <>
+                当你完成清单、推进计划、结束日程或记录重要事件时，
+                <br />
+                SunnyPanel 会自动沉淀为你的成长时间线。
+              </>
+            }
+            action={
+              <div className="sunny-timeline-empty-actions">
+                <button type="button" className="sunny-schedule-empty-add-btn" onClick={() => onModeChange?.("checklist")}>
+                  <DashboardIcon name="checklist" /> 查看清单
+                </button>
+                <button type="button" className="sunny-schedule-btn-new" onClick={() => onNewTimelineEvent?.()}>
+                  <DashboardIcon name="plus" /> 添加里程碑
+                </button>
+              </div>
+            }
+          />
         ) : (
           Array.from(groupedEvents.entries()).map(([dateKey, dateEvents], index) =>
             index < 6 ? (

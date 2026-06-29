@@ -32,7 +32,7 @@ export function LocaleToggle({
       return;
     }
 
-    fetch("/api/site-locale", {
+    void fetch("/api/site-locale", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

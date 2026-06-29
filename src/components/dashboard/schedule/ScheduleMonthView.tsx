@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
+import { AppEmptyState } from "@/components/primitives/AppEmptyState";
 import { DashboardIcon } from "../icons";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
 
@@ -369,21 +370,27 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
                 style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}
               >
             {selectedItems.length === 0 ? (
-              <div className="sunny-schedule-empty-state">
-                <div className="sunny-schedule-empty-icon">
-                  <DashboardIcon name="calendar" />
-                </div>
-                <p className="sunny-schedule-empty-title">暂无日程</p>
-                <p className="sunny-schedule-empty-desc">这一天还没有安排。</p>
-                <button
-                  type="button"
-                  className="sunny-schedule-empty-add-btn"
-                  onClick={() => onNewSchedule?.(selectedDate)}
-                >
-                  <DashboardIcon name="plus" />
-                  添加日程
-                </button>
-              </div>
+              <AppEmptyState
+                className="sunny-schedule-empty-state"
+                compact
+                icon={
+                  <span className="sunny-schedule-empty-icon">
+                    <DashboardIcon name="calendar" />
+                  </span>
+                }
+                title="暂无日程"
+                description="这一天还没有安排。"
+                action={
+                  <button
+                    type="button"
+                    className="sunny-schedule-empty-add-btn"
+                    onClick={() => onNewSchedule?.(selectedDate)}
+                  >
+                    <DashboardIcon name="plus" />
+                    添加日程
+                  </button>
+                }
+              />
             ) : (
               <div className="sunny-schedule-timeline">
                 {selectedItems.map((item, idx) => {

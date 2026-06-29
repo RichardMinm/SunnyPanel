@@ -543,7 +543,7 @@ test("S7: routeHint conflict → finalIntent wins, trace records conflict", asyn
    ═══════════════════════════════════════════════════════════════════════ */
 
 test("S8: COORDINATOR=0 preserves old behavior — no session mutation", async () => {
-  delete process.env.AGENT_SESSION_COORDINATOR;
+  process.env.AGENT_SESSION_COORDINATOR = "0";
 
   const session = createDefaultSessionState();
   session.semantic.domain = "writing";

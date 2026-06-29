@@ -26,19 +26,18 @@ export function ThemeCycleButton({ locale }: ThemeCycleButtonProps) {
   const copy = getSiteCopy(locale);
   const currentTheme = (theme ?? "system") as ThemeValue;
 
-  const labels: Record<ThemeValue, string> = {
-    light: copy.common.themeLight,
-    dark: copy.common.themeDark,
-    system: copy.common.themeSystem,
-  };
-
   const currentIndex = themeOrder.indexOf(currentTheme);
   const nextTheme = themeOrder[(currentIndex + 1) % themeOrder.length] ?? "system";
 
-  const tooltip = useMemo(
-    () => `当前：${labels[currentTheme]} · 点击切换到${labels[nextTheme]}`,
-    [currentTheme, labels, nextTheme],
-  );
+  const tooltip = useMemo(() => {
+    const labels: Record<ThemeValue, string> = {
+      dark: copy.common.themeDark,
+      light: copy.common.themeLight,
+      system: copy.common.themeSystem,
+    };
+
+    return `当前：${labels[currentTheme]} · 点击切换到${labels[nextTheme]}`;
+  }, [copy, currentTheme, nextTheme]);
 
   return (
     <AppTooltip content={tooltip}>

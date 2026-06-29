@@ -15,7 +15,6 @@ const nextConfig: NextConfig = {
       "@payloadcms/next",
       "@tiptap/react",
       "framer-motion",
-      "lucide-react",
     ],
   },
   // Security headers applied to all routes

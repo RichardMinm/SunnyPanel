@@ -13,6 +13,7 @@ import { DashboardIcon } from "@/components/dashboard/icons";
 type BlockAnchor = {
   left: number;
   pos: number;
+  right: number;
   top: number;
 };
 
@@ -38,12 +39,21 @@ function findBlockPos(editor: Editor, clientX: number, clientY: number): BlockAn
       const dom = editor.view.nodeDOM(pos);
       if (!(dom instanceof HTMLElement)) continue;
       const rect = dom.getBoundingClientRect();
-      return { left: rect.left, pos, top: rect.top + rect.height / 2 };
+      return { left: rect.left, pos, right: rect.right, top: rect.top + rect.height / 2 };
     }
   }
 
   return null;
 }
+
+/** Minimum gutter (px) required for left-side controls to be visible on screen. */
+const MIN_LEFT_GUTTER = 54;
+
+/** Delay (ms) before controls appear after hovering a block. */
+const SHOW_DELAY = 400;
+
+/** Delay (ms) before controls disappear after the mouse leaves. */
+const HIDE_DELAY = 300;
 
 type BlockControlsOverlayProps = {
   editor: Editor | null;
@@ -53,6 +63,45 @@ export function BlockControlsOverlay({ editor }: BlockControlsOverlayProps) {
   const [anchor, setAnchor] = useState<BlockAnchor | null>(null);
   const [hoveringControls, setHoveringControls] = useState(false);
   const moveFrameRef = useRef<number | null>(null);
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const lastAnchorPosRef = useRef<number | null>(null);
+
+  /* Keep a ref copy so the event listeners (registered once) always read the
+     latest value without needing to re-register on every change. */
+  const hoveringRef = useRef(hoveringControls);
+  hoveringRef.current = hoveringControls;
+
+  const clearShowTimer = useCallback(() => {
+    if (showTimerRef.current) {
+      clearTimeout(showTimerRef.current);
+      showTimerRef.current = undefined;
+    }
+  }, []);
+
+  const clearHideTimer = useCallback(() => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = undefined;
+    }
+  }, []);
+
+  const clearAllTimers = useCallback(() => {
+    clearShowTimer();
+    clearHideTimer();
+  }, [clearShowTimer, clearHideTimer]);
+
+  /** Start the hide countdown.  If the mouse reaches the controls before it
+      fires the controls stay visible (cancelHide is called). */
+  const scheduleHide = useCallback(() => {
+    clearShowTimer();
+    clearHideTimer();
+    hideTimerRef.current = setTimeout(() => {
+      hideTimerRef.current = undefined;
+      lastAnchorPosRef.current = null;
+      setAnchor(null);
+    }, HIDE_DELAY);
+  }, [clearShowTimer, clearHideTimer]);
 
   useEffect(() => {
     if (!editor) return;
@@ -61,7 +110,9 @@ export function BlockControlsOverlay({ editor }: BlockControlsOverlayProps) {
     if (!(root instanceof HTMLElement)) return;
 
     const onMove = (event: MouseEvent) => {
-      if (hoveringControls) return;
+      /* While the user is interacting with the controls themselves, ignore
+         editor mousemove events so we don't steal focus. */
+      if (hoveringRef.current) return;
 
       if (moveFrameRef.current !== null) {
         cancelAnimationFrame(moveFrameRef.current);
@@ -71,17 +122,43 @@ export function BlockControlsOverlay({ editor }: BlockControlsOverlayProps) {
         moveFrameRef.current = null;
         const target = event.target;
         if (!(target instanceof Node) || !root.contains(target)) {
-          setAnchor(null);
+          scheduleHide();
           return;
         }
 
         const next = findBlockPos(editor, event.clientX, event.clientY);
-        setAnchor(next);
+
+        /* No block under cursor — may be moving toward the controls in the
+           gutter.  Use a hide delay so the mouse can reach them. */
+        if (!next) {
+          scheduleHide();
+          return;
+        }
+
+        /* Same block → keep existing show timer (don't restart).  Also cancel
+           any pending hide (e.g. mouse briefly left then returned). */
+        if (next.pos === lastAnchorPosRef.current) {
+          clearHideTimer();
+          return;
+        }
+
+        /* Different block → hide current controls immediately and start the
+           show timer for the new block. */
+        clearAllTimers();
+        lastAnchorPosRef.current = next.pos;
+        setAnchor(null);
+
+        showTimerRef.current = setTimeout(() => {
+          showTimerRef.current = undefined;
+          setAnchor(next);
+        }, SHOW_DELAY);
       });
     };
 
     const onLeave = () => {
-      if (!hoveringControls) setAnchor(null);
+      if (!hoveringRef.current) {
+        scheduleHide();
+      }
     };
 
     root.addEventListener("mousemove", onMove);
@@ -92,8 +169,9 @@ export function BlockControlsOverlay({ editor }: BlockControlsOverlayProps) {
       if (moveFrameRef.current !== null) {
         cancelAnimationFrame(moveFrameRef.current);
       }
+      clearAllTimers();
     };
-  }, [editor, hoveringControls]);
+  }, [editor, scheduleHide, clearHideTimer, clearAllTimers]);
 
   const runAtBlock = useCallback(
     (fn: (editor: Editor, pos: number) => void) => {
@@ -107,12 +185,27 @@ export function BlockControlsOverlay({ editor }: BlockControlsOverlayProps) {
     return null;
   }
 
+  /* Adaptive positioning: left side when gutter is wide enough, right side otherwise.
+     Controls are positioned relative to the text edge via CSS transform, so they
+     never overlap the text column regardless of their pixel width. */
+  const placeLeft = anchor.left >= MIN_LEFT_GUTTER;
+  const positionClass = placeLeft ? "sunny-block-controls--left" : "sunny-block-controls--right";
+  const style: React.CSSProperties = placeLeft
+    ? { left: anchor.left, top: anchor.top }
+    : { left: anchor.right, top: anchor.top };
+
   return (
     <div
-      className="sunny-block-controls"
-      onMouseEnter={() => setHoveringControls(true)}
-      onMouseLeave={() => setHoveringControls(false)}
-      style={{ left: anchor.left - 36, top: anchor.top }}
+      className={`sunny-block-controls ${positionClass}`}
+      onMouseEnter={() => {
+        clearAllTimers();
+        setHoveringControls(true);
+      }}
+      onMouseLeave={() => {
+        setHoveringControls(false);
+        scheduleHide();
+      }}
+      style={style}
     >
       <AppIconButton
         aria-label="在下方添加块"

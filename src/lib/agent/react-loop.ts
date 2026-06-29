@@ -56,6 +56,8 @@ export type RunReactLoopArgs = {
   initialMessages: ReactMessage[];
   /** 判断工具名是否为写入类（写入类不在循环内执行）。 */
   isWriteTool: (name: string) => boolean;
+  /** 可选：Policy Guard 允许的工具名集合；不在集合内的调用会被拒绝。 */
+  isAllowedTool?: (name: string) => boolean;
   /** 循环步数上限，默认 5。 */
   maxSteps?: number;
   onTrace?: (trace: ReactStepTrace) => void;
@@ -70,6 +72,7 @@ export const runReactToolLoop = async ({
   callModel,
   executeReadTool,
   initialMessages,
+  isAllowedTool,
   isWriteTool,
   maxSteps = DEFAULT_MAX_STEPS,
   onTrace,
@@ -91,6 +94,14 @@ export const runReactToolLoop = async ({
 
     if (turn.toolCalls.length === 0) {
       // 模型声称要调工具却没有给出任何调用，按无响应处理避免空转。
+      return { kind: "no_response", steps };
+    }
+
+    const disallowed = isAllowedTool
+      ? turn.toolCalls.find((call) => !isAllowedTool(call.name))
+      : undefined;
+
+    if (disallowed) {
       return { kind: "no_response", steps };
     }
 

@@ -152,8 +152,13 @@ const toOpenAIProperty = (hint: ParameterHint) => {
   return property;
 };
 
-export const buildAgentFunctionTools = (): OpenAIFunctionTool[] =>
-  writableIntents.map((intent) => {
+/** @deprecated 请改用 buildCapabilityFunctionTools（Capability Registry）。 */
+export const buildAgentFunctionTools = (allowlist?: readonly string[]): OpenAIFunctionTool[] => {
+  const intents = allowlist?.length
+    ? (writableIntents.filter((intent) => allowlist.includes(intent)) as Array<keyof typeof agentToolRegistry>)
+    : writableIntents;
+
+  return intents.map((intent) => {
     const definition = agentToolRegistry[intent];
     const properties = intentParameterHints[intent];
     const openAIProperties = Object.fromEntries(
@@ -174,6 +179,7 @@ export const buildAgentFunctionTools = (): OpenAIFunctionTool[] =>
       type: "function",
     };
   });
+};
 
 /** ReAct 循环里可在循环内直接执行的只读工具（不写库、无需确认）。 */
 export const READ_TOOL_NAMES = ["query_progress", "evaluate_plan"] as const;

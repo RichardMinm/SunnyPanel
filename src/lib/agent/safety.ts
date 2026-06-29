@@ -4,6 +4,10 @@ import {
   type AgentToolDryRunContext,
 } from "./tool-registry";
 import {
+  AGENT_WRITE_INTENT_NAMES,
+  isAgentWriteIntent,
+} from "./intent/write-intents";
+import {
   parseAgentIntentResult,
   type AgentDryRunResult,
   type AgentIntent,
@@ -26,26 +30,10 @@ const operationLabelMap: Record<ProposedAgentAction["changes"][number]["operatio
   update: "更新",
 };
 
-const writeIntentValues = new Set<AgentWriteIntentName>([
-  "add_completion_note",
-  "append_plan_item",
-  "cancel_schedule_item",
-  "complete_plan_item",
-  "compose_plan",
-  "compose_schedule_item",
-  "compose_timeline_event",
-  "create_plan",
-  "delete_record",
-  "modify_record",
-  "query_plan_progress",
-  "reschedule_item",
-  "save_memory",
-  "schedule_plan",
-  "weekly_review",
-]);
+const writeIntentValues = new Set<AgentWriteIntentName>(AGENT_WRITE_INTENT_NAMES);
 
 const isWritableIntent = (intent: AgentIntent): intent is Extract<AgentIntent, { intent: AgentWriteIntentName }> =>
-  writeIntentValues.has(intent.intent as AgentWriteIntentName);
+  isAgentWriteIntent(intent.intent);
 
 export const getAgentIntentRiskLevel = (intent: AgentIntent["intent"]): ProposedAgentAction["riskLevel"] =>
   getAgentToolDefinition(intent)?.riskLevel ??

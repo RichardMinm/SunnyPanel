@@ -2,15 +2,15 @@
 
 .sunny-markdown-editor-root .mdxeditor {
   --mdx-editor-font-family: var(--sunny-font-sans, ui-sans-serif, system-ui, sans-serif);
-  border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent);
+  border: 1px solid color-mix(in oklch, var(--foreground) 12%, transparent);
   border-radius: 1rem;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  background: color-mix(in oklch, var(--surface) 92%, transparent);
   overflow: hidden;
 }
 
 .sunny-markdown-editor-root .mdxeditor-toolbar {
-  border-bottom: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
-  background: color-mix(in srgb, var(--surface-tint) 70%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--foreground) 8%, transparent);
+  background: color-mix(in oklch, var(--surface-tint) 70%, transparent);
   flex-wrap: wrap;
   gap: 0.15rem;
   padding: 0.35rem 0.5rem;
@@ -52,5 +52,5 @@
 }
 
 html[data-theme="dark"] .sunny-markdown-editor-root .mdxeditor {
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  background: color-mix(in oklch, var(--surface) 96%, transparent);
 }

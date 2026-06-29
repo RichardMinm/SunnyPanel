@@ -65,9 +65,9 @@
     margin: 0;
     min-height: var(--app-header-height);
     border: 1px solid var(--theme-border-color);
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    border-bottom: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
     border-radius: var(--admin-panel-radius) var(--admin-panel-radius) 0 0;
-    background: color-mix(in srgb, var(--surface-strong) 90%, transparent);
+    background: color-mix(in oklch, var(--surface-strong) 90%, transparent);
     box-shadow: none;
     backdrop-filter: none;
     padding: 0.45rem 1rem;
@@ -86,7 +86,7 @@
     border: 1px solid var(--theme-border-color);
     border-top: 0;
     border-radius: 0 0 var(--admin-panel-radius) var(--admin-panel-radius);
-    background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    background: color-mix(in oklch, var(--surface-strong) 88%, transparent);
     box-shadow: 0 10px 28px var(--card-shadow);
     backdrop-filter: blur(14px);
   }
@@ -139,7 +139,7 @@
     margin-bottom: 0.65rem;
     padding: 0.55rem 0.65rem;
     border-radius: calc(var(--admin-panel-radius) - 0.15rem);
-    background: color-mix(in srgb, var(--surface) 72%, transparent);
+    background: color-mix(in oklch, var(--surface) 72%, transparent);
   }
 
   .list-controls .search-filter__input,

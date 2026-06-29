@@ -14,6 +14,8 @@ export type TaskNode = {
 export type OrchestratorPlan = {
   mode: "compound" | "single";
   reasoning: string;
+  /** How this plan was produced; heuristic plans must not bypass LLM arbitration for Q&A. */
+  source?: "heuristic" | "llm";
   tasks: TaskNode[];
 };
 

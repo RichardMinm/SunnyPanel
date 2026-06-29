@@ -22,7 +22,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 
 ### 数据与工具
 
-- **16 个数据集合**：包含 AgentThread、AgentRun、AgentActionReceipt 等运行与审计数据
+- **18 个数据集合**：包含 AgentThreadEvent、AgentThread、AgentRun、AgentActionReceipt 等运行与审计数据
 - **15 个 Agent 工具**：覆盖计划创建/拆解、日程排期/改期、四类记录安全修改、清单完成/备注、记忆存储、周报生成、Timeline 同步
 - **Payload CMS** 管理底层数据模型，Admin 编辑器与公开站点共用渲染层
 
@@ -63,7 +63,11 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 └──────────────┬───────────────────┘
                │
                ▼
- Payload CMS / PostgreSQL + PostgresSaver
+ Payload CMS / PostgreSQL
+        │
+        ├─ PostgresSaver：LangGraph checkpoint
+        ├─ AgentThreadEvents：会话事件真相源
+        └─ AgentActionReceipts：写入 / 回滚幂等保护
 ```
 
 ## 已实现能力
@@ -72,6 +76,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 - 编排器（Orchestrator）：LLM 拆解 single / compound 意图为 TaskNode DAG
 - PostgreSQL Checkpointer：等待确认、澄清、队列和策略恢复可跨进程继续
 - LangGraph `interrupt/Command`：写操作在用户确认前暂停，恢复后继续原图
+- AgentThreadEvent：追加式 turn 事件源，支持终态重放、pending 恢复与投影重建
 - Action Receipt：以 thread + action 为幂等键，阻止重复确认造成重复写入
 - 6 个专业 Agent 定义与路由，Agent Bus 消息传递
 - 15 个工具含完整 dryRun / execute / rollback 生命周期，逐工具风险分级
@@ -111,7 +116,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 
 ## 数据模型
 
-### Collections（15 个）
+### Collections（18 个）
 
 | Collection | 说明 |
 |------------|------|
@@ -125,10 +130,12 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 | PlanReviews | 计划周报 / 复盘 |
 | ScheduleItems | 日程（日期、时段、冲突检测） |
 | AgentThreads | Agent 对话线程 |
+| AgentThreadEvents | Agent 追加式会话事件源 |
 | AgentRuns | Agent 执行记录（审计追溯） |
 | AgentActionReceipts | Agent 写操作幂等领取与结果重放 |
 | AgentMemories | Agent 长期记忆（向量检索） |
 | AgentSuggestions | Agent 生成的建议 |
+| WritingCategories | Dashboard 写作工作台文档集 |
 | Media | 上传媒体文件 |
 | Users | 管理员用户 |
 
@@ -201,9 +208,9 @@ npm run agent:checkpoint:setup
 - `Plan.agentContext/subtasks` 仅是业务展示投影，不参与确认前执行决策。
 - `agent-action-receipts` 使用 thread、action 和 `execute | rollback` 操作键保护业务写入与补偿重放。
 - 空工作区 onboarding 使用 PostgreSQL advisory lock 串行化跨 worker 初始化，避免首请求重复 seed。
+- `AGENT_GRAPH_RUNTIME` 默认不设置或设为 `langgraph`，所有有效意图、确认恢复和复合编排均走 LangGraph。
 - `AGENT_GRAPH_RUNTIME=legacy` 仅是显式紧急开关；legacy 与 LangGraph 共享同一事件历史。
-
-当前迁移成果位于隔离开发工作树，尚未合并到 `main`，也尚未部署到生产环境。
+- Payload migration 和 checkpoint setup 都必须作为部署步骤显式执行；HTTP 请求不会自动执行 DDL。
 
 5. 启动开发服务：
 
@@ -232,7 +239,19 @@ npm run dev
    - `AGENT_GRAPH_RUNTIME` — 默认 `langgraph`；仅紧急回退时设为 `legacy`
 4. 部署后运行 `npm run seed` 或通过 `/admin` 创建管理员用户
 
-生产环境还需在数据库上执行 Payload migration（`npx payload migrate`），并在应用接流量前显式执行一次 `npm run agent:checkpoint:setup`。
+生产环境还需在数据库上执行 Payload migration（`npx payload migrate` 或 `npm run migrate`），并在应用接流量前显式执行一次 `npm run agent:checkpoint:setup`。
+
+推荐生产发布顺序：
+
+1. 备份当前 PostgreSQL 数据库，并确认可回滚。
+2. 设置 `PAYLOAD_DB_PUSH=false`，不要让运行时自动改 schema。
+3. 部署新代码和依赖。
+4. 执行 `npm run migrate`。
+5. 执行 `npm run agent:checkpoint:setup`。
+6. 执行 `npm run build`。
+7. 启动服务并运行 Agent JSON/SSE 冒烟验证。
+
+如果需要紧急回滚 Agent runtime，可临时设置 `AGENT_GRAPH_RUNTIME=legacy` 并重启服务；这不会删除 checkpoint 或事件流数据。
 
 ### Docker 完整部署
 
@@ -250,6 +269,29 @@ docker compose up --build -d
 - `AGENT_GRAPH_RUNTIME` — `langgraph`（默认）；`legacy` 仅作紧急开关
 - LLM API key — 可选，未配置时 Agent 使用规则降级
 
+### 本机生产模拟
+
+本机 Docker/PostgreSQL 模拟生产时，可使用 `.env` 中的本机连接串，但 `.env` 不应提交到仓库。建议流程：
+
+```bash
+docker compose up -d postgres
+pg_dump "$DATABASE_URL" > /private/tmp/sunnypanel-before-release.sql
+npm run migrate
+npm run agent:checkpoint:setup
+npm run build
+npm run start
+```
+
+随后运行：
+
+```bash
+npm run test:agent:checkpoint
+AGENT_E2E_EMAIL=<测试账号> AGENT_E2E_PASSWORD=<测试密码> npm run test:agent:e2e
+AGENT_SMOKE_EMAIL=<测试账号> AGENT_SMOKE_PASSWORD=<测试密码> npm run smoke:agent
+```
+
+不要在真实生产数据库上运行 E2E；它会创建测试计划、日程、线程和 Agent 事件。
+
 ## 测试
 
 ```bash
@@ -261,7 +303,7 @@ npm run smoke:agent    # Agent 冒烟测试
 npm run test:agent:trace  # Pipeline trace 测试
 ```
 
-`test:agent:e2e` 需要设置 `AGENT_E2E_SERVER_URL`、`AGENT_E2E_EMAIL` 和 `AGENT_E2E_PASSWORD`。应只对一次性数据库和专用测试用户运行。
+`test:agent:checkpoint` 会读取 `.env` 中的 `DATABASE_URL` 并创建 LangGraph checkpoint 表；应只对本机或一次性测试数据库运行。`test:agent:e2e` 需要设置 `AGENT_E2E_SERVER_URL`、`AGENT_E2E_EMAIL` 和 `AGENT_E2E_PASSWORD`。应只对一次性数据库和专用测试用户运行。
 
 测试文件位于 `tests/agent/`、`tests/content/`、`tests/command/`、`tests/e2e/`。
 

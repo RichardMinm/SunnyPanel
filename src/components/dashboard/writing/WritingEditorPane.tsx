@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 
-import { ContentEditor } from "@/components/content-editor/ContentEditor";
 import { DashboardIcon } from "@/components/dashboard/icons";
 import {
   AppDropdownMenu,
@@ -28,6 +28,26 @@ import { useWritingAssist } from "./use-writing-assist";
 import { canEditTitle, showsSummaryField } from "./writing-metadata";
 import { WritingPublishDialog, type WritingPublishVisibility } from "./WritingPublishDialog";
 import type { WritingDocument, WritingDraft, WritingSaveState } from "./writing-types";
+
+/*
+ * ContentEditor pulls in TipTap (~200KB), 19 extensions, KaTeX CSS, and
+ * lowlight — the heaviest chunk in the dashboard.  Load it only when a
+ * document is open and the title/summary/placeholder are already visible.
+ */
+const ContentEditor = dynamic(
+  () => import("@/components/content-editor/ContentEditor").then((m) => m.ContentEditor),
+  {
+    loading: () => (
+      <div className="sunny-writing-tiptap-editor sunny-writing-editor-body">
+        <div className="sunny-writing-editor-loading">
+          <div className="sunny-writing-loading-line is-wide" />
+          <div className="sunny-writing-loading-line" />
+          <div className="sunny-writing-loading-line is-short" />
+        </div>
+      </div>
+    ),
+  },
+);
 
 type WritingEditorPaneProps = {
   document: null | WritingDocument;

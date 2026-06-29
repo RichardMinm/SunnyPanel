@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import type { AgentChatMessage, AgentTraceStep, AgentTokenUsage, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
 import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type { AgentInspectorTab, AgentRunDetail, AgentThreadSummary, ContextPreferences } from "@/components/dashboard/agent/types";
@@ -15,16 +16,42 @@ import { DashboardStatusBar } from "./DashboardStatusBar";
 import { InspectorPanelIcon } from "./icons";
 import { MainWorkspace } from "./MainWorkspace";
 import { SidebarNav } from "./SidebarNav";
-import { ChecklistView } from "./checklist/ChecklistView";
-import { ScheduleMonthView } from "./schedule/ScheduleMonthView";
-import { MemoryCardGrid } from "./memory/MemoryCardGrid";
-import { TimelineView } from "./timeline/TimelineView";
-import { WritingWorkspace } from "./writing/WritingWorkspace";
 import { WritingDocumentsProvider } from "./writing/WritingDocumentsContext";
 import { WritingLibraryFiltersProvider } from "./writing/WritingLibraryFiltersContext";
 import { WritingLayoutProvider } from "./writing/WritingLayoutContext";
 import type { WritingSaveStatusSnapshot } from "./writing/writing-types";
 import { formatWritingSaveStatusLabel } from "@/lib/dashboard/writing-save-status";
+
+/* ─── Mode workspaces (dynamic: only the active mode's code is downloaded) ─── */
+
+const PlaceholderWorkspace = () => (
+  <MainWorkspace><div className="sunny-dashboard-mode-loading" /></MainWorkspace>
+);
+
+const WritingWorkspace = dynamic(
+  () => import("./writing/WritingWorkspace").then((m) => m.WritingWorkspace),
+  { loading: PlaceholderWorkspace },
+);
+
+const ScheduleMonthView = dynamic(
+  () => import("./schedule/ScheduleMonthView").then((m) => m.ScheduleMonthView),
+  { loading: PlaceholderWorkspace },
+);
+
+const MemoryCardGrid = dynamic(
+  () => import("./memory/MemoryCardGrid").then((m) => m.MemoryCardGrid),
+  { loading: PlaceholderWorkspace },
+);
+
+const ChecklistView = dynamic(
+  () => import("./checklist/ChecklistView").then((m) => m.ChecklistView),
+  { loading: PlaceholderWorkspace },
+);
+
+const TimelineView = dynamic(
+  () => import("./timeline/TimelineView").then((m) => m.TimelineView),
+  { loading: PlaceholderWorkspace },
+);
 
 const formatWritingBarLabel = (status: WritingSaveStatusSnapshot) => {
   const savePart = formatWritingSaveStatusLabel(status);

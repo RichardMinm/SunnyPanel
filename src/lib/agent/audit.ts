@@ -30,6 +30,13 @@ const workflowByIntent: Record<AgentIntent["intent"], "planning" | "readiness-au
   save_memory: "sync",
   schedule_plan: "planning",
   weekly_review: "weekly-review",
+  explain_concept: "readiness-audit",
+  expand_answer: "readiness-audit",
+  give_examples: "readiness-audit",
+  compare_concepts: "readiness-audit",
+  give_learning_path: "readiness-audit",
+  summarize_answer: "readiness-audit",
+  rewrite_answer: "readiness-audit",
 };
 
 export const recordAgentFailure = async ({

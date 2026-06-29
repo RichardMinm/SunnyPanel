@@ -336,4 +336,79 @@ describe("Color token unification", () => {
     assert.match(core, /sunny-primitives\.css/);
     assert.match(core, /sunny-settings\.css/);
   });
+
+  test("all CSS variable references are defined in token source files", () => {
+    const allCssFiles = collectSourceFiles("src/app/styles", [".css"]).filter(
+      (f) => !f.includes("node_modules"),
+    );
+
+    // Collect all variable definitions (--token: value)
+    const defined = new Set<string>();
+    const definitionPattern = /(--[\w-]+)\s*:/g;
+
+    for (const file of allCssFiles) {
+      const css = read(file);
+      for (const match of css.matchAll(definitionPattern)) {
+        defined.add(match[1]!);
+      }
+    }
+
+    // Collect all variable references (var(--token))
+    const referencePattern = /var\((--[\w-]+)[,\s)]/g;
+    const unresolved = new Map<string, string[]>(); // token → [files]
+
+    // Browser-defined variables we don't need to check
+    const browserVars = new Set([
+      "--tw-prose-body", "--tw-prose-headings", "--tw-prose-links",
+      "--tw-prose-bold", "--tw-prose-counters", "--tw-prose-bullets",
+      "--tw-prose-hr", "--tw-prose-quotes", "--tw-prose-quote-borders",
+      "--mdx-editor-font-family",
+      "--popup-radius", "--theme-border-color", "--theme-input-bg",
+      "--theme-bg", "--theme-text", "--theme-overlay",
+      "--style-radius-s", "--style-radius-m", "--style-radius-l",
+      "--color-base-0", "--color-base-50", "--color-base-100",
+      "--color-base-150", "--color-base-200", "--color-base-250",
+      "--color-base-300", "--color-base-350", "--color-base-400",
+      "--color-base-450", "--color-base-500", "--color-base-550",
+      "--color-base-600", "--color-base-650", "--color-base-700",
+      "--color-base-750", "--color-base-800", "--color-base-850",
+      "--color-base-900", "--color-base-950", "--color-base-1000",
+      "--color-warning-400", "--color-warning-450", "--color-warning-500",
+      "--font-body", "--font-serif", "--font-mono", "--font-sans",
+      "--base-px", "--base-body-size", "--gutter-h",
+      "--spacing-view-bottom", "--nav-width",
+      "--app-header-height", "--doc-controls-height",
+      // Tailwind CSS v4 + palette preview internals
+      "--palette-preview", "--palette-preview-secondary",
+      // Set via inline style in components (dynamic runtime values)
+      "--writing-collection-tint", "--writing-category-tint",
+      // Tailwind color fallbacks with palette-token secondary values
+      "--color-green-500", "--color-green-600",
+      "--color-amber-500", "--color-amber-600",
+      "--color-red-500", "--color-red-600",
+    ]);
+
+    for (const file of allCssFiles) {
+      const css = read(file);
+      for (const match of css.matchAll(referencePattern)) {
+        const token = match[1]!;
+        if (defined.has(token)) continue;
+        if (browserVars.has(token)) continue;
+        if (token.startsWith("--tw-")) continue; // tailwind internals
+        if (token.startsWith("--payload-")) continue; // payload internals
+        if (!unresolved.has(token)) unresolved.set(token, []);
+        unresolved.get(token)!.push(file.replace("src/app/styles/", ""));
+      }
+    }
+
+    const unresolvedList = [...unresolved.entries()]
+      .map(([token, files]) => `${token} (used in ${files.join(", ")})`)
+      .sort();
+
+    assert.deepEqual(
+      unresolvedList,
+      [],
+      `CSS variables referenced but never defined:\n${unresolvedList.join("\n")}`,
+    );
+  });
 });

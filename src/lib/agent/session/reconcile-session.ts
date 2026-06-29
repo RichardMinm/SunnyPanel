@@ -15,7 +15,7 @@
  *   - When RouteHint conflicts with finalIntent, finalIntent wins
  */
 
-import type { AgentSessionState, CurrentTarget, DialougeStage, SemanticDomain, WorkflowId } from "./types";
+import type { AgentSessionState, CurrentTarget, DialogueStage, SemanticDomain, WorkflowId } from "./types";
 
 /* ──── Intent extraction helpers ──── */
 
@@ -240,8 +240,8 @@ const recordTransition = (
   next: AgentSessionState,
   fromDomain: SemanticDomain,
   toDomain: SemanticDomain,
-  fromStage: DialougeStage,
-  toStage: DialougeStage,
+  fromStage: DialogueStage,
+  toStage: DialogueStage,
   intent: string,
 ) => {
   const domainChanged = fromDomain !== toDomain;

@@ -24,7 +24,7 @@ html[data-palette="cobalt"] {
   --agent-shadow-shell: 0 20px 48px rgba(26, 35, 50, 0.08);
   --agent-surface-elevated: rgba(255, 255, 255, 0.82);
   --cat-course-dot: #2457aa;
-  --cat-course-bg: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  --cat-course-bg: color-mix(in oklch, var(--accent) 10%, var(--surface-strong));
   --cat-course-text: #183e7a;
   --cat-study-dot: #7c3aed;
   --cat-study-bg: #f5f3ff;
@@ -62,8 +62,21 @@ html[data-palette="forest"] {
   --grid-line: rgba(27, 67, 50, 0.025);
   --agent-shadow-shell: 0 20px 48px rgba(27, 67, 50, 0.08);
   --agent-surface-elevated: rgba(255, 255, 253, 0.82);
+  /* Semantic tones — teal success to differentiate from green accent */
+  --tone-success-bg: rgba(15, 118, 110, 0.1);
+  --tone-success-border: rgba(15, 118, 110, 0.2);
+  --tone-success-text: #0f766e;
+  --tone-warning-bg: rgba(180, 132, 38, 0.12);
+  --tone-warning-border: rgba(180, 132, 38, 0.24);
+  --tone-warning-text: #854d0e;
+  --tone-danger-bg: rgba(185, 58, 58, 0.1);
+  --tone-danger-border: rgba(185, 58, 58, 0.22);
+  --tone-danger-text: #991b1b;
+  --tone-neutral-bg: rgba(92, 111, 99, 0.1);
+  --tone-neutral-border: rgba(92, 111, 99, 0.18);
+  --tone-neutral-text: #4a5c52;
   --cat-course-dot: #2d6a4f;
-  --cat-course-bg: color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
+  --cat-course-bg: color-mix(in oklch, var(--accent) 12%, var(--surface-strong));
   --cat-course-text: #1b4332;
   --cat-study-dot: #40916c;
   --cat-study-bg: #d8f3dc;
@@ -101,8 +114,21 @@ html[data-palette="wine"] {
   --grid-line: rgba(42, 31, 34, 0.024);
   --agent-shadow-shell: 0 20px 48px rgba(42, 31, 34, 0.08);
   --agent-surface-elevated: rgba(255, 252, 251, 0.82);
+  /* Semantic tones — cooler success/danger to contrast with warm accent */
+  --tone-success-bg: rgba(15, 118, 110, 0.1);
+  --tone-success-border: rgba(15, 118, 110, 0.2);
+  --tone-success-text: #0f766e;
+  --tone-warning-bg: rgba(180, 100, 38, 0.12);
+  --tone-warning-border: rgba(180, 100, 38, 0.24);
+  --tone-warning-text: #92400e;
+  --tone-danger-bg: rgba(153, 27, 27, 0.1);
+  --tone-danger-border: rgba(153, 27, 27, 0.22);
+  --tone-danger-text: #7f1d1d;
+  --tone-neutral-bg: rgba(117, 102, 106, 0.1);
+  --tone-neutral-border: rgba(117, 102, 106, 0.18);
+  --tone-neutral-text: #63585b;
   --cat-course-dot: #922b3e;
-  --cat-course-bg: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  --cat-course-bg: color-mix(in oklch, var(--accent) 10%, var(--surface-strong));
   --cat-course-text: #6b1f2e;
   --cat-study-dot: #a8556a;
   --cat-study-bg: #fce8ec;
@@ -140,8 +166,21 @@ html[data-palette="midnight"] {
   --grid-line: rgba(28, 26, 22, 0.024);
   --agent-shadow-shell: 0 20px 48px rgba(28, 26, 22, 0.08);
   --agent-surface-elevated: rgba(255, 255, 253, 0.82);
+  /* Semantic tones — warmer warning to complement gold accent */
+  --tone-success-bg: rgba(21, 128, 61, 0.1);
+  --tone-success-border: rgba(21, 128, 61, 0.2);
+  --tone-success-text: #14532d;
+  --tone-warning-bg: rgba(180, 120, 38, 0.12);
+  --tone-warning-border: rgba(180, 120, 38, 0.24);
+  --tone-warning-text: #92400e;
+  --tone-danger-bg: rgba(185, 58, 58, 0.1);
+  --tone-danger-border: rgba(185, 58, 58, 0.22);
+  --tone-danger-text: #991b1b;
+  --tone-neutral-bg: rgba(107, 102, 92, 0.1);
+  --tone-neutral-border: rgba(107, 102, 92, 0.18);
+  --tone-neutral-text: #5c574e;
   --cat-course-dot: #1a2744;
-  --cat-course-bg: color-mix(in srgb, var(--accent-cool) 80%, var(--surface-strong));
+  --cat-course-bg: color-mix(in oklch, var(--accent-cool) 80%, var(--surface-strong));
   --cat-course-text: #1a2744;
   --cat-study-dot: #9a7b2f;
   --cat-study-bg: #f5f0e1;
@@ -179,8 +218,21 @@ html[data-palette="slate"] {
   --grid-line: rgba(24, 24, 27, 0.024);
   --agent-shadow-shell: 0 20px 48px rgba(24, 24, 27, 0.08);
   --agent-surface-elevated: rgba(255, 255, 255, 0.82);
+  /* Semantic tones — cool emerald success, standard warning/danger */
+  --tone-success-bg: rgba(5, 150, 105, 0.1);
+  --tone-success-border: rgba(5, 150, 105, 0.2);
+  --tone-success-text: #047857;
+  --tone-warning-bg: rgba(180, 132, 38, 0.12);
+  --tone-warning-border: rgba(180, 132, 38, 0.24);
+  --tone-warning-text: #854d0e;
+  --tone-danger-bg: rgba(185, 58, 58, 0.1);
+  --tone-danger-border: rgba(185, 58, 58, 0.22);
+  --tone-danger-text: #991b1b;
+  --tone-neutral-bg: rgba(113, 113, 122, 0.1);
+  --tone-neutral-border: rgba(113, 113, 122, 0.18);
+  --tone-neutral-text: #52525b;
   --cat-course-dot: #4f46e5;
-  --cat-course-bg: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  --cat-course-bg: color-mix(in oklch, var(--accent) 10%, var(--surface-strong));
   --cat-course-text: #3730a3;
   --cat-study-dot: #7c3aed;
   --cat-study-bg: #f5f3ff;
@@ -463,19 +515,19 @@ html[data-palette="slate"][data-theme="dark"] {
 /* 由 accent 派生的光晕 / 阴影 / 语义 accent tone */
 :root,
 html[data-palette] {
-  --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
-  --accent-ring: color-mix(in srgb, var(--accent) 12%, transparent);
-  --accent-ring-strong: color-mix(in srgb, var(--accent) 38%, transparent);
-  --accent-glow-soft: color-mix(in srgb, var(--accent) 8%, transparent);
-  --accent-glow: color-mix(in srgb, var(--accent) 14%, transparent);
-  --accent-glow-strong: color-mix(in srgb, var(--accent) 20%, transparent);
-  --accent-shadow: color-mix(in srgb, var(--accent-strong) 16%, transparent);
-  --accent-shadow-strong: color-mix(in srgb, var(--accent-strong) 22%, transparent);
-  --tone-accent-bg: color-mix(in srgb, var(--accent) 12%, transparent);
-  --tone-accent-border: color-mix(in srgb, var(--accent) 22%, transparent);
+  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+  --accent-ring: color-mix(in oklch, var(--accent) 12%, transparent);
+  --accent-ring-strong: color-mix(in oklch, var(--accent) 38%, transparent);
+  --accent-glow-soft: color-mix(in oklch, var(--accent) 8%, transparent);
+  --accent-glow: color-mix(in oklch, var(--accent) 14%, transparent);
+  --accent-glow-strong: color-mix(in oklch, var(--accent) 20%, transparent);
+  --accent-shadow: color-mix(in oklch, var(--accent-strong) 16%, transparent);
+  --accent-shadow-strong: color-mix(in oklch, var(--accent-strong) 22%, transparent);
+  --tone-accent-bg: color-mix(in oklch, var(--accent) 12%, transparent);
+  --tone-accent-border: color-mix(in oklch, var(--accent) 22%, transparent);
   --tone-accent-text: var(--accent-strong);
-  --tone-info-bg: color-mix(in srgb, var(--accent) 10%, transparent);
-  --tone-info-border: color-mix(in srgb, var(--accent) 20%, transparent);
+  --tone-info-bg: color-mix(in oklch, var(--accent) 10%, transparent);
+  --tone-info-border: color-mix(in oklch, var(--accent) 20%, transparent);
   --tone-info-text: var(--accent-strong);
 }
 

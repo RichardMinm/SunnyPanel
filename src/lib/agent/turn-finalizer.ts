@@ -15,6 +15,13 @@ import {
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { AgentThread } from "@/payload-types";
 import { markSuggestionDone as markSuggestionDoneDefault } from "@/lib/agent/suggestions";
+import {
+  buildConversationStateFromTurn,
+  resolveConversationState,
+} from "@/lib/agent/conversation/conversation-state";
+import type { AgentConversationState } from "@/lib/agent/conversation/types";
+import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/heuristics/knowledge";
+import { isConversationalIntent, type AgentChatMessage } from "@/lib/agent/schemas";
 
 type LearningInput = Parameters<typeof runAgentLearningLoop>[0];
 
@@ -65,12 +72,37 @@ const mergeTrace = (
   return [...merged.values()];
 };
 
+const resolveTopicForStateUpdate = (
+  intent: AgentChatResponse["intent"],
+  message: string,
+  history: AgentChatMessage[],
+  previous: AgentConversationState | null,
+) => {
+  if (previous?.lastTopic) {
+    return previous.lastTopic;
+  }
+
+  const definitionIntent = parseDefinitionQuestionIntent(message);
+
+  if (definitionIntent?.intent === "answer_question" && definitionIntent.args.openDomainTopic) {
+    return definitionIntent.args.openDomainTopic;
+  }
+
+  if (definitionIntent?.intent === "answer_question" && definitionIntent.args.learningContext?.subject) {
+    return definitionIntent.args.learningContext.subject;
+  }
+
+  return resolveConversationState(null, history)?.lastTopic ?? "该主题";
+};
+
 export const createAgentTurnFinalizer = ({
+  conversationStateBefore = null,
   eventStore,
   markSuggestionDone = markSuggestionDoneDefault,
   message,
   pendingBefore,
   project,
+  resolvedHistory = [],
   runLearningLoop,
   suggestionSource,
   thread,
@@ -78,11 +110,13 @@ export const createAgentTurnFinalizer = ({
   user,
   workbenchMode,
 }: {
+  conversationStateBefore?: AgentConversationState | null;
   eventStore: AgentThreadEventStore;
   markSuggestionDone?: (id: number) => Promise<unknown>;
   message: string;
   pendingBefore: null | PendingAction;
   project: (projection: AgentThreadProjection) => Promise<unknown>;
+  resolvedHistory?: AgentChatMessage[];
   runLearningLoop: typeof runAgentLearningLoop;
   suggestionSource?: AgentSuggestionTurnSource | null;
   thread: AgentThread;
@@ -117,7 +151,7 @@ export const createAgentTurnFinalizer = ({
       (await eventStore.findByEventKey(failedEventKey));
     const replay = terminalResponse(existing?.payload);
 
-    if (replay) {
+    if (replay?.assistantMessage?.trim()) {
       finalizedResponse = replay;
       return replay;
     }
@@ -227,7 +261,37 @@ export const createAgentTurnFinalizer = ({
     }
 
     await projectAgentThreadFromEvents({
-      project,
+      project: async (projection) => {
+        const topic = resolveTopicForStateUpdate(
+          completedResponse.intent,
+          message,
+          resolvedHistory,
+          conversationStateBefore,
+        );
+        const nextConversationState =
+          isConversationalIntent(completedResponse.intent) || completedResponse.intent === "answer_question"
+            ? buildConversationStateFromTurn({
+                assistantAnswer: completedResponse.assistantMessage,
+                answerMode:
+                  completedResponse.intent === "answer_question" &&
+                  (() => {
+                    const def = parseDefinitionQuestionIntent(message);
+                    return def?.intent === "answer_question" && Boolean(def.args.openDomainTopic);
+                  })()
+                    ? "open"
+                    : conversationStateBefore?.answerMode,
+                intent: completedResponse.intent,
+                message,
+                previous: conversationStateBefore,
+                topic,
+              })
+            : conversationStateBefore;
+
+        await project({
+          ...projection,
+          ...(nextConversationState ? { conversationState: nextConversationState } : {}),
+        });
+      },
       store: eventStore,
       threadId: thread.id,
       turnId,

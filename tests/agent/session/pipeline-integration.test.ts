@@ -30,7 +30,7 @@ after(() => {
   if (originalEnv !== undefined) {
     process.env.AGENT_SESSION_COORDINATOR = originalEnv;
   } else {
-    delete process.env.AGENT_SESSION_COORDINATOR;
+    process.env.AGENT_SESSION_COORDINATOR = "0";
   }
 });
 
@@ -69,7 +69,7 @@ const makeRouterResult = (intent: string): RouterArbitrationResult => ({
    ═══════════════════════════════════════════════════════════════════════ */
 
 test("AGENT_SESSION_COORDINATOR=0 → coordinator does not run", async () => {
-  delete process.env.AGENT_SESSION_COORDINATOR;
+  process.env.AGENT_SESSION_COORDINATOR = "0";
   assert.equal(isSessionCoordinatorEnabled(), false);
 
   const result = await runCoordinatorPreRouter({
@@ -86,7 +86,7 @@ test("AGENT_SESSION_COORDINATOR=0 → coordinator does not run", async () => {
 });
 
 test("AGENT_SESSION_COORDINATOR=0 → reconcile is no-op", async () => {
-  delete process.env.AGENT_SESSION_COORDINATOR;
+  process.env.AGENT_SESSION_COORDINATOR = "0";
 
   const result = await runCoordinatorPreRouter({
     conversationState: undefined,

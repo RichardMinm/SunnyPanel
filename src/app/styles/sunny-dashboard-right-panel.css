@@ -14,8 +14,8 @@
   width: var(--dashboard-panel-width);
   min-width: 0;
   max-height: calc(100dvh - var(--dashboard-status-height));
-  border-left: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
-  background: color-mix(in srgb, var(--surface-strong) 96%, var(--surface));
+  border-left: 1px solid color-mix(in oklch, var(--border) 62%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 96%, var(--surface));
   overflow: hidden;
   box-shadow: var(--shadow-panel-left);
   transform: translateX(100%);
@@ -41,7 +41,7 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 1rem 1rem 0.7rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
 }.sunny-dashboard-right-panel-head p{
   margin: 0 0 0.15rem;
   color: var(--muted);
@@ -62,7 +62,7 @@
   flex: 0 0 auto;
 }.sunny-dashboard-right-panel-actions > span{
   flex: 0 0 auto;
-  border: 1px solid color-mix(in srgb, var(--tone-info-border) 58%, transparent);
+  border: 1px solid color-mix(in oklch, var(--tone-info-border) 58%, transparent);
   border-radius: 999px;
   background: var(--tone-info-bg);
   color: var(--accent-strong);
@@ -75,13 +75,13 @@
   justify-content: center;
   width: 1.85rem;
   height: 1.85rem;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
   border-radius: 0.58rem;
-  background: color-mix(in srgb, var(--surface-strong) 88%, var(--surface));
-  color: color-mix(in srgb, var(--foreground) 78%, var(--muted));
+  background: color-mix(in oklch, var(--surface-strong) 88%, var(--surface));
+  color: color-mix(in oklch, var(--foreground) 78%, var(--muted));
   cursor: pointer;
 }.sunny-dashboard-right-panel-toggle:hover{
-  border-color: color-mix(in srgb, var(--accent-strong) 70%, var(--border));
+  border-color: color-mix(in oklch, var(--accent-strong) 70%, var(--border));
   color: var(--accent-strong);
 }.sunny-dashboard-right-panel-toggle svg{
   width: 1.05rem;
@@ -111,7 +111,7 @@
   width: 1px;
   min-height: 1.35rem;
   margin: 0.45rem 0.15rem;
-  background: color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in oklch, var(--border) 72%, transparent);
 }.sunny-dashboard-inspector-search{
   overflow: hidden;
   max-height: 24rem;
@@ -136,7 +136,7 @@
   margin: 0.35rem 0 0;
   padding: 0.2rem 0;
   list-style: none;
-  border-top: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-top: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
   max-height: 12rem;
   overflow-y: auto;
 }.sunny-dashboard-inspector-search-results li button{
@@ -155,9 +155,9 @@
   cursor: pointer;
   text-align: left;
 }.sunny-dashboard-inspector-search-results li button:hover{
-  background: color-mix(in srgb, var(--surface-tint, var(--muted)) 18%, transparent);
+  background: color-mix(in oklch, var(--surface-tint, var(--muted)) 18%, transparent);
 }.sunny-dashboard-inspector-search-results li button:focus-visible{
-  outline: 2px solid color-mix(in srgb, var(--accent-ring-strong, var(--accent)) 45%, transparent);
+  outline: 2px solid color-mix(in oklch, var(--accent-ring-strong, var(--accent)) 45%, transparent);
   outline-offset: 1px;
 }.sunny-dashboard-inspector-search-results li button small{
   color: var(--muted);
@@ -180,7 +180,7 @@
   overflow-x: hidden;
   padding: 0.85rem;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 32%, transparent) transparent;
+  scrollbar-color: color-mix(in oklch, var(--muted) 32%, transparent) transparent;
 }.sunny-dashboard-inspector-transition{
   min-height: 0;
 }.sunny-agent-linked-panel,
@@ -194,9 +194,9 @@
   padding: 0;
   list-style: none;
 }.sunny-agent-memory-inspector-list li{
-  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 66%, transparent);
   border-radius: 0.65rem;
-  background: color-mix(in srgb, var(--background) 92%, transparent);
+  background: color-mix(in oklch, var(--background) 92%, transparent);
   color: var(--foreground);
   padding: 0.55rem 0.65rem;
   font-size: var(--text-xs);
@@ -204,7 +204,7 @@
 }html[data-theme="dark"] .sunny-dashboard-right-panel{
   background: var(--surface);
 }html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span{
-  background: color-mix(in srgb, var(--surface-strong) 88%, var(--accent) 8%);
+  background: color-mix(in oklch, var(--surface-strong) 88%, var(--accent) 8%);
 }@media (max-width: 1200px){
   .sunny-dashboard-right-panel {
     display: none;
@@ -216,7 +216,7 @@
     z-index: 50;
     display: flex;
     max-height: none;
-    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
     border-radius: 0.9rem;
     box-shadow: var(--shadow-panel-mobile);
   }
@@ -239,7 +239,7 @@ html[data-theme="dark"] .sunny-history-card:hover{
   background: var(--surface-strong);
 }html[data-theme="dark"] .sunny-context-card h4,
 html[data-theme="dark"] .sunny-history-card h4{
-  color: var(--background);
+  color: var(--foreground);
 }html[data-theme="dark"] .sunny-context-card span,
 html[data-theme="dark"] .sunny-history-card time{
   color: var(--muted);
@@ -248,10 +248,10 @@ html[data-theme="dark"] .sunny-history-card time{
 }html[data-theme="dark"] .sunny-dashboard-right-panel-actions > span{
   color: var(--muted);
 }html[data-theme="dark"] .sunny-dashboard-inspector-search .sunny-codex-search-wrapper{
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 88%, transparent);
   border-color: var(--border);
 }html[data-theme="dark"] .sunny-dashboard-inspector-search-results li button:hover{
-  background: color-mix(in srgb, var(--surface-strong) 92%, var(--accent) 6%);
+  background: color-mix(in oklch, var(--surface-strong) 92%, var(--accent) 6%);
 }html[data-theme="dark"] .sunny-inspector-tab{
   color: var(--muted);
 }html[data-theme="dark"] .sunny-inspector-tab.is-active{

@@ -1,20 +1,40 @@
 "use client";
 
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import dynamic from "next/dynamic";
 
-import { AgentApprovalPanel } from "@/components/dashboard/agent/AgentApprovalPanel";
-import { AgentContextPanel } from "@/components/dashboard/agent/AgentContextPanel";
-import { AgentDebugPanel } from "@/components/dashboard/agent/AgentDebugPanel";
-import { AgentInboxPanel } from "@/components/dashboard/agent/AgentInboxPanel";
-import { AgentTracePanel } from "@/components/dashboard/agent/AgentTracePanel";
 import { ContextInspector, getInspectorTabLabel } from "@/components/dashboard/agent/ContextInspector";
 import { InspectorSearchToolbar } from "@/components/dashboard/agent/InspectorSearchToolbar";
 import { AppIconButton } from "@/components/primitives/AppIconButton";
+import { InspectorPanel } from "@/components/layout/InspectorPanel";
 import { COLLECTION_ICON_MAP, DashboardIcon, DEFAULT_COLLECTION_ICON, InspectorPanelIcon } from "./icons";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
 import type { AgentInspectorTab, AgentRunDetail, ContextPreferences } from "@/components/dashboard/agent/types";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
+import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
+
+/* ─── Inspector panels (dynamic: only the active tab's code is downloaded) ─── */
+
+const AgentApprovalPanel = dynamic(
+  () => import("@/components/dashboard/agent/AgentApprovalPanel").then((m) => m.AgentApprovalPanel),
+);
+
+const AgentContextPanel = dynamic(
+  () => import("@/components/dashboard/agent/AgentContextPanel").then((m) => m.AgentContextPanel),
+);
+
+const AgentDebugPanel = dynamic(
+  () => import("@/components/dashboard/agent/AgentDebugPanel").then((m) => m.AgentDebugPanel),
+);
+
+const AgentInboxPanel = dynamic(
+  () => import("@/components/dashboard/agent/AgentInboxPanel").then((m) => m.AgentInboxPanel),
+);
+
+const AgentTracePanel = dynamic(
+  () => import("@/components/dashboard/agent/AgentTracePanel").then((m) => m.AgentTracePanel),
+);
 
 type DashboardRightPanelProps = {
   action: null | ProposedAgentAction;
@@ -53,6 +73,7 @@ type DashboardRightPanelProps = {
   threadId: null | number;
   tokenUsage: AgentTokenUsage;
   traceSteps: AgentTraceStep[];
+  turnAudit?: AgentTurnTrace | null;
   workbenchMode: AgentWorkbenchMode;
 };
 
@@ -181,11 +202,12 @@ function MemoryInspectorPanel({ debugMode, traceSteps }: { debugMode: boolean; t
     }
 
     return (
-      <div className="sunny-agent-inspector-panel sunny-agent-memory-inspector-panel">
-        <div className="sunny-agent-inspector-summary">
-          <span>本轮使用的记忆</span>
-          <h3>{memoryTitles.length} 条记忆</h3>
-        </div>
+      <InspectorPanel
+        bare
+        className="sunny-agent-inspector-panel sunny-agent-memory-inspector-panel"
+        subtitle="本轮使用的记忆"
+        title={`${memoryTitles.length} 条记忆`}
+      >
         <ul className="sunny-agent-memory-inspector-list">
           {memoryTitles.map((title) => (
             <li key={title}>{title}</li>
@@ -194,7 +216,7 @@ function MemoryInspectorPanel({ debugMode, traceSteps }: { debugMode: boolean; t
         <p className="sunny-agent-inspector-hint sunny-agent-inspector-hint--compact">
           开启 debug 模式可查看详细匹配信息
         </p>
-      </div>
+      </InspectorPanel>
     );
   }
 
@@ -209,17 +231,18 @@ function MemoryInspectorPanel({ debugMode, traceSteps }: { debugMode: boolean; t
   }
 
   return (
-    <div className="sunny-agent-inspector-panel sunny-agent-memory-inspector-panel">
-      <div className="sunny-agent-inspector-summary">
-        <span>已使用记忆</span>
-        <h3>{memoryTitles.length} 条长期记忆</h3>
-      </div>
+    <InspectorPanel
+      bare
+      className="sunny-agent-inspector-panel sunny-agent-memory-inspector-panel"
+      subtitle="已使用记忆"
+      title={`${memoryTitles.length} 条长期记忆`}
+    >
       <ul className="sunny-agent-memory-inspector-list">
         {memoryTitles.map((title) => (
           <li key={title}>{title}</li>
         ))}
       </ul>
-    </div>
+    </InspectorPanel>
   );
 }
 
@@ -254,6 +277,7 @@ export function DashboardRightPanel({
   threadId,
   tokenUsage,
   traceSteps,
+  turnAudit = null,
   workbenchMode,
 }: DashboardRightPanelProps) {
   // When there's no pending action, fall back to last executed action so
@@ -377,6 +401,7 @@ export function DashboardRightPanel({
               threadId={threadId}
               tokenUsage={tokenUsage}
               traceSteps={traceSteps}
+              turnAudit={turnAudit}
               workbenchMode={workbenchMode}
             />
           ) : null}

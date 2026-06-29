@@ -82,7 +82,7 @@ html[data-theme="dark"] .sunny-shell::after {
 }
 
 html[data-theme="dark"] .sunny-card {
-  border-color: color-mix(in srgb, var(--border) 120%, transparent);
+  border-color: color-mix(in oklch, var(--border) 120%, transparent);
   box-shadow: 0 2px 8px var(--card-shadow);
 }
 
@@ -100,8 +100,8 @@ html[data-theme="dark"] .sunny-card-strong {
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--surface-strong) 98%, var(--background)),
-      color-mix(in srgb, var(--surface) 96%, var(--background))
+      color-mix(in oklch, var(--surface-strong) 98%, var(--background)),
+      color-mix(in oklch, var(--surface) 96%, var(--background))
     ),
     var(--surface-strong);
   box-shadow: 0 16px 40px var(--card-shadow);
@@ -171,7 +171,7 @@ html[data-theme="dark"] .sunny-collapsible-card {
 .sunny-dashboard-card {
   position: relative;
   overflow: clip;
-  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
   border-radius: var(--radius-panel);
   background: var(--surface);
   padding: clamp(0.95rem, 1.7vw, 1.2rem);
@@ -180,7 +180,7 @@ html[data-theme="dark"] .sunny-collapsible-card {
 
 .sunny-surface-card-quiet,
 .sunny-dashboard-card-quiet {
-  border-color: color-mix(in srgb, var(--border) 64%, transparent);
+  border-color: color-mix(in oklch, var(--border) 64%, transparent);
   background: var(--surface);
   box-shadow: none;
 }
@@ -209,7 +209,7 @@ html[data-theme="dark"] .sunny-dashboard-card.sunny-card-strong {
 
 .sunny-dashboard-hero-focus {
   min-height: 100%;
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border: 1px solid color-mix(in oklch, var(--accent) 18%, var(--border));
   border-radius: var(--radius-chrome);
   background: var(--surface);
   padding: clamp(0.9rem, 1.5vw, 1.1rem);
@@ -220,14 +220,14 @@ html[data-theme="dark"] .sunny-dashboard-hero-focus {
 }
 
 .sunny-dashboard-panel {
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
   border-radius: var(--radius-panel);
   background: var(--surface);
   padding: 0.85rem 0.95rem;
 }
 
 .sunny-dashboard-panel-quiet {
-  border-color: color-mix(in srgb, var(--border) 44%, transparent);
+  border-color: color-mix(in oklch, var(--border) 44%, transparent);
   background: transparent;
 }
 
@@ -267,7 +267,7 @@ html[data-theme="dark"] .sunny-dashboard-panel-quiet {
 }
 
 .sunny-dashboard-row:hover {
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
+  background: color-mix(in oklch, var(--accent) 5%, transparent);
 }
 
 html[data-theme="dark"] .sunny-dashboard-row {
@@ -275,7 +275,7 @@ html[data-theme="dark"] .sunny-dashboard-row {
 }
 
 html[data-theme="dark"] .sunny-dashboard-row:hover {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
 }
 
 .sunny-surface-title,
@@ -369,7 +369,7 @@ html[data-theme="dark"] .sunny-dashboard-count {
 .sunny-dashboard-link {
   display: inline-flex;
   align-items: center;
-  border-block-end: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  border-block-end: 1px solid color-mix(in oklch, var(--accent) 42%, transparent);
   padding-block: 0.1rem;
   font-size: var(--text-sm);
   font-weight: var(--font-weight-kicker);
@@ -387,9 +387,9 @@ html[data-theme="dark"] .sunny-dashboard-count {
 .sunny-dashboard-utility-link {
   display: inline-flex;
   align-items: center;
-  border-block-end: 1px solid color-mix(in srgb, var(--foreground) 14%, transparent);
+  border-block-end: 1px solid color-mix(in oklch, var(--foreground) 14%, transparent);
   padding-block: 0.08rem;
-  color: color-mix(in srgb, var(--muted) 82%, var(--foreground));
+  color: color-mix(in oklch, var(--muted) 82%, var(--foreground));
   font-size: var(--text-sm-compact);
   font-weight: 650;
   transition:
@@ -398,7 +398,7 @@ html[data-theme="dark"] .sunny-dashboard-count {
 }
 
 .sunny-dashboard-utility-link:hover {
-  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 38%, transparent);
   color: var(--accent-strong);
 }
 
@@ -418,7 +418,7 @@ html[data-theme="dark"] .sunny-dashboard-empty {
 
 .sunny-focus-action {
   display: block;
-  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 74%, transparent);
   border-radius: var(--radius-panel);
   background: var(--surface);
   padding: 0.85rem 0.95rem;
@@ -428,18 +428,18 @@ html[data-theme="dark"] .sunny-dashboard-empty {
 }
 
 .sunny-focus-action:hover {
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-color: color-mix(in oklch, var(--accent) 28%, var(--border));
   background: var(--hover);
 }
 
 .sunny-focus-action-primary {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
-  border-left: 3px solid color-mix(in srgb, var(--accent) 56%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 32%, var(--border));
+  background: color-mix(in oklch, var(--accent) 6%, var(--surface));
+  border-left: 3px solid color-mix(in oklch, var(--accent) 56%, transparent);
 }
 
 .sunny-focus-action-compact {
-  border-color: color-mix(in srgb, var(--border) 54%, transparent);
+  border-color: color-mix(in oklch, var(--border) 54%, transparent);
   background: transparent;
   padding: 0.58rem 0.66rem;
 }
@@ -461,7 +461,7 @@ html[data-theme="dark"] .sunny-dashboard-empty {
   width: 1.7rem;
   height: 1.7rem;
   border-color: transparent;
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  background: color-mix(in oklch, var(--accent) 7%, transparent);
   font-size: var(--text-base);
 }
 
@@ -478,7 +478,7 @@ html[data-theme="dark"] .sunny-focus-action-compact {
 }
 
 html[data-theme="dark"] .sunny-focus-action-primary {
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  background: color-mix(in oklch, var(--accent) 8%, var(--surface));
 }
 
 .sunny-dashboard-quick-card {
@@ -490,13 +490,13 @@ html[data-theme="dark"] .sunny-focus-action-primary {
 }
 
 .sunny-dashboard-action-queue .sunny-dashboard-empty {
-  border-color: color-mix(in srgb, var(--border) 54%, transparent);
+  border-color: color-mix(in oklch, var(--border) 54%, transparent);
   padding: 0.58rem 0.65rem;
   font-size: var(--text-sm);
 }
 
 .sunny-plan-runway {
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-color: color-mix(in oklch, var(--accent) 18%, var(--border));
   background: var(--surface);
 }
 
@@ -514,7 +514,7 @@ html[data-theme="dark"] .sunny-focus-action-primary {
 .sunny-plan-runway-grid--stacked .sunny-plan-runway-lane {
   border-inline-start: 0;
   padding-inline-start: 0;
-  border-top: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  border-top: 1px solid color-mix(in oklch, var(--accent) 16%, var(--border));
   padding-top: 0.85rem;
 }
 
@@ -531,7 +531,7 @@ html[data-theme="dark"] .sunny-focus-action-primary {
 
 .sunny-plan-runway-lane {
   min-width: 0;
-  border-inline-start: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  border-inline-start: 1px solid color-mix(in oklch, var(--accent) 16%, var(--border));
   padding-inline-start: 0.85rem;
 }
 
@@ -545,12 +545,12 @@ html[data-theme="dark"] .sunny-focus-action-primary {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.85rem;
   align-items: start;
-  border-block-start: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-block-start: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
   padding-block: 0.78rem;
 }
 
 .sunny-plan-runway-row:last-child {
-  border-block-end: 1px solid color-mix(in srgb, var(--border) 38%, transparent);
+  border-block-end: 1px solid color-mix(in oklch, var(--border) 38%, transparent);
 }
 
 .sunny-plan-runway-title {
@@ -574,7 +574,7 @@ html[data-theme="dark"] .sunny-focus-action-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border: 1px solid color-mix(in oklch, var(--accent) 28%, var(--border));
   border-radius: var(--radius-pill);
   background: var(--overlay-surface-38);
   padding: 0.38rem 0.62rem;
@@ -589,13 +589,13 @@ html[data-theme="dark"] .sunny-focus-action-primary {
 }
 
 .sunny-runway-action:hover {
-    background: color-mix(in srgb, var(--accent) 12%, var(--surface-glass-72));
+    background: color-mix(in oklch, var(--accent) 12%, var(--surface-glass-72));
   color: var(--foreground);
 }
 
 /* ---- Calendar week view ---- */
 .sunny-calendar-section {
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-color: color-mix(in oklch, var(--accent) 18%, var(--border));
 }
 
 .sunny-calendar-week-scroll {
@@ -626,7 +626,7 @@ html[data-theme="dark"] .sunny-focus-action-primary {
 }
 
 .sunny-calendar-nav-btn:hover {
-  background: color-mix(in srgb, var(--surface-strong) 80%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 80%, transparent);
   color: var(--foreground);
 }
 
@@ -641,18 +641,18 @@ html[data-theme="dark"] .sunny-focus-action-primary {
 .sunny-calendar-day {
   min-width: 0;
   border-color: transparent;
-  background: color-mix(in srgb, var(--surface-strong) 44%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 44%, transparent);
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .sunny-calendar-day:hover {
-  background: color-mix(in srgb, var(--surface-strong) 62%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 62%, transparent);
 }
 
 .sunny-calendar-day.is-today {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 42%, var(--border));
+  background: color-mix(in oklch, var(--accent) 10%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 18%, transparent);
 }
 
 .sunny-calendar-day-label {
@@ -669,23 +669,23 @@ html[data-theme="dark"] .sunny-focus-action-primary {
 }
 
 .sunny-calendar-empty-label {
-  color: color-mix(in srgb, var(--muted) 70%, transparent);
+  color: color-mix(in oklch, var(--muted) 70%, transparent);
 }
 
 .sunny-calendar-item {
   min-width: 0;
   border-color: var(--border);
-  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 72%, transparent);
 }
 
 .sunny-calendar-item:hover {
-  border-color: color-mix(in srgb, var(--foreground) 16%, var(--border));
+  border-color: color-mix(in oklch, var(--foreground) 16%, var(--border));
   background: var(--surface-strong);
 }
 
 .sunny-calendar-item.is-done {
-  border-color: color-mix(in srgb, var(--tone-success-border) 80%, var(--border));
-  background: color-mix(in srgb, var(--tone-success-bg) 72%, transparent);
+  border-color: color-mix(in oklch, var(--tone-success-border) 80%, var(--border));
+  background: color-mix(in oklch, var(--tone-success-bg) 72%, transparent);
 }
 
 .sunny-calendar-item.is-canceled {
@@ -704,7 +704,7 @@ html[data-theme="dark"] .sunny-focus-action-primary {
 
 .sunny-calendar-item-dot.priority-low,
 .sunny-calendar-item-dot {
-  background: color-mix(in srgb, var(--muted) 55%, transparent);
+  background: color-mix(in oklch, var(--muted) 55%, transparent);
 }
 
 .sunny-calendar-item-dot.is-done {
@@ -721,11 +721,11 @@ html[data-theme="dark"] .sunny-focus-action-primary {
 }
 
 html[data-theme="dark"] .sunny-calendar-day {
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  background: color-mix(in oklch, var(--surface) 72%, transparent);
 }
 
 html[data-theme="dark"] .sunny-calendar-day.is-today {
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  background: color-mix(in oklch, var(--accent) 14%, var(--surface));
 }
 
 .sunny-content-operations {
@@ -740,7 +740,7 @@ html[data-theme="dark"] .sunny-calendar-day.is-today {
 
 .sunny-content-operation-lane {
   min-width: 0;
-  border-block-start: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
+  border-block-start: 1px solid color-mix(in oklch, var(--border) 64%, transparent);
   padding-block-start: 0.85rem;
 }
 
@@ -771,7 +771,7 @@ html[data-theme="dark"] .sunny-calendar-day.is-today {
 }
 
 .sunny-gap-action-secondary {
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
   background: var(--overlay-light-36);
   color: var(--foreground);
 }
@@ -798,7 +798,7 @@ html[data-theme="dark"] .sunny-runway-action {
 }
 
 html[data-theme="dark"] .sunny-runway-action:hover {
-  background: color-mix(in srgb, var(--accent) 18%, var(--overlay-surface-86));
+  background: color-mix(in oklch, var(--accent) 18%, var(--overlay-surface-86));
 }
 
 html[data-theme="dark"] .sunny-gap-action-secondary {
@@ -839,7 +839,7 @@ html[data-theme="dark"] .sunny-gap-action-secondary:hover {
   min-height: var(--control-min-height);
   border-radius: var(--radius-pill);
   border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 72%, transparent);
   padding: 0.45rem 0.95rem;
   font-size: var(--text-sm);
   font-weight: var(--font-weight-ui);
@@ -866,7 +866,7 @@ html[data-theme="dark"] .sunny-button-secondary:hover {
   align-items: center;
   gap: 0.5rem;
   border-radius: var(--radius-pill);
-  border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent) 16%, transparent);
   background: var(--overlay-surface-56);
   padding: calc(0.45rem * var(--site-scale)) calc(0.85rem * var(--site-scale));
   font-size: calc(var(--text-sm-compact) * var(--site-scale));
@@ -910,7 +910,7 @@ html[data-theme="dark"] .sunny-home-hero {
 .sunny-home-hero-text-link {
   display: inline-flex;
   align-items: center;
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  border-bottom: 1px solid color-mix(in oklch, var(--accent) 38%, transparent);
   padding-block: 0.1rem;
   color: var(--accent-strong);
   font-size: var(--text-sm);
@@ -922,7 +922,7 @@ html[data-theme="dark"] .sunny-home-hero {
   gap: 0.85rem;
   margin-top: 1.35rem;
   max-width: 42rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border));
+  border: 1px solid color-mix(in oklch, var(--accent) 14%, var(--border));
   border-radius: var(--radius-chrome);
   background: var(--surface);
   padding: 0.9rem;
@@ -932,7 +932,7 @@ html[data-theme="dark"] .sunny-home-hero {
 }
 
 .sunny-home-current-state:hover {
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-color: color-mix(in oklch, var(--accent) 24%, var(--border));
   background: var(--hover);
 }
 
@@ -970,7 +970,7 @@ html[data-theme="dark"] .sunny-home-current-state:hover {
 }
 
 .sunny-home-current-item:hover {
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-color: color-mix(in oklch, var(--accent) 22%, var(--border));
   background: var(--hover);
 }
 
@@ -998,7 +998,7 @@ html[data-theme="dark"] .sunny-home-current-item:hover {
   display: grid;
   align-self: stretch;
   gap: 0;
-  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 74%, transparent);
   border-radius: 1.15rem;
   background: var(--overlay-light-16);
   padding: 0.45rem 0.85rem;
@@ -1032,7 +1032,7 @@ html[data-theme="dark"] .sunny-home-system-row {
   height: 1.55rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
   border-radius: var(--radius-pill);
   color: var(--muted);
   font-family: var(--font-mono);
@@ -1054,7 +1054,7 @@ html[data-theme="dark"] .sunny-home-system-row {
 }
 
 .sunny-writing-card:hover {
-    border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+    border-color: color-mix(in oklch, var(--accent) 24%, var(--border));
   background: var(--overlay-light-76);
 }
 
@@ -1076,7 +1076,7 @@ html[data-theme="dark"] .sunny-writing-card:hover {
   font-size: var(--text-sm);
   font-weight: var(--font-weight-ui);
   line-height: var(--leading-tight);
-  color: color-mix(in srgb, var(--foreground) 80%, white);
+  color: color-mix(in oklch, var(--foreground) 80%, white);
   white-space: nowrap;
   text-decoration: none;
   transition:
@@ -1096,7 +1096,7 @@ html[data-theme="dark"] .sunny-writing-card:hover {
 }
 
 html[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--foreground) 18%, transparent);
+  background: color-mix(in oklch, var(--foreground) 18%, transparent);
 }
 
 ::-webkit-scrollbar-track {
@@ -1124,7 +1124,7 @@ html[data-theme="dark"] .sunny-nav-link-active {
 }
 
 .sunny-public-header {
-  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 86%, transparent);
   border-radius: var(--radius-chrome);
   background: var(--surface-strong);
   box-shadow: 0 2px 8px var(--card-shadow);
@@ -1253,7 +1253,7 @@ html[data-theme="dark"] .sunny-public-header {
 
 html[data-theme="dark"] .sunny-locale-switch,
 html[data-theme="dark"] .sunny-segmented-switch {
-  background: color-mix(in srgb, var(--surface-strong) 92%, var(--background));
+  background: color-mix(in oklch, var(--surface-strong) 92%, var(--background));
 }
 
 .sunny-segmented-switch--admin {
@@ -1264,7 +1264,7 @@ html[data-theme="dark"] .sunny-segmented-switch {
 }
 
 html[data-theme="dark"] .sunny-segmented-switch--admin {
-  background: color-mix(in srgb, var(--surface-strong) 72%, var(--background));
+  background: color-mix(in oklch, var(--surface-strong) 72%, var(--background));
 }
 
 .sunny-locale-option,
@@ -1415,8 +1415,8 @@ html[data-theme="dark"] .sunny-command-panel {
 }
 
 .sunny-command-input:focus {
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 48%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent) 12%, transparent);
 }
 
 html[data-theme="dark"] .sunny-command-input {
@@ -1538,12 +1538,12 @@ html[data-theme="dark"] .sunny-command-close {
 
 .sunny-command-item-active,
 .sunny-command-item:hover {
-  background: color-mix(in srgb, var(--accent) 10%, var(--overlay-light-60));
+  background: color-mix(in oklch, var(--accent) 10%, var(--overlay-light-60));
 }
 
 html[data-theme="dark"] .sunny-command-item-active,
 html[data-theme="dark"] .sunny-command-item:hover {
-  background: color-mix(in srgb, var(--accent) 16%, var(--overlay-surface-78));
+  background: color-mix(in oklch, var(--accent) 16%, var(--overlay-surface-78));
 }
 
 .sunny-command-empty {
@@ -1635,7 +1635,7 @@ html[data-theme="dark"] .sunny-nav-dropdown-compact > .sunny-nav-dropdown-trigge
   padding: 0.7rem 0.8rem;
   font-size: var(--text-md);
   font-weight: 600;
-  color: color-mix(in srgb, var(--foreground) 82%, white);
+  color: color-mix(in oklch, var(--foreground) 82%, white);
   transition:
     background 180ms ease,
     color 180ms ease,
@@ -1715,7 +1715,7 @@ html[data-theme="dark"] .sunny-settings-panel {
 
 html[data-theme="dark"] .sunny-locale-option-active,
 html[data-theme="dark"] .sunny-segmented-switch__option.is-active {
-  background: color-mix(in srgb, var(--surface-strong) 98%, var(--accent) 8%);
+  background: color-mix(in oklch, var(--surface-strong) 98%, var(--accent) 8%);
 }
 
 .sunny-palette-switch,
@@ -1746,24 +1746,24 @@ html[data-theme="dark"] .sunny-segmented-switch__option.is-active {
 
 html[data-theme="dark"] .sunny-palette-option,
 html[data-theme="dark"] .sunny-admin-palette-option {
-  background: color-mix(in srgb, var(--surface-strong) 92%, var(--background));
+  background: color-mix(in oklch, var(--surface-strong) 92%, var(--background));
 }
 
 .sunny-palette-option:hover,
 .sunny-admin-palette-option:hover {
-    border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+    border-color: color-mix(in oklch, var(--accent) 24%, var(--border));
 }
 
 .sunny-palette-option.is-active,
 .sunny-admin-palette-option.is-active {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface-glass-72));
+  border-color: color-mix(in oklch, var(--accent) 35%, var(--border));
+  background: color-mix(in oklch, var(--accent) 8%, var(--surface-glass-72));
   box-shadow: inset 0 0 0 1px var(--accent-ring);
 }
 
 html[data-theme="dark"] .sunny-palette-option.is-active,
 html[data-theme="dark"] .sunny-admin-palette-option.is-active {
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
+  background: color-mix(in oklch, var(--accent) 12%, var(--surface-strong));
 }
 
 .sunny-palette-swatch {
@@ -2088,11 +2088,11 @@ html[data-theme="dark"] .sunny-checklist-filter-bar button {
 
 html[data-theme="dark"] .sunny-checklist-filter-bar button:hover {
   background: var(--surface-strong);
-  color: color-mix(in srgb, var(--foreground) 78%, transparent);
+  color: color-mix(in oklch, var(--foreground) 78%, transparent);
 }
 
 html[data-theme="dark"] .sunny-checklist-filter-bar button.is-active {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
   border-color: var(--overlay-accent-30);
   color: var(--accent-strong);
 }
@@ -2120,7 +2120,7 @@ html[data-theme="dark"] .sunny-checklist-card-header small {
 }
 
 html[data-theme="dark"] .sunny-checklist-status-badge.is-active {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
   color: var(--accent-strong);
 }
 
@@ -2147,7 +2147,7 @@ html[data-theme="dark"] .sunny-checklist-items-list {
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list li {
-  color: color-mix(in srgb, var(--foreground) 78%, transparent);
+  color: color-mix(in oklch, var(--foreground) 78%, transparent);
 }
 
 html[data-theme="dark"] .sunny-checklist-items-list li:hover {
@@ -2262,7 +2262,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--foreground) 78%, transparent);
+  background: color-mix(in oklch, var(--foreground) 78%, transparent);
   flex-shrink: 0;
 }
 

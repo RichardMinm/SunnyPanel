@@ -87,8 +87,20 @@ const heuristicParsers: HeuristicParser[] = [
 ];
 
 const defaultClarifyIntent = createClarifyIntent(
-  `我现在可以帮你创建计划、补计划项、标记清单条目完成、补完成备注、补时间线，也能查询进度和评估计划。你可以直接说\u201c帮我创建计划：\u2026\u2026\u201d，或者\u201c给这条更新补时间线节点\u201d。`,
+  `我现在可以帮你创建计划、补计划项、标记清单条目完成、补完成备注、补时间线，也能查询进度和评估计划。你可以直接说“帮我创建计划：……”，或者“给这条更新补时间线节点”。`,
 );
+
+const questionLikePattern = /[？?]$|什么是|是什么|什么叫|如何|怎么|为什么|吗/;
+
+const fallbackClarifyIntent = (message: string): AgentIntent => {
+  if (questionLikePattern.test(message.trim())) {
+    return createClarifyIntent(
+      "这看起来是咨询/知识类问题。若已配置 Agent LLM，我会优先直接回答；当前未命中明确规则时，请换一种说法，或检查 Admin → Agent Settings 中的模型配置。",
+    );
+  }
+
+  return defaultClarifyIntent;
+};
 
 /**
  * 收集所有启发式解析器的候选结果，按置信度降序选择最佳匹配。
@@ -117,7 +129,7 @@ export const parseHeuristicIntent = (message: string): AgentIntent => {
   const candidates = collectHeuristicCandidates(message);
 
   if (candidates.length === 0) {
-    return defaultClarifyIntent;
+    return fallbackClarifyIntent(message);
   }
 
   const best = candidates[0];
@@ -147,7 +159,7 @@ export const parseHeuristicIntent = (message: string): AgentIntent => {
   }
 
   if ((best.intent.confidence ?? 0) < HEURISTIC_CONFIDENCE_THRESHOLD) {
-    return defaultClarifyIntent;
+    return fallbackClarifyIntent(message);
   }
 
   return best.intent;

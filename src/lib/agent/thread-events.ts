@@ -1,12 +1,14 @@
 import {
   parsePendingAction,
   sanitizeChatMessages,
+  isConversationalIntent,
   type AgentChatMessage,
   type AgentChatResponse,
   type AgentEngine,
   type AgentIntent,
   type PendingAction,
 } from "@/lib/agent/schemas";
+import type { AgentConversationState } from "@/lib/agent/conversation/types";
 import { buildAgentThreadSummary } from "@/lib/agent/thread-summary";
 import type { AgentThread } from "@/payload-types";
 
@@ -104,6 +106,7 @@ export type HydratedAgentThreadState = {
 };
 
 export type AgentThreadProjection = {
+  conversationState?: AgentConversationState | null;
   lastConfidence: AgentThread["lastConfidence"];
   lastEngine: AgentThread["lastEngine"];
   lastIntent: AgentThread["lastIntent"];
@@ -121,6 +124,14 @@ const eventKeyFor = (
   turnId: string,
   suffix: "assistant" | "failed" | "user",
 ) => `thread:${threadId}:turn:${turnId}:${suffix}`;
+
+const projectableLastIntent = (intent: AgentIntent["intent"]): NonNullable<AgentThread["lastIntent"]> | null => {
+  if (isConversationalIntent(intent)) {
+    return "answer_question";
+  }
+
+  return intent as NonNullable<AgentThread["lastIntent"]>;
+};
 
 const sortEvents = (events: AgentThreadEventRecord[]) =>
   [...events].sort((left, right) => left.id - right.id);
@@ -157,7 +168,7 @@ const inspectTurn = (events: AgentThreadEventRecord[]) => {
     }))
     .findLast((item) => item.response !== null);
 
-  if (terminal?.response) {
+  if (terminal?.response?.assistantMessage?.trim()) {
     return {
       response: terminal.response,
       status: "replay" as const,
@@ -344,7 +355,7 @@ export const hydrateAgentThreadState = async ({
       state.pendingAction = parsePendingAction(response.pendingAction);
       state.lastConfidence = response.confidence ?? null;
       state.lastEngine = response.engine;
-      state.lastIntent = response.intent;
+      state.lastIntent = projectableLastIntent(response.intent) ?? null;
     }
   }
 
@@ -363,9 +374,10 @@ export const buildAgentThreadProjection = (
   });
 
   return {
+    conversationState: null,
     lastConfidence: state.lastConfidence,
     lastEngine: state.lastEngine,
-    lastIntent: state.lastIntent,
+    lastIntent: state.lastIntent ? projectableLastIntent(state.lastIntent) : null,
     lastInteractionAt:
       state.lastInteractionAt ?? new Date().toISOString(),
     messages: state.messages,

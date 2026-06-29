@@ -72,6 +72,7 @@ const relatedContentRelationValues = [
 ] as const;
 
 type AgentThreadWriteData = {
+  conversationState?: AgentRunJsonField;
   lastConfidence?: null | number;
   lastEngine?: (typeof agentEngineValues)[number];
   lastIntent?: (typeof agentIntentValues)[number];
@@ -402,6 +403,10 @@ export const validateAgentThreadData = (value: unknown) => {
     title: getOptionalString(value.title) ?? undefined,
     user: getOptionalNumber(value.user),
   };
+
+  if ("conversationState" in value) {
+    data.conversationState = getOptionalJson(value.conversationState);
+  }
 
   if ("summary" in value) {
     data.summary = getOptionalString(value.summary);

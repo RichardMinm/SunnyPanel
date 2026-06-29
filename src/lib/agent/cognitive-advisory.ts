@@ -1,4 +1,5 @@
 import type { AgentArbitrationDecision } from "@/lib/agent/intent/arbitration";
+import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/heuristics/knowledge";
 import {
   completeStructured,
   type CompleteStructuredOptions,
@@ -113,12 +114,22 @@ export const shouldUseCognitiveAdvisory = ({
   intent: { intent: string };
   message: string;
   pendingAction: null | PendingAction;
-}) =>
-  intent.intent === "answer_question" &&
-  (pendingAction?.type === "await_learning_followup" ||
-    /(参谋|咨询|建议|分析|评估|路径|路线|路线图|顺序|学习|复习|备考|入门|怎么推进|如何推进|怎么做|如何做|选择|取舍|决策|SunnyPanel|Agent|智能体|泛化|智能化|核心能力)/i.test(
-      message,
-    ));
+}) => {
+  const definitionIntent = parseDefinitionQuestionIntent(message);
+  const openDomainTopic =
+    definitionIntent?.intent === "answer_question"
+      ? definitionIntent.args.openDomainTopic
+      : null;
+
+  return (
+    intent.intent === "answer_question" &&
+    !openDomainTopic &&
+    (pendingAction?.type === "await_learning_followup" ||
+      /(参谋|咨询|建议|分析|评估|路径|路线|路线图|顺序|学习|复习|备考|入门|什么是|是什么|什么叫|怎么推进|如何推进|怎么做|如何做|选择|取舍|决策|SunnyPanel|Agent|智能体|泛化|智能化|核心能力|网络安全|信息安全)/i.test(
+        message,
+      ))
+  );
+};
 
 const knownSubjects: Array<{
   aliases: string[];

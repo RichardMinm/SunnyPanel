@@ -909,6 +909,18 @@ export interface AgentThread {
     | boolean
     | null;
   /**
+   * 多轮追问上下文：lastTopic、lastUserIntent、lastAssistantAnswerSummary 等。
+   */
+  conversationState?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * 自动压缩长会话，供 Agent 在不读取完整消息历史时继续承接目标、结果和待处理动作。
    */
   summary?: string | null;
@@ -1518,6 +1530,7 @@ export interface AgentThreadsSelect<T extends boolean = true> {
         id?: T;
       };
   pendingAction?: T;
+  conversationState?: T;
   summary?: T;
   summaryUpdatedAt?: T;
   summaryMessageCount?: T;
@@ -1731,11 +1744,11 @@ export interface AgentSetting {
   enabled?: boolean | null;
   provider: 'openai-compatible' | 'openai' | 'zai';
   /**
-   * 例如 OpenAI 官方接口，或 GLM 的 OpenAI-compatible 地址。
+   * DeepSeek: https://api.deepseek.com/v1；OpenAI: https://api.openai.com/v1
    */
   baseUrl?: string | null;
   /**
-   * 例如 `gpt-5.4-mini`、`gpt-4.1-mini`、`glm-5.1`。
+   * DeepSeek V3 使用 `deepseek-chat`；也可填 gpt-4.1-mini、glm-5.1 等。
    */
   model?: string | null;
   /**

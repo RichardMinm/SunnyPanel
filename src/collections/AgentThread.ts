@@ -103,6 +103,14 @@ export const AgentThread: CollectionConfig = {
       },
     },
     {
+      name: "conversationState",
+      type: "json",
+      label: "对话状态",
+      admin: {
+        description: "多轮追问上下文：lastTopic、lastUserIntent、lastAssistantAnswerSummary 等。",
+      },
+    },
+    {
       name: "summary",
       type: "textarea",
       label: "线程摘要",

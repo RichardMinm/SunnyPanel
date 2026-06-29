@@ -12,7 +12,7 @@
   .sunny-admin-nav-shell .nav {
     border: 1px solid var(--border);
     border-radius: var(--agent-radius-panel, 0.75rem);
-    background: var(--agent-panel-bg, color-mix(in srgb, var(--surface) 86%, transparent));
+    background: var(--agent-panel-bg, color-mix(in oklch, var(--surface) 86%, transparent));
     padding: 0.7rem;
     box-shadow: var(--agent-shadow-shell);
   }
@@ -46,12 +46,12 @@
   .sunny-admin-nav-shell .nav-group__content .nav__link:hover,
   .sunny-admin-nav-shell .nav-group__content .nav__link.active {
     border-color: var(--border);
-    background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+    background: color-mix(in oklch, var(--surface-strong) 78%, transparent);
   }
 
   html[data-theme="dark"] .sunny-admin-nav-shell .nav-group__content .nav__link:hover,
   html[data-theme="dark"] .sunny-admin-nav-shell .nav-group__content .nav__link.active {
-    background: color-mix(in srgb, var(--accent) 14%, var(--surface-strong));
+    background: color-mix(in oklch, var(--accent) 14%, var(--surface-strong));
     color: var(--accent-strong);
   }
 
@@ -86,7 +86,7 @@
     min-height: var(--control-min-height);
     border: 1px solid var(--border);
     border-radius: var(--radius-panel);
-    background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+    background: color-mix(in oklch, var(--surface-strong) 72%, transparent);
     padding: var(--nav-link-padding-y) 0.55rem;
     color: var(--foreground);
     font-size: var(--text-sm);
@@ -97,12 +97,12 @@
   }
 
   .sunny-admin-workspace-back:hover {
-    border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
-    background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    border-color: color-mix(in oklch, var(--accent) 28%, var(--border));
+    background: color-mix(in oklch, var(--surface-strong) 88%, transparent);
   }
 
   html[data-theme="dark"] .sunny-admin-workspace-back {
-    background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+    background: color-mix(in oklch, var(--surface-strong) 82%, transparent);
   }
 
   .sunny-admin-workspace-back-icon {

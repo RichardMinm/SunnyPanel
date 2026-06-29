@@ -15,6 +15,7 @@ import { useDashboardUrlThreadSync } from "@/components/dashboard/agent-chat/use
 import { useAgentThreadList } from "@/components/dashboard/agent-chat/use-agent-thread";
 import { canRollbackAgentRunDetail } from "@/lib/agent/run-summary";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
+import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type {
   AgentStreamChangeEvent,
   AgentStreamProgressEvent,
@@ -61,6 +62,7 @@ export function useAgentDashboardChat({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [streamingState, setStreamingState] = useState<"idle" | "responding" | "thinking">("idle");
   const [traceSteps, setTraceSteps] = useState<AgentTraceStep[]>([]);
+  const [turnAudit, setTurnAudit] = useState<AgentTurnTrace | null>(null);
   const [activeInspectorTab, setActiveInspectorTab] = useState<AgentInspectorTab>("context");
   const [tokenUsage, setTokenUsage] = useState<AgentTokenUsage>(() =>
     createTokenUsageSnapshot({
@@ -125,6 +127,7 @@ export function useAgentDashboardChat({
           }),
         );
         setTraceSteps([]);
+        setTurnAudit(null);
         setStreamStages([]);
         setStreamProgress([]);
         setStreamChanges([]);
@@ -150,6 +153,7 @@ export function useAgentDashboardChat({
         }),
       );
       setTraceSteps([]);
+      setTurnAudit(null);
       setStreamStages([]);
       setStreamProgress([]);
       setStreamChanges([]);
@@ -202,6 +206,7 @@ export function useAgentDashboardChat({
     setThreadId,
     setTokenUsage,
     setTraceSteps,
+    setTurnAudit,
     threadId,
     workbenchMode,
   });
@@ -420,6 +425,7 @@ export function useAgentDashboardChat({
     toggleContextExclude,
     toggleContextPin,
     traceSteps,
+    turnAudit,
     transcriptRef,
     workbenchMode,
     setWorkbenchMode,

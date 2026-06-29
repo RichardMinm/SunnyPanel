@@ -1,4 +1,9 @@
 import { isRecord } from "@/lib/shared/is-record";
+import type { ConversationalAnswerArgs, ConversationalIntentName } from "./conversation/types";
+import { CONVERSATIONAL_INTENT_NAMES, isConversationalIntent } from "./conversation/types";
+
+export { CONVERSATIONAL_INTENT_NAMES, isConversationalIntent };
+export type { ConversationalAnswerArgs, ConversationalIntentName };
 export type AgentChatMessage = {
   content: string;
   role: "assistant" | "user";
@@ -62,6 +67,8 @@ export type ProposedAgentActionChange = {
 
 export type ProposedAgentAction = {
   args: unknown;
+  /** Capability Registry：preview 能力名（如 preview_delete_plan） */
+  capability?: string;
   affectedDocuments?: Array<{
     collection: string;
     documentId?: number;
@@ -284,6 +291,8 @@ export type AnswerQuestionArgs = {
     requestedAction?: "compose_plan";
     subject: string;
   };
+  /** 开放域主题：answer 为空时由 LLM 生成，不走 curated 模板。 */
+  openDomainTopic?: null | string;
   suggestAction?: null | string;
 };
 
@@ -609,7 +618,18 @@ export type AgentIntent =
       confidence?: number;
       intent: "query_timeline";
       reply?: string;
+    }
+  | {
+      args: ConversationalAnswerArgs;
+      confidence?: number;
+      intent: ConversationalIntentName;
+      reply?: string;
     };
+
+export type ReadOnlyAgentIntent = Extract<
+  AgentIntent,
+  { intent: "answer_question" | "capability_query" | "clarify" | "evaluate_plan" | "query_checklist_progress" | "query_memory" | "query_plan" | "query_plan_progress" | "query_progress" | "query_schedule" | "query_timeline" | ConversationalIntentName }
+>;
 
 export type AgentEngine = "glm" | "heuristic" | "model" | "openai" | "openai-compatible" | "workflow" | "zai";
 
@@ -633,6 +653,10 @@ export type AgentChatResponse = {
   lastRollbackPayload?: unknown;
   pendingAction: null | PendingAction;
   trace?: AgentTraceStep[];
+  /** 结构化回合审计（Router / Policy / Tools）。 */
+  turnAudit?: import("./trace/agent-turn-trace").AgentTurnTrace;
+  /** 性能追踪数据（开启 AGENT_PERF_TRACE=1 时填充）。 */
+  perfTrace?: import("./trace/perf-trace").AgentPerformanceTrace | import("./trace/perf-trace").AgentPerformanceTraceSummary;
   threadId?: number;
   tokenUsage?: AgentTokenUsage;
   /** 客户端或服务端生成的幂等回合标识。 */
@@ -1202,6 +1226,7 @@ export const parseProposedAgentAction = (value: unknown): null | ProposedAgentAc
     ...("rollbackPayload" in value ? { rollbackPayload: value.rollbackPayload } : {}),
     summary,
     ...(typeof value.toolName === "string" ? { toolName: value.toolName } : {}),
+    ...(typeof value.capability === "string" ? { capability: value.capability } : {}),
   };
 };
 
@@ -1692,8 +1717,45 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         reply,
       };
     }
-    default:
-      return null;
+    default: {
+      if (!(CONVERSATIONAL_INTENT_NAMES as readonly string[]).includes(value.intent)) {
+        return null;
+      }
+
+      const answer = getRequiredString(value.args.answer) ?? reply;
+      const topic = getRequiredString(value.args.topic);
+
+      if (!answer || !topic) {
+        return null;
+      }
+
+      const learningContext = isRecord(value.args.learningContext)
+        ? {
+            originalMessage: getRequiredString(value.args.learningContext.originalMessage) ?? "",
+            subject: getRequiredString(value.args.learningContext.subject) ?? topic,
+          }
+        : null;
+
+      return {
+        args: {
+          answer,
+          learningContext:
+            learningContext?.originalMessage && learningContext.subject ? learningContext : null,
+          requiresConfirmation: false,
+          riskLevel: "none" as const,
+          suggestAction: getOptionalString(value.args.suggestAction) ?? null,
+          target:
+            value.args.target === "last_topic" || typeof value.args.target === "string"
+              ? (value.args.target as ConversationalAnswerArgs["target"])
+              : "last_topic",
+          topic,
+          writeRequired: false,
+        },
+        confidence,
+        intent: value.intent as ConversationalIntentName,
+        reply,
+      };
+    }
   }
 };
 

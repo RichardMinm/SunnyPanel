@@ -7,6 +7,7 @@ import {
   type PendingAction,
 } from "../schemas";
 import type { HeuristicCandidate } from "./heuristics";
+import { parseDefinitionQuestionIntent } from "./heuristics/knowledge";
 import {
   isCancellationReply,
   isGeneralConsultationQuestion,
@@ -14,6 +15,10 @@ import {
   isNegativeReply,
   parseKnowledgeAnswerIntent,
 } from "./heuristics";
+import { routeFollowUpIntent } from "../conversation/follow-up-router";
+import type { AgentConversationState } from "../conversation/types";
+import { isConversationalIntent } from "../schemas";
+import { AGENT_WRITE_INTENTS } from "./write-intents";
 import { isRecord } from "@/lib/shared/is-record";
 
 export type AgentRouteClass =
@@ -52,6 +57,7 @@ export type AgentArbitrationDecision = {
 
 export type AgentArbitrationInput = {
   context: AgentPromptContext;
+  conversationState?: AgentConversationState | null;
   heuristicCandidates: HeuristicCandidate[];
   history: AgentChatMessage[];
   message: string;
@@ -60,20 +66,7 @@ export type AgentArbitrationInput = {
   pendingAction: PendingAction | null;
 };
 
-const WRITE_INTENTS = new Set<AgentIntent["intent"]>([
-  "add_completion_note",
-  "append_plan_item",
-  "cancel_schedule_item",
-  "complete_plan_item",
-  "compose_plan",
-  "compose_schedule_item",
-  "compose_timeline_event",
-  "create_plan",
-  "reschedule_item",
-  "save_memory",
-  "schedule_plan",
-  "weekly_review",
-]);
+const WRITE_INTENTS = AGENT_WRITE_INTENTS;
 
 const explicitWritePattern =
   /(创建|新建|保存|记住|写入|添加|新增|追加|补充计划项|补一个条目|新增条目|添加条目|标记|完成了|做完了|学完了|补时间线|时间线节点|Timeline 节点|timeline 节点|compose_timeline_event|安排到|排进|排入|加入日程|创建日程|生成日程|确认执行|执行一下|(?:制定|生成|创建|做成|拆成|拆分|拆解).{0,8}(计划|清单|草稿|日程)|计划草稿|学习计划|复习计划|复习清单|学习清单|本周回顾|周报)/;
@@ -105,6 +98,10 @@ const isWeeklyReviewWrite = (intent: Extract<AgentIntent, { intent: "weekly_revi
   intent.args.persistReview !== false;
 
 export const intentRequiresWrite = (intent: AgentIntent): boolean => {
+  if (isConversationalIntent(intent.intent)) {
+    return false;
+  }
+
   if (intent.intent === "weekly_review") {
     return isWeeklyReviewWrite(intent);
   }
@@ -217,7 +214,24 @@ const bestCandidateIntent = (candidates: HeuristicCandidate[]) => candidates[0]?
 const bestAnswerCandidate = (candidates: HeuristicCandidate[]) =>
   candidates.find((candidate) => candidate.intent.intent === "answer_question")?.intent ?? null;
 
-const buildAnswerIntent = (message: string, candidates: HeuristicCandidate[], fallbackTopic?: string) => {
+const buildAnswerIntent = (
+  message: string,
+  candidates: HeuristicCandidate[],
+  input?: Pick<AgentArbitrationInput, "conversationState" | "history">,
+  fallbackTopic?: string,
+) => {
+  const followUpIntent = input
+    ? routeFollowUpIntent({
+        conversationState: input.conversationState,
+        history: input.history,
+        message,
+      })
+    : null;
+
+  if (followUpIntent) {
+    return followUpIntent;
+  }
+
   const deterministic = parseKnowledgeAnswerIntent(message) ?? (fallbackTopic ? parseKnowledgeAnswerIntent(`${fallbackTopic}学习路径`) : null);
 
   return deterministic ?? bestAnswerCandidate(candidates);
@@ -312,6 +326,19 @@ const arbitratePendingAction = (
     };
   }
 
+  if (pendingAction.type === "await_learning_followup") {
+    const definitionIntent = parseDefinitionQuestionIntent(message);
+
+    if (definitionIntent?.intent === "answer_question" && definitionIntent.args.openDomainTopic) {
+      return directAnswerDecision({
+        confidence: definitionIntent.confidence,
+        intent: definitionIntent,
+        pendingPolicy: "start_new_intent",
+        reason: "用户提出了新的开放域定义问题，不再续接上一轮学习跟进。",
+      });
+    }
+  }
+
   if (pendingAction.type === "await_learning_followup" && directPathCorrectionPattern.test(message)) {
     const answerIntent = answerFromPendingLearningContext(pendingAction);
 
@@ -391,16 +418,45 @@ export const arbitrateAgentIntent = async (
   const modelDecision = input.modelDecision ?? null;
   const modelIntent = modelDecision?.intent ?? input.modelIntent ?? null;
   const candidateIntent = bestCandidateIntent(input.heuristicCandidates);
-  const answerIntent = buildAnswerIntent(input.message, input.heuristicCandidates);
-  const preferredIntent = modelIntent ?? candidateIntent ?? createClarifyIntent(
-    "我还没理解你要我回答问题、生成建议，还是执行系统操作。你可以换一种说法再描述一次。",
-  );
+  const answerIntent = buildAnswerIntent(input.message, input.heuristicCandidates, input);
+  const followUpIntent = routeFollowUpIntent({
+    conversationState: input.conversationState,
+    history: input.history,
+    message: input.message,
+  });
+  const preferredIntent =
+    modelIntent ??
+    followUpIntent ??
+    candidateIntent ??
+    createClarifyIntent(
+      "我还没理解你要我回答问题、生成建议，还是执行系统操作。你可以换一种说法再描述一次。",
+    );
 
   if (modelDecision && !intentRequiresWrite(modelDecision.intent)) {
+    const definitionIntent = parseDefinitionQuestionIntent(input.message);
+    let intent = modelDecision.intent;
+
+    if (
+      definitionIntent?.intent === "answer_question" &&
+      definitionIntent.args.openDomainTopic &&
+      intent.intent === "answer_question" &&
+      !intent.args.openDomainTopic &&
+      intent.args.answer.trim().length === 0
+    ) {
+      intent = {
+        ...intent,
+        args: {
+          ...intent.args,
+          openDomainTopic: definitionIntent.args.openDomainTopic,
+        },
+      };
+    }
+
     return {
       ...modelDecision,
+      intent,
       writeSafety: assessWriteSafety({
-        intent: modelDecision.intent,
+        intent,
         message: input.message,
       }),
     };
@@ -422,6 +478,21 @@ export const arbitrateAgentIntent = async (
   }
 
   if (preferredIntent.intent === "clarify") {
+    const retryFollowUp = routeFollowUpIntent({
+      conversationState: input.conversationState,
+      history: input.history,
+      message: input.message,
+    });
+
+    if (retryFollowUp) {
+      return directAnswerDecision({
+        confidence: confidenceOf(retryFollowUp) || 0.92,
+        intent: retryFollowUp,
+        pendingPolicy: "start_new_intent",
+        reason: `存在可继承主题，追问命中 ${retryFollowUp.intent}，不进入 clarify。`,
+      });
+    }
+
     return directAnswerDecision({
       confidence: confidenceOf(preferredIntent) || 0.6,
       intent: preferredIntent,

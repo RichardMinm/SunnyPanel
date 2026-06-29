@@ -106,6 +106,17 @@ describe("P2-3: DashboardPageClient triggers suggestion sync after mount", () =>
     assert.match(source, /\.catch/);
   });
 
+  test("Suggestion sync has deduplication (in-flight ref)", () => {
+    assert.match(source, /syncInFlightRef/);
+    assert.match(source, /syncInFlightRef\.current/);
+  });
+
+  test("Suggestion sync has cooldown (sessionStorage)", () => {
+    assert.match(source, /sessionStorage/);
+    assert.match(source, /sunny-suggestion-sync-last/);
+    assert.match(source, /COOLDOWN_MS/);
+  });
+
   test("DashboardPageClient does NOT import suggestion functions", () => {
     assert.doesNotMatch(source, /getPendingAgentSuggestions/);
     assert.doesNotMatch(source, /syncAgentSuggestionsFromWorkspaceSnapshot/);

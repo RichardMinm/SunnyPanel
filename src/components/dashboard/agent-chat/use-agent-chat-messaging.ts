@@ -17,6 +17,7 @@ import type {
   AgentTraceStep,
   PendingAction,
 } from "@/lib/agent/schemas";
+import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type {
   AgentStreamChangeEvent,
   AgentStreamProgressEvent,
@@ -64,6 +65,7 @@ type UseAgentChatMessagingOptions = {
   setThreadId: (id: number | null) => void;
   setTokenUsage: Dispatch<SetStateAction<AgentTokenUsage>>;
   setTraceSteps: Dispatch<SetStateAction<AgentTraceStep[]>>;
+  setTurnAudit: Dispatch<SetStateAction<AgentTurnTrace | null>>;
   threadId: number | null;
   lastRollbackPayload: unknown | null;
   workbenchMode: AgentWorkbenchMode;
@@ -97,6 +99,7 @@ export function useAgentChatMessaging({
   setThreadId,
   setTokenUsage,
   setTraceSteps,
+  setTurnAudit,
   threadId,
   workbenchMode,
 }: UseAgentChatMessagingOptions) {
@@ -195,6 +198,7 @@ export function useAgentChatMessaging({
       options?: {
         confirmation?: {
           actionId: string;
+          capability?: string;
           type: "cancel" | "confirm";
         };
       },
@@ -220,6 +224,7 @@ export function useAgentChatMessaging({
       setStatusText("正在让 Agent 解析并执行...");
       setStreamingState("thinking");
       setTraceSteps([]);
+      setTurnAudit(null);
       setStreamStages([]);
       setStreamProgress([]);
       setStreamChanges([]);
@@ -307,6 +312,9 @@ export function useAgentChatMessaging({
           typeof responseData.assistantMessage === "string" ? responseData.assistantMessage : null;
 
         if (!response.ok || !assistantMessage) {
+          // #region agent log
+          fetch('http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'961715'},body:JSON.stringify({sessionId:'961715',location:'use-agent-chat-messaging.ts:empty-response',message:'chat response rejected',data:{responseOk:response.ok,assistantMessageLen:assistantMessage?.length??null,isStreaming:isStreamingResponse,status:response.status},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+          // #endregion
           throw new Error(assistantMessage || "Agent 暂时没有返回可用结果。");
         }
 
@@ -327,6 +335,7 @@ export function useAgentChatMessaging({
             : null,
         );
         setTraceSteps(responseData.trace ?? []);
+        setTurnAudit(responseData.turnAudit ?? null);
         setThreadId(typeof responseData.threadId === "number" ? responseData.threadId : threadId);
         if (responseData.pendingAction) {
           setActiveInspectorTab("approval");
@@ -409,6 +418,7 @@ export function useAgentChatMessaging({
       setThreadId,
       setTokenUsage,
       setTraceSteps,
+      setTurnAudit,
       threadId,
       workbenchMode,
       upsertTraceStep,
@@ -431,6 +441,7 @@ export function useAgentChatMessaging({
       void sendMessage("取消", {
         confirmation: {
           actionId: action.id,
+          ...(action.capability ? { capability: action.capability } : {}),
           type: "cancel",
         },
       });
@@ -453,6 +464,7 @@ export function useAgentChatMessaging({
     setIsSubmitting(false);
     setStreamingState("idle");
     setTraceSteps([]);
+    setTurnAudit(null);
     setStreamStages([]);
     setStreamProgress([]);
     setStreamChanges([]);
@@ -485,6 +497,7 @@ export function useAgentChatMessaging({
     setThreadId,
     setTokenUsage,
     setTraceSteps,
+    setTurnAudit,
   ]);
 
   const confirmApproval = useCallback(() => {
@@ -494,6 +507,7 @@ export function useAgentChatMessaging({
       void sendMessage("确认", {
         confirmation: {
           actionId: action.id,
+          ...(action.capability ? { capability: action.capability } : {}),
           type: "confirm",
         },
       });
@@ -511,6 +525,7 @@ export function useAgentChatMessaging({
       void sendMessage("取消", {
         confirmation: {
           actionId: action.id,
+          ...(action.capability ? { capability: action.capability } : {}),
           type: "cancel",
         },
       });

@@ -47,10 +47,10 @@
     --color-warning-500: var(--payload-warning-500);
 
     --theme-border-color: var(--border);
-    --theme-input-bg: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    --theme-input-bg: color-mix(in oklch, var(--surface-strong) 88%, transparent);
     --theme-bg: var(--background);
     --theme-text: var(--foreground);
-    --theme-overlay: color-mix(in srgb, var(--foreground) 28%, transparent);
+    --theme-overlay: color-mix(in oklch, var(--foreground) 28%, transparent);
 
     --style-radius-s: var(--radius-control);
     --style-radius-m: var(--radius-chrome);
@@ -58,29 +58,29 @@
   }
 
   html[data-theme="dark"] {
-    --color-base-0: color-mix(in srgb, var(--foreground) 96%, white);
-    --color-base-50: color-mix(in srgb, var(--foreground) 90%, white);
-    --color-base-100: color-mix(in srgb, var(--foreground) 82%, white);
-    --color-base-150: color-mix(in srgb, var(--foreground) 74%, white);
-    --color-base-200: color-mix(in srgb, var(--foreground) 66%, white);
-    --color-base-250: color-mix(in srgb, var(--muted) 88%, var(--foreground));
-    --color-base-300: color-mix(in srgb, var(--muted) 76%, var(--foreground));
-    --color-base-350: color-mix(in srgb, var(--muted) 68%, var(--foreground));
-    --color-base-400: color-mix(in srgb, var(--muted) 58%, var(--foreground));
-    --color-base-450: color-mix(in srgb, var(--muted) 48%, var(--background));
-    --color-base-500: color-mix(in srgb, var(--muted) 38%, var(--background));
-    --color-base-550: color-mix(in srgb, var(--muted) 30%, var(--background));
-    --color-base-600: color-mix(in srgb, var(--muted) 22%, var(--background));
-    --color-base-650: color-mix(in srgb, var(--border) 55%, var(--background));
-    --color-base-700: color-mix(in srgb, var(--border) 72%, var(--background));
-    --color-base-750: color-mix(in srgb, var(--surface) 82%, var(--background));
-    --color-base-800: color-mix(in srgb, var(--surface) 90%, var(--background));
-    --color-base-850: color-mix(in srgb, var(--surface-strong) 88%, var(--background));
-    --color-base-900: color-mix(in srgb, var(--background) 88%, black);
-    --color-base-950: color-mix(in srgb, var(--background) 94%, black);
-    --color-base-1000: color-mix(in srgb, var(--background) 98%, black);
+    --color-base-0: color-mix(in oklch, var(--foreground) 96%, white);
+    --color-base-50: color-mix(in oklch, var(--foreground) 90%, white);
+    --color-base-100: color-mix(in oklch, var(--foreground) 82%, white);
+    --color-base-150: color-mix(in oklch, var(--foreground) 74%, white);
+    --color-base-200: color-mix(in oklch, var(--foreground) 66%, white);
+    --color-base-250: color-mix(in oklch, var(--muted) 88%, var(--foreground));
+    --color-base-300: color-mix(in oklch, var(--muted) 76%, var(--foreground));
+    --color-base-350: color-mix(in oklch, var(--muted) 68%, var(--foreground));
+    --color-base-400: color-mix(in oklch, var(--muted) 58%, var(--foreground));
+    --color-base-450: color-mix(in oklch, var(--muted) 48%, var(--background));
+    --color-base-500: color-mix(in oklch, var(--muted) 38%, var(--background));
+    --color-base-550: color-mix(in oklch, var(--muted) 30%, var(--background));
+    --color-base-600: color-mix(in oklch, var(--muted) 22%, var(--background));
+    --color-base-650: color-mix(in oklch, var(--border) 55%, var(--background));
+    --color-base-700: color-mix(in oklch, var(--border) 72%, var(--background));
+    --color-base-750: color-mix(in oklch, var(--surface) 82%, var(--background));
+    --color-base-800: color-mix(in oklch, var(--surface) 90%, var(--background));
+    --color-base-850: color-mix(in oklch, var(--surface-strong) 88%, var(--background));
+    --color-base-900: color-mix(in oklch, var(--background) 88%, black);
+    --color-base-950: color-mix(in oklch, var(--background) 94%, black);
+    --color-base-1000: color-mix(in oklch, var(--background) 98%, black);
     --theme-border-color: var(--border);
-    --theme-input-bg: color-mix(in srgb, var(--surface) 82%, transparent);
+    --theme-input-bg: color-mix(in oklch, var(--surface) 82%, transparent);
     --theme-bg: var(--background);
     --theme-text: var(--foreground);
     --theme-overlay: var(--overlay-theme);

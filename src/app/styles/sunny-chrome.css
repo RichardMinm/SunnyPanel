@@ -17,22 +17,22 @@
 }
 
 .sunny-chrome-nav-link:hover {
-  background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 82%, transparent);
   color: var(--foreground);
   }
 
 html[data-theme="dark"] .sunny-chrome-nav-link:hover {
-  background: color-mix(in srgb, var(--surface-strong) 88%, var(--foreground) 4%);
+  background: color-mix(in oklch, var(--surface-strong) 88%, var(--foreground) 4%);
 }
 
 .sunny-chrome-nav-link.is-active {
-  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 92%, transparent);
   color: var(--foreground);
   box-shadow: inset 0 0 0 1px var(--accent-ring);
 }
 
 html[data-theme="dark"] .sunny-chrome-nav-link.is-active {
-  background: color-mix(in srgb, var(--surface-strong) 94%, var(--foreground) 5%);
+  background: color-mix(in oklch, var(--surface-strong) 94%, var(--foreground) 5%);
 }
 
 .sunny-chrome-workspace-link {
@@ -41,7 +41,7 @@ html[data-theme="dark"] .sunny-chrome-nav-link.is-active {
   min-height: var(--control-min-height);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 72%, transparent);
   padding: 0.35rem 0.75rem;
   color: var(--foreground);
   font-size: var(--text-sm);
@@ -52,21 +52,21 @@ html[data-theme="dark"] .sunny-chrome-nav-link.is-active {
 }
 
 .sunny-chrome-workspace-link:hover {
-    background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    background: color-mix(in oklch, var(--surface-strong) 88%, transparent);
 }
 
 html[data-theme="dark"] .sunny-chrome-workspace-link {
-  background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 82%, transparent);
 }
 
 .sunny-chrome-workspace-link.is-active {
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface-strong));
+  background: color-mix(in oklch, var(--accent) 14%, var(--surface-strong));
   box-shadow: inset 0 0 0 1px var(--accent-ring);
   color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-chrome-workspace-link.is-active {
-  background: color-mix(in srgb, var(--accent) 22%, var(--surface-strong));
+  background: color-mix(in oklch, var(--accent) 22%, var(--surface-strong));
 }
 
 .sunny-chrome-section-label {
@@ -98,7 +98,7 @@ html[data-theme="dark"] .sunny-chrome-panel {
   align-items: center;
   justify-content: center;
   min-height: var(--control-min-height);
-  border: 1px solid color-mix(in srgb, var(--accent-strong) 18%, transparent);
+  border: 1px solid color-mix(in oklch, var(--accent-strong) 18%, transparent);
   border-radius: var(--radius-control);
   background: var(--accent);
   padding: 0.45rem 0.85rem;
@@ -123,7 +123,7 @@ html[data-theme="dark"] .sunny-chrome-panel {
   min-height: var(--control-min-height);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  background: color-mix(in oklch, var(--surface-strong) 72%, transparent);
   padding: 0.45rem 0.85rem;
   color: var(--foreground);
   font-size: var(--text-sm);
@@ -134,7 +134,7 @@ html[data-theme="dark"] .sunny-chrome-panel {
 }
 
 .sunny-chrome-control-secondary:hover {
-    background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+    background: color-mix(in oklch, var(--surface-strong) 88%, transparent);
 }
 
 .sunny-chrome-badge {

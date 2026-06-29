@@ -46,17 +46,9 @@ const SCHEDULE_INTENTS = new Set([
   "schedule_plan",
 ]);
 
-const WRITE_INTENTS = new Set([
-  "compose_plan",
-  "create_plan",
-  "append_plan_item",
-  "complete_plan_item",
-  "add_completion_note",
-  "save_memory",
-  "weekly_review",
-  "compose_timeline_event",
-  "cancel_schedule_item",
-]);
+import { ORCHESTRATION_WRITE_INTENTS } from "../intent/write-intents";
+
+const WRITE_INTENTS = ORCHESTRATION_WRITE_INTENTS;
 
 const getCollectionForIntent = (intent: string): string | null => {
   if (intent === "compose_plan" || intent === "create_plan" || intent === "append_plan_item" ||

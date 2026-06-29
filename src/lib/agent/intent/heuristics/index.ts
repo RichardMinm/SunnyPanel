@@ -12,6 +12,7 @@ export {
   isGeneralConsultationQuestion,
   isLearningAdviceQuestion,
   isMathTwoSyllabusQuestion,
+  parseDefinitionQuestionIntent,
   parseKnowledgeAnswerIntent,
 } from "./knowledge";
 export { collectHeuristicCandidates, parseHeuristicIntent } from "./parse-heuristic-intent";

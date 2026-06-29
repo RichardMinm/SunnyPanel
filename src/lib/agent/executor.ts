@@ -232,6 +232,13 @@ export const executeAgentIntent = async (
     case "capability_query":
     case "query_memory":
     case "answer_question":
+    case "explain_concept":
+    case "expand_answer":
+    case "give_examples":
+    case "compare_concepts":
+    case "give_learning_path":
+    case "summarize_answer":
+    case "rewrite_answer":
       onTrace?.({
         detail: intent.args.suggestAction ?? "这轮只生成回答，不写入计划、清单或审计数据。",
         id: "workflow-answer-question",
@@ -240,13 +247,21 @@ export const executeAgentIntent = async (
         title: "已切换到直接回答流程",
       });
 
+      const resolvedMessage = (intent.reply ?? intent.args.answer)?.trim();
+      const openTopic =
+        intent.intent === "answer_question" ? intent.args.openDomainTopic : undefined;
+
       return {
-        assistantMessage: intent.reply ?? intent.args.answer,
+        assistantMessage:
+          resolvedMessage ||
+          (openTopic
+            ? `关于「${openTopic}」：我暂时无法连接回答模型，请检查 Agent 设置中的 API Key 与模型配置后重试。`
+            : "我暂时无法生成回答，请检查 Agent 设置中的 API Key 与模型配置后重试。"),
         pendingAction: intent.args.learningContext
           ? {
               originalMessage: intent.args.learningContext.originalMessage,
-              profile: intent.args.learningContext.profile,
-              requestedAction: intent.args.learningContext.requestedAction,
+              profile: "profile" in intent.args.learningContext ? intent.args.learningContext.profile : undefined,
+              requestedAction: "requestedAction" in intent.args.learningContext ? intent.args.learningContext.requestedAction : undefined,
               subject: intent.args.learningContext.subject,
               type: "await_learning_followup",
             }

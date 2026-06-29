@@ -53,6 +53,14 @@ export type AgentStreamController = {
   start: (stage: AgentStreamStageSeed) => void;
 };
 
+/* ──── Perf events (diagnostic timing) ──── */
+
+export type AgentStreamPerfEvent = {
+  event: "first_byte" | "phase_complete" | "server_first_token" | "stream_start";
+  ms: number;
+  phase?: string;
+};
+
 const noop = () => undefined;
 
 export const noopAgentStreamEmitters: AgentStreamEmitters = {

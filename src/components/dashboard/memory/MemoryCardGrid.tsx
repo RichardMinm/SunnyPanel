@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AppSearchInput } from "@/components/primitives/AppSearchInput";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
 
 type MemorySummary = {
@@ -144,9 +145,9 @@ export function MemoryCardGrid({ onBackToWorkbench }: MemoryCardGridProps) {
           ← 返回工作台
         </button>
         <div className="sunny-memory-toolbar">
-          <input
-            type="text"
+          <AppSearchInput
             className="sunny-memory-search"
+            onClear={() => handleQueryChange("")}
             placeholder="搜索记忆标题..."
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}

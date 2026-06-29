@@ -62,6 +62,7 @@ const READ_TOOLS = [
   "search_checklists", "list_checklists", "get_checklist",
   "search_timeline", "list_timeline_events", "get_timeline_event",
   "search_memory", "list_memories", "get_memory",
+  "query_progress", "query_plan_progress", "evaluate_plan", "answer_question", "capability_query",
 ];
 
 const WRITE_TOOLS = [
@@ -71,6 +72,10 @@ const WRITE_TOOLS = [
   "create_timeline_event", "delete_timeline_event", "update_timeline_event",
   "create_memory", "update_memory", "delete_memory",
   "dry_run",
+  "compose_plan", "compose_schedule_item", "compose_timeline_event",
+  "append_plan_item", "complete_plan_item", "add_completion_note",
+  "save_memory", "schedule_plan", "reschedule_item", "cancel_schedule_item",
+  "delete_record", "modify_record", "weekly_review",
 ];
 
 function hasWriteTool(tools: string[]): boolean {

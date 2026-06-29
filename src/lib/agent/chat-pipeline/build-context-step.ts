@@ -10,6 +10,7 @@ import type { AgentPromptThreadSummary } from "@/lib/agent/thread-summary";
 import { createTokenUsageSnapshot, estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import { getAgentWorkspaceContextSource } from "@/lib/payload/workspace";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
+import type { SectionName, ScheduleDateRange, ContextLoadingMeta } from "@/lib/agent/context-loading-policy";
 
 export type BuildContextStepParams = {
   baseTokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -17,6 +18,12 @@ export type BuildContextStepParams = {
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void;
+  /** Sections to load (default: all). null/empty → full load via loadWorkspaceCore. */
+  loadingSections?: Set<SectionName> | null;
+  /** Date range for schedules section */
+  dateRange?: ScheduleDateRange;
+  /** Target document for writing_revision */
+  targetDocument?: { entityType: string; entityId: number | string };
   message: string;
   payload: Payload;
   pendingAction: null | PendingAction;
@@ -44,6 +51,9 @@ export const runBuildContextStep = async ({
   emitStatus,
   emitToken,
   emitUsage,
+  loadingSections = null,
+  dateRange,
+  targetDocument,
   message,
   payload,
   pendingAction,
@@ -68,6 +78,9 @@ export const runBuildContextStep = async ({
   });
   const contextSource = await getAgentWorkspaceContextSource({
     budget: DEFAULT_AGENT_CONTEXT_BUDGET,
+    sections: loadingSections,
+    dateRange,
+    targetDocument,
     payload,
   });
   const baseContext = buildAgentContext({

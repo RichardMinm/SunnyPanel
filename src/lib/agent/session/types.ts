@@ -88,6 +88,7 @@ export type AgentSessionState = {
   conversation: {
     lastTopic?: string | null;
     lastAnswerDepth?: "brief" | "expanded" | "detailed";
+    lastAssistantAnswerSummary?: string | null;
     lastMentionedEntities?: string[];
     lastUserIntent?: string;
   };

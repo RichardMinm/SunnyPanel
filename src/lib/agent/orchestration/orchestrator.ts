@@ -107,6 +107,7 @@ const heuristicToPlan = (message: string): OrchestratorPlan => {
   return {
     mode: "single",
     reasoning: "启发式单意图解析",
+    source: "heuristic",
     tasks: [
       {
         agentRole: inferAgentRole(intent.intent),
@@ -144,10 +145,14 @@ export const runOrchestrator = async (
 
   logAgentEvent("info", "orchestrator.completed", {
     mode: result.data.mode,
+    source: result.data.source ?? "llm",
     taskCount: result.data.tasks.length,
   });
 
-  return result.data;
+  return {
+    ...result.data,
+    source: result.data.source ?? "llm",
+  };
 };
 
 export const orchestratorPlanToIntent = (plan: OrchestratorPlan): AgentIntent | null => {

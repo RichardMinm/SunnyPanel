@@ -8,10 +8,10 @@
   --tw-prose-links: var(--accent-strong);
   --tw-prose-bold: var(--foreground);
   --tw-prose-counters: var(--muted);
-  --tw-prose-bullets: color-mix(in srgb, var(--accent) 70%, var(--foreground));
-  --tw-prose-hr: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --tw-prose-bullets: color-mix(in oklch, var(--accent) 70%, var(--foreground));
+  --tw-prose-hr: color-mix(in oklch, var(--foreground) 10%, transparent);
   --tw-prose-quotes: var(--foreground);
-  --tw-prose-quote-borders: color-mix(in srgb, var(--accent) 40%, var(--foreground));
+  --tw-prose-quote-borders: color-mix(in oklch, var(--accent) 40%, var(--foreground));
   max-width: none;
   color: var(--foreground);
   line-height: 1.9;
@@ -46,7 +46,7 @@
 
 .sunny-prose :where(blockquote) {
   border-left-width: 3px;
-  border-left-color: color-mix(in srgb, var(--accent) 45%, var(--foreground));
+  border-left-color: color-mix(in oklch, var(--accent) 45%, var(--foreground));
   background: var(--agent-control-bg);
   border-radius: 0 1.25rem 1.25rem 0;
   padding: 1rem 1.25rem;
@@ -68,7 +68,7 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
   overflow-x: auto;
   border-radius: 0.75rem;
   padding: 0.85rem 1rem;
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
 }
 
 .sunny-prose :where(code) {
@@ -93,10 +93,10 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
 }
 
 .sunny-rich-content-display :where(.sunny-rich-content-callout) {
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
-  border-left: 3px solid color-mix(in srgb, var(--accent) 48%, var(--border));
+  border: 1px solid color-mix(in oklch, var(--accent) 18%, var(--border));
+  border-left: 3px solid color-mix(in oklch, var(--accent) 48%, var(--border));
   border-radius: 0.5rem;
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface-strong));
+  background: color-mix(in oklch, var(--accent) 7%, var(--surface-strong));
   margin: 1.1rem 0;
   padding: 0.95rem 1rem;
 }
@@ -106,24 +106,24 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
 }
 
 .sunny-rich-content-display :where(.sunny-rich-content-callout[data-tone="info"]) {
-  border-left-color: color-mix(in srgb, var(--info) 55%, var(--border));
-  background: color-mix(in srgb, var(--info) 8%, var(--surface-strong));
+  border-left-color: color-mix(in oklch, var(--tone-info-text) 55%, var(--border));
+  background: color-mix(in oklch, var(--tone-info-bg) 50%, var(--surface-strong));
 }
 
 .sunny-rich-content-display :where(.sunny-rich-content-callout[data-tone="success"]) {
-  border-left-color: color-mix(in srgb, var(--success) 55%, var(--border));
-  background: color-mix(in srgb, var(--success) 8%, var(--surface-strong));
+  border-left-color: color-mix(in oklch, var(--success) 55%, var(--border));
+  background: color-mix(in oklch, var(--success) 8%, var(--surface-strong));
 }
 
 .sunny-rich-content-display :where(.sunny-rich-content-callout[data-tone="warning"]) {
-  border-left-color: color-mix(in srgb, var(--warning) 55%, var(--border));
-  background: color-mix(in srgb, var(--warning) 8%, var(--surface-strong));
+  border-left-color: color-mix(in oklch, var(--warning) 55%, var(--border));
+  background: color-mix(in oklch, var(--warning) 8%, var(--surface-strong));
 }
 
 .sunny-rich-content-display :where(.sunny-rich-content-code-block) {
   overflow: auto;
   border-radius: 0.65rem;
-  background: color-mix(in srgb, var(--foreground) 6%, var(--surface-strong));
+  background: color-mix(in oklch, var(--foreground) 6%, var(--surface-strong));
   padding: 0.95rem 1rem;
 }
 
@@ -143,7 +143,7 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
   width: 100%;
   max-width: 100%;
   border-radius: 0.65rem;
-  background: color-mix(in srgb, var(--foreground) 6%, var(--surface-strong));
+  background: color-mix(in oklch, var(--foreground) 6%, var(--surface-strong));
 }
 
 .sunny-rich-content-display :where(.sunny-rich-content-media-embed a) {
@@ -237,7 +237,7 @@ html[data-theme="dark"] .sunny-prose h1,
 html[data-theme="dark"] .sunny-prose h2,
 html[data-theme="dark"] .sunny-prose h3,
 html[data-theme="dark"] .sunny-prose h4 {
-  color: var(--background);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-prose a {

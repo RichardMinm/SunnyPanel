@@ -40,6 +40,7 @@ export type FullGraphOrchestrationOutcome =
       type: "compound";
     }
   | {
+      orchestratorPlanSource?: "heuristic" | "llm" | null;
       preResolvedIntent: AgentIntent | null;
       tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
       type: "continue";
@@ -111,6 +112,7 @@ export type FullSunnyAgentGraphDependencies = {
   resolveIntent: (args: {
     context: unknown;
     input: SunnyAgentGraphInput;
+    orchestratorPlanSource: "heuristic" | "llm" | null;
     preResolvedIntent: AgentIntent | null;
     tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   }) => Promise<FullGraphResolutionOutcome>;
@@ -131,6 +133,7 @@ type FullSunnyAgentGraphState = {
   dryRunData: Extract<FullGraphDryRunOutcome, { type: "continue" }> | null;
   failureMessage: null | string;
   input: SunnyAgentGraphInput;
+  orchestratorPlanSource: "heuristic" | "llm" | null;
   preResolvedIntent: AgentIntent | null;
   resolution: SunnyAgentGraphResolution | null;
   resolutionData: Extract<
@@ -154,6 +157,9 @@ const StateAnnotation = Annotation.Root({
   dryRunData: Annotation<FullSunnyAgentGraphState["dryRunData"]>,
   failureMessage: Annotation<FullSunnyAgentGraphState["failureMessage"]>,
   input: Annotation<FullSunnyAgentGraphState["input"]>,
+  orchestratorPlanSource: Annotation<
+    FullSunnyAgentGraphState["orchestratorPlanSource"]
+  >,
   preResolvedIntent: Annotation<
     FullSunnyAgentGraphState["preResolvedIntent"]
   >,
@@ -237,6 +243,7 @@ export const compileFullSunnyAgentGraph = (
         }
 
         return {
+          orchestratorPlanSource: result.orchestratorPlanSource ?? null,
           preResolvedIntent: result.preResolvedIntent,
           tokenUsage: result.tokenUsage,
         };
@@ -287,6 +294,7 @@ export const compileFullSunnyAgentGraph = (
         const result = await dependencies.resolveIntent({
           context: state.context,
           input: state.input,
+          orchestratorPlanSource: state.orchestratorPlanSource,
           preResolvedIntent: state.preResolvedIntent,
           tokenUsage: state.tokenUsage,
         });
@@ -426,6 +434,7 @@ export const compileFullSunnyAgentGraph = (
           structuredConfirmation: resume.structuredConfirmation,
           turnId: resume.turnId,
         },
+        orchestratorPlanSource: null,
         preResolvedIntent: null,
         resolution: null,
         resolutionData: null,

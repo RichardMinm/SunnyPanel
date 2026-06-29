@@ -202,6 +202,49 @@ describe("Confirmation pipeline step", () => {
     assert.equal(resolveAwaitConfirmationBranch(pending, signals), "cancel");
   });
 
+  test("state machine: high risk pending ignores natural language confirm", () => {
+    const pending: Extract<PendingAction, { type: "await_confirmation" }> = {
+      action: {
+        args: { entityName: "测试", entityType: "plan" },
+        changes: [{ collection: "plans", operation: "delete", preview: "删除" }],
+        id: "del-1",
+        intent: "delete_record",
+        riskLevel: "high",
+        summary: "删除计划",
+      } as ProposedAgentAction,
+      type: "await_confirmation",
+    };
+    const signals = resolveConfirmationSignals({
+      confirmation: null,
+      message: "确认",
+      pendingAction: pending,
+    });
+
+    assert.equal(signals.confirm, false);
+    assert.equal(resolveAwaitConfirmationBranch(pending, signals), "still_waiting");
+  });
+
+  test("state machine: structured confirm works for high risk delete", () => {
+    const pending: Extract<PendingAction, { type: "await_confirmation" }> = {
+      action: {
+        args: { entityName: "测试", entityType: "plan" },
+        changes: [{ collection: "plans", operation: "delete", preview: "删除" }],
+        id: "del-1",
+        intent: "delete_record",
+        riskLevel: "high",
+        summary: "删除计划",
+      } as ProposedAgentAction,
+      type: "await_confirmation",
+    };
+    const signals = resolveConfirmationSignals({
+      confirmation: { actionId: "del-1", type: "confirm" },
+      message: "",
+      pendingAction: pending,
+    });
+
+    assert.equal(signals.confirm, true);
+  });
+
   test("state machine: explicit 确认 yields confirmed branch", () => {
     const pending = makePending("act-1");
     const signals = resolveConfirmationSignals({

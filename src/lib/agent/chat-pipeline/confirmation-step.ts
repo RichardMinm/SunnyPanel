@@ -6,6 +6,7 @@ import { isRecord } from "@/lib/shared/is-record";
 
 export type StructuredConfirmation = {
   actionId: string;
+  capability?: string;
   batch?: boolean;
   type: "cancel" | "confirm";
 };
@@ -26,6 +27,9 @@ export const parseStructuredConfirmation = (body: Record<string, unknown>): null
 
   return {
     actionId,
+    ...(typeof raw.capability === "string" && raw.capability.trim()
+      ? { capability: raw.capability.trim() }
+      : {}),
     ...(raw.batch === true ? { batch: true as const } : {}),
     type,
   };
@@ -105,6 +109,9 @@ export const resolveConfirmationSignals = ({
     };
   }
 
+  const requiresStructuredConfirm =
+    pendingAction.action.riskLevel === "high" || pendingAction.action.intent === "delete_record";
+
   if (confirmation) {
     if (confirmationMatchesPending(pendingAction, confirmation)) {
       return {
@@ -112,6 +119,13 @@ export const resolveConfirmationSignals = ({
         confirm: confirmation.type === "confirm",
       };
     }
+  }
+
+  if (requiresStructuredConfirm) {
+    return {
+      cancel: isCancellationReply(message),
+      confirm: false,
+    };
   }
 
   return {
