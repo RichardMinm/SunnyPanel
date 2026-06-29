@@ -10,7 +10,7 @@ import type { AgentPromptThreadSummary } from "@/lib/agent/thread-summary";
 import { createTokenUsageSnapshot, estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import { getAgentWorkspaceContextSource } from "@/lib/payload/workspace";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
-import type { SectionName, ScheduleDateRange, ContextLoadingMeta } from "@/lib/agent/context-loading-policy";
+import type { SectionName, ScheduleDateRange } from "@/lib/agent/context-loading-policy";
 
 export type BuildContextStepParams = {
   baseTokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;

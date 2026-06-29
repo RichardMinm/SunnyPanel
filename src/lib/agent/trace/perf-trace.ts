@@ -206,7 +206,7 @@ export const createPerformanceTimer = (requestId: string) => {
   const toolCalls: ToolCallRecord[] = [];
   const topLevelPhases: TopLevelPhaseSummary[] = [];
 
-  let firstToken: FirstTokenTiming = {};
+  const firstToken: FirstTokenTiming = {};
 
   // ── Phase timing ──
 
@@ -216,7 +216,7 @@ export const createPerformanceTimer = (requestId: string) => {
   };
 
   /** End timing a phase. Returns duration in ms, or 0 if phase was never started. */
-  const endPhase = (name: string, success = true, _error?: string): number => {
+  const endPhase = (name: string, _success = true, _error?: string): number => {
     const start = phaseStarts.get(name);
     if (start === undefined) return 0;
     phaseStarts.delete(name);

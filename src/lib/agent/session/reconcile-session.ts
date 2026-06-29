@@ -15,7 +15,7 @@
  *   - When RouteHint conflicts with finalIntent, finalIntent wins
  */
 
-import type { AgentSessionState, CurrentTarget, DialogueStage, SemanticDomain, WorkflowId } from "./types";
+import type { AgentSessionState, DialogueStage, SemanticDomain, WorkflowId } from "./types";
 
 /* ──── Intent extraction helpers ──── */
 
@@ -100,7 +100,7 @@ export type ReconcileInput = {
 export const reconcileSessionAfterRoute = (
   input: ReconcileInput,
 ): AgentSessionState => {
-  const { session, finalIntent, assistantResponseSummary, toolResultSummary } = input;
+  const { session, finalIntent, assistantResponseSummary } = input;
 
   // Deep clone — never mutate the input
   const next = structuredClone(session) as AgentSessionState;

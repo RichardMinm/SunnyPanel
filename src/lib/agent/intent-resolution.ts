@@ -1,5 +1,6 @@
 import type { AgentPromptContext } from "./prompts";
 import { appendFileSync } from "node:fs";
+import { getAgentDebugLogPath } from "./debug-log";
 import {
   cleanupText,
   extractConsultationTopic,
@@ -824,7 +825,7 @@ export const resolveAgentIntent = async ({
       if (process.env.AGENT_DEBUG_LOG) {
         try {
           appendFileSync(
-            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            getAgentDebugLogPath(),
             `${JSON.stringify({
               sessionId: "961715",
               location: "intent-resolution.ts:learning-followup-override",

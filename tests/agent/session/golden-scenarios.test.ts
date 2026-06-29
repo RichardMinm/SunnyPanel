@@ -78,7 +78,12 @@ const makeLLM = (output: string): TransitionLLMCall => {
 };
 
 /** Simulate Router returning a given intent with optional topic in args. */
-const routerResult = (intent: string, route = "answer" as const, reason = "golden test", args?: Record<string, unknown>): RouterArbitrationResult => ({
+const routerResult = (
+  intent: string,
+  route: RouterArbitrationResult["route"] = "answer",
+  reason = "golden test",
+  args?: Record<string, unknown>,
+): RouterArbitrationResult => ({
   intent: { intent, ...(args ? { args } : {}) },
   route,
   reason,

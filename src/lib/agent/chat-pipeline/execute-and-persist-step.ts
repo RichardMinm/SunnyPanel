@@ -1,5 +1,6 @@
 import { appendFileSync } from "node:fs";
 
+import { getAgentDebugLogPath } from "@/lib/agent/debug-log";
 import { executeAgentIntent, executeAgentIntentsTransactional } from "@/lib/agent/executor";
 import type { IntentResolution } from "@/lib/agent/chat-pipeline/resolve-intent-step";
 import type { StructuredConfirmation } from "@/lib/agent/chat-pipeline/confirmation-step";
@@ -99,7 +100,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   if (process.env.AGENT_DEBUG_LOG) {
     try {
       appendFileSync(
-        "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+        getAgentDebugLogPath(),
         `${JSON.stringify({
           sessionId: "961715",
           location: "execute-and-persist-step.ts:entry",
@@ -408,7 +409,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   if (process.env.AGENT_DEBUG_LOG) {
     try {
       appendFileSync(
-        "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+        getAgentDebugLogPath(),
         `${JSON.stringify({
           sessionId: "961715",
           location: "execute-and-persist-step.ts:assistantMessage",
@@ -435,7 +436,6 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     } catch {
       // ignore debug log failures
     }
-    fetch('http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'961715'},body:JSON.stringify({sessionId:'961715',location:'execute-and-persist-step.ts:assistantMessage',message:'final assistant message',data:{isDirectAnswer,intent:resolution.intent.intent,openDomainTopic:resolution.intent.intent==='answer_question'?resolution.intent.args.openDomainTopic:null,replyLen:resolution.intent.reply?.length??null,answerLen:resolution.intent.intent==='answer_question'?resolution.intent.args.answer.length:null,assistantMessageLen:assistantMessage?.length??0},timestamp:Date.now(),hypothesisId:'H3-H4'})}).catch(()=>{});
   }
   // #endregion
   if (!isDirectAnswer && assistantMessage) {

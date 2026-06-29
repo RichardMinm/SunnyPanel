@@ -397,7 +397,7 @@ html[data-theme="dark"] .sunny-writing-meta-pin-button .sunny-dashboard-nav-icon
 
 .sunny-writing-summary-input::placeholder {
   color: color-mix(in oklch, var(--muted) 54%, transparent);
-  font-size: 0.9375rem;
+  font-size: var(--text-base);
 }
 
 /* Summary ghost AI button — sparkle icon */

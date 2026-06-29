@@ -312,9 +312,6 @@ export function useAgentChatMessaging({
           typeof responseData.assistantMessage === "string" ? responseData.assistantMessage : null;
 
         if (!response.ok || !assistantMessage) {
-          // #region agent log
-          fetch('http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'961715'},body:JSON.stringify({sessionId:'961715',location:'use-agent-chat-messaging.ts:empty-response',message:'chat response rejected',data:{responseOk:response.ok,assistantMessageLen:assistantMessage?.length??null,isStreaming:isStreamingResponse,status:response.status},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-          // #endregion
           throw new Error(assistantMessage || "Agent 暂时没有返回可用结果。");
         }
 

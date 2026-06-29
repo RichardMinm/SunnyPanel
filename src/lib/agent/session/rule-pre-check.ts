@@ -11,7 +11,7 @@
  * - All routeHint.source values must be "rule"
  */
 
-import type { AgentSessionState, RouteHint, SessionPatch, TransitionOutput } from "./types";
+import type { AgentSessionState, TransitionOutput } from "./types";
 
 /* ──── PendingAction ──── */
 

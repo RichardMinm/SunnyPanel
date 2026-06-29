@@ -15,13 +15,15 @@
 /.agent-test-dist
 /test-results
 /playwright-report
+/tests/agent-test-results.txt
 
 # local IDE / agent tooling
 /.claude
-/.cursor/agent-pipeline-traces.txt
+/.cursor/
 /tests/agent-pipeline-traces.txt
 /.superpowers
 /.worktrees
+/.agent-debug.log*
 
 # next.js
 /.next/
@@ -57,3 +59,7 @@ tsconfig.*.tsbuildinfo
 
 # database backups
 /backups
+
+# internal planning / generated reports
+/docs/superpowers/
+/docs/*audit*.md

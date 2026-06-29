@@ -7,7 +7,7 @@ import { queryPlanProgressFromIntent } from "../tools/query-tools";
 import { composePlanProposal } from "../workflows/plan-composer";
 import { composeTimelineEventProposal } from "../workflows/timeline-composer";
 import { CAPABILITY_INPUT_SCHEMAS, CAPABILITY_OUTPUT_SCHEMAS } from "./schemas";
-import type { AgentCapability, CapabilityContext, CapabilityResult } from "./types";
+import type { AgentCapability, CapabilityResult } from "./types";
 
 const ok = (summary: string, data?: unknown): CapabilityResult => ({ data, ok: true, summary });
 const fail = (summary: string, error?: string): CapabilityResult => ({ error, ok: false, summary });

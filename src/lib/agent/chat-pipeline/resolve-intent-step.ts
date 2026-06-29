@@ -1,5 +1,6 @@
 import { appendFileSync } from "node:fs";
 
+import { getAgentDebugLogPath } from "@/lib/agent/debug-log";
 import { recordAgentConfirmationDecision, recordBatchConfirmationDecision } from "@/lib/agent/audit";
 import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/heuristics/knowledge";
 import {
@@ -932,12 +933,6 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
         emitToken(token, 'response');
       },
     });
-    // #region agent log
-    if (process.env.AGENT_DEBUG_LOG) {
-      fetch('http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'961715'},body:JSON.stringify({sessionId:'961715',location:'resolve-intent-step.ts:reply-gen',message:'conversational reply generation',data:{intent:intent.intent,openDomainTopic: intent.intent==='answer_question'?intent.args.openDomainTopic:null,groundedAnswerLen:typeof groundedAnswer==='string'?groundedAnswer.length:null,replyResultLen:replyResult?.text?.length??null,replyResultNull:replyResult===null,streamedReplyLen:streamedReply.length},timestamp:Date.now(),hypothesisId:'H1-H2'})}).catch(()=>{});
-    }
-    // #endregion
-
     const openDomainTopic =
       intent.intent === "answer_question" ? intent.args.openDomainTopic ?? null : null;
 
@@ -984,7 +979,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     if (process.env.AGENT_DEBUG_LOG) {
       try {
         appendFileSync(
-          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          getAgentDebugLogPath(),
           `${JSON.stringify({
             sessionId: "961715",
             location: "resolve-intent-step.ts:reply-final",
@@ -1007,7 +1002,6 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
       } catch {
         // ignore debug log failures
       }
-      fetch('http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'961715'},body:JSON.stringify({sessionId:'961715',location:'resolve-intent-step.ts:reply-gen',message:'conversational reply generation',data:{intent:intent.intent,openDomainTopic: intent.intent==='answer_question'?intent.args.openDomainTopic:null,groundedAnswerLen:typeof groundedAnswer==='string'?groundedAnswer.length:null,replyResultLen:replyResult?.text?.length??null,replyResultNull:replyResult===null,finalReplyLen:resolution.intent.reply?.length??0},timestamp:Date.now(),hypothesisId:'H1-H2'})}).catch(()=>{});
     }
     // #endregion
     stream?.complete("stage-response", "回复已生成");

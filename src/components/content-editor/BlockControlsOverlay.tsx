@@ -70,7 +70,10 @@ export function BlockControlsOverlay({ editor }: BlockControlsOverlayProps) {
   /* Keep a ref copy so the event listeners (registered once) always read the
      latest value without needing to re-register on every change. */
   const hoveringRef = useRef(hoveringControls);
-  hoveringRef.current = hoveringControls;
+
+  useEffect(() => {
+    hoveringRef.current = hoveringControls;
+  }, [hoveringControls]);
 
   const clearShowTimer = useCallback(() => {
     if (showTimerRef.current) {

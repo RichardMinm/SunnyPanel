@@ -23,11 +23,11 @@
 
 import { isSessionCoordinatorEnabled } from "./coordinator-feature-flag";
 import { normalizeSessionState } from "./normalize-session";
-import { runCoordinator, type CoordinatorInput, type CoordinatorResult } from "./coordinator";
+import { runCoordinator, type CoordinatorResult } from "./coordinator";
 import { buildRouterSessionContext } from "./router-context";
 import { reconcileSessionAfterRoute } from "./reconcile-session";
 import type { TransitionLLMCall } from "./transition-engine";
-import type { AgentSessionState, RouteHint, TransitionTrace } from "./types";
+import type { AgentSessionState, RouteHint } from "./types";
 import type { PendingAction } from "./rule-pre-check";
 import type { AgentChatMessage } from "../schemas";
 
@@ -248,7 +248,7 @@ export const runCoordinatorPreRouter = async (
         }
       },
     };
-  } catch (err) {
+  } catch {
     /* Coordinator itself failed → null result, pipeline falls back */
     return NULL_RESULT;
   }

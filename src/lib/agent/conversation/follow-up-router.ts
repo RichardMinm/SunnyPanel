@@ -5,7 +5,7 @@ import {
   deriveConversationState,
   resolveConversationState,
 } from "./conversation-state";
-import type { AgentConversationState, ConversationalIntentName, FollowUpRouteInput } from "./types";
+import type { ConversationalIntentName, FollowUpRouteInput } from "./types";
 
 const normalizedMessage = (message: string) => message.replace(/\s+/g, "");
 

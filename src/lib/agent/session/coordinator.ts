@@ -33,7 +33,6 @@ import type {
   TransitionTrace,
   RouteHint,
 } from "./types";
-import type { ValidatedTransitionOutput } from "./transition-schema";
 
 /* ──── Coordinator Input / Output ──── */
 

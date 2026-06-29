@@ -500,7 +500,7 @@ const resolveLevelFromIntent = (intent: string): ContextLoadingLevel => {
 
 const resolveLevelFromDomain = (
   domain: string,
-  stage?: string | null,
+  _stage?: string | null,
 ): ContextLoadingLevel => {
   switch (domain) {
     case "writing":

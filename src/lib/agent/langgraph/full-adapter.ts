@@ -1,5 +1,6 @@
 import { appendFileSync } from "node:fs";
 
+import { getAgentDebugLogPath } from "@/lib/agent/debug-log";
 import {
   Command,
   EmptyInputError,
@@ -526,7 +527,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
       if (process.env.AGENT_DEBUG_LOG) {
         try {
           appendFileSync(
-            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            getAgentDebugLogPath(),
             `${JSON.stringify({
               sessionId: "961715",
               location: "full-adapter.ts:persistTurn",
@@ -793,7 +794,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
         if (process.env.AGENT_DEBUG_LOG) {
           try {
             appendFileSync(
-              "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+              getAgentDebugLogPath(),
               `${JSON.stringify({
                 sessionId: "961715",
                 location: "full-adapter.ts:execute",
@@ -950,7 +951,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
         if (process.env.AGENT_DEBUG_LOG) {
           try {
             appendFileSync(
-              "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+              getAgentDebugLogPath(),
               `${JSON.stringify({
                 sessionId: "961715",
                 location: "full-adapter.ts:resume-invoke",
@@ -991,7 +992,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
       if (process.env.AGENT_DEBUG_LOG) {
         try {
           appendFileSync(
-            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            getAgentDebugLogPath(),
             `${JSON.stringify({
               sessionId: "961715",
               location: "full-adapter.ts:fresh-invoke",
@@ -1042,7 +1043,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
     if (process.env.AGENT_DEBUG_LOG) {
       try {
         appendFileSync(
-          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          getAgentDebugLogPath(),
           `${JSON.stringify({
             sessionId: "961715",
             location: "full-adapter.ts:graph-result",

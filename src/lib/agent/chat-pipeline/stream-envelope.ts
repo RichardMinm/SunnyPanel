@@ -1,5 +1,6 @@
 import { appendFileSync } from "node:fs";
 
+import { getAgentDebugLogPath } from "@/lib/agent/debug-log";
 import { NextResponse } from "next/server";
 
 import { type AgentChatResponse, type AgentTraceStep } from "@/lib/agent/schemas";
@@ -244,7 +245,7 @@ export const createAgentChatStream = (
         if (process.env.AGENT_DEBUG_LOG) {
           try {
             appendFileSync(
-              "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+              getAgentDebugLogPath(),
               `${JSON.stringify({
                 sessionId: "961715",
                 location: "stream-envelope.ts:done",

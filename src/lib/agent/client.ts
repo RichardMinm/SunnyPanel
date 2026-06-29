@@ -1,5 +1,6 @@
 import { appendFileSync } from "node:fs";
 
+import { getAgentDebugLogPath } from "./debug-log";
 import { parseDefinitionQuestionIntent } from "./intent/heuristics/knowledge";
 import { buildAgentSystemPrompt, type AgentPromptContext } from "./prompts";
 import { parseAgentArbitrationResult, type AgentArbitrationDecision } from "./intent/arbitration";
@@ -25,7 +26,7 @@ import {
   isSideEffectPreviewCapability,
 } from "./capabilities/registry";
 import { mapLLMRouterToIntent } from "./router/map-llm-router-to-intent";
-import { isLLMRouterV2Enabled, parseLLMRouterOutput } from "./router/llm-router-schema";
+import { isLLMRouterV2Enabled } from "./router/llm-router-schema";
 
 const defaultModelBaseUrl =
   process.env.DEEPSEEK_BASE_URL?.trim() ||
@@ -552,7 +553,7 @@ export const streamChatCompletion = async ({
     if (process.env.AGENT_DEBUG_LOG) {
       try {
         appendFileSync(
-          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          getAgentDebugLogPath(),
           `${JSON.stringify({
             sessionId: "961715",
             location: "client.ts:streamChatCompletion",
@@ -647,7 +648,7 @@ const fetchChatCompletionText = async ({
     if (process.env.AGENT_DEBUG_LOG) {
       try {
         appendFileSync(
-          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          getAgentDebugLogPath(),
           `${JSON.stringify({
             sessionId: "961715",
             location: "client.ts:fetchChatCompletionText",
@@ -743,11 +744,6 @@ export const generateStreamingReply = async ({
   signal,
 }: GenerateStreamingReplyArgs): Promise<GenerateStreamingReplyResult | null> => {
   const config = await getAgentModelConfig();
-  // #region agent log
-  if (process.env.AGENT_DEBUG_LOG) {
-    fetch('http://127.0.0.1:7553/ingest/92e11e20-4501-4445-b574-f99e05456c16',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'961715'},body:JSON.stringify({sessionId:'961715',location:'client.ts:generateStreamingReply',message:'streaming reply entry',data:{hasConfig:Boolean(config),groundedAnswerLen:typeof groundedAnswer==='string'?groundedAnswer.length:null,messagePreview:message.slice(0,40)},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-  }
-  // #endregion
   if (!config) return null;
 
   const messages = [
@@ -802,7 +798,7 @@ export const generateStreamingReply = async ({
       if (process.env.AGENT_DEBUG_LOG) {
         try {
           appendFileSync(
-            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            getAgentDebugLogPath(),
             `${JSON.stringify({
               sessionId: "961715",
               location: "client.ts:generateStreamingReply",
@@ -830,7 +826,7 @@ export const generateStreamingReply = async ({
       if (process.env.AGENT_DEBUG_LOG) {
         try {
           appendFileSync(
-            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            getAgentDebugLogPath(),
             `${JSON.stringify({
               sessionId: "961715",
               location: "client.ts:generateStreamingReply",
@@ -875,7 +871,7 @@ export const generateStreamingReply = async ({
       if (process.env.AGENT_DEBUG_LOG) {
         try {
           appendFileSync(
-            "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+            getAgentDebugLogPath(),
             `${JSON.stringify({
               sessionId: "961715",
               location: "client.ts:generateStreamingReply",
@@ -906,7 +902,7 @@ export const generateStreamingReply = async ({
     if (process.env.AGENT_DEBUG_LOG) {
       try {
         appendFileSync(
-          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          getAgentDebugLogPath(),
           `${JSON.stringify({
             sessionId: "961715",
             location: "client.ts:generateStreamingReply",
@@ -933,7 +929,7 @@ export const generateStreamingReply = async ({
     if (process.env.AGENT_DEBUG_LOG) {
       try {
         appendFileSync(
-          "/Users/richardluo/Documents/Develop/SunnyPanel/.cursor/debug-961715.log",
+          getAgentDebugLogPath(),
           `${JSON.stringify({
             sessionId: "961715",
             location: "client.ts:generateStreamingReply",

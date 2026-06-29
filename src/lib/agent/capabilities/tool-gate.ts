@@ -1,6 +1,5 @@
 import type { AgentRouterAction, AgentRouterOutput } from "../router/types";
 import {
-  CAPABILITY_REGISTRY,
   getCapability,
   listCapabilities,
   listExposableCapabilities,
@@ -128,8 +127,6 @@ export const getAllowedCapabilities = (input: CapabilityGateInput): CapabilityGa
   const deniedCapabilities = mapDeniedIntentToCapabilities(userContext.preferences?.deniedIntents ?? new Set());
 
   for (const name of capabilityNames()) {
-    const cap = CAPABILITY_REGISTRY[name];
-
     if (deniedCapabilities.has(name)) {
       blocked.push({ name, reason: "用户偏好禁止该能力" });
       continue;

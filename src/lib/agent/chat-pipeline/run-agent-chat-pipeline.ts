@@ -59,14 +59,12 @@ import {
   type AgentTurnTrace,
 } from "@/lib/agent/trace/agent-turn-trace";
 import type { AgentPerformanceTimer } from "@/lib/agent/trace/perf-trace";
-import { isPerfTraceEnabled } from "@/lib/agent/trace/perf-trace";
 import {
   resolveContextLoadingPolicy,
   getRequiredSectionsForIntent,
   getMissingSectionsForSecondPass,
   mergeSectionsForSecondPass,
   isContextLoadingPolicyEnabled,
-  isContextLoadingPolicyShadow,
   type ContextLoadingMeta,
 } from "@/lib/agent/context-loading-policy";
 
@@ -269,8 +267,6 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
 
     // Build context once (refreshed per-loop iteration when needed)
     const policyOn = isContextLoadingPolicyEnabled();
-    const policyShadow = isContextLoadingPolicyShadow();
-    const policyActive = policyOn || policyShadow;
 
     const loadingPolicy = resolveContextLoadingPolicy({
       workbenchMode,
