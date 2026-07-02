@@ -2,6 +2,12 @@ import { type NextRequest, NextResponse } from "next/server";
 import type { Where } from "payload";
 
 import { buildAgentRunOwnerWhere, getRelationId } from "@/lib/agent/run-access";
+import {
+  attachPlanningChecklistDraftToLastAssistantMessage,
+  attachPlanningDraftToLastAssistantMessage,
+  extractPlanningChecklistDraftFromSessionState,
+  extractPlanningDraftFromSessionState,
+} from "@/lib/agent/planning/draft-message";
 import { parsePendingAction, sanitizeChatMessages } from "@/lib/agent/schemas";
 import {
   createPayloadAgentThreadEventStore,
@@ -110,18 +116,40 @@ export async function GET(request: Request) {
         });
       })()
     : null;
+  const selectedPendingAction = ownedSelectedThread
+    ? selectedCanonicalState?.pendingAction ??
+      parsePendingAction(ownedSelectedThread.pendingAction)
+    : null;
+  const selectedPlanningDraft = ownedSelectedThread
+    ? extractPlanningDraftFromSessionState(
+        (ownedSelectedThread as { conversationState?: unknown }).conversationState,
+      )
+    : null;
+  const selectedPlanningChecklistDraft = ownedSelectedThread
+    ? extractPlanningChecklistDraftFromSessionState(
+        (ownedSelectedThread as { conversationState?: unknown }).conversationState,
+      )
+    : null;
+  const selectedMessages = ownedSelectedThread
+    ? attachPlanningChecklistDraftToLastAssistantMessage(
+        attachPlanningDraftToLastAssistantMessage(
+          selectedCanonicalState?.messages ??
+            sanitizeChatMessages(ownedSelectedThread.messages ?? []),
+          selectedPlanningDraft,
+          selectedPendingAction,
+        ),
+        selectedPlanningChecklistDraft,
+        selectedPendingAction,
+      )
+    : [];
 
   return NextResponse.json({
     selectedThread: ownedSelectedThread
       ? {
           id: ownedSelectedThread.id,
           lastInteractionAt: ownedSelectedThread.lastInteractionAt,
-          messages:
-            selectedCanonicalState?.messages ??
-            sanitizeChatMessages(ownedSelectedThread.messages ?? []),
-          pendingAction:
-            selectedCanonicalState?.pendingAction ??
-            parsePendingAction(ownedSelectedThread.pendingAction),
+          messages: selectedMessages,
+          pendingAction: selectedPendingAction,
           title: ownedSelectedThread.title,
         }
       : null,

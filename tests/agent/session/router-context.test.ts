@@ -321,7 +321,7 @@ test("router-context does not import Router / Tool Executor / DB", async () => {
   const { readFileSync } = await import("node:fs");
   const { resolve } = await import("node:path");
   const source = readFileSync(
-    resolve(import.meta.dirname ?? __dirname, "../../../src/lib/agent/session/router-context.ts"),
+    resolve(process.cwd(), "src/lib/agent/session/router-context.ts"),
     "utf8",
   );
 

@@ -1,6 +1,7 @@
 import type { PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
 
 import { AgentChangesPanel } from "./AgentChangesPanel";
+import { isPlanConfirmationAction } from "./PlanConfirmationCard";
 import { formatAgentRoleLabel, formatIntentLabel, riskLevelLabelMap } from "./constants";
 import { getPendingActionLabel } from "./utils";
 
@@ -10,6 +11,45 @@ type AgentApprovalPanelProps = {
 };
 
 export function AgentApprovalPanel({ action, pendingAction }: AgentApprovalPanelProps) {
+  const planConfirmationAction =
+    pendingAction?.type === "await_confirmation" && isPlanConfirmationAction(pendingAction.action)
+      ? pendingAction.action
+      : null;
+
+  if (planConfirmationAction) {
+    const rollbackStatus =
+      planConfirmationAction.rollbackAvailable || planConfirmationAction.rollbackPayload ? "可回滚" : "不可回滚";
+
+    return (
+      <div className="sunny-agent-inspector-panel sunny-agent-pending-inspector-summary">
+        <div className="sunny-agent-inspector-summary">
+          <h3>当前操作</h3>
+          <p>创建计划 · 等待确认</p>
+        </div>
+        <div className="sunny-agent-pending-inspector-rows">
+          <div>
+            <span>风险</span>
+            <strong>{riskLevelLabelMap[planConfirmationAction.riskLevel]}</strong>
+            <p>原因：将写入数据库</p>
+          </div>
+          <div>
+            <span>影响范围</span>
+            <strong>新增 1 项计划</strong>
+            <p>{rollbackStatus}</p>
+          </div>
+          <div>
+            <span>上下文</span>
+            <strong>来源：计划草案</strong>
+            <p>状态：等待用户确认</p>
+          </div>
+        </div>
+        <p className="sunny-agent-pending-inspector-alert" role="status">
+          当前操作尚未执行，确认后才会创建计划。
+        </p>
+      </div>
+    );
+  }
+
   if (pendingAction?.type === "await_batch_confirmation") {
     return (
       <div className="sunny-agent-inspector-panel">

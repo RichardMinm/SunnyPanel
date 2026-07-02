@@ -20,6 +20,7 @@ const planAgentStateValues = ["blocked", "idle", "ready", "review", "running"] a
 const planDomainValues = ["creative", "fitness", "other", "study", "travel", "work"] as const;
 const visibilityValues = ["private", "public"] as const;
 const timelineTypeValues = ["life", "milestone", "project"] as const;
+const timelineSourceTypeValues = ["agent", "checklist", "manual", "plan", "schedule"] as const;
 const agentRunStatusValues = ["canceled", "failed", "queued", "running", "succeeded"] as const;
 const agentRunWorkflowValues = [
   "automation",
@@ -270,6 +271,7 @@ export const validateTimelineEventData = (value: unknown) => {
     relatedTaskKey: getOptionalString(value.relatedTaskKey),
     relatedUpdate: getOptionalNumber(value.relatedUpdate),
     sortOrder: getNumber(value.sortOrder, "sortOrder"),
+    sourceType: getOptionalEnum(value.sourceType, timelineSourceTypeValues),
     status: getEnum(value.status, planStatusValues, "status"),
     title: getString(value.title, "title"),
     type: getEnum(value.type, timelineTypeValues, "type"),

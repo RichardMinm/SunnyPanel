@@ -33,6 +33,7 @@ type AgentWorkbenchProps = {
   onRenameThread: (title: string) => Promise<boolean>;
   onConfirmApproval: () => void;
   onInputChange: (value: string) => void;
+  onSendMessage?: (message: string) => Promise<void> | void;
   onStop?: () => void;
   onSubmit: () => void;
   onWorkbenchModeChange: (mode: AgentWorkbenchMode) => void;
@@ -62,6 +63,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     onRenameThread,
     onConfirmApproval,
     onInputChange,
+    onSendMessage,
     onStop,
     onSubmit,
     onWorkbenchModeChange,
@@ -113,6 +115,37 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
               }}
               onConfirmApproval={onConfirmApproval}
               onEditApproval={onEditApproval}
+              onChecklistDraftPrepareCreate={
+                onSendMessage
+                  ? () => {
+                      void onSendMessage("就按这个清单草案创建清单");
+                    }
+                  : undefined
+              }
+              onPlanDraftGenerateChecklist={
+                onSendMessage
+                  ? () => {
+                      void onSendMessage("请把这个计划草案拆成清单草案");
+                    }
+                  : undefined
+              }
+              onPlanDraftPrepareCreate={
+                onSendMessage
+                  ? () => {
+                      void onSendMessage("就按这个草案创建计划");
+                    }
+                  : undefined
+              }
+              onPlanDraftRevise={() => {
+                onInputChange("我想调整这个计划草案：");
+              }}
+              onPlanConfirmationReturnToEdit={
+                onSendMessage
+                  ? () => {
+                      void onSendMessage("我想返回修改这个计划草案");
+                    }
+                  : () => onEditApproval("plan")
+              }
               onRenameThread={onRenameThread}
               debugMode={debugMode}
               pendingAction={pendingAction}
@@ -132,7 +165,17 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           disabled={isSubmitting}
           input={input}
           modelName="DeepSeek V3"
+          onCancelApproval={onCancelApproval}
+          onConfirmApproval={onConfirmApproval}
+          onEditApproval={onEditApproval}
           onInputChange={onInputChange}
+          onReturnToEditApproval={
+            onSendMessage
+              ? () => {
+                  void onSendMessage("我想返回修改这个计划草案");
+                }
+              : undefined
+          }
           onStop={onStop}
           onSubmit={onSubmit}
           onWorkbenchModeChange={onWorkbenchModeChange}

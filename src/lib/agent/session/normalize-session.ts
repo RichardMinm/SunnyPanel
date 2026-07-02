@@ -5,6 +5,14 @@ import type {
   SemanticDomain,
   TransitionType,
 } from "./types";
+import { sanitizeChecklistDraft } from "../planning/checklist-draft";
+import type {
+  PlanReadiness,
+  PlanReadinessStatus,
+  PlanSlotKey,
+  PlanSlots,
+} from "../planning/readiness";
+import type { PlanDraft, PlanDraftStage } from "../planning/draft";
 
 /* ──── Factory ──── */
 
@@ -40,8 +48,36 @@ const VALID_DOMAINS = new Set<SemanticDomain>([
 ]);
 
 const VALID_STAGES = new Set<DialogueStage>([
-  "exploring", "drafting", "refining", "confirming",
+  "exploring", "clarifying", "drafting", "refining", "confirming",
   "executing", "reviewing", "completed",
+]);
+
+const VALID_PLAN_SLOT_KEYS = new Set<PlanSlotKey>([
+  "goal",
+  "deadline",
+  "scope",
+  "currentProgress",
+  "availableTime",
+  "successCriteria",
+  "priority",
+  "deliverables",
+  "constraints",
+]);
+
+const PLAN_STRING_SLOT_KEYS = new Set<Exclude<PlanSlotKey, "deliverables" | "constraints">>([
+  "goal",
+  "deadline",
+  "scope",
+  "currentProgress",
+  "availableTime",
+  "successCriteria",
+  "priority",
+]);
+
+const PLAN_READINESS_STATUSES = new Set<PlanReadinessStatus>([
+  "insufficient",
+  "draftable",
+  "confirmable",
 ]);
 
 const VALID_ENTITY_TYPES = new Set([
@@ -66,6 +102,25 @@ const MAX_STRING = 200;
 
 const trunc = (v: string): string =>
   v.length <= MAX_STRING ? v : v.slice(0, MAX_STRING);
+
+const normalizeText = (value: string): string => trunc(value.trim().replace(/\s+/g, " "));
+
+const sanitizeStringList = (raw: unknown, maxItems = 12): string[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const normalized = normalizeText(item);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+    if (result.length >= maxItems) break;
+  }
+
+  return result.length > 0 ? result : undefined;
+};
 
 const sanitizeCurrentTarget = (
   raw: unknown,
@@ -175,6 +230,198 @@ const sanitizeConversation = (
       : undefined,
     lastUserIntent: asString(raw.lastUserIntent) ?? undefined,
   };
+};
+
+const sanitizePlanSlots = (raw: unknown): PlanSlots | undefined => {
+  if (!isRecord(raw)) return undefined;
+
+  const result: PlanSlots = {};
+  for (const key of PLAN_STRING_SLOT_KEYS) {
+    const value = raw[key];
+    if (typeof value === "string") {
+      const normalized = normalizeText(value);
+      if (normalized) {
+        result[key] = normalized;
+      }
+    } else if (value === null) {
+      result[key] = null;
+    }
+  }
+
+  for (const key of ["deliverables", "constraints"] as const) {
+    const value = raw[key];
+    if (value === null) {
+      result[key] = null;
+      continue;
+    }
+
+    const items = sanitizeStringList(value);
+    if (items) {
+      result[key] = items;
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+};
+
+const sanitizePlanSlotKeys = (raw: unknown): PlanSlotKey[] => {
+  if (!Array.isArray(raw)) return [];
+
+  const seen = new Set<PlanSlotKey>();
+  const result: PlanSlotKey[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string" || !VALID_PLAN_SLOT_KEYS.has(item as PlanSlotKey)) {
+      continue;
+    }
+    const key = item as PlanSlotKey;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(key);
+  }
+
+  return result;
+};
+
+const sanitizePlanReadiness = (
+  raw: unknown,
+): PlanReadiness | undefined => {
+  if (!isRecord(raw)) return undefined;
+  const status = asString(raw.status);
+  const confidence = asNumber(raw.confidence);
+
+  if (!status || !PLAN_READINESS_STATUSES.has(status as PlanReadinessStatus) || confidence === undefined) {
+    return undefined;
+  }
+
+  const readiness = {
+    confidence: Math.max(0, Math.min(1, confidence)),
+    knownSlots: sanitizePlanSlotKeys(raw.knownSlots),
+    missingSlots: sanitizePlanSlotKeys(raw.missingSlots),
+    reason: asString(raw.reason) != null ? normalizeText(asString(raw.reason)!) : "",
+    status: status as PlanReadinessStatus,
+    suggestedQuestions: sanitizeStringList(raw.suggestedQuestions, 5) ?? [],
+  };
+
+  return readiness;
+};
+
+const sanitizePlanDraftStage = (raw: unknown): PlanDraftStage | undefined => {
+  if (!isRecord(raw)) return undefined;
+
+  const title = asString(raw.title);
+  const tasks = sanitizeStringList(raw.tasks, 12);
+  if (!title || !normalizeText(title) || !tasks) {
+    return undefined;
+  }
+
+  const description = asString(raw.description);
+  const startDate = asString(raw.startDate);
+  const endDate = asString(raw.endDate);
+
+  return {
+    title: normalizeText(title),
+    ...(description && normalizeText(description) ? { description: normalizeText(description) } : {}),
+    tasks,
+    ...(startDate !== undefined ? { startDate: startDate ? trunc(startDate) : null } : {}),
+    ...(endDate !== undefined ? { endDate: endDate ? trunc(endDate) : null } : {}),
+  };
+};
+
+const sanitizePlanDraft = (raw: unknown): PlanDraft | null | undefined => {
+  if (raw === null) return null;
+  if (!isRecord(raw)) return undefined;
+
+  const title = asString(raw.title);
+  const goal = asString(raw.goal);
+  if (!title || !normalizeText(title) || !goal || !normalizeText(goal)) {
+    return undefined;
+  }
+
+  const stages = Array.isArray(raw.stages)
+    ? raw.stages
+        .map(sanitizePlanDraftStage)
+        .filter((stage): stage is PlanDraftStage => Boolean(stage))
+        .slice(0, 8)
+    : [];
+  if (stages.length === 0) return undefined;
+
+  const deadline = asString(raw.deadline);
+  const scope = asString(raw.scope);
+  const currentProgress = asString(raw.currentProgress);
+  const availableTime = asString(raw.availableTime);
+  const successCriteria = asString(raw.successCriteria);
+  const risks = sanitizeStringList(raw.risks, 8);
+  const assumptions = sanitizeStringList(raw.assumptions, 8);
+  const nextActions = sanitizeStringList(raw.nextActions, 8);
+  const sourcePlanId = asNumber(raw.sourcePlanId);
+
+  return {
+    title: normalizeText(title),
+    goal: normalizeText(goal),
+    ...(sourcePlanId !== undefined ? { sourcePlanId } : {}),
+    ...(deadline !== undefined ? { deadline: deadline ? normalizeText(deadline) : null } : {}),
+    ...(scope !== undefined ? { scope: scope ? normalizeText(scope) : null } : {}),
+    ...(currentProgress !== undefined
+      ? { currentProgress: currentProgress ? normalizeText(currentProgress) : null }
+      : {}),
+    ...(availableTime !== undefined ? { availableTime: availableTime ? normalizeText(availableTime) : null } : {}),
+    ...(successCriteria !== undefined
+      ? { successCriteria: successCriteria ? normalizeText(successCriteria) : null }
+      : {}),
+    stages,
+    ...(risks ? { risks } : {}),
+    ...(assumptions ? { assumptions } : {}),
+    ...(nextActions ? { nextActions } : {}),
+  };
+};
+
+const sanitizePlanning = (
+  raw: unknown,
+): AgentSessionState["planning"] => {
+  if (!isRecord(raw)) return undefined;
+
+  const result: AgentSessionState["planning"] = {};
+  const workflow = asString(raw.workflow);
+  if (workflow === "plan_creation" || workflow === "plan_iteration") {
+    result.workflow = workflow;
+  }
+
+  const slots = sanitizePlanSlots(raw.slots);
+  if (slots) {
+    result.slots = slots;
+  }
+
+  const readiness = sanitizePlanReadiness(raw.readiness);
+  if (readiness) {
+    result.readiness = readiness;
+  }
+
+  const sourcePlanId = asNumber(raw.sourcePlanId);
+  if (sourcePlanId !== undefined) {
+    result.sourcePlanId = sourcePlanId;
+  }
+
+  const draft = sanitizePlanDraft(raw.draft);
+  if (draft !== undefined) {
+    result.draft = draft;
+  }
+
+  const checklistDraft = sanitizeChecklistDraft(raw.checklistDraft);
+  if (checklistDraft !== undefined) {
+    result.checklistDraft = checklistDraft;
+  }
+
+  const questions = sanitizeStringList(raw.lastSuggestedQuestions, 5);
+  if (questions) {
+    result.lastSuggestedQuestions = questions;
+  }
+
+  const lastUpdatedAt = asString(raw.lastUpdatedAt);
+  if (lastUpdatedAt) {
+    result.lastUpdatedAt = trunc(lastUpdatedAt);
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
 };
 
 const sanitizeLastTransition = (raw: unknown): AgentSessionState["lastTransition"] => {
@@ -301,6 +548,7 @@ export const normalizeSessionState = (raw: unknown): AgentSessionState => {
       semantic: sanitizeSemantic(raw.semantic),
       conversation: sanitizeConversation(raw.conversation),
       pending: sanitizePending(raw.pending),
+      planning: sanitizePlanning(raw.planning),
       lastTransition: sanitizeLastTransition(raw.lastTransition),
     };
   }

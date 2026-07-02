@@ -175,13 +175,107 @@ export type ChecklistCompletionData = {
   total: number;
 };
 
-export type StructuredCardType = "plan" | "checklist" | "schedule" | "none";
+export type ActionResultData = {
+  checklistTitle?: string;
+  groupsCount?: number;
+  groupTitle?: string | null;
+  itemsCount?: number;
+  kind: "checklist_created" | "checklist_item_completed" | "plan_created";
+  linkedPlanId?: number | null;
+  rollbackAvailable: boolean;
+  timelineStatus?: "not_synced" | "synced";
+  title: string;
+};
+
+export type StructuredCardType = "action_result" | "plan" | "checklist" | "schedule" | "none";
 
 export function detectStructuredCardType(content: string): StructuredCardType {
+  if (parseActionResultMessage(content)) return "action_result";
   if (parseScheduleResultMessage(content)) return "schedule";
   if (parseChecklistCompletion(content)) return "checklist";
   if (parsePlanOverview(content)) return "plan";
   return "none";
+}
+
+const splitChecklistItemPath = (label: string) => {
+  const parts = label
+    .split(/\s*\/\s*/u)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const title = parts[parts.length - 1] ?? label.trim();
+
+  if (parts.length >= 3) {
+    return {
+      checklistTitle: parts[0],
+      groupTitle: parts.slice(1, -1).join(" / "),
+      title,
+    };
+  }
+
+  if (parts.length === 2) {
+    return {
+      checklistTitle: parts[0],
+      groupTitle: null,
+      title,
+    };
+  }
+
+  return {
+    checklistTitle: undefined,
+    groupTitle: null,
+    title,
+  };
+};
+
+export function parseActionResultMessage(content: string): ActionResultData | null {
+  const trimmed = content.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const checklistCreated = trimmed.match(
+    /已创建清单「(.+?)」(?:，包含\s*(\d+)\s*个分组\s*[\/／]\s*(\d+)\s*个条目)?(?:，并已?关联到计划\s*#(\d+))?/u,
+  );
+  if (checklistCreated) {
+    return {
+      groupsCount: checklistCreated[2] ? Number(checklistCreated[2]) : undefined,
+      itemsCount: checklistCreated[3] ? Number(checklistCreated[3]) : undefined,
+      kind: "checklist_created",
+      linkedPlanId: checklistCreated[4] ? Number(checklistCreated[4]) : null,
+      rollbackAvailable: true,
+      title: checklistCreated[1],
+    };
+  }
+
+  const completedItem = trimmed.match(/已把\s*「(.+?)」\s*标记完成/u);
+  if (completedItem) {
+    const path = splitChecklistItemPath(completedItem[1]);
+    const timelineStatus =
+      /(Timeline|时间线)/iu.test(trimmed) && /(同步|记录|更新)/u.test(trimmed)
+        ? "synced"
+        : "not_synced";
+
+    return {
+      checklistTitle: path.checklistTitle,
+      groupTitle: path.groupTitle,
+      kind: "checklist_item_completed",
+      rollbackAvailable: true,
+      timelineStatus,
+      title: path.title,
+    };
+  }
+
+  const planCreated = trimmed.match(/(?:已帮你创建计划|已创建完整计划|已创建计划)「(.+?)」/u);
+  if (planCreated) {
+    return {
+      kind: "plan_created",
+      rollbackAvailable: true,
+      title: planCreated[1],
+    };
+  }
+
+  return null;
 }
 
 export function parsePlanOverview(content: string): PlanOverviewData | null {

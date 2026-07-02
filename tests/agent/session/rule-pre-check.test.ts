@@ -536,7 +536,7 @@ test("rulePreCheck is pure — does not import LLM client, tool executor, or DB"
   const { readFileSync } = await import("node:fs");
   const { resolve } = await import("node:path");
   const source = readFileSync(
-    resolve(import.meta.dirname ?? __dirname, "../../../src/lib/agent/session/rule-pre-check.ts"),
+    resolve(process.cwd(), "src/lib/agent/session/rule-pre-check.ts"),
     "utf8",
   );
 

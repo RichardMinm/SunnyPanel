@@ -20,7 +20,7 @@ export const buildIntentTraceSummary = (intent: AgentIntent): { detail?: string;
     case "complete_plan_item":
       return {
         detail: `${intent.args.checklistTitle}${intent.args.groupTitle ? ` / ${intent.args.groupTitle}` : ""}`,
-        title: `识别为完成条目：${intent.args.itemTitle}`,
+        title: `识别为完成清单项：${intent.args.itemTitle}`,
       };
     case "compose_plan":
       return {

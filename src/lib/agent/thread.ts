@@ -116,11 +116,13 @@ export const appendAgentThreadTurn = async ({
   engine,
   intent,
   pendingAction,
+  conversationState,
   thread,
   userMessage,
 }: {
   assistantMessage: string;
   confidence?: number;
+  conversationState?: unknown;
   engine: AgentEngine;
   intent: AgentIntent["intent"];
   pendingAction: null | PendingAction;
@@ -166,6 +168,7 @@ export const appendAgentThreadTurn = async ({
     messages,
     pendingAction,
     status: "active",
+    ...(conversationState !== undefined ? { conversationState } : {}),
     ...(refreshedSummary
       ? {
           summary: refreshedSummary.summary,

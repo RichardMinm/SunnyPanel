@@ -26,6 +26,7 @@ import { isConversationalIntent, type AgentChatMessage } from "@/lib/agent/schem
 type LearningInput = Parameters<typeof runAgentLearningLoop>[0];
 
 export type AgentTurnFinalizerInput = {
+  conversationStateOverride?: unknown;
   existingMemories: LearningInput["existingMemories"];
   failure?: unknown;
   pushTrace: (step: AgentTraceStep) => void;
@@ -128,6 +129,7 @@ export const createAgentTurnFinalizer = ({
 
   return async ({
     existingMemories,
+    conversationStateOverride,
     failure,
     pushTrace,
     response,
@@ -269,27 +271,34 @@ export const createAgentTurnFinalizer = ({
           conversationStateBefore,
         );
         const nextConversationState =
-          isConversationalIntent(completedResponse.intent) || completedResponse.intent === "answer_question"
-            ? buildConversationStateFromTurn({
-                assistantAnswer: completedResponse.assistantMessage,
-                answerMode:
-                  completedResponse.intent === "answer_question" &&
-                  (() => {
-                    const def = parseDefinitionQuestionIntent(message);
-                    return def?.intent === "answer_question" && Boolean(def.args.openDomainTopic);
-                  })()
-                    ? "open"
-                    : conversationStateBefore?.answerMode,
-                intent: completedResponse.intent,
-                message,
-                previous: conversationStateBefore,
-                topic,
-              })
-            : conversationStateBefore;
+          conversationStateOverride !== undefined
+            ? conversationStateOverride
+            : (
+                isConversationalIntent(completedResponse.intent) ||
+                completedResponse.intent === "answer_question"
+              )
+              ? buildConversationStateFromTurn({
+                  assistantAnswer: completedResponse.assistantMessage,
+                  answerMode:
+                    completedResponse.intent === "answer_question" &&
+                    (() => {
+                      const def = parseDefinitionQuestionIntent(message);
+                      return def?.intent === "answer_question" && Boolean(def.args.openDomainTopic);
+                    })()
+                      ? "open"
+                      : conversationStateBefore?.answerMode,
+                  intent: completedResponse.intent,
+                  message,
+                  previous: conversationStateBefore,
+                  topic,
+                })
+              : conversationStateBefore;
 
         await project({
           ...projection,
-          ...(nextConversationState ? { conversationState: nextConversationState } : {}),
+          ...(nextConversationState
+            ? { conversationState: nextConversationState as AgentThreadProjection["conversationState"] }
+            : {}),
         });
       },
       store: eventStore,

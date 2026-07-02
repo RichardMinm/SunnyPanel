@@ -11,6 +11,7 @@ import type {
   ComposePlanArgs,
   ComposeScheduleItemArgs,
   ComposeTimelineEventArgs,
+  CreateChecklistArgs,
   CreatePlanArgs,
   DeleteRecordArgs,
   ModifyRecordArgs,
@@ -52,6 +53,7 @@ import {
   deleteRecordDryRun,
   type ResolveDeleteRecord,
 } from "./tools/delete-record";
+import { createChecklistFromIntent } from "./tools/checklist-create";
 
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
 type WritableAgentIntent = Extract<AgentIntent, { intent: AgentWriteIntentName }>;
@@ -145,8 +147,11 @@ type ResolvedChecklistGroup = NonNullable<Awaited<ReturnType<ResolveChecklistGro
 export type AgentToolResult = {
   assistantMessage: string;
   pendingAction: null | PendingAction;
+  createdPlanId?: number;
+  planId?: number;
   /** 写入成功后可供 `/api/agent/rollback` 使用的结构化回滚描述（若有）。 */
   rollbackPayload?: unknown;
+  status?: "completed" | "failed";
 };
 
 export type AgentToolDryRunContext = {
@@ -255,6 +260,7 @@ type AgentToolRegistry = {
   compose_plan: AgentToolDefinition<"compose_plan", ComposePlanArgs>;
   compose_schedule_item: AgentToolDefinition<"compose_schedule_item", ComposeScheduleItemArgs>;
   compose_timeline_event: AgentToolDefinition<"compose_timeline_event", ComposeTimelineEventArgs>;
+  create_checklist: AgentToolDefinition<"create_checklist", CreateChecklistArgs>;
   create_plan: AgentToolDefinition<"create_plan", CreatePlanArgs>;
   query_plan_progress: AgentToolDefinition<"query_plan_progress", QueryPlanProgressArgs>;
   reschedule_item: AgentToolDefinition<"reschedule_item", RescheduleItemArgs>;
@@ -390,6 +396,109 @@ const createPlanDryRun = async (
         strategy: "delete_created_document",
         target: {
           collection: "plans",
+          documentId: null,
+        },
+      },
+    },
+    type: "proposed_action",
+  };
+};
+
+const countChecklistItems = (groups: CreateChecklistArgs["groups"]) =>
+  groups.reduce((count, group) => count + group.items.length, 0);
+
+const createChecklistDryRun = async (
+  args: CreateChecklistArgs,
+  context: AgentToolDryRunContext,
+): Promise<AgentToolDryRunResult> => {
+  const itemCount = countChecklistItems(args.groups);
+  const groupCount = args.groups.length;
+  const nextChecklist = {
+    groups: args.groups.map((group) => ({
+      items: group.items.map((item) => ({
+        description: item.description ?? null,
+        isCompleted: item.isCompleted ?? false,
+        title: item.title,
+      })),
+      title: group.title,
+    })),
+    status: args.status ?? "draft",
+    summary: args.summary ?? null,
+    title: args.title,
+    visibility: args.visibility ?? "private",
+  };
+  const groupPreview = args.groups
+    .slice(0, 4)
+    .map((group) => `${group.title}：${group.items.slice(0, 4).map((item) => item.title).join("；")}`)
+    .join("\n");
+  const sourcePlanId = typeof args.sourcePlanId === "number" ? args.sourcePlanId : null;
+
+  return {
+    action: {
+      ...actionBase({
+        args,
+        context,
+        intent: "create_checklist",
+        riskLevel: "medium",
+        summary: `创建清单「${args.title}」（${groupCount} 个分组 / ${itemCount} 个条目）`,
+      }),
+      affectedDocuments: [
+        {
+          collection: "checklists",
+          operation: "create",
+          title: args.title,
+          visibility: nextChecklist.visibility,
+        },
+        ...(sourcePlanId != null
+          ? [
+              {
+                collection: "plans",
+                documentId: sourcePlanId,
+                operation: "update" as const,
+                title: `计划 #${sourcePlanId}`,
+                visibility: "unknown" as const,
+              },
+            ]
+          : []),
+      ],
+      afterSnapshot: {
+        ...nextChecklist,
+        sourcePlanId,
+      },
+      beforeSnapshot: null,
+      changes: [
+        {
+          afterPreview: [
+            args.summary,
+            groupPreview ? `分组预览：\n${groupPreview}` : null,
+          ].filter(Boolean).join("\n\n"),
+          beforePreview: "当前不存在这份清单。",
+          collection: "checklists",
+          operation: "create",
+          preview: `创建${nextChecklist.visibility === "private" ? "私有" : "公开"}${nextChecklist.status === "draft" ? "草稿" : "发布"}清单「${args.title}」，包含 ${groupCount} 个分组 / ${itemCount} 个条目。`,
+          timelineAffected: false,
+          visibility: nextChecklist.visibility,
+        },
+        ...(sourcePlanId != null
+          ? [
+              {
+                beforePreview: `计划 #${sourcePlanId} 当前 linkedContent。`,
+                collection: "plans",
+                documentId: sourcePlanId,
+                operation: "update" as const,
+                preview: `将新建清单关联到计划 #${sourcePlanId} 的 linkedContent。`,
+                timelineAffected: false,
+                visibility: "unknown" as const,
+              },
+            ]
+          : []),
+      ],
+      rollbackAvailable: false,
+      rollbackPayload: {
+        reason: "清单创建前没有 documentId；执行成功后可用 created document id 准备删除式回滚。",
+        strategy: "delete_created_document",
+        target: {
+          collection: "checklists",
           documentId: null,
         },
       },
@@ -1849,6 +1958,19 @@ export const agentToolRegistry = {
       status: "planned",
     },
   },
+  create_checklist: {
+    description: "Create a private draft checklist from an approved ChecklistDraft after confirmation.",
+    dryRun: createChecklistDryRun,
+    execute: (args, _context, onTrace) => createChecklistFromIntent(args, onTrace),
+    intent: "create_checklist",
+    name: "create_checklist",
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    rollback: {
+      description: "Delete the created checklist after execution records its document id.",
+      status: "planned",
+    },
+  },
   create_plan: {
     description: "Create a new private draft plan.",
     dryRun: createPlanDryRun,
@@ -2022,6 +2144,8 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
       return agentToolRegistry.compose_schedule_item.dryRun(intent.args, context);
     case "compose_timeline_event":
       return agentToolRegistry.compose_timeline_event.dryRun(intent.args, context);
+    case "create_checklist":
+      return agentToolRegistry.create_checklist.dryRun(intent.args, context);
     case "create_plan":
       return agentToolRegistry.create_plan.dryRun(intent.args, context);
     case "delete_record":
@@ -2061,6 +2185,8 @@ export const executeAgentTool = async (
       return agentToolRegistry.compose_schedule_item.execute(intent.args, context, onTrace);
     case "compose_timeline_event":
       return agentToolRegistry.compose_timeline_event.execute(intent.args, context, onTrace);
+    case "create_checklist":
+      return agentToolRegistry.create_checklist.execute(intent.args, context, onTrace);
     case "create_plan":
       return agentToolRegistry.create_plan.execute(intent.args, context, onTrace);
     case "delete_record":

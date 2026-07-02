@@ -51,6 +51,20 @@ import {
   buildExecutionDecisionTraceStep,
   buildObservationTraceStep,
 } from "@/lib/agent/execution-graph";
+import {
+  evaluatePlanReadinessGate,
+  extractPlanSlotsFromSessionState,
+} from "@/lib/agent/planning/readiness-gate";
+import {
+  applyPlanCreationPreparationToResolution,
+  evaluatePlanCreationPreparation,
+} from "@/lib/agent/planning/prepare-plan-creation";
+import { evaluatePlanDraftRevision } from "@/lib/agent/planning/revise-plan-draft";
+import { evaluateChecklistDraftGeneration } from "@/lib/agent/planning/checklist-draft-flow";
+import {
+  applyChecklistCreationPreparationToResolution,
+  evaluateChecklistCreationPreparation,
+} from "@/lib/agent/planning/prepare-checklist-creation";
 import { createNativeOrchestrationTaskExecutor } from "@/lib/agent/orchestration/native-task-executor";
 import { summarizeExecutionQueue } from "@/lib/agent/orchestration/observations";
 import {
@@ -93,6 +107,7 @@ export type FullLangGraphAdapterSteps = {
 type BufferedTurn = {
   assistantMessage: string;
   confidence?: number;
+  conversationState?: unknown;
   engine: AgentEngine;
   intent: AgentIntent["intent"];
   nextPendingAction: null | PendingAction;
@@ -125,6 +140,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
 ) => {
   const {
     baseTokenUsage,
+    conversationState,
     contextPreferences,
     finalizeTurn,
     generateIntentWithAgentModel: modelResolver,
@@ -550,6 +566,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
       if (finalizeTurn) {
         const finalized = await finalizeTurn({
           existingMemories: currentContextMemories ?? [],
+          conversationStateOverride: normalizedTurn.conversationState,
           pushTrace,
           response: {
             ...response,
@@ -582,6 +599,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
       const updatedThread = await steps.appendAgentThreadTurn({
         assistantMessage: normalizedTurn.assistantMessage,
         confidence: normalizedTurn.confidence,
+        conversationState: normalizedTurn.conversationState,
         engine: normalizedTurn.engine,
         intent: normalizedTurn.intent,
         pendingAction: normalizedTurn.nextPendingAction,
@@ -746,6 +764,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
       },
       dryRun: async ({
         context,
+        input: graphInput,
         resolution,
         resolutionData,
         tokenUsage: usage,
@@ -759,16 +778,330 @@ export const createRunFullLangGraphAgentChatPipeline = (
           };
         }
 
+        let nextResolution = resolution;
+        let dryRunConversationState: unknown = undefined;
+        const planDraftRevision = evaluatePlanDraftRevision({
+          intent: resolution.intent,
+          pendingAction: graphInput.pendingAction,
+          sessionState: conversationState,
+          userMessage: graphInput.message,
+        });
+
+        if (
+          planDraftRevision.status === "revised" ||
+          planDraftRevision.status === "missing_draft"
+        ) {
+          emitStatus(
+            planDraftRevision.status === "revised"
+              ? "正在更新计划草案..."
+              : "当前没有可修改的计划草案...",
+          );
+          pushTrace(planDraftRevision.traceStep);
+          stream.start({
+            id: "stage-response",
+            phase: "response",
+            title: "组织计划草案修改回复",
+          });
+          for (const token of splitIntoWordTokens(planDraftRevision.assistantMessage)) {
+            emitToken(token, "response");
+          }
+          stream.complete("stage-response", "计划草案修改回复已生成");
+
+          const outputTokens = estimateTokenCount(planDraftRevision.assistantMessage);
+          const nextTokenUsage = {
+            ...usage,
+            outputTokens,
+            totalTokens: usage.contextTokens + usage.inputTokens + outputTokens,
+          };
+          const updatedThread = await bufferAgentTurn({
+            assistantMessage: planDraftRevision.assistantMessage,
+            confidence: resolution.intent.confidence,
+            conversationState: planDraftRevision.sessionState,
+            engine: resolution.engine,
+            intent: "clarify",
+            nextPendingAction: null,
+          });
+
+          tokenUsage = nextTokenUsage;
+
+          return {
+            response: {
+              assistantMessage: planDraftRevision.assistantMessage,
+              confidence: resolution.intent.confidence,
+              engine: resolution.engine,
+              intent: "clarify",
+              pendingAction: null,
+              planningDraft: planDraftRevision.status === "revised"
+                ? planDraftRevision.planningDraft
+                : null,
+              threadId: updatedThread.id,
+              tokenUsage: nextTokenUsage,
+              trace,
+            },
+            type: "response",
+          };
+        }
+
+        const checklistDraftGeneration = evaluateChecklistDraftGeneration({
+          intent: resolution.intent,
+          pendingAction: graphInput.pendingAction,
+          sessionState: conversationState,
+          userMessage: graphInput.message,
+        });
+
+        if (
+          checklistDraftGeneration.status === "generated" ||
+          checklistDraftGeneration.status === "missing_draft" ||
+          checklistDraftGeneration.status === "invalid_draft"
+        ) {
+          emitStatus(
+            checklistDraftGeneration.status === "generated"
+              ? "正在生成清单草案..."
+              : "当前没有可拆解的计划草案...",
+          );
+          pushTrace(checklistDraftGeneration.traceStep);
+          stream.start({
+            id: "stage-response",
+            phase: "response",
+            title: "组织清单草案回复",
+          });
+          for (const token of splitIntoWordTokens(checklistDraftGeneration.assistantMessage)) {
+            emitToken(token, "response");
+          }
+          stream.complete("stage-response", "清单草案回复已生成");
+
+          const outputTokens = estimateTokenCount(checklistDraftGeneration.assistantMessage);
+          const nextTokenUsage = {
+            ...usage,
+            outputTokens,
+            totalTokens: usage.contextTokens + usage.inputTokens + outputTokens,
+          };
+          const updatedThread = await bufferAgentTurn({
+            assistantMessage: checklistDraftGeneration.assistantMessage,
+            confidence: resolution.intent.confidence,
+            conversationState: checklistDraftGeneration.sessionState,
+            engine: resolution.engine,
+            intent: checklistDraftGeneration.intent,
+            nextPendingAction: null,
+          });
+
+          tokenUsage = nextTokenUsage;
+
+          return {
+            response: {
+              assistantMessage: checklistDraftGeneration.assistantMessage,
+              confidence: resolution.intent.confidence,
+              engine: resolution.engine,
+              intent: checklistDraftGeneration.intent,
+              pendingAction: null,
+              planningChecklistDraft: checklistDraftGeneration.status === "generated"
+                ? checklistDraftGeneration.planningChecklistDraft
+                : null,
+              threadId: updatedThread.id,
+              tokenUsage: nextTokenUsage,
+              trace,
+            },
+            type: "response",
+          };
+        }
+
+        const checklistCreationPreparation = evaluateChecklistCreationPreparation({
+          intent: resolution.intent,
+          sessionState: conversationState,
+          userMessage: graphInput.message,
+        });
+
+        if (
+          checklistCreationPreparation.status === "missing_draft" ||
+          checklistCreationPreparation.status === "invalid_draft"
+        ) {
+          emitStatus("当前没有可创建的清单草案，需要先生成草案...");
+          pushTrace(checklistCreationPreparation.traceStep);
+          stream.start({
+            id: "stage-response",
+            phase: "response",
+            title: "组织清单草案提示",
+          });
+          for (const token of splitIntoWordTokens(checklistCreationPreparation.assistantMessage)) {
+            emitToken(token, "response");
+          }
+          stream.complete("stage-response", "清单草案提示已生成");
+
+          const outputTokens = estimateTokenCount(checklistCreationPreparation.assistantMessage);
+          const nextTokenUsage = {
+            ...usage,
+            outputTokens,
+            totalTokens: usage.contextTokens + usage.inputTokens + outputTokens,
+          };
+          const updatedThread = await bufferAgentTurn({
+            assistantMessage: checklistCreationPreparation.assistantMessage,
+            confidence: resolution.intent.confidence,
+            conversationState: checklistCreationPreparation.sessionState,
+            engine: resolution.engine,
+            intent: "clarify",
+            nextPendingAction: null,
+          });
+
+          tokenUsage = nextTokenUsage;
+
+          return {
+            response: {
+              assistantMessage: checklistCreationPreparation.assistantMessage,
+              confidence: resolution.intent.confidence,
+              engine: resolution.engine,
+              intent: "clarify",
+              pendingAction: null,
+              planningChecklistDraft: checklistCreationPreparation.sessionState.planning?.checklistDraft ?? null,
+              threadId: updatedThread.id,
+              tokenUsage: nextTokenUsage,
+              trace,
+            },
+            type: "response",
+          };
+        }
+
+        if (checklistCreationPreparation.status === "prepared") {
+          pushTrace(checklistCreationPreparation.traceStep);
+          nextResolution = applyChecklistCreationPreparationToResolution(
+            resolution,
+            checklistCreationPreparation,
+          );
+          dryRunConversationState = checklistCreationPreparation.sessionState;
+        }
+
+        const planCreationPreparation = checklistCreationPreparation.status === "prepared"
+          ? { reason: "not_prepare_request" as const, status: "not_prepare" as const }
+          : evaluatePlanCreationPreparation({
+              intent: nextResolution.intent,
+              sessionState: conversationState,
+              userMessage: graphInput.message,
+            });
+
+        if (
+          planCreationPreparation.status === "missing_draft" ||
+          planCreationPreparation.status === "invalid_draft"
+        ) {
+          emitStatus("当前没有可创建的计划草案，需要先生成草案...");
+          pushTrace(planCreationPreparation.traceStep);
+          stream.start({
+            id: "stage-response",
+            phase: "response",
+            title: "组织计划草案提示",
+          });
+          for (const token of splitIntoWordTokens(planCreationPreparation.assistantMessage)) {
+            emitToken(token, "response");
+          }
+          stream.complete("stage-response", "计划草案提示已生成");
+
+          const outputTokens = estimateTokenCount(planCreationPreparation.assistantMessage);
+          const nextTokenUsage = {
+            ...usage,
+            outputTokens,
+            totalTokens: usage.contextTokens + usage.inputTokens + outputTokens,
+          };
+          const updatedThread = await bufferAgentTurn({
+            assistantMessage: planCreationPreparation.assistantMessage,
+            confidence: resolution.intent.confidence,
+            conversationState: planCreationPreparation.sessionState,
+            engine: resolution.engine,
+            intent: "clarify",
+            nextPendingAction: null,
+          });
+
+          tokenUsage = nextTokenUsage;
+
+          return {
+            response: {
+              assistantMessage: planCreationPreparation.assistantMessage,
+              confidence: resolution.intent.confidence,
+              engine: resolution.engine,
+              intent: "clarify",
+              pendingAction: null,
+              planningDraft: planCreationPreparation.sessionState.planning?.draft ?? null,
+              threadId: updatedThread.id,
+              tokenUsage: nextTokenUsage,
+              trace,
+            },
+            type: "response",
+          };
+        }
+
+        if (planCreationPreparation.status === "prepared") {
+          pushTrace(planCreationPreparation.traceStep);
+          nextResolution = applyPlanCreationPreparationToResolution(
+            resolution,
+            planCreationPreparation,
+          );
+          dryRunConversationState = planCreationPreparation.sessionState;
+        }
+
+        const planReadinessGate = planCreationPreparation.status === "prepared"
+          ? { gateApplied: false as const, reason: "ready_enough" as const }
+          : evaluatePlanReadinessGate({
+              confirmedActionId: resolutionData.confirmedActionId ?? null,
+              intent: nextResolution.intent,
+              sessionState: conversationState,
+              sessionSlots: extractPlanSlotsFromSessionState(conversationState),
+              userMessage: graphInput.message,
+            });
+
+        if (planReadinessGate.gateApplied) {
+          emitStatus("计划上下文不足，需要先澄清关键问题...");
+          pushTrace(planReadinessGate.traceStep);
+          stream.start({
+            id: "stage-response",
+            phase: "response",
+            title: "组织计划澄清回复",
+          });
+          for (const token of splitIntoWordTokens(planReadinessGate.assistantMessage)) {
+            emitToken(token, "response");
+          }
+          stream.complete("stage-response", "计划澄清回复已生成");
+
+          const outputTokens = estimateTokenCount(planReadinessGate.assistantMessage);
+          const nextTokenUsage = {
+            ...usage,
+            outputTokens,
+            totalTokens: usage.contextTokens + usage.inputTokens + outputTokens,
+          };
+          const updatedThread = await bufferAgentTurn({
+            assistantMessage: planReadinessGate.assistantMessage,
+            confidence: planReadinessGate.readiness.confidence,
+            conversationState: planReadinessGate.sessionState,
+            engine: resolution.engine,
+            intent: planReadinessGate.intent,
+            nextPendingAction: null,
+          });
+
+          tokenUsage = nextTokenUsage;
+
+          return {
+            response: {
+              assistantMessage: planReadinessGate.assistantMessage,
+              confidence: planReadinessGate.readiness.confidence,
+              engine: resolution.engine,
+              intent: planReadinessGate.intent,
+              pendingAction: null,
+              planningDraft: planReadinessGate.planningDraft ?? null,
+              threadId: updatedThread.id,
+              tokenUsage: nextTokenUsage,
+              trace,
+            },
+            type: "response",
+          };
+        }
+
         const result = await steps.runDryRunAndProposeStep({
           autoApproval,
           confirmedActionId: resolutionData.confirmedActionId ?? null,
           context: context as BuildContextStepResult["context"],
+          conversationState: dryRunConversationState,
           emitStatus,
           emitToken,
           payload,
           persistAgentTurn: bufferAgentTurn,
           pushTrace,
-          resolution,
+          resolution: nextResolution,
           stream,
           tokenUsage: usage,
           trace,
@@ -819,6 +1152,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
           steps.runExecuteAndPersistStep({
             batchExecuteIntents: resolutionData.batchExecuteIntents,
             confirmedActionId: resolutionData.confirmedActionId ?? null,
+            conversationState: dryRun.conversationState ?? conversationState,
             emitStatus,
             emitToken,
             executionApproved: dryRun.executionApproved,

@@ -14,6 +14,7 @@ import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 import { AgentThinkingPanel } from "./AgentThinkingPanel";
 import { AgentApprovalCard } from "./AgentApprovalCard";
+import { isPlanConfirmationAction, PlanConfirmationCard } from "./PlanConfirmationCard";
 import { ThreadHeader } from "./ThreadHeader";
 import { MessageCard } from "./MessageCard";
 import { riskLevelLabelMap } from "./constants";
@@ -97,7 +98,12 @@ type AgentConversationProps = {
   onCancelApproval: () => void;
   onConfirmApproval: () => void;
   onCapabilitySelect?: (prompt: string) => void;
+  onChecklistDraftPrepareCreate?: () => void;
   onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
+  onPlanConfirmationReturnToEdit?: () => void;
+  onPlanDraftGenerateChecklist?: () => void;
+  onPlanDraftPrepareCreate?: () => void;
+  onPlanDraftRevise?: () => void;
   onArchiveThread?: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
   debugMode: boolean;
@@ -121,8 +127,13 @@ export function AgentConversation({
   messages,
   onCancelApproval,
   onCapabilitySelect,
+  onChecklistDraftPrepareCreate,
   onConfirmApproval,
   onEditApproval,
+  onPlanConfirmationReturnToEdit,
+  onPlanDraftGenerateChecklist,
+  onPlanDraftPrepareCreate,
+  onPlanDraftRevise,
   onArchiveThread,
   onRenameThread,
   debugMode,
@@ -288,6 +299,12 @@ export function AgentConversation({
                       }
                       isStreaming={isStreamingMsg}
                       isThinking={isStreamingMsg && isThinking}
+                      onChecklistDraftPrepareCreate={isSubmitting ? undefined : onChecklistDraftPrepareCreate}
+                      onPlanDraftGenerateChecklist={isSubmitting ? undefined : onPlanDraftGenerateChecklist}
+                      onPlanDraftPrepareCreate={isSubmitting ? undefined : onPlanDraftPrepareCreate}
+                      onPlanDraftRevise={isSubmitting ? undefined : onPlanDraftRevise}
+                      planningChecklistDraft={message.planningChecklistDraft}
+                      planningDraft={message.planningDraft}
                       role={message.role}
                       thinkingContent={
                         isStreamingMsg && thinkingContent.trim()
@@ -302,13 +319,23 @@ export function AgentConversation({
             {hasPendingConfirmation ? (
               <div className="sunny-agent-thread-action-area">
                 {confirmationAction ? (
-                  <AgentApprovalCard
-                    action={confirmationAction}
-                    disabled={isSubmitting}
-                    onCancel={onCancelApproval}
-                    onConfirm={onConfirmApproval}
-                    onEdit={onEditApproval}
-                  />
+                  isPlanConfirmationAction(confirmationAction) ? (
+                    <PlanConfirmationCard
+                      action={confirmationAction}
+                      disabled={isSubmitting}
+                      onCancel={onCancelApproval}
+                      onConfirm={onConfirmApproval}
+                      onReturnToEdit={onPlanConfirmationReturnToEdit ?? (() => onEditApproval("plan"))}
+                    />
+                  ) : (
+                    <AgentApprovalCard
+                      action={confirmationAction}
+                      disabled={isSubmitting}
+                      onCancel={onCancelApproval}
+                      onConfirm={onConfirmApproval}
+                      onEdit={onEditApproval}
+                    />
+                  )
                 ) : batchActions && batchActions.length > 0 ? (
                   <BatchConfirmationCard
                     actions={batchActions}

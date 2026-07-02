@@ -1,5 +1,5 @@
 import { dryRunAgentIntent } from "../safety";
-import { executeAgentTool } from "../tool-registry";
+import { executeAgentIntent } from "../executor";
 import type { AgentIntent, AgentWriteIntentName, ProposedAgentAction } from "../schemas";
 import { parseAgentIntentResult } from "../schemas";
 import { getCapability } from "./registry";
@@ -286,7 +286,9 @@ export const runExecuteCapability = async (
     return { ok: false, summary: "Execute 参数无法解析。", error: "invalid_args" };
   }
 
-  const result = await executeAgentTool(intent as Extract<AgentIntent, { intent: AgentWriteIntentName }>);
+  const result = await executeAgentIntent(intent, undefined, {
+    userId: ctx.userId,
+  });
 
   return {
     ok: true,

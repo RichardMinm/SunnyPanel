@@ -115,8 +115,10 @@ export const composePlanFromIntent = async (
     : "";
 
   return {
-    assistantMessage: `已创建完整计划「${createdPlan.title}」。我已经把目标、关键步骤、验收标准、风险和 Agent Brief 写进计划详情。${scheduleHint}`,
+    assistantMessage: `已创建完整计划「${createdPlan.title}」。我已经把目标、关键步骤、验收标准、风险和 Agent Brief 写进计划详情。你可以继续把它拆成清单，后续清单会关联到该计划。${scheduleHint}`,
+    createdPlanId: createdPlan.id,
     pendingAction: null,
+    planId: createdPlan.id,
     rollbackPayload: {
       strategy: "delete_created_document",
       target: {
@@ -124,6 +126,6 @@ export const composePlanFromIntent = async (
         documentId: createdPlan.id,
       },
     },
+    status: "completed",
   };
 };
-

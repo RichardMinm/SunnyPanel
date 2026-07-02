@@ -1,19 +1,31 @@
 import { useMemo, useState } from "react";
+import { ActionResultCard } from "./ActionResultCard";
 import { AgentMarkdownBubble } from "./AgentMarkdownBubble";
 import { ChecklistCompletionCard } from "./ChecklistCompletionCard";
+import { ChecklistDraftCard } from "./ChecklistDraftCard";
+import { PlanDraftCard } from "./PlanDraftCard";
 import { PlanOverviewCard } from "./PlanOverviewCard";
 import { ScheduleResultCard } from "./ScheduleResultCard";
 import {
+  parseActionResultMessage,
   parseChecklistCompletion,
   parsePlanOverview,
   parseScheduleResultMessage,
 } from "./utils";
 import { DashboardIcon } from "../icons";
+import type { ChecklistDraft } from "@/lib/agent/planning/checklist-draft";
+import type { PlanDraft } from "@/lib/agent/planning/draft";
 
 type MessageCardProps = {
   content: string;
   isStreaming?: boolean;
   isThinking?: boolean;
+  onChecklistDraftPrepareCreate?: () => void;
+  onPlanDraftGenerateChecklist?: () => void;
+  onPlanDraftPrepareCreate?: () => void;
+  onPlanDraftRevise?: () => void;
+  planningChecklistDraft?: ChecklistDraft | null;
+  planningDraft?: PlanDraft | null;
   role: "assistant" | "user";
   thinkingContent?: string;
 };
@@ -22,6 +34,12 @@ export function MessageCard({
   content,
   isStreaming,
   isThinking,
+  onChecklistDraftPrepareCreate,
+  onPlanDraftGenerateChecklist,
+  onPlanDraftPrepareCreate,
+  onPlanDraftRevise,
+  planningChecklistDraft,
+  planningDraft,
   role,
   thinkingContent,
 }: MessageCardProps) {
@@ -30,6 +48,8 @@ export function MessageCard({
   // Only attempt structured parsing when NOT streaming (avoid false positives during generation)
   const structuredCard = useMemo(() => {
     if (role !== "assistant" || isStreaming || !content) return null;
+    const actionResult = parseActionResultMessage(content);
+    if (actionResult) return { type: "action_result" as const, data: actionResult };
     const scheduleResult = parseScheduleResultMessage(content);
     if (scheduleResult) return { type: "schedule" as const, data: scheduleResult };
     const checklistResult = parseChecklistCompletion(content);
@@ -50,6 +70,21 @@ export function MessageCard({
     : [];
 
   const renderAssistantContent = () => {
+    if (planningChecklistDraft && !isStreaming) {
+      return <ChecklistDraftCard draft={planningChecklistDraft} onPrepareCreate={onChecklistDraftPrepareCreate} />;
+    }
+
+    if (planningDraft && !isStreaming) {
+      return (
+        <PlanDraftCard
+          draft={planningDraft}
+          onGenerateChecklist={onPlanDraftGenerateChecklist}
+          onPrepareCreate={onPlanDraftPrepareCreate}
+          onRevise={onPlanDraftRevise}
+        />
+      );
+    }
+
     if (!structuredCard) {
       return (
         <AgentMarkdownBubble
@@ -60,6 +95,8 @@ export function MessageCard({
     }
 
     switch (structuredCard.type) {
+      case "action_result":
+        return <ActionResultCard data={structuredCard.data} />;
       case "schedule":
         return <ScheduleResultCard result={structuredCard.data} />;
       case "checklist":

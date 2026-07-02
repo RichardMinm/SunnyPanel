@@ -2,6 +2,10 @@ import type { Checklist, TimelineEvent } from "@/payload-types";
 
 import { getPayloadClient } from "@/lib/payload/client";
 
+import {
+  CHECKLIST_TIMELINE_SOURCE_TYPE,
+  CHECKLIST_TIMELINE_TYPE,
+} from "./checklist-timeline-semantics";
 import { validateTimelineEventData } from "./write-schemas";
 import {
   buildTimelineDescription,
@@ -77,15 +81,17 @@ export const resolveChecklistItem = async ({
 
       return {
         group,
+        groupScore,
         groupIndex,
         item,
+        itemScore,
         itemIndex,
         score: groupTitle ? itemScore + groupScore : itemScore,
       };
     }),
   );
   const filtered = candidates
-    .filter((candidate) => candidate.score > 0 && (!groupTitle || scoreTextMatch(candidate.group.title, groupTitle) > 0))
+    .filter((candidate) => candidate.itemScore > 0 && (!groupTitle || candidate.groupScore > 0))
     .sort((a, b) => b.score - a.score);
 
   if (filtered.length === 0) {
@@ -268,15 +274,16 @@ export const upsertChecklistTimelineEvent = async ({
     item,
   });
   const data = validateTimelineEventData({
-    description: buildTimelineDescription(item),
+    description: buildTimelineDescription(checklist.title, group.title, item),
     eventDate: item.completedAt || new Date().toISOString(),
     isFeatured: false,
     relatedChecklist: checklist.id,
     relatedTaskKey: item.id,
     sortOrder: 0,
+    sourceType: CHECKLIST_TIMELINE_SOURCE_TYPE,
     status: checklist.status,
     title: buildTimelineTitle(checklist.title, group.title, item.title),
-    type: "project" as const,
+    type: CHECKLIST_TIMELINE_TYPE,
     visibility: checklist.visibility,
   });
 

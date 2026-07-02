@@ -1,10 +1,11 @@
-import type { AgentRun, Checklist, Plan } from "@/payload-types";
+import type { AgentRun, Plan } from "@/payload-types";
 
 import { getPayloadClient } from "@/lib/payload/client";
 
 import { enhanceEvaluationWithLLM, mergeEvaluationEnhancement } from "./evaluation-llm";
 import { getCurrentAgentUserId } from "./execution-context";
 import { persistPlanOperatingReview } from "./plan-operating";
+import { calculatePlanChecklistProgress } from "./planning/plan-checklist-progress";
 import type { EvaluatePlanArgs } from "./schemas";
 import { getAgentProgressSnapshot } from "./progress";
 
@@ -43,46 +44,7 @@ const getDueDayOffset = (value?: null | string) => {
 
 const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
 
-const getRelationId = (value: unknown) => {
-  if (typeof value === "number") {
-    return value;
-  }
-
-  if (value && typeof value === "object" && "id" in value && typeof value.id === "number") {
-    return value.id;
-  }
-
-  return null;
-};
-
 const getLinkedContentCount = (plan: Plan) => plan.linkedContent?.length ?? 0;
-
-const getLinkedChecklistIds = (plan: Plan) =>
-  (plan.linkedContent ?? [])
-    .filter((item) => item.relationTo === "checklists")
-    .map((item) => getRelationId(item.value))
-    .filter((item): item is number => item !== null);
-
-const getChecklistCompletionRate = (checklists: Checklist[]) => {
-  const items = checklists.flatMap((checklist) => (checklist.groups ?? []).flatMap((group) => group.items ?? []));
-  const totalItems = items.length;
-
-  if (totalItems === 0) {
-    return {
-      completedItems: 0,
-      completionRate: 0,
-      totalItems,
-    };
-  }
-
-  const completedItems = items.filter((item) => item.isCompleted).length;
-
-  return {
-    completedItems,
-    completionRate: completedItems / totalItems,
-    totalItems,
-  };
-};
 
 const getLastRunStatus = (plan: Plan) => {
   const run = plan.lastAgentRun;
@@ -277,9 +239,11 @@ export const evaluatePlan = async (
     };
   }
 
-  const linkedChecklistIds = new Set(getLinkedChecklistIds(plan));
-  const linkedChecklists = checklists.docs.filter((checklist) => linkedChecklistIds.has(checklist.id));
-  const checklistStats = getChecklistCompletionRate(linkedChecklists);
+  const checklistStats = calculatePlanChecklistProgress({
+    checklists: checklists.docs,
+    linkedContent: plan.linkedContent ?? null,
+  });
+  const checklistCompletionRate = checklistStats.completionRate / 100;
   const linkedContentCount = getLinkedContentCount(plan);
   const dueDayOffset = getDueDayOffset(plan.dueDate);
   const lastRunStatus = getLastRunStatus(plan);
@@ -309,7 +273,7 @@ export const evaluatePlan = async (
     recommendations.push("高优先级计划没有截止时间，建议补一个日期，方便进度统计和提醒。");
   }
 
-  if (checklistStats.totalItems > 0 && checklistStats.completionRate < 0.5 && plan.state === "active") {
+  if (checklistStats.totalItems > 0 && checklistCompletionRate < 0.5 && plan.state === "active") {
     recommendations.push("关联清单完成率还不到 50%，建议先挑最小的一组任务清掉，别急着扩范围。");
   }
 
@@ -335,12 +299,12 @@ export const evaluatePlan = async (
 
   const baseResult: EvaluationResult = {
     assistantMessage: `「${plan.title}」评估：状态 ${plan.state}，优先级 ${plan.priority}，${dueText}，关联产出 ${linkedContentCount} 条，关联清单完成率 ${formatPercent(
-      checklistStats.completionRate,
+      checklistCompletionRate,
     )}。建议：${recommendations.join(" ")}`,
     health,
     metrics: {
       agentState: plan.agentState,
-      checklistCompletionRate: formatPercent(checklistStats.completionRate),
+      checklistCompletionRate: formatPercent(checklistCompletionRate),
       completedChecklistItems: checklistStats.completedItems,
       dueDayOffset: dueDayOffset ?? "none",
       executionMode: plan.executionMode,

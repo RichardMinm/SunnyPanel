@@ -8,7 +8,6 @@ import {
   type AgentIntent,
   type PendingAction,
 } from "@/lib/agent/schemas";
-import type { AgentConversationState } from "@/lib/agent/conversation/types";
 import { buildAgentThreadSummary } from "@/lib/agent/thread-summary";
 import type { AgentThread } from "@/payload-types";
 
@@ -105,8 +104,18 @@ export type HydratedAgentThreadState = {
   pendingAction: null | PendingAction;
 };
 
+type AgentThreadJsonField =
+  | {
+      [k: string]: unknown;
+    }
+  | boolean
+  | null
+  | number
+  | string
+  | unknown[];
+
 export type AgentThreadProjection = {
-  conversationState?: AgentConversationState | null;
+  conversationState?: AgentThreadJsonField;
   lastConfidence: AgentThread["lastConfidence"];
   lastEngine: AgentThread["lastEngine"];
   lastIntent: AgentThread["lastIntent"];

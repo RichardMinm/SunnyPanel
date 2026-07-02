@@ -9,6 +9,7 @@ export const AGENT_WRITE_INTENT_NAMES = [
   "compose_plan",
   "compose_schedule_item",
   "compose_timeline_event",
+  "create_checklist",
   "create_plan",
   "delete_record",
   "modify_record",
@@ -28,6 +29,7 @@ export const isAgentWriteIntent = (intent: AgentIntent["intent"]): intent is Age
 export const ORCHESTRATION_WRITE_INTENTS = new Set([
   "compose_plan",
   "create_plan",
+  "create_checklist",
   "append_plan_item",
   "complete_plan_item",
   "add_completion_note",

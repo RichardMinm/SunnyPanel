@@ -8,9 +8,12 @@ import type {
   AgentContextContentItem,
   AgentContextSource,
 } from "@/lib/agent/context-builder";
+import {
+  calculatePlanChecklistProgress,
+  type PlanChecklistProgress,
+} from "@/lib/agent/planning/plan-checklist-progress";
 import { buildAgentRunOwnerWhere } from "@/lib/agent/run-access";
 import { publicContentConstraint } from "@/lib/payload/access";
-import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
 import { buildOnboardingChecklist, ensureInitialWorkspace, hasInitialWorkspaceSeed } from "@/lib/payload/onboarding";
 import { getTodaySchedule, getTomorrowSchedule, type ScheduleItemRecord } from "@/lib/schedule/items";
@@ -358,7 +361,8 @@ const loadAgentWorkspaceSections = async (
   options: LoadSectionsOptions,
 ): Promise<WorkspaceCoreDataWithSections> => {
   const { sections, dateRange, targetDocument } = options;
-  const payload = await getPayloadClient();
+  const payload = await getPayloadClient() as unknown as Payload;
+  const { getPayloadAuthResult } = await import("@/lib/payload/auth");
   const authResult = await getPayloadAuthResult();
   const user = authResult.user as User;
   const contentLimit = WORKSPACE_CONTENT_LIMIT;
@@ -524,6 +528,7 @@ const loadAgentWorkspaceSections = async (
 };
 
 export type WorkspaceSnapshot = {
+  checklistProgressByPlanId: Record<string, PlanChecklistProgress>;
   counts: {
     activePlans: number;
     agentBlockedPlans: number;
@@ -633,6 +638,15 @@ export const assembleWorkspaceSnapshot = (core: WorkspaceCoreData): WorkspaceSna
   const plansWithOutputs = plans.docs.filter(hasLinkedOutputs);
   const plansWithoutOutputs = plans.docs.filter((plan) => !hasLinkedOutputs(plan));
   const activePlansWithoutOutputs = activePlans.filter((plan) => !hasLinkedOutputs(plan));
+  const checklistProgressByPlanId = Object.fromEntries(
+    plans.docs.map((plan) => [
+      String(plan.id),
+      calculatePlanChecklistProgress({
+        checklists: recentChecklists.docs,
+        linkedContent: plan.linkedContent ?? null,
+      }),
+    ]),
+  );
   const linkedContentKeys = new Set(
     plans.docs.flatMap((plan) =>
       (plan.linkedContent ?? []).map((item) => getLinkedContentKey(item)).filter((item): item is string => Boolean(item)),
@@ -682,6 +696,7 @@ export const assembleWorkspaceSnapshot = (core: WorkspaceCoreData): WorkspaceSna
     .slice(0, 6);
 
   return {
+    checklistProgressByPlanId,
     counts: {
       activePlans: activePlans.length,
       agentBlockedPlans: blockedAgentPlans.length,
@@ -772,7 +787,8 @@ export const loadWorkspaceCore = async (
     typeof input === "string"
       ? true
       : input.seedInitialWorkspace ?? true;
-  const payload = await getPayloadClient();
+  const payload = await getPayloadClient() as unknown as Payload;
+  const { getPayloadAuthResult } = await import("@/lib/payload/auth");
 
   const authResult = await getPayloadAuthResult();
 

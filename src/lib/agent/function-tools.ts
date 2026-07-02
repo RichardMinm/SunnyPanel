@@ -69,6 +69,15 @@ const intentParameterHints: Record<AgentWriteIntentName, Record<string, Paramete
     },
     visibility: { description: "可见性", enum: ["public", "private"], type: "string" },
   },
+  create_checklist: {
+    groups: { description: "清单分组与条目", type: "array" },
+    sourcePlanId: { description: "真实来源计划 ID；只有已知具体 Plan id 时填写", type: "number" },
+    sourceText: { description: "来源草案或用户原始描述", type: "string" },
+    status: { description: "内容状态", enum: ["draft", "published"], type: "string" },
+    summary: { description: "清单说明", type: "string" },
+    title: { description: "清单标题", type: "string" },
+    visibility: { description: "可见性", enum: ["public", "private"], type: "string" },
+  },
   create_plan: {
     description: { description: "计划说明（1-3 句）", type: "string" },
     dueDate: { description: "截止日期 YYYY-MM-DD", type: "string" },
@@ -127,6 +136,7 @@ const requiredFields: Partial<Record<AgentWriteIntentName, string[]>> = {
   compose_plan: ["goal", "title"],
   compose_schedule_item: ["date", "sourceText"],
   compose_timeline_event: ["title", "eventDate"],
+  create_checklist: ["title", "groups"],
   create_plan: ["title"],
   query_plan_progress: ["planTitle"],
   reschedule_item: ["scheduleItemId"],

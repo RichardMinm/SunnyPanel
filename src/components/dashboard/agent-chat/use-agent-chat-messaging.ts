@@ -10,6 +10,10 @@ import {
   type AgentRollbackExecutionResult,
 } from "@/components/dashboard/agent/rollback-display";
 import { readAgentChatStream } from "@/lib/agent/read-agent-chat-stream";
+import {
+  attachPlanningChecklistDraftToLastAssistantMessage,
+  attachPlanningDraftToLastAssistantMessage,
+} from "@/lib/agent/planning/draft-message";
 import type {
   AgentChatMessage,
   AgentChatResponse,
@@ -310,6 +314,8 @@ export function useAgentChatMessaging({
         const responseData = data ?? {};
         const assistantMessage =
           typeof responseData.assistantMessage === "string" ? responseData.assistantMessage : null;
+        const planningChecklistDraft = responseData.planningChecklistDraft ?? null;
+        const planningDraft = responseData.planningDraft ?? null;
 
         if (!response.ok || !assistantMessage) {
           throw new Error(assistantMessage || "Agent 暂时没有返回可用结果。");
@@ -320,9 +326,27 @@ export function useAgentChatMessaging({
             ...current,
             {
               content: assistantMessage,
+              ...(planningChecklistDraft ? { planningChecklistDraft } : {}),
+              ...(planningDraft ? { planningDraft } : {}),
               role: "assistant",
             },
           ]);
+        } else if (planningChecklistDraft) {
+          setMessages((current) =>
+            attachPlanningChecklistDraftToLastAssistantMessage(
+              current,
+              planningChecklistDraft,
+              responseData.pendingAction ?? null,
+            ),
+          );
+        } else if (planningDraft) {
+          setMessages((current) =>
+            attachPlanningDraftToLastAssistantMessage(
+              current,
+              planningDraft,
+              responseData.pendingAction ?? null,
+            ),
+          );
         }
 
         setPendingAction(responseData.pendingAction ?? null);

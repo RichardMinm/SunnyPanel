@@ -34,7 +34,7 @@ ${planLines}
 ## 输出格式
 只输出 JSON，不要 Markdown 代码块：
 {
-  "intent": "create_plan" | "compose_plan" | "append_plan_item" | "complete_plan_item" | "schedule_plan" | "evaluate_plan" | "clarify",
+  "intent": "create_plan" | "compose_plan" | "append_plan_item" | "complete_checklist_item" | "complete_plan_item" | "schedule_plan" | "evaluate_plan" | "clarify",
   "args": { /* 完整工具参数 */ },
   "confidence": 0.0-1.0,
   "reply": "可选，clarify 时必填"

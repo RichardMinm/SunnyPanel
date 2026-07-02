@@ -36,12 +36,14 @@ export type DryRunAndProposeStepParams = {
   autoApproval?: AutoApprovalContext;
   confirmedActionId: null | string;
   context: BuildContextStepResult["context"];
+  conversationState?: unknown;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   payload: Payload;
   persistAgentTurn: (args: {
     assistantMessage: string;
     confidence?: number;
+    conversationState?: unknown;
     engine: AgentEngine;
     intent: AgentIntent["intent"];
     nextPendingAction: null | PendingAction;
@@ -58,6 +60,7 @@ export type DryRunAndProposeStepParams = {
 
 export type DryRunAndProposeStepNext = {
   approvedActionId?: string;
+  conversationState?: unknown;
   executionApproved: boolean;
   isDirectAnswer: boolean;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -72,6 +75,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     autoApproval,
     confirmedActionId,
     context,
+    conversationState,
     emitStatus,
     emitToken,
     payload,
@@ -87,6 +91,17 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   } = params;
 
   let tokenUsage = tokenUsageIn;
+  const persistDryRunTurn = (args: {
+    assistantMessage: string;
+    confidence?: number;
+    engine: AgentEngine;
+    intent: AgentIntent["intent"];
+    nextPendingAction: null | PendingAction;
+  }) =>
+    persistAgentTurn({
+      ...args,
+      ...(conversationState !== undefined ? { conversationState } : {}),
+    });
   const isDirectAnswer =
     resolution.intent.intent === "answer_question" ||
     isConversationalIntent(resolution.intent.intent) ||
@@ -120,7 +135,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
           status: "error",
           title: "目标解析失败",
         });
-        const updatedThread = await persistAgentTurn({
+        const updatedThread = await persistDryRunTurn({
           assistantMessage,
           confidence: resolution.intent.confidence,
           engine: resolution.engine,
@@ -166,7 +181,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
           status: "error",
           title: "目标解析失败",
         });
-        const updatedThread = await persistAgentTurn({
+        const updatedThread = await persistDryRunTurn({
           assistantMessage,
           confidence: resolution.intent.confidence,
           engine: resolution.engine,
@@ -224,7 +239,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         status: "error",
         title: "Policy Guard 拒绝",
       });
-      const updatedThread = await persistAgentTurn({
+      const updatedThread = await persistDryRunTurn({
         assistantMessage,
         confidence: resolution.intent.confidence,
         engine: resolution.engine,
@@ -257,7 +272,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         status: "error",
         title: "Policy Guard 禁止 DryRun",
       });
-      const updatedThread = await persistAgentTurn({
+      const updatedThread = await persistDryRunTurn({
         assistantMessage,
         confidence: resolution.intent.confidence,
         engine: resolution.engine,
@@ -400,7 +415,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       status: "done",
       title: "Dry-run 未能唯一定位目标",
     });
-    const updatedThread = await persistAgentTurn({
+    const updatedThread = await persistDryRunTurn({
       assistantMessage,
       confidence: resolution.intent.confidence,
       engine: resolution.engine,
@@ -444,6 +459,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       outcome: "execute",
       data: {
         ...(hasWriteChange ? { approvedActionId: proposedAction.id } : {}),
+        ...(conversationState !== undefined ? { conversationState } : {}),
         executionApproved: true,
         isDirectAnswer: false,
         tokenUsage,
@@ -498,6 +514,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         outcome: "execute",
         data: {
           approvedActionId: proposedAction.id,
+          ...(conversationState !== undefined ? { conversationState } : {}),
           executionApproved: true,
           isDirectAnswer: false,
           tokenUsage,
@@ -547,7 +564,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       status: "done",
       title: "Dry-run 已生成待确认动作",
     });
-    const updatedThread = await persistAgentTurn({
+    const updatedThread = await persistDryRunTurn({
       assistantMessage,
       confidence: resolution.intent.confidence,
       engine: resolution.engine,
@@ -589,6 +606,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   return {
     outcome: "execute",
     data: {
+      ...(conversationState !== undefined ? { conversationState } : {}),
       executionApproved: true,
       isDirectAnswer,
       tokenUsage,

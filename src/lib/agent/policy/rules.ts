@@ -29,6 +29,7 @@ const WRITE_TOOLS_BY_ACTION: Record<AgentRouterAction, readonly AgentWriteIntent
   capability: [],
   clarify: [],
   create: [
+    "create_checklist",
     "create_plan",
     "compose_plan",
     "compose_schedule_item",

@@ -650,8 +650,8 @@ test("ALL scenarios: write intents never produce stage=executing without confirm
 
 test("golden scenarios: no forbidden imports from test file", async () => {
   const { readFileSync } = await import("node:fs");
-  const { fileURLToPath } = await import("node:url");
-  const source = readFileSync(fileURLToPath(import.meta.url), "utf8");
+  const { resolve } = await import("node:path");
+  const source = readFileSync(resolve(process.cwd(), "tests/agent/session/golden-scenarios.test.ts"), "utf8");
   const lines = source.split("\n");
 
   for (const line of lines) {

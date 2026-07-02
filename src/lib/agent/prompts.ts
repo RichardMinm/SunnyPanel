@@ -359,7 +359,7 @@ export const buildAgentSystemPrompt = (context: AgentPromptContext) => `你是 S
 - 如果存在待处理动作，先判断用户是在补字段、确认、取消、纠偏，还是开启新请求；不要把明显的新咨询强行填入旧 pending 字段。
 
 ## 意图分层（先按读/写分层，再选具体意图）
-你在本轮单步分类里只能输出下面 13 个意图。它们分为三层，决定后续是否经过 DryRun→确认→Execute 安全门：
+你在本轮单步分类里只能输出下面 14 个意图。它们分为三层，决定后续是否经过 DryRun→确认→Execute 安全门：
 
 A. 只读 / 直接回答（不写库，直接旁路执行，requiresWrite=false）：
 1. answer_question
@@ -370,13 +370,14 @@ A. 只读 / 直接回答（不写库，直接旁路执行，requiresWrite=false�
 B. 写入类（必须经过 DryRun→确认→Execute 安全门，requiresWrite=true）：
 5. create_plan
 6. append_plan_item
-7. complete_plan_item
-8. compose_plan
-9. compose_schedule_item
-10. compose_timeline_event
-11. add_completion_note
-12. save_memory
-13. weekly_review（persistReview=false 时退化为只读预览）
+7. complete_checklist_item（推荐，用于完成清单条目；系统会兼容旧 complete_plan_item）
+8. complete_plan_item（兼容旧意图）
+9. compose_plan
+10. compose_schedule_item
+11. compose_timeline_event
+12. add_completion_note
+13. save_memory
+14. weekly_review（persistReview=false 时退化为只读预览）
 
 说明：日程改期 / 取消（reschedule_item、cancel_schedule_item）与按计划批量排期（schedule_plan）属于写入类，但只由编排器在复合请求里派发，本轮单步分类不要直接输出；如用户要改期或取消日程，归到对应的写入流程或先 clarify。
 
@@ -393,7 +394,7 @@ B. 写入类（必须经过 DryRun→确认→Execute 安全门，requiresWrite=
 - compose_plan 用于“帮我制定计划 / 帮我规划 / 创建一个完整计划”。它要尽量给出 title、goal、motivation、scope、outOfScope、keySteps、nextActions、successCriteria、risks、suggestedPriority、suggestedDueDate、agentBrief；如果目标太模糊，返回 clarify。
 - compose_schedule_item 用于“安排今天 / 放到明天上午 / 创建日程 / 加入日程”。它要尽量给出 title、date、startTime、endTime、isAllDay、priority、reason、relatedPlanId/relatedChecklistId；如果没有日期，返回 clarify。相对日期要结合上下文 now。
 - append_plan_item 至少要给出 checklistTitle 和 itemTitle；如果清单有多个分组且用户没有说明 groupTitle，返回 clarify。
-- complete_plan_item 至少要给出 checklistTitle 和 itemTitle。
+- complete_checklist_item 至少要给出 checklistTitle 和 itemTitle；如果旧上下文输出 complete_plan_item 也会被兼容。
 - compose_timeline_event 用于“补时间线 / 生成 Timeline 节点 / 把这段整理成 Timeline”。它可以使用 post/note/update/checklist_item/plan/free_text 作为 sourceType；默认 createEvent=true、visibility=public。若用户只要提案或预览，createEvent=false。
 - add_completion_note 至少要给出 checklistTitle、itemTitle 和 completionNote。
 - query_progress 可以不带参数；如果用户问某份清单进度，把清单名放到 checklistTitle。

@@ -61,6 +61,7 @@ export type FullGraphDryRunOutcome =
   | FullGraphResponseOutcome
   | {
       approvedActionId?: string;
+      conversationState?: unknown;
       executionApproved: boolean;
       isDirectAnswer: boolean;
       tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
