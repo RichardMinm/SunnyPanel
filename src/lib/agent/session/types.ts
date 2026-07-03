@@ -1,4 +1,13 @@
 import type { LLMRouterAction, LLMRouterTarget } from "../router/llm-router-schema";
+import type { ChecklistDraft } from "../planning/checklist-draft";
+import type { PlanDraft } from "../planning/draft";
+import type { PlanReadiness, PlanSlots } from "../planning/readiness";
+import type {
+  ScheduleReadiness,
+  ScheduleSlots,
+  ScheduleSourceType,
+} from "../schedule/readiness";
+import type { ScheduleDraft } from "../schedule/draft";
 
 /* ──── Enum types ──── */
 
@@ -7,7 +16,7 @@ export type SemanticDomain =
   | "schedule" | "security" | "writing";
 
 export type DialogueStage =
-  | "exploring" | "drafting" | "refining" | "confirming"
+  | "exploring" | "clarifying" | "drafting" | "refining" | "confirming"
   | "executing" | "reviewing" | "completed";
 
 export type EntityType =
@@ -72,7 +81,30 @@ export type TransitionOutput = {
   reason: string;
 };
 
-/* ──── AgentSessionState (4 groups) ──── */
+export type PlanningSessionState = {
+  workflow?: Extract<WorkflowId, "plan_creation" | "plan_iteration">;
+  sourcePlanId?: number | null;
+  slots?: PlanSlots;
+  readiness?: PlanReadiness;
+  draft?: PlanDraft | null;
+  checklistDraft?: ChecklistDraft | null;
+  lastSuggestedQuestions?: string[];
+  lastUpdatedAt?: string;
+};
+
+export type SchedulingSessionState = {
+  workflow?: "schedule_from_plan" | "schedule_from_checklist" | "manual_schedule";
+  sourceType?: ScheduleSourceType | null;
+  sourcePlanId?: number | null;
+  sourceChecklistId?: number | null;
+  slots?: ScheduleSlots;
+  readiness?: ScheduleReadiness;
+  draft?: ScheduleDraft | null;
+  lastSuggestedQuestions?: string[];
+  lastUpdatedAt?: string;
+};
+
+/* ──── AgentSessionState ──── */
 
 export type AgentSessionState = {
   schemaVersion: number;
@@ -111,6 +143,10 @@ export type AgentSessionState = {
       reason: string;
     } | null;
   };
+
+  planning?: PlanningSessionState;
+
+  scheduling?: SchedulingSessionState;
 
   lastTransition?: {
     transitionType: TransitionType;

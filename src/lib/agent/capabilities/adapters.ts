@@ -1,5 +1,5 @@
 import { dryRunAgentIntent } from "../safety";
-import { executeAgentTool } from "../tool-registry";
+import { executeAgentIntent } from "../executor";
 import type { AgentIntent, AgentWriteIntentName, ProposedAgentAction } from "../schemas";
 import { parseAgentIntentResult } from "../schemas";
 import { getCapability } from "./registry";
@@ -15,6 +15,7 @@ const PREVIEW_CAPABILITY_TO_LEGACY: Record<
 > = {
   preview_create_plan: { intent: "create_plan" },
   preview_create_schedule: { intent: "compose_schedule_item" },
+  preview_create_schedule_items: { intent: "create_schedule_items" },
   preview_update_plan: {
     defaultArgs: { entityType: "plan" },
     intent: "modify_record",
@@ -44,6 +45,7 @@ const PREVIEW_CAPABILITY_TO_LEGACY: Record<
 const EXECUTE_CAPABILITY_TO_LEGACY: Record<string, AgentWriteIntentName> = {
   execute_create_plan: "create_plan",
   execute_create_schedule: "compose_schedule_item",
+  execute_create_schedule_items: "create_schedule_items",
   execute_update_plan: "modify_record",
   execute_update_schedule: "reschedule_item",
   execute_delete_plan: "delete_record",
@@ -59,6 +61,7 @@ const LEGACY_INTENT_TO_PREVIEW: Partial<Record<AgentWriteIntentName, string>> = 
   cancel_schedule_item: "preview_delete_schedule",
   compose_plan: "preview_create_plan",
   compose_schedule_item: "preview_create_schedule",
+  create_schedule_items: "preview_create_schedule_items",
   create_plan: "preview_create_plan",
   delete_record: "preview_delete_plan",
   modify_record: "preview_update_plan",
@@ -70,6 +73,7 @@ const LEGACY_INTENT_TO_EXECUTE: Partial<Record<AgentWriteIntentName, string>> = 
   cancel_schedule_item: "execute_delete_schedule",
   compose_plan: "execute_create_plan",
   compose_schedule_item: "execute_create_schedule",
+  create_schedule_items: "execute_create_schedule_items",
   create_plan: "execute_create_plan",
   delete_record: "execute_delete_plan",
   modify_record: "execute_update_plan",
@@ -286,7 +290,9 @@ export const runExecuteCapability = async (
     return { ok: false, summary: "Execute 参数无法解析。", error: "invalid_args" };
   }
 
-  const result = await executeAgentTool(intent as Extract<AgentIntent, { intent: AgentWriteIntentName }>);
+  const result = await executeAgentIntent(intent, undefined, {
+    userId: ctx.userId,
+  });
 
   return {
     ok: true,

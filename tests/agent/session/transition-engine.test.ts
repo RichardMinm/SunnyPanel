@@ -402,7 +402,7 @@ test("transition engine does not import real LLM client", async () => {
   const { readFileSync } = await import("node:fs");
   const { resolve } = await import("node:path");
   const source = readFileSync(
-    resolve(import.meta.dirname ?? __dirname, "../../../src/lib/agent/session/transition-engine.ts"),
+    resolve(process.cwd(), "src/lib/agent/session/transition-engine.ts"),
     "utf8",
   );
 

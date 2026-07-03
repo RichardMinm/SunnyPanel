@@ -6,6 +6,7 @@ export {
   resolveChecklistItem,
 } from "../checklist-resolvers";
 export { appendPlanItemFromIntent, completePlanItemFromIntent } from "./checklist-complete";
+export { createChecklistFromIntent } from "./checklist-create";
 export { addCompletionNoteFromIntent } from "./checklist-note";
 export { saveMemoryFromIntent } from "./memory-tools";
 export { modifyRecordFromIntent } from "./modify-record";

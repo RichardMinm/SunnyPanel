@@ -2356,6 +2356,10 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   align-items: center;
   min-width: 0;
   min-height: var(--composer-aux-size);
+}.sunny-agent-composer-input-wrap.is-pending{
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: center;
 }/* Composer input — borderless inside unified capsule */
 .sunny-agent-composer-input{
   width: 100%;
@@ -2378,6 +2382,24 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
 }.sunny-agent-composer-input:focus{
   outline: none;
   box-shadow: none;
+}.sunny-agent-composer-pending-mode{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0 0.5rem 0.35rem;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+}.sunny-agent-composer-pending-mode > span{
+  color: var(--accent-strong);
+  font-weight: 760;
+}.sunny-agent-composer-pending-actions{
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}.sunny-agent-composer-pending-actions .app-button{
+  min-height: 1.85rem;
 }.sunny-agent-composer .sunny-agent-composer-send{
   flex-shrink: 0;
   align-self: center;
@@ -2638,6 +2660,654 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   color: var(--mode-plan-text);
 }.sunny-agent-result-card-checklist .sunny-agent-result-card-link:hover{
   background: var(--cat-plan-bg);
+}/* ── Action Result Card ── */
+.sunny-action-result-card{
+  gap: 0.65rem;
+}.sunny-action-result-card-header{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}.sunny-action-result-card-header > div{
+  min-width: 0;
+}.sunny-action-result-card-notes{
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-action-result-card-notes li::marker{
+  color: var(--tone-success-text);
+}.sunny-action-result-card-preview-list{
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--ink);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-action-result-card-preview-list li{
+  overflow-wrap: anywhere;
+}.sunny-action-result-card-footer{
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  border-top: 1px solid color-mix(in oklch, var(--border) 66%, transparent);
+  padding-top: 0.55rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}.sunny-action-result-card-plan_created{
+  border-color: color-mix(in oklch, var(--accent) 26%, var(--border));
+  background: color-mix(in oklch, var(--tone-info-bg) 70%, var(--surface-strong));
+}.sunny-action-result-card-checklist_created,
+.sunny-action-result-card-checklist_item_completed,
+.sunny-action-result-card-schedule_items_created{
+  border-color: color-mix(in oklch, var(--tone-success-text) 26%, var(--border));
+  background: color-mix(in oklch, var(--cat-plan-bg) 72%, var(--surface-strong));
+}.sunny-action-result-card-checklist_created .sunny-agent-result-card-kicker,
+.sunny-action-result-card-checklist_item_completed .sunny-agent-result-card-kicker,
+.sunny-action-result-card-schedule_items_created .sunny-agent-result-card-kicker{
+  color: var(--tone-success-text);
+}/* ── Plan Draft Card ── */
+.sunny-plan-draft-card{
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid color-mix(in oklch, var(--accent) 18%, var(--border));
+  border-radius: 0.85rem;
+  background: color-mix(in oklch, var(--tone-info-bg) 42%, var(--surface));
+  padding: 0.85rem;
+}.sunny-plan-draft-header{
+  display: grid;
+  gap: 0.35rem;
+}.sunny-plan-draft-header-main{
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}.sunny-plan-draft-header-main h3{
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 760;
+  line-height: 1.35;
+}.sunny-plan-draft-header p{
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-plan-draft-meta{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0;
+}.sunny-plan-draft-meta > div{
+  min-width: 0;
+  border: 1px solid color-mix(in oklch, var(--border) 62%, transparent);
+  border-radius: 0.65rem;
+  background: color-mix(in oklch, var(--surface-strong) 88%, transparent);
+  padding: 0.5rem 0.6rem;
+}.sunny-plan-draft-meta dt{
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 760;
+}.sunny-plan-draft-meta dd{
+  margin: 0.18rem 0 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 680;
+  line-height: 1.48;
+  overflow-wrap: anywhere;
+}.sunny-plan-draft-section{
+  display: grid;
+  gap: 0.5rem;
+}.sunny-plan-draft-section > h4,
+.sunny-plan-draft-muted-panel h4{
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 760;
+}.sunny-plan-draft-stage-list{
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}.sunny-plan-draft-stage{
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  border-radius: 0.7rem;
+  background: var(--surface-strong);
+  padding: 0.6rem;
+}.sunny-plan-draft-stage-head{
+  display: grid;
+  grid-template-columns: 1.45rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+}.sunny-plan-draft-stage-head > span{
+  display: inline-grid;
+  width: 1.45rem;
+  height: 1.45rem;
+  place-items: center;
+  border-radius: 0.45rem;
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
+  color: var(--accent-strong);
+  font-size: var(--text-2xs);
+  font-weight: 780;
+}.sunny-plan-draft-stage-head h4{
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 740;
+  line-height: 1.4;
+}.sunny-plan-draft-stage-head p,
+.sunny-plan-draft-stage-description{
+  margin: 0.12rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  line-height: 1.55;
+}.sunny-plan-draft-task-list{
+  display: grid;
+  gap: 0.28rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-plan-draft-context-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}.sunny-plan-draft-muted-panel{
+  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  border-radius: 0.7rem;
+  background: color-mix(in oklch, var(--foreground) 3%, transparent);
+}.sunny-plan-draft-muted-panel .app-panel__body{
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem;
+}.sunny-plan-draft-muted-panel ul{
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-plan-draft-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}.sunny-plan-draft-actions .app-button{
+  min-height: 2rem;
+}.sunny-checklist-draft-card{
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid color-mix(in oklch, var(--accent) 16%, var(--border));
+  border-radius: 0.85rem;
+  background: color-mix(in oklch, var(--tone-success-bg) 38%, var(--surface));
+  padding: 0.85rem;
+}.sunny-checklist-draft-header{
+  display: grid;
+  gap: 0.35rem;
+}.sunny-checklist-draft-header-main{
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}.sunny-checklist-draft-header-main h3{
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 760;
+  line-height: 1.35;
+}.sunny-checklist-draft-header p{
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-checklist-draft-meta{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0;
+}.sunny-checklist-draft-meta > div{
+  min-width: 0;
+  border: 1px solid color-mix(in oklch, var(--border) 62%, transparent);
+  border-radius: 0.65rem;
+  background: color-mix(in oklch, var(--surface-strong) 88%, transparent);
+  padding: 0.5rem 0.6rem;
+}.sunny-checklist-draft-meta dt{
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 760;
+}.sunny-checklist-draft-meta dd{
+  margin: 0.18rem 0 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 680;
+  line-height: 1.48;
+  overflow-wrap: anywhere;
+}.sunny-checklist-draft-section{
+  display: grid;
+  gap: 0.5rem;
+}.sunny-checklist-draft-section > h4,
+.sunny-checklist-draft-muted-panel h4{
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 760;
+}.sunny-checklist-draft-groups{
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}.sunny-checklist-draft-group{
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  border-radius: 0.7rem;
+  background: var(--surface-strong);
+  padding: 0.6rem;
+}.sunny-checklist-draft-group-head h4{
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 740;
+  line-height: 1.4;
+}.sunny-checklist-draft-group-head p{
+  margin: 0.12rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  line-height: 1.55;
+}.sunny-checklist-draft-items{
+  display: grid;
+  gap: 0.32rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}.sunny-checklist-draft-item{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: start;
+  border-radius: 0.5rem;
+  background: color-mix(in oklch, var(--foreground) 3%, transparent);
+  padding: 0.42rem 0.5rem;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}.sunny-checklist-draft-item small{
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
+  color: var(--accent-strong);
+  padding: 0.08rem 0.35rem;
+  font-size: var(--text-2xs);
+  font-weight: 760;
+}.sunny-checklist-draft-item p{
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+}.sunny-checklist-draft-muted-panel{
+  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  border-radius: 0.7rem;
+  background: color-mix(in oklch, var(--foreground) 3%, transparent);
+}.sunny-checklist-draft-muted-panel .app-panel__body{
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem;
+}.sunny-checklist-draft-muted-panel ul{
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-checklist-draft-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}.sunny-checklist-draft-actions .app-button{
+  min-height: 2rem;
+}html[data-theme="dark"] .sunny-plan-draft-card{
+  border-color: color-mix(in oklch, var(--border) 82%, var(--accent));
+  background: var(--surface-strong);
+}html[data-theme="dark"] .sunny-plan-draft-stage,
+html[data-theme="dark"] .sunny-plan-draft-meta > div{
+  background: color-mix(in oklch, var(--surface) 88%, transparent);
+}html[data-theme="dark"] .sunny-checklist-draft-card{
+  border-color: color-mix(in oklch, var(--border) 82%, var(--accent));
+  background: var(--surface-strong);
+}html[data-theme="dark"] .sunny-checklist-draft-group,
+html[data-theme="dark"] .sunny-checklist-draft-meta > div{
+  background: color-mix(in oklch, var(--surface) 88%, transparent);
+}.sunny-plan-confirmation-card{
+  display: grid;
+  gap: 0.8rem;
+  border: 1px solid color-mix(in oklch, var(--tone-warning-text) 30%, var(--border));
+  border-radius: 0.85rem;
+  background: var(--surface-strong);
+  padding: 0.9rem;
+  box-shadow: var(--shadow-xl);
+}.sunny-plan-confirmation-header{
+  display: grid;
+  gap: 0.5rem;
+}.sunny-plan-confirmation-title-block{
+  display: grid;
+  gap: 0.45rem;
+}.sunny-plan-confirmation-badges{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}.sunny-plan-confirmation-header h3{
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-base);
+  font-weight: 780;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}.sunny-plan-confirmation-header p,
+.sunny-plan-confirmation-risk{
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-plan-confirmation-summary{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}.sunny-plan-confirmation-summary > div{
+  min-width: 0;
+  border: 1px solid color-mix(in oklch, var(--border) 64%, transparent);
+  border-radius: 0.65rem;
+  background: color-mix(in oklch, var(--background) 86%, transparent);
+  padding: 0.55rem 0.65rem;
+}.sunny-plan-confirmation-summary dt,
+.sunny-plan-confirmation-preview-section > span,
+.sunny-plan-confirmation-phrase > span,
+.sunny-agent-pending-inspector-rows span{
+  display: block;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 780;
+}.sunny-plan-confirmation-summary dd{
+  margin: 0.22rem 0 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}.sunny-plan-confirmation-risk{
+  border: 1px solid color-mix(in oklch, var(--tone-warning-text) 22%, var(--border));
+  border-radius: 0.65rem;
+  background: color-mix(in oklch, var(--tone-warning-bg) 46%, transparent);
+  padding: 0.55rem 0.65rem;
+}.sunny-plan-confirmation-preview{
+  border-top: 1px solid color-mix(in oklch, var(--border) 54%, transparent);
+  padding-top: 0.6rem;
+}.sunny-plan-confirmation-preview summary{
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent-strong);
+  font-size: var(--text-xs);
+  font-weight: 760;
+  cursor: pointer;
+}.sunny-plan-confirmation-preview-scroll{
+  display: grid;
+  gap: 0.65rem;
+  max-height: min(26rem, 46vh);
+  overflow: auto;
+  margin-top: 0.65rem;
+  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  border-radius: 0.7rem;
+  background: color-mix(in oklch, var(--background) 88%, transparent);
+  padding: 0.7rem;
+}.sunny-plan-confirmation-preview-section{
+  display: grid;
+  gap: 0.45rem;
+}.sunny-plan-confirmation-preview-section ul,
+.sunny-plan-confirmation-preview-section ol{
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding-left: 1.05rem;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-plan-confirmation-preview-section p{
+  margin: 0.16rem 0 0;
+  color: var(--muted);
+}.sunny-plan-confirmation-preview-grid{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}.sunny-plan-confirmation-preview-grid > div{
+  min-width: 0;
+  border: 1px solid color-mix(in oklch, var(--border) 54%, transparent);
+  border-radius: 0.6rem;
+  background: var(--surface-strong);
+  padding: 0.55rem;
+}.sunny-plan-confirmation-preview-grid small{
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 760;
+}.sunny-plan-confirmation-diff{
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+}.sunny-plan-confirmation-diff del,
+.sunny-plan-confirmation-diff ins{
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.45rem;
+  text-decoration: none;
+}.sunny-plan-confirmation-diff del{
+  background: color-mix(in oklch, var(--tone-danger-bg) 55%, transparent);
+  color: var(--tone-danger-text);
+}.sunny-plan-confirmation-diff ins{
+  background: color-mix(in oklch, var(--tone-success-bg) 55%, transparent);
+  color: var(--tone-success-text);
+}.sunny-plan-confirmation-phrase{
+  display: grid;
+  gap: 0.4rem;
+}.sunny-plan-confirmation-phrase input{
+  width: min(100%, 18rem);
+  border: 1px solid color-mix(in oklch, var(--tone-danger-text) 40%, var(--border));
+  border-radius: 0.65rem;
+  background: var(--surface-strong);
+  color: var(--foreground);
+  padding: 0.52rem 0.62rem;
+  font-size: var(--text-xs);
+}.sunny-plan-confirmation-actions{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  border-top: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  padding-top: 0.7rem;
+}.sunny-agent-pending-inspector-summary{
+  display: grid;
+  gap: 0.75rem;
+}.sunny-agent-pending-inspector-rows{
+  display: grid;
+  gap: 0.5rem;
+}.sunny-agent-pending-inspector-rows > div{
+  border: 1px solid color-mix(in oklch, var(--border) 62%, transparent);
+  border-radius: 0.7rem;
+  background: color-mix(in oklch, var(--background) 86%, transparent);
+  padding: 0.65rem;
+}.sunny-agent-pending-inspector-rows strong{
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+}.sunny-agent-pending-inspector-rows p{
+  margin: 0.22rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+}.sunny-agent-pending-inspector-alert{
+  margin: 0;
+  border: 1px solid color-mix(in oklch, var(--tone-info-border) 60%, transparent);
+  border-radius: 0.7rem;
+  background: color-mix(in oklch, var(--tone-info-bg) 54%, transparent);
+  color: var(--accent-strong);
+  padding: 0.65rem;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}html[data-theme="dark"] .sunny-plan-confirmation-card,
+html[data-theme="dark"] .sunny-plan-confirmation-preview-grid > div{
+  background: var(--surface-strong);
+}html[data-theme="dark"] .sunny-plan-confirmation-summary > div,
+html[data-theme="dark"] .sunny-plan-confirmation-preview-scroll,
+html[data-theme="dark"] .sunny-agent-pending-inspector-rows > div{
+  background: color-mix(in oklch, var(--surface) 88%, transparent);
+}.sunny-schedule-draft-card{
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid color-mix(in oklch, var(--accent) 16%, var(--border));
+  border-radius: 0.85rem;
+  background: color-mix(in oklch, var(--tone-info-bg) 38%, var(--surface));
+  padding: 0.85rem;
+}.sunny-schedule-draft-header{
+  display: grid;
+  gap: 0.35rem;
+}.sunny-schedule-draft-header-main{
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}.sunny-schedule-draft-header-main h3{
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm);
+  font-weight: 760;
+  line-height: 1.35;
+}.sunny-schedule-draft-header p{
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-schedule-draft-meta{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0;
+}.sunny-schedule-draft-meta > div{
+  min-width: 0;
+  border: 1px solid color-mix(in oklch, var(--border) 62%, transparent);
+  border-radius: 0.65rem;
+  background: color-mix(in oklch, var(--surface-strong) 88%, transparent);
+  padding: 0.5rem 0.6rem;
+}.sunny-schedule-draft-meta dt{
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 760;
+}.sunny-schedule-draft-meta dd{
+  margin: 0.18rem 0 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 680;
+  line-height: 1.48;
+  overflow-wrap: anywhere;
+}.sunny-schedule-draft-section{
+  display: grid;
+  gap: 0.5rem;
+}.sunny-schedule-draft-section > h4,
+.sunny-schedule-draft-muted-panel h4{
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 760;
+}.sunny-schedule-draft-items{
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}.sunny-schedule-draft-item{
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  border-radius: 0.7rem;
+  background: var(--surface-strong);
+  padding: 0.6rem;
+}.sunny-schedule-draft-item-main{
+  display: grid;
+  gap: 0.12rem;
+}.sunny-schedule-draft-item-main h4{
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 740;
+  line-height: 1.4;
+}.sunny-schedule-draft-item-main p,
+.sunny-schedule-draft-item-note{
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  line-height: 1.55;
+}.sunny-schedule-draft-item-meta{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}.sunny-schedule-draft-item-meta span{
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--accent) 9%, transparent);
+  color: var(--accent-strong);
+  padding: 0.12rem 0.42rem;
+  font-size: var(--text-2xs);
+  font-weight: 740;
+}.sunny-schedule-draft-context-grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}.sunny-schedule-draft-muted-panel{
+  border: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  border-radius: 0.7rem;
+  background: color-mix(in oklch, var(--foreground) 3%, transparent);
+}.sunny-schedule-draft-muted-panel .app-panel__body{
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem;
+}.sunny-schedule-draft-muted-panel ul{
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}.sunny-schedule-draft-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}.sunny-schedule-draft-actions .app-button{
+  min-height: 2rem;
+}html[data-theme="dark"] .sunny-schedule-draft-card{
+  border-color: color-mix(in oklch, var(--border) 82%, var(--accent));
+  background: var(--surface-strong);
+}html[data-theme="dark"] .sunny-schedule-draft-item,
+html[data-theme="dark"] .sunny-schedule-draft-meta > div{
+  background: color-mix(in oklch, var(--surface) 88%, transparent);
 }/* ── Progress Bar (for checklist cards) ── */
 
 .sunny-agent-progress-bar{
@@ -2686,6 +3356,13 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   }
 
   .sunny-agent-result-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sunny-plan-draft-meta,
+  .sunny-plan-draft-context-grid,
+  .sunny-plan-confirmation-summary,
+  .sunny-plan-confirmation-preview-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -4365,6 +5042,9 @@ html[data-theme="dark"] .sunny-agent-debug-token-info span{
 }/* Result cards */
 html[data-theme="dark"] .sunny-agent-result-card-plan,
 html[data-theme="dark"] .sunny-agent-result-card-checklist{
+  background: var(--surface-strong);
+  border-color: var(--border);
+}html[data-theme="dark"] .sunny-action-result-card{
   background: var(--surface-strong);
   border-color: var(--border);
 }/* Search */

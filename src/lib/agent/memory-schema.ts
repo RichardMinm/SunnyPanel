@@ -207,6 +207,7 @@ const removeStopwords = (text: string): string =>
 const intentTypeRelevanceMap: Partial<Record<string, AgentMemoryType[]>> = {
   compose_plan: ["workflow_rule", "project_context"],
   compose_schedule_item: ["workflow_rule", "preference"],
+  create_schedule_items: ["workflow_rule", "preference"],
   create_plan: ["workflow_rule", "project_context"],
   evaluate_plan: ["project_context", "fact"],
   save_memory: ["preference", "workflow_rule"],

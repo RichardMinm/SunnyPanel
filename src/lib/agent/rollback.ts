@@ -26,6 +26,7 @@ export type RollbackAffectedDocument = {
 type RollbackPayloadClient = {
   create: (args: unknown) => Promise<unknown>;
   delete: (args: unknown) => Promise<unknown>;
+  findByID: (args: unknown) => Promise<null | unknown>;
   update: (args: unknown) => Promise<unknown>;
 };
 
@@ -80,6 +81,72 @@ const buildRollbackResult = ({
   strategy,
   summary: summarizeAffectedDocuments(strategy, affectedDocuments),
 });
+
+const isDocumentNotFoundError = (error: unknown) => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as {
+    message?: unknown;
+    status?: unknown;
+    statusCode?: unknown;
+  };
+
+  return (
+    candidate.status === 404 ||
+    candidate.statusCode === 404 ||
+    (typeof candidate.message === "string" && /not found|未找到/i.test(candidate.message))
+  );
+};
+
+const getLinkedContentRelationId = (item: Record<string, unknown>) => {
+  const value = item.value;
+
+  return typeof value === "number"
+    ? value
+    : value && typeof value === "object" && !Array.isArray(value) && typeof (value as { id?: unknown }).id === "number"
+      ? (value as { id: number }).id
+      : null;
+};
+
+const normalizeLinkedContentForRollback = (value: unknown) => {
+  if (value == null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error("Plan linkedContent 结构异常，无法安全自动回滚，请人工处理。");
+  }
+
+  return value.map((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error(`Plan linkedContent.${index} 结构异常，无法安全自动回滚，请人工处理。`);
+    }
+
+    const record = item as Record<string, unknown>;
+    const relationTo = record.relationTo;
+    const relationId = getLinkedContentRelationId(record);
+
+    if (typeof relationTo !== "string" || typeof relationId !== "number") {
+      throw new Error(`Plan linkedContent.${index} 缺少有效 relationTo/value，无法安全自动回滚，请人工处理。`);
+    }
+
+    return record;
+  });
+};
+
+const expectedChecklistLinkId = (expectedAddedLink: unknown, fallbackChecklistId: number) => {
+  if (!expectedAddedLink || typeof expectedAddedLink !== "object" || Array.isArray(expectedAddedLink)) {
+    return fallbackChecklistId;
+  }
+
+  const record = expectedAddedLink as Record<string, unknown>;
+
+  return record.relationTo === "checklists" && typeof record.value === "number"
+    ? record.value
+    : fallbackChecklistId;
+};
 
 const persistRollbackAudit = async (
   rollbackPayload: unknown,
@@ -150,6 +217,7 @@ const pickTimelineSnapshotData = (snapshot: unknown) => {
     "relatedPlan",
     "relatedTaskKey",
     "sortOrder",
+    "sourceType",
     "status",
     "title",
     "type",
@@ -255,7 +323,11 @@ export const executeRollbackFromPayload = async (
 ): Promise<RollbackExecutionResult> => {
   const parsed = parseRollbackPayload(rollbackPayload);
 
-  if (!parsed?.target?.collection) {
+  if (!parsed?.target) {
+    throw new Error("rollbackPayload 缺少可执行的 target。");
+  }
+
+  if (parsed.strategy !== "delete_created_checklist_and_restore_plan_links" && !parsed.target.collection) {
     throw new Error("rollbackPayload 缺少可执行的 target.collection。");
   }
 
@@ -263,7 +335,83 @@ export const executeRollbackFromPayload = async (
   const shouldPersistAudit = options.persistAudit !== false;
   const recordAudit = options.recordAudit ?? recordAgentRollbackExecuted;
   const userId = options.userId;
-  const { agentRunId, collection, documentId, documentIds, planReviewId, suggestionIds, timelineEventId } = parsed.target;
+  const {
+    agentRunId,
+    checklistId,
+    collection,
+    documentId,
+    documentIds,
+    expectedAddedLink,
+    planId,
+    planReviewId,
+    suggestionIds,
+    timelineEventId,
+  } = parsed.target;
+
+  if (parsed.strategy === "delete_created_checklist_and_restore_plan_links") {
+    if (typeof checklistId !== "number" || typeof planId !== "number") {
+      throw new Error("delete_created_checklist_and_restore_plan_links 需要 checklistId 和 planId。");
+    }
+
+    try {
+      await payload.delete({
+        collection: "checklists",
+        id: checklistId,
+        overrideAccess: true,
+      });
+    } catch (error) {
+      if (!isDocumentNotFoundError(error)) {
+        throw error;
+      }
+    }
+
+    const plan = await payload.findByID({
+      collection: "plans",
+      depth: 0,
+      id: planId,
+      overrideAccess: true,
+    });
+
+    if (!plan || typeof (plan as { id?: unknown }).id !== "number") {
+      throw new Error(`计划 #${planId} 不存在，清单已尝试删除；Plan linkedContent 需要人工确认。`);
+    }
+
+    const currentLinkedContent = normalizeLinkedContentForRollback((plan as { linkedContent?: unknown }).linkedContent);
+    const expectedId = expectedChecklistLinkId(expectedAddedLink, checklistId);
+    const nextLinkedContent = currentLinkedContent.filter((item) => {
+      const relationId = getLinkedContentRelationId(item);
+
+      return !(item.relationTo === "checklists" && relationId === expectedId);
+    });
+    const affectedDocuments = [affectedDocument("checklists", checklistId, "delete")];
+
+    if (nextLinkedContent.length !== currentLinkedContent.length) {
+      await payload.update({
+        collection: "plans",
+        data: {
+          linkedContent: nextLinkedContent,
+        },
+        depth: 0,
+        id: planId,
+        overrideAccess: true,
+      });
+      affectedDocuments.push(affectedDocument("plans", planId, "update"));
+    }
+
+    const result = buildRollbackResult({
+      affectedDocuments,
+      collection: "checklists",
+      documentId: checklistId,
+      strategy: parsed.strategy,
+    });
+    const auditWarning = shouldPersistAudit ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId) : undefined;
+
+    return auditWarning ? { ...result, auditWarning } : result;
+  }
+
+  if (!collection) {
+    throw new Error("rollbackPayload 缺少可执行的 target.collection。");
+  }
 
   if (parsed.strategy === "delete_created_weekly_review_artifacts") {
     if (typeof planReviewId !== "number") {
@@ -315,12 +463,18 @@ export const executeRollbackFromPayload = async (
       throw new Error("delete_created_document 需要 documentId；创建前回滚占位无法自动执行。");
     }
 
-    if (collection === "plans" || collection === "schedule-items") {
-      await payload.delete({
-        collection,
-        id: documentId,
-        overrideAccess: true,
-      });
+    if (collection === "plans" || collection === "schedule-items" || collection === "checklists") {
+      try {
+        await payload.delete({
+          collection,
+          id: documentId,
+          overrideAccess: true,
+        });
+      } catch (error) {
+        if (collection !== "checklists" || !isDocumentNotFoundError(error)) {
+          throw error;
+        }
+      }
 
       const result = buildRollbackResult({
         affectedDocuments: [affectedDocument(collection, documentId, "delete")],

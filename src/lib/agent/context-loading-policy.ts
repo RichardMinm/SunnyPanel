@@ -151,6 +151,7 @@ const SCHEDULE_INTENTS = new Set([
   "create_schedule",
   "update_schedule",
   "compose_schedule_item",
+  "create_schedule_items",
 ]);
 
 /** Intents that need planning data */

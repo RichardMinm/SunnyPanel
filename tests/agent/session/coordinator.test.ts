@@ -256,7 +256,7 @@ test("coordinator does not import Router / Tool Executor / DB", async () => {
   const { resolve } = await import("node:path");
 
   const source = readFileSync(
-    resolve(import.meta.dirname ?? __dirname, "../../../src/lib/agent/session/coordinator.ts"),
+    resolve(process.cwd(), "src/lib/agent/session/coordinator.ts"),
     "utf8",
   );
 
@@ -273,7 +273,7 @@ test("transition-trace does not import Router / Tool Executor / DB", async () =>
   const { resolve } = await import("node:path");
 
   const source = readFileSync(
-    resolve(import.meta.dirname ?? __dirname, "../../../src/lib/agent/session/transition-trace.ts"),
+    resolve(process.cwd(), "src/lib/agent/session/transition-trace.ts"),
     "utf8",
   );
 

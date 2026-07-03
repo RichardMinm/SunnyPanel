@@ -21,6 +21,7 @@ const intentToSuggestedMode: Partial<Record<AgentChatResponse["intent"], AgentWo
   evaluate_plan: "review",
   weekly_review: "review",
   compose_schedule_item: "timeline",
+  create_schedule_items: "timeline",
   compose_timeline_event: "timeline",
   reschedule_item: "timeline",
   cancel_schedule_item: "timeline",

@@ -366,7 +366,7 @@ test("reconcile-session does not import LLM / Tool / DB", async () => {
   const { readFileSync } = await import("node:fs");
   const { resolve } = await import("node:path");
   const source = readFileSync(
-    resolve(import.meta.dirname ?? __dirname, "../../../src/lib/agent/session/reconcile-session.ts"),
+    resolve(process.cwd(), "src/lib/agent/session/reconcile-session.ts"),
     "utf8",
   );
 

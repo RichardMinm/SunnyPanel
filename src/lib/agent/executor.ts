@@ -17,6 +17,7 @@ import {
   composeScheduleItemFromIntent,
   composeTimelineEventFromIntent,
   completePlanItemFromIntent,
+  createChecklistFromIntent,
   createPlanFromIntent,
   deleteRecordFromIntent,
   modifyRecordFromIntent,
@@ -49,7 +50,9 @@ export type TransactionalExecutionOptions = {
 
 export type AgentIntentExecutionResult = {
   assistantMessage: string;
+  createdPlanId?: number;
   pendingAction: null | import("./schemas").PendingAction;
+  planId?: number;
   rollbackPayload?: unknown;
   status?: "completed" | "failed";
 };
@@ -273,6 +276,7 @@ export const executeAgentIntent = async (
     case "compose_plan":
     case "cancel_schedule_item":
     case "compose_schedule_item":
+    case "create_schedule_items":
     case "compose_timeline_event":
     case "add_completion_note":
     case "query_plan_progress":
@@ -316,6 +320,8 @@ export const executeAgentIntent = async (
       return runWithAgentExecutionContext({ userId: options.userId }, () =>
         evaluatePlanFromIntent(intent.args),
       );
+    case "create_checklist":
+      return createChecklistFromIntent(intent.args, onTrace, { userId: options.userId });
     case "clarify":
     default:
       return {

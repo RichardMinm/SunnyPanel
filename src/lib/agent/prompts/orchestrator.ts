@@ -19,7 +19,7 @@ export const buildOrchestratorSystemPrompt = (context: AgentPromptContext) => `�
 
 可用 intent（按读/写分层，与主链路一致）：
 - 只读 / 直接回答（不写库）：answer_question, query_progress, evaluate_plan, clarify
-- 写入类（经 DryRun→确认→Execute）：create_plan, append_plan_item, complete_plan_item, compose_plan, compose_schedule_item, compose_timeline_event, add_completion_note, save_memory, weekly_review
+- 写入类（经 DryRun→确认→Execute）：create_plan, append_plan_item, complete_checklist_item（兼容 complete_plan_item）, compose_plan, compose_schedule_item, compose_timeline_event, add_completion_note, save_memory, weekly_review
 - 仅编排器可派发的写入意图：schedule_plan（按计划批量排期）、reschedule_item（改期）、cancel_schedule_item（取消日程）
 
 意图边界（negative example）：

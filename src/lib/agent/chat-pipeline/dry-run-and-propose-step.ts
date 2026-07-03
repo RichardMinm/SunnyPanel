@@ -17,9 +17,10 @@ import { buildProposedActionMessage, dryRunAgentIntent } from "@/lib/agent/safet
 import type { AutoApprovalContext } from "@/lib/agent/safety";
 import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, ComposePlanArgs, PendingAction } from "@/lib/agent/schemas";
 import { isConversationalIntent } from "@/lib/agent/schemas";
+import { normalizeSessionState } from "@/lib/agent/session/normalize-session";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
-import { detectScheduleConflicts, getScheduleItemById } from "@/lib/schedule/items";
+import { detectScheduleConflicts, getScheduleForDateRange, getScheduleItemById } from "@/lib/schedule/items";
 import { decomposePlanForCompose } from "@/lib/agent/workflows/plan-decomposer";
 import type { DecomposedPlan } from "@/lib/agent/workflows/plan-decomposer";
 import { inferTopicWithLLM, normalizeComposePlanArgs, parsePlanSeedFromText } from "@/lib/agent/workflows/plan-seed";
@@ -36,12 +37,14 @@ export type DryRunAndProposeStepParams = {
   autoApproval?: AutoApprovalContext;
   confirmedActionId: null | string;
   context: BuildContextStepResult["context"];
+  conversationState?: unknown;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   payload: Payload;
   persistAgentTurn: (args: {
     assistantMessage: string;
     confidence?: number;
+    conversationState?: unknown;
     engine: AgentEngine;
     intent: AgentIntent["intent"];
     nextPendingAction: null | PendingAction;
@@ -58,6 +61,7 @@ export type DryRunAndProposeStepParams = {
 
 export type DryRunAndProposeStepNext = {
   approvedActionId?: string;
+  conversationState?: unknown;
   executionApproved: boolean;
   isDirectAnswer: boolean;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -72,6 +76,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     autoApproval,
     confirmedActionId,
     context,
+    conversationState,
     emitStatus,
     emitToken,
     payload,
@@ -87,6 +92,17 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   } = params;
 
   let tokenUsage = tokenUsageIn;
+  const persistDryRunTurn = (args: {
+    assistantMessage: string;
+    confidence?: number;
+    engine: AgentEngine;
+    intent: AgentIntent["intent"];
+    nextPendingAction: null | PendingAction;
+  }) =>
+    persistAgentTurn({
+      ...args,
+      ...(conversationState !== undefined ? { conversationState } : {}),
+    });
   const isDirectAnswer =
     resolution.intent.intent === "answer_question" ||
     isConversationalIntent(resolution.intent.intent) ||
@@ -120,7 +136,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
           status: "error",
           title: "目标解析失败",
         });
-        const updatedThread = await persistAgentTurn({
+        const updatedThread = await persistDryRunTurn({
           assistantMessage,
           confidence: resolution.intent.confidence,
           engine: resolution.engine,
@@ -166,7 +182,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
           status: "error",
           title: "目标解析失败",
         });
-        const updatedThread = await persistAgentTurn({
+        const updatedThread = await persistDryRunTurn({
           assistantMessage,
           confidence: resolution.intent.confidence,
           engine: resolution.engine,
@@ -224,7 +240,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         status: "error",
         title: "Policy Guard 拒绝",
       });
-      const updatedThread = await persistAgentTurn({
+      const updatedThread = await persistDryRunTurn({
         assistantMessage,
         confidence: resolution.intent.confidence,
         engine: resolution.engine,
@@ -257,7 +273,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         status: "error",
         title: "Policy Guard 禁止 DryRun",
       });
-      const updatedThread = await persistAgentTurn({
+      const updatedThread = await persistDryRunTurn({
         assistantMessage,
         confidence: resolution.intent.confidence,
         engine: resolution.engine,
@@ -348,6 +364,9 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       : normalizedArgs;
   }
 
+  const normalizedConversationState = conversationState
+    ? normalizeSessionState(conversationState)
+    : null;
   const dryRunResult = confirmedActionId
     ? {
         type: "bypass" as const,
@@ -355,6 +374,20 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     : await dryRunAgentIntent(resolution.intent, {
         detectScheduleConflicts: (args) =>
           detectScheduleConflicts(args.date, args.startTime, args.endTime, args.excludeId, payload),
+        findLocalBusyBlocks: async ({ endDate, startDate }) => {
+          const items = await getScheduleForDateRange(new Date(startDate), new Date(endDate), payload);
+
+          return items
+            .filter((item) => item.status !== "canceled")
+            .map((item) => ({
+              date: item.date,
+              endTime: item.endTime ?? null,
+              isAllDay: item.isAllDay ?? null,
+              sourceId: item.id,
+              startTime: item.startTime ?? null,
+              title: item.title ?? null,
+            }));
+        },
         findTimelineEvent: findChecklistTimelineEvent,
         now: context.now,
         planCandidates: context.plans,
@@ -363,6 +396,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         resolveChecklistItem,
         resolveDeleteRecord: (args) => resolveDeleteRecordTarget(args, { payload }),
         resolveScheduleItem: (itemId) => getScheduleItemById(itemId, payload),
+        scheduleSlots: normalizedConversationState?.scheduling?.slots ?? null,
       });
 
   if (turnAudit && dryRunResult.type !== "bypass") {
@@ -400,7 +434,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       status: "done",
       title: "Dry-run 未能唯一定位目标",
     });
-    const updatedThread = await persistAgentTurn({
+    const updatedThread = await persistDryRunTurn({
       assistantMessage,
       confidence: resolution.intent.confidence,
       engine: resolution.engine,
@@ -444,6 +478,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       outcome: "execute",
       data: {
         ...(hasWriteChange ? { approvedActionId: proposedAction.id } : {}),
+        ...(conversationState !== undefined ? { conversationState } : {}),
         executionApproved: true,
         isDirectAnswer: false,
         tokenUsage,
@@ -498,6 +533,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         outcome: "execute",
         data: {
           approvedActionId: proposedAction.id,
+          ...(conversationState !== undefined ? { conversationState } : {}),
           executionApproved: true,
           isDirectAnswer: false,
           tokenUsage,
@@ -547,7 +583,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       status: "done",
       title: "Dry-run 已生成待确认动作",
     });
-    const updatedThread = await persistAgentTurn({
+    const updatedThread = await persistDryRunTurn({
       assistantMessage,
       confidence: resolution.intent.confidence,
       engine: resolution.engine,
@@ -589,6 +625,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   return {
     outcome: "execute",
     data: {
+      ...(conversationState !== undefined ? { conversationState } : {}),
       executionApproved: true,
       isDirectAnswer,
       tokenUsage,

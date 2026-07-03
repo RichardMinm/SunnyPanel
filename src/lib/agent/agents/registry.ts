@@ -25,7 +25,7 @@ export const scheduleAgentDefinition: SpecializedAgentDefinition = {
   enrichIntent: enrichScheduleIntent,
   id: "schedule",
   role: "schedule",
-  supportedIntents: ["compose_schedule_item", "reschedule_item", "cancel_schedule_item", "schedule_plan"],
+  supportedIntents: ["compose_schedule_item", "create_schedule_items", "reschedule_item", "cancel_schedule_item", "schedule_plan"],
   systemPromptHint: "日程排期、冲突与时间段推理",
 };
 

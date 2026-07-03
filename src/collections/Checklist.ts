@@ -1,13 +1,19 @@
 import type { CollectionAfterChangeHook, CollectionConfig } from "payload";
 
-import { adminsOnly, adminsOrPublished, canAccessAdmin } from "../lib/payload/access.ts";
+import { adminsOnly, adminsOrPublished, canAccessAdmin } from "../lib/payload/access";
+import {
+  buildChecklistTimelineDescription,
+  buildChecklistTimelineTitle,
+  CHECKLIST_TIMELINE_SOURCE_TYPE,
+  CHECKLIST_TIMELINE_TYPE,
+} from "../lib/agent/checklist-timeline-semantics";
 import {
   createSlugField,
   publishedAtField,
   statusField,
   visibilityField,
-} from "../lib/payload/fields.ts";
-import { withAdminNavGroup } from "../lib/payload/admin-groups.ts";
+} from "../lib/payload/fields";
+import { withAdminNavGroup } from "../lib/payload/admin-groups";
 
 type ChecklistItem = {
   completedAt?: null | string;
@@ -99,26 +105,29 @@ const syncChecklistCompletionsToTimeline: CollectionAfterChangeHook = async ({
         continue;
       }
 
-      const eventTitle = group.title
-        ? `${checklist.title} · ${group.title} / ${item.title} 完成`
-        : `${checklist.title} · ${item.title} 完成`;
-      const descriptionParts = [item.description, item.completionNote]
-        .filter((value): value is string => Boolean(value))
-        .map((value) => value.trim())
-        .filter(Boolean);
-
       await req.payload.create({
         collection: "timeline-events",
         data: {
-          description: descriptionParts.join("\n\n"),
+          description: buildChecklistTimelineDescription({
+            checklistTitle: checklist.title,
+            completionNote: item.completionNote,
+            groupTitle: group.title,
+            itemDescription: item.description,
+            itemTitle: item.title,
+          }),
           eventDate: item.completedAt ?? new Date().toISOString(),
           isFeatured: false,
           relatedChecklist: checklist.id,
           relatedTaskKey: item.id,
           sortOrder: 0,
+          sourceType: CHECKLIST_TIMELINE_SOURCE_TYPE,
           status: checklist.status,
-          title: eventTitle,
-          type: "project",
+          title: buildChecklistTimelineTitle({
+            checklistTitle: checklist.title,
+            groupTitle: group.title,
+            itemTitle: item.title,
+          }),
+          type: CHECKLIST_TIMELINE_TYPE,
           visibility: checklist.visibility,
         },
         overrideAccess: true,

@@ -115,6 +115,7 @@ export function DashboardPageClient({
         onRenameThread={chat.renameThread}
         onConfirmApproval={() => { chat.clearRunDetail(); chat.confirmApproval(); }}
         onInputChange={chat.setInput}
+        onSendMessage={(prompt) => { chat.clearRunDetail(); void chat.sendMessage(prompt); }}
         onStop={chat.stopGeneration}
         onSubmit={() => { chat.clearRunDetail(); void chat.sendMessage(chat.input); }}
         onWorkbenchModeChange={chat.setWorkbenchMode}

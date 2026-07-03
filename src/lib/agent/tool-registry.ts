@@ -11,7 +11,9 @@ import type {
   ComposePlanArgs,
   ComposeScheduleItemArgs,
   ComposeTimelineEventArgs,
+  CreateChecklistArgs,
   CreatePlanArgs,
+  CreateScheduleItemsArgs,
   DeleteRecordArgs,
   ModifyRecordArgs,
   PendingAction,
@@ -41,6 +43,19 @@ import {
   type ScheduleComposerContext,
 } from "./workflows/schedule-composer";
 import {
+  buildScheduleConflictSummary,
+  detectScheduleConflictsForItems,
+  formatScheduleConflictLines,
+  getCreateScheduleItemsConflictPolicy,
+  scheduleConflictFromExistingMatch,
+  shouldCheckExistingScheduleConflicts,
+  type ScheduleConflict as ScheduleCreationConflict,
+} from "./schedule/conflict-awareness";
+import { generateScheduleConflictSuggestions } from "./schedule/conflict-suggestions";
+import type { ScheduleDraft } from "./schedule/draft";
+import type { LocalBusyBlock } from "./schedule/free-slots";
+import type { ScheduleSlots } from "./schedule/readiness";
+import {
   composeTimelineEventProposal,
   formatTimelineProposal,
 } from "./workflows/timeline-composer";
@@ -52,6 +67,8 @@ import {
   deleteRecordDryRun,
   type ResolveDeleteRecord,
 } from "./tools/delete-record";
+import { createChecklistFromIntent } from "./tools/checklist-create";
+import { createScheduleItemsFromIntent } from "./tools/schedule-create-items";
 
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
 type WritableAgentIntent = Extract<AgentIntent, { intent: AgentWriteIntentName }>;
@@ -139,19 +156,27 @@ export type ScheduleItemSnapshot = {
   title?: null | string;
 };
 type ResolveScheduleItem = (itemId: number) => Promise<null | ScheduleItemSnapshot>;
+type FindLocalBusyBlocks = (args: {
+  endDate: string;
+  startDate: string;
+}) => Promise<LocalBusyBlock[]>;
 type ResolvedChecklistItem = NonNullable<Awaited<ReturnType<ResolveChecklistItem>>["resolved"]>;
 type ResolvedChecklistGroup = NonNullable<Awaited<ReturnType<ResolveChecklistGroupForAppend>>["resolved"]>;
 
 export type AgentToolResult = {
   assistantMessage: string;
   pendingAction: null | PendingAction;
+  createdPlanId?: number;
+  planId?: number;
   /** 写入成功后可供 `/api/agent/rollback` 使用的结构化回滚描述（若有）。 */
   rollbackPayload?: unknown;
+  status?: "completed" | "failed";
 };
 
 export type AgentToolDryRunContext = {
   createActionId?: () => string;
   detectScheduleConflicts?: ScheduleConflictResolver;
+  findLocalBusyBlocks?: FindLocalBusyBlocks;
   findTimelineEvent?: FindTimelineEvent;
   now?: string;
   planCandidates?: PlanCandidate[];
@@ -161,6 +186,7 @@ export type AgentToolDryRunContext = {
   resolveDeleteRecord?: ResolveDeleteRecord;
   resolveModifyRecord?: ResolveModifyRecord;
   resolveScheduleItem?: ResolveScheduleItem;
+  scheduleSlots?: ScheduleSlots | null;
 };
 
 export type AgentToolExecutionContext = {
@@ -186,6 +212,10 @@ export type AgentToolExecutionContext = {
   ) => Promise<AgentToolResult>;
   composeScheduleItem?: (
     args: ComposeScheduleItemArgs,
+    onTrace?: AgentExecutionTraceReporter,
+  ) => Promise<AgentToolResult>;
+  createScheduleItems?: (
+    args: CreateScheduleItemsArgs,
     onTrace?: AgentExecutionTraceReporter,
   ) => Promise<AgentToolResult>;
   cancelScheduleItem?: (
@@ -255,6 +285,8 @@ type AgentToolRegistry = {
   compose_plan: AgentToolDefinition<"compose_plan", ComposePlanArgs>;
   compose_schedule_item: AgentToolDefinition<"compose_schedule_item", ComposeScheduleItemArgs>;
   compose_timeline_event: AgentToolDefinition<"compose_timeline_event", ComposeTimelineEventArgs>;
+  create_checklist: AgentToolDefinition<"create_checklist", CreateChecklistArgs>;
+  create_schedule_items: AgentToolDefinition<"create_schedule_items", CreateScheduleItemsArgs>;
   create_plan: AgentToolDefinition<"create_plan", CreatePlanArgs>;
   query_plan_progress: AgentToolDefinition<"query_plan_progress", QueryPlanProgressArgs>;
   reschedule_item: AgentToolDefinition<"reschedule_item", RescheduleItemArgs>;
@@ -285,6 +317,7 @@ const createClarifyResult = ({
     | CompletePlanItemArgs
     | ComposePlanArgs
     | ComposeScheduleItemArgs
+    | CreateScheduleItemsArgs
     | CreatePlanArgs
     | DeleteRecordArgs
     | ModifyRecordArgs
@@ -390,6 +423,109 @@ const createPlanDryRun = async (
         strategy: "delete_created_document",
         target: {
           collection: "plans",
+          documentId: null,
+        },
+      },
+    },
+    type: "proposed_action",
+  };
+};
+
+const countChecklistItems = (groups: CreateChecklistArgs["groups"]) =>
+  groups.reduce((count, group) => count + group.items.length, 0);
+
+const createChecklistDryRun = async (
+  args: CreateChecklistArgs,
+  context: AgentToolDryRunContext,
+): Promise<AgentToolDryRunResult> => {
+  const itemCount = countChecklistItems(args.groups);
+  const groupCount = args.groups.length;
+  const nextChecklist = {
+    groups: args.groups.map((group) => ({
+      items: group.items.map((item) => ({
+        description: item.description ?? null,
+        isCompleted: item.isCompleted ?? false,
+        title: item.title,
+      })),
+      title: group.title,
+    })),
+    status: args.status ?? "draft",
+    summary: args.summary ?? null,
+    title: args.title,
+    visibility: args.visibility ?? "private",
+  };
+  const groupPreview = args.groups
+    .slice(0, 4)
+    .map((group) => `${group.title}：${group.items.slice(0, 4).map((item) => item.title).join("；")}`)
+    .join("\n");
+  const sourcePlanId = typeof args.sourcePlanId === "number" ? args.sourcePlanId : null;
+
+  return {
+    action: {
+      ...actionBase({
+        args,
+        context,
+        intent: "create_checklist",
+        riskLevel: "medium",
+        summary: `创建清单「${args.title}」（${groupCount} 个分组 / ${itemCount} 个条目）`,
+      }),
+      affectedDocuments: [
+        {
+          collection: "checklists",
+          operation: "create",
+          title: args.title,
+          visibility: nextChecklist.visibility,
+        },
+        ...(sourcePlanId != null
+          ? [
+              {
+                collection: "plans",
+                documentId: sourcePlanId,
+                operation: "update" as const,
+                title: `计划 #${sourcePlanId}`,
+                visibility: "unknown" as const,
+              },
+            ]
+          : []),
+      ],
+      afterSnapshot: {
+        ...nextChecklist,
+        sourcePlanId,
+      },
+      beforeSnapshot: null,
+      changes: [
+        {
+          afterPreview: [
+            args.summary,
+            groupPreview ? `分组预览：\n${groupPreview}` : null,
+          ].filter(Boolean).join("\n\n"),
+          beforePreview: "当前不存在这份清单。",
+          collection: "checklists",
+          operation: "create",
+          preview: `创建${nextChecklist.visibility === "private" ? "私有" : "公开"}${nextChecklist.status === "draft" ? "草稿" : "发布"}清单「${args.title}」，包含 ${groupCount} 个分组 / ${itemCount} 个条目。`,
+          timelineAffected: false,
+          visibility: nextChecklist.visibility,
+        },
+        ...(sourcePlanId != null
+          ? [
+              {
+                beforePreview: `计划 #${sourcePlanId} 当前 linkedContent。`,
+                collection: "plans",
+                documentId: sourcePlanId,
+                operation: "update" as const,
+                preview: `将新建清单关联到计划 #${sourcePlanId} 的 linkedContent。`,
+                timelineAffected: false,
+                visibility: "unknown" as const,
+              },
+            ]
+          : []),
+      ],
+      rollbackAvailable: false,
+      rollbackPayload: {
+        reason: "清单创建前没有 documentId；执行成功后可用 created document id 准备删除式回滚。",
+        strategy: "delete_created_document",
+        target: {
+          collection: "checklists",
           documentId: null,
         },
       },
@@ -947,6 +1083,269 @@ const weeklyReviewDryRun = async (
             },
           }
         : null,
+    },
+    type: "proposed_action",
+  };
+};
+
+const scheduleItemsDateRange = (items: CreateScheduleItemsArgs["items"]): string => {
+  const dates = Array.from(new Set(items.map((item) => item.date).filter(Boolean))).sort();
+
+  if (dates.length === 0) {
+    return "未确定日期";
+  }
+
+  return dates.length === 1 ? dates[0]! : `${dates[0]} → ${dates[dates.length - 1]}`;
+};
+
+const normalizeDateKeyForScheduleSuggestions = (value: null | string | undefined): string => {
+  const normalized = value?.trim() ?? "";
+  const isoDate = normalized.match(/^(\d{4}-\d{2}-\d{2})/u);
+  if (isoDate?.[1]) return isoDate[1];
+
+  return normalized.slice(0, 10);
+};
+
+const scheduleSuggestionDateBounds = (
+  args: CreateScheduleItemsArgs,
+  slots?: null | ScheduleSlots,
+): null | { endDate: string; startDate: string } => {
+  const dates = new Set<string>();
+
+  for (const item of args.items) {
+    const date = normalizeDateKeyForScheduleSuggestions(item.date);
+    if (date) dates.add(date);
+  }
+
+  for (const window of slots?.availableTimeWindows ?? []) {
+    const date = normalizeDateKeyForScheduleSuggestions(window.day);
+    if (date) dates.add(date);
+  }
+
+  const sortedDates = Array.from(dates).sort();
+  if (sortedDates.length === 0) return null;
+
+  return {
+    endDate: sortedDates[sortedDates.length - 1]!,
+    startDate: sortedDates[0]!,
+  };
+};
+
+const findLocalBusyBlocksForScheduleSuggestions = async (
+  args: CreateScheduleItemsArgs,
+  context: AgentToolDryRunContext,
+): Promise<LocalBusyBlock[] | undefined> => {
+  if (!context.findLocalBusyBlocks) return undefined;
+  const bounds = scheduleSuggestionDateBounds(args, context.scheduleSlots);
+  if (!bounds) return undefined;
+
+  try {
+    return await context.findLocalBusyBlocks(bounds);
+  } catch {
+    return undefined;
+  }
+};
+
+const scheduleItemTimePreview = (item: CreateScheduleItemsArgs["items"][number]): string =>
+  item.isAllDay
+    ? "全天"
+    : [item.startTime, item.endTime].filter(Boolean).join("-") || "未定时间";
+
+const detectCreateScheduleItemConflictsForDryRun = async (
+  args: CreateScheduleItemsArgs,
+  context: AgentToolDryRunContext,
+): Promise<{
+  conflicts: ScheduleCreationConflict[];
+  existingScheduleChecked: boolean;
+}> => {
+  const internalConflicts = detectScheduleConflictsForItems({
+    proposedItems: args.items,
+  });
+  const existingConflicts: ScheduleCreationConflict[] = [];
+
+  if (!context.detectScheduleConflicts) {
+    return {
+      conflicts: internalConflicts,
+      existingScheduleChecked: false,
+    };
+  }
+
+  for (const item of args.items) {
+    if (!shouldCheckExistingScheduleConflicts(item)) {
+      continue;
+    }
+
+    try {
+      const conflicts = await context.detectScheduleConflicts({
+        date: item.date,
+        endTime: item.isAllDay ? null : item.endTime,
+        startTime: item.isAllDay ? null : item.startTime,
+      });
+
+      existingConflicts.push(...conflicts.map((conflict) => scheduleConflictFromExistingMatch(item, {
+        endTime: conflict.endTime ?? null,
+        id: conflict.id,
+        startTime: conflict.startTime ?? null,
+        title: conflict.title,
+      })));
+    } catch {
+      return {
+        conflicts: internalConflicts,
+        existingScheduleChecked: false,
+      };
+    }
+  }
+
+  return {
+    conflicts: [...internalConflicts, ...existingConflicts],
+    existingScheduleChecked: true,
+  };
+};
+
+const formatScheduleConflictPreview = (
+  conflicts: ScheduleCreationConflict[],
+  summaryMessage: string,
+): string => {
+  const lines = formatScheduleConflictLines(conflicts, 5);
+  const more = conflicts.length > lines.length ? `另有 ${conflicts.length - lines.length} 条冲突或提醒未展开。` : null;
+
+  return [summaryMessage, lines.length ? `冲突详情：\n${lines.join("\n")}` : null, more].filter(Boolean).join("\n");
+};
+
+const scheduleDraftFromCreateItemsArgs = (args: CreateScheduleItemsArgs): ScheduleDraft => ({
+  assumptions: ["这是准备创建前的日程草案快照，尚未写入日程。"],
+  conflicts: ["准备创建时会再次检查真实冲突。"],
+  items: args.items.map((item) => ({
+    date: item.date,
+    endTime: item.endTime ?? null,
+    sourceChecklistId: item.relatedChecklistId ?? args.sourceChecklistId ?? null,
+    sourceChecklistItemKey: item.relatedChecklistItemKey ?? null,
+    sourcePlanId: item.relatedPlanId ?? args.sourcePlanId ?? null,
+    sourceTaskTitle: item.sourceTaskTitle ?? item.description ?? null,
+    startTime: item.startTime ?? null,
+    title: item.title,
+  })),
+  nextActions: ["调整时间", "允许重叠", "暂不安排冲突项"],
+  sourceChecklistId: args.sourceChecklistId ?? null,
+  sourcePlanId: args.sourcePlanId ?? null,
+  sourceType: args.sourceType ?? "manual",
+  title: args.title ?? "日程草案",
+});
+
+const createScheduleItemsDryRun = async (
+  args: CreateScheduleItemsArgs,
+  context: AgentToolDryRunContext,
+): Promise<AgentToolDryRunResult> => {
+  if (!Array.isArray(args.items) || args.items.length === 0) {
+    return createClarifyResult({
+      args,
+      intent: "create_schedule_items",
+      missingFields: ["items"],
+      question: "当前没有可创建的日程项，请先生成日程草案。",
+    });
+  }
+
+  const invalidDateIndex = args.items.findIndex((item) => !item.date?.trim());
+  if (invalidDateIndex >= 0) {
+    return createClarifyResult({
+      args,
+      intent: "create_schedule_items",
+      missingFields: [`items[${invalidDateIndex}].date`],
+      question: "当前日程草案仍有未确定日期的项目，请先补充具体日期或让我重新调整草案。",
+    });
+  }
+
+  const itemCount = args.items.length;
+  const dateRange = scheduleItemsDateRange(args.items);
+  const sourceLabel =
+    args.sourceType === "plan"
+      ? "计划"
+      : args.sourceType === "checklist"
+        ? "清单"
+        : "手动";
+  const hasConflictNote = args.items.some((item) => Boolean(item.conflictNote?.trim()));
+  const itemPreview = args.items
+    .slice(0, 8)
+    .map((item, index) => `${index + 1}. ${item.date} ${scheduleItemTimePreview(item)} ${item.title}`)
+    .join("\n");
+  const conflictPolicy = getCreateScheduleItemsConflictPolicy(args);
+  const conflictDetection = await detectCreateScheduleItemConflictsForDryRun(args, context);
+  const conflictSummary = buildScheduleConflictSummary({
+    conflictPolicy,
+    conflicts: conflictDetection.conflicts,
+    existingScheduleChecked: conflictDetection.existingScheduleChecked,
+  });
+  const conflictPreview = formatScheduleConflictPreview(conflictDetection.conflicts, conflictSummary.message);
+  const localBusyBlocks = await findLocalBusyBlocksForScheduleSuggestions(args, context);
+  const conflictSuggestions = generateScheduleConflictSuggestions({
+    ...(localBusyBlocks ? { busyBlocks: localBusyBlocks } : {}),
+    conflicts: conflictDetection.conflicts,
+    draft: scheduleDraftFromCreateItemsArgs(args),
+    ...(context.scheduleSlots ? { slots: context.scheduleSlots } : {}),
+  });
+  const suggestionPreview = conflictSuggestions.length > 0
+    ? `可选调整建议：\n${conflictSuggestions.map((suggestion) => `- ${suggestion.label}`).join("\n")}\n选择后我会先更新草案；准备创建时会再次检查真实冲突。`
+    : null;
+
+  return {
+    action: {
+      ...actionBase({
+        args,
+        context,
+        intent: "create_schedule_items",
+        riskLevel: "medium",
+        summary: `创建 ${itemCount} 个日程项${args.title ? `「${args.title}」` : ""}`,
+      }),
+      affectedDocuments: [
+        {
+          collection: "schedule-items",
+          operation: "create",
+          title: args.title ?? `批量日程项（${itemCount} 个）`,
+          visibility: "private",
+        },
+      ],
+      afterSnapshot: {
+        conflictSummary,
+        dateRange,
+        hasConflictNote,
+        conflictSuggestions,
+        items: args.items,
+        scheduleConflicts: conflictDetection.conflicts,
+        sourceChecklistId: args.sourceChecklistId ?? null,
+        sourcePlanId: args.sourcePlanId ?? null,
+        sourceType: args.sourceType ?? "manual",
+        title: args.title ?? null,
+      },
+      beforeSnapshot: null,
+      changes: [
+        {
+          afterPreview: [
+            `时间范围：${dateRange}`,
+            `来源：${sourceLabel}`,
+            args.sourcePlanId ? `来源计划：${args.sourcePlanId}` : null,
+            args.sourceChecklistId ? `来源清单：${args.sourceChecklistId}` : null,
+            `冲突提示：${conflictSummary.conflictCount > 0 ? `发现 ${conflictSummary.conflictCount} 个时间冲突` : hasConflictNote ? "存在，需要确认" : "暂无"}`,
+            conflictPreview,
+            suggestionPreview,
+            itemPreview ? `日程项预览：\n${itemPreview}` : null,
+          ].filter(Boolean).join("\n"),
+          beforePreview: "当前尚未创建这些日程项。",
+          collection: "schedule-items",
+          operation: "create",
+          preview: `创建 ${itemCount} 个日程项；时间范围：${dateRange}；确认后才会写入日程。`,
+          timelineAffected: false,
+          visibility: "private",
+        },
+      ],
+      rollbackAvailable: true,
+      rollbackPayload: {
+        reason: "K5 仅生成批量日程创建确认；K6 执行成功后会用创建出的日程项 ID 完整化 rollback。",
+        strategy: "delete_created_documents",
+        target: {
+          collection: "schedule-items",
+          documentIds: [],
+        },
+      },
     },
     type: "proposed_action",
   };
@@ -1849,6 +2248,32 @@ export const agentToolRegistry = {
       status: "planned",
     },
   },
+  create_checklist: {
+    description: "Create a private draft checklist from an approved ChecklistDraft after confirmation.",
+    dryRun: createChecklistDryRun,
+    execute: (args, _context, onTrace) => createChecklistFromIntent(args, onTrace),
+    intent: "create_checklist",
+    name: "create_checklist",
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    rollback: {
+      description: "Delete the created checklist after execution records its document id.",
+      status: "planned",
+    },
+  },
+  create_schedule_items: {
+    description: "Create multiple schedule items from an approved ScheduleDraft after confirmation.",
+    dryRun: createScheduleItemsDryRun,
+    execute: (args, _context, onTrace) => createScheduleItemsFromIntent(args, onTrace),
+    intent: "create_schedule_items",
+    name: "create_schedule_items",
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    rollback: {
+      description: "Delete created ScheduleItems after K6 execution records their document ids.",
+      status: "planned",
+    },
+  },
   create_plan: {
     description: "Create a new private draft plan.",
     dryRun: createPlanDryRun,
@@ -2022,6 +2447,10 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
       return agentToolRegistry.compose_schedule_item.dryRun(intent.args, context);
     case "compose_timeline_event":
       return agentToolRegistry.compose_timeline_event.dryRun(intent.args, context);
+    case "create_checklist":
+      return agentToolRegistry.create_checklist.dryRun(intent.args, context);
+    case "create_schedule_items":
+      return agentToolRegistry.create_schedule_items.dryRun(intent.args, context);
     case "create_plan":
       return agentToolRegistry.create_plan.dryRun(intent.args, context);
     case "delete_record":
@@ -2061,6 +2490,10 @@ export const executeAgentTool = async (
       return agentToolRegistry.compose_schedule_item.execute(intent.args, context, onTrace);
     case "compose_timeline_event":
       return agentToolRegistry.compose_timeline_event.execute(intent.args, context, onTrace);
+    case "create_checklist":
+      return agentToolRegistry.create_checklist.execute(intent.args, context, onTrace);
+    case "create_schedule_items":
+      return agentToolRegistry.create_schedule_items.execute(intent.args, context, onTrace);
     case "create_plan":
       return agentToolRegistry.create_plan.execute(intent.args, context, onTrace);
     case "delete_record":

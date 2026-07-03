@@ -20,6 +20,7 @@ const timelineSnapshotFields = [
   "relatedPlan",
   "relatedTaskKey",
   "sortOrder",
+  "sourceType",
   "status",
   "title",
   "type",

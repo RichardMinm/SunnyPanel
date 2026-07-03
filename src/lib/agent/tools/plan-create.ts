@@ -87,8 +87,10 @@ export const createPlanFromIntent = async (
   });
 
   return {
-    assistantMessage: `已帮你创建计划「${createdPlan.title}」。目前它会以私有草稿的形式进入待办队列，默认状态是“待开始”。`,
+    assistantMessage: `已帮你创建计划「${createdPlan.title}」。目前它会以私有草稿的形式进入待办队列，默认状态是“待开始”。你可以继续把它拆成清单，后续清单会关联到该计划。`,
+    createdPlanId: createdPlan.id,
     pendingAction: null,
+    planId: createdPlan.id,
     rollbackPayload: {
       strategy: "delete_created_document",
       target: {
@@ -96,6 +98,6 @@ export const createPlanFromIntent = async (
         documentId: createdPlan.id,
       },
     },
+    status: "completed",
   };
 };
-

@@ -20,10 +20,12 @@ import { getAgentToolDefinition } from "@/lib/agent/tool-registry";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
+import { resolveCreatedPlanConversationState } from "@/lib/agent/planning/created-plan-lifecycle";
 
 export type ExecuteAndPersistStepParams = {
   batchExecuteIntents?: AgentIntent[];
   confirmedActionId: null | string;
+  conversationState?: unknown;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   executionApproved?: boolean;
@@ -34,6 +36,7 @@ export type ExecuteAndPersistStepParams = {
   persistAgentTurn: (args: {
     assistantMessage: string;
     confidence?: number;
+    conversationState?: unknown;
     engine: AgentEngine;
     intent: AgentIntent["intent"];
     nextPendingAction: null | PendingAction;
@@ -77,6 +80,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   const {
     batchExecuteIntents,
     confirmedActionId,
+    conversationState,
     emitStatus,
     emitToken,
     executionApproved = false,
@@ -379,6 +383,9 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
 
     executedCapability?.(executeCapability);
     execution = {
+      ...(capabilityResult.data && typeof capabilityResult.data === "object" && !Array.isArray(capabilityResult.data)
+        ? capabilityResult.data
+        : {}),
       assistantMessage: capabilityResult.summary,
       pendingAction: null,
       status: "completed",
@@ -472,9 +479,16 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     title: execution.pendingAction ? "动作已执行，进入待补信息状态" : isDirectAnswer ? "回答生成完成" : "动作执行完成",
   });
 
+  const nextConversationState =
+    resolveCreatedPlanConversationState({
+      execution,
+      intent: resolution.intent.intent,
+      sessionState: conversationState,
+    }) ?? conversationState;
   const updatedThread = await persistAgentTurn({
     assistantMessage,
     confidence: resolution.intent.confidence,
+    ...(nextConversationState !== undefined ? { conversationState: nextConversationState } : {}),
     engine: resolution.engine,
     intent: resolution.intent.intent,
     nextPendingAction: resolvedPending,

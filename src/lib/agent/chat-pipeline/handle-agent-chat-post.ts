@@ -189,10 +189,13 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     canonicalThread.pendingAction ??
     getThreadPendingAction(thread) ??
     parsePendingAction(body.pendingAction);
-  const conversationState = resolveConversationState(
-    (thread as { conversationState?: unknown }).conversationState ?? null,
-    resolvedHistory,
-  );
+  const storedConversationState = (thread as { conversationState?: unknown }).conversationState ?? null;
+  const conversationState =
+    storedConversationState &&
+    typeof storedConversationState === "object" &&
+    "schemaVersion" in storedConversationState
+      ? storedConversationState
+      : resolveConversationState(storedConversationState, resolvedHistory);
   const baseTokenUsage = createTokenUsageSnapshot({
     contextTokens: estimateMessagesTokenCount(resolvedHistory) + estimateTokenCount(pendingAction),
     inputTokens: estimateTokenCount(message),
@@ -232,7 +235,7 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
   const intentModelEngine = await getAgentIntentModelEngine();
   const userPreferences = await getUserPreferences(user.id);
   const finalizeTurn = createAgentTurnFinalizer({
-    conversationStateBefore: conversationState,
+    conversationStateBefore: conversationState as never,
     eventStore,
     message,
     pendingBefore: pendingAction,
@@ -257,7 +260,7 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
   const pipelineDeps = {
     baseTokenUsage,
     contextPreferences,
-    conversationState,
+    conversationState: conversationState as never,
     finalizeTurn,
     generateIntentWithAgentModel,
     intentModelEngine,

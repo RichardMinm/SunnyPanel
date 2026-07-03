@@ -5,10 +5,14 @@ export type RollbackPayload = {
   strategy: string;
   target?: {
     agentRunId?: null | number;
-    collection: string;
+    beforeLinkedContent?: unknown;
+    checklistId?: null | number;
+    collection?: string;
     documentId?: null | number;
     documentIds?: number[];
+    expectedAddedLink?: unknown;
     planReviewId?: null | number;
+    planId?: null | number;
     suggestionIds?: number[];
     timelineEventId?: null | number;
   };
@@ -30,7 +34,12 @@ export const parseRollbackPayload = (value: unknown): null | RollbackPayload => 
     ? {
         agentRunId:
           typeof value.target.agentRunId === "number" ? value.target.agentRunId : undefined,
-        collection: typeof value.target.collection === "string" ? value.target.collection : "",
+        beforeLinkedContent: Array.isArray(value.target.beforeLinkedContent)
+          ? value.target.beforeLinkedContent
+          : undefined,
+        checklistId:
+          typeof value.target.checklistId === "number" ? value.target.checklistId : undefined,
+        collection: typeof value.target.collection === "string" ? value.target.collection : undefined,
         documentId:
           typeof value.target.documentId === "number"
             ? value.target.documentId
@@ -42,6 +51,9 @@ export const parseRollbackPayload = (value: unknown): null | RollbackPayload => 
           : undefined,
         planReviewId:
           typeof value.target.planReviewId === "number" ? value.target.planReviewId : undefined,
+        planId:
+          typeof value.target.planId === "number" ? value.target.planId : undefined,
+        expectedAddedLink: isRecord(value.target.expectedAddedLink) ? value.target.expectedAddedLink : undefined,
         suggestionIds: Array.isArray(value.target.suggestionIds)
           ? value.target.suggestionIds.filter((id): id is number => typeof id === "number")
           : undefined,
@@ -53,12 +65,17 @@ export const parseRollbackPayload = (value: unknown): null | RollbackPayload => 
               : undefined,
       }
     : undefined;
+  const hasExecutableTarget =
+    Boolean(target?.collection) ||
+    (strategy === "delete_created_checklist_and_restore_plan_links" &&
+      typeof target?.checklistId === "number" &&
+      typeof target?.planId === "number");
 
   return {
     beforeSnapshot: isRecord(value.beforeSnapshot) ? value.beforeSnapshot : undefined,
     reason: typeof value.reason === "string" ? value.reason : undefined,
     strategy,
-    target: target?.collection ? target : undefined,
+    target: hasExecutableTarget ? target : undefined,
   };
 };
 
@@ -66,7 +83,19 @@ export const parseRollbackPayload = (value: unknown): null | RollbackPayload => 
 export const isRollbackPayloadExecutable = (value: unknown): boolean => {
   const parsed = parseRollbackPayload(value);
 
-  if (!parsed?.target?.collection) {
+  if (!parsed?.target) {
+    return false;
+  }
+
+  if (parsed.strategy === "delete_created_checklist_and_restore_plan_links") {
+    return (
+      typeof parsed.target.checklistId === "number" &&
+      typeof parsed.target.planId === "number" &&
+      parsed.target.expectedAddedLink != null
+    );
+  }
+
+  if (!parsed.target.collection) {
     return false;
   }
 
@@ -77,7 +106,10 @@ export const isRollbackPayloadExecutable = (value: unknown): boolean => {
   }
 
   if (parsed.strategy === "delete_created_document") {
-    return typeof documentId === "number" && (collection === "plans" || collection === "schedule-items");
+    return (
+      typeof documentId === "number" &&
+      (collection === "plans" || collection === "schedule-items" || collection === "checklists")
+    );
   }
 
   if (parsed.strategy === "delete_created_documents") {

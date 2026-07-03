@@ -47,6 +47,9 @@ const isOwnedThread = (thread: AgentThread, userId: number) => {
   return threadUserId === userId;
 };
 
+const toPersistedThreadIntent = (intent: AgentIntent["intent"]): AgentIntent["intent"] =>
+  intent === "create_schedule_items" ? "compose_schedule_item" : intent;
+
 export const getThreadMessages = (thread: AgentThread): AgentChatMessage[] =>
   sanitizeChatMessages(thread.messages ?? []);
 
@@ -116,11 +119,13 @@ export const appendAgentThreadTurn = async ({
   engine,
   intent,
   pendingAction,
+  conversationState,
   thread,
   userMessage,
 }: {
   assistantMessage: string;
   confidence?: number;
+  conversationState?: unknown;
   engine: AgentEngine;
   intent: AgentIntent["intent"];
   pendingAction: null | PendingAction;
@@ -161,11 +166,12 @@ export const appendAgentThreadTurn = async ({
   const data = validateAgentThreadData({
     lastConfidence: confidence ?? null,
     lastEngine: engine,
-    lastIntent: intent,
+    lastIntent: toPersistedThreadIntent(intent),
     lastInteractionAt: recordedAt,
     messages,
     pendingAction,
     status: "active",
+    ...(conversationState !== undefined ? { conversationState } : {}),
     ...(refreshedSummary
       ? {
           summary: refreshedSummary.summary,

@@ -20,7 +20,7 @@ export const buildIntentTraceSummary = (intent: AgentIntent): { detail?: string;
     case "complete_plan_item":
       return {
         detail: `${intent.args.checklistTitle}${intent.args.groupTitle ? ` / ${intent.args.groupTitle}` : ""}`,
-        title: `识别为完成条目：${intent.args.itemTitle}`,
+        title: `识别为完成清单项：${intent.args.itemTitle}`,
       };
     case "compose_plan":
       return {
@@ -31,6 +31,11 @@ export const buildIntentTraceSummary = (intent: AgentIntent): { detail?: string;
       return {
         detail: intent.args.sourceText ?? intent.args.title ?? "将生成日程提案。",
         title: "识别为 Schedule Composer",
+      };
+    case "create_schedule_items":
+      return {
+        detail: `将从日程草案创建 ${intent.args.items.length} 个日程项。`,
+        title: "识别为批量创建日程",
       };
     case "compose_timeline_event":
       return {

@@ -86,7 +86,16 @@ const extractTarget = (intent: AgentIntent): AgentTargetRef => {
     return { entityType: "plan" };
   }
 
-  if (intentName === "compose_schedule_item" || intentName === "reschedule_item" || intentName === "cancel_schedule_item") {
+  if (intentName === "create_checklist") {
+    return { entityType: "checklist" };
+  }
+
+  if (
+    intentName === "compose_schedule_item" ||
+    intentName === "create_schedule_items" ||
+    intentName === "reschedule_item" ||
+    intentName === "cancel_schedule_item"
+  ) {
     return { entityType: "schedule" };
   }
 

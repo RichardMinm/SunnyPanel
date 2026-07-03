@@ -3,6 +3,10 @@ import type { AgentRun, Checklist } from "@/payload-types";
 import { getPayloadClient } from "@/lib/payload/client";
 
 import { getCurrentAgentUserId } from "./execution-context";
+import {
+  buildChecklistTimelineDescription,
+  buildChecklistTimelineTitle,
+} from "./checklist-timeline-semantics";
 import type {
   AgentTraceStep,
   ComposeTimelineEventArgs,
@@ -16,7 +20,10 @@ export type ChecklistItem = NonNullable<ChecklistGroup["items"]>[number];
 export type AgentToolResult = {
   assistantMessage: string;
   pendingAction: null | PendingAction;
+  createdPlanId?: number;
+  planId?: number;
   rollbackPayload?: unknown;
+  status?: "completed" | "failed";
 };
 
 export type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
@@ -57,14 +64,20 @@ export const buildTimelineTitle = (
   checklistTitle: string,
   groupTitle: null | string | undefined,
   itemTitle: string,
-) => (groupTitle ? `${checklistTitle} · ${groupTitle} / ${itemTitle} 完成` : `${checklistTitle} · ${itemTitle} 完成`);
+) => buildChecklistTimelineTitle({ checklistTitle, groupTitle, itemTitle });
 
-export const buildTimelineDescription = (item: ChecklistItem) =>
-  [item.description, item.completionNote]
-    .filter((value): value is string => Boolean(value))
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .join("\n\n");
+export const buildTimelineDescription = (
+  checklistTitle: string,
+  groupTitle: null | string | undefined,
+  item: ChecklistItem,
+) =>
+  buildChecklistTimelineDescription({
+    checklistTitle,
+    completionNote: item.completionNote,
+    groupTitle,
+    itemDescription: item.description,
+    itemTitle: item.title,
+  });
 
 export const createAgentRun = async ({
   affectedDocuments,
