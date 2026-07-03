@@ -64,6 +64,8 @@ describe("Dashboard layout contracts", () => {
 
   test("Sidebar navigation exposes grouped actions, project, workspace, and thread metadata", () => {
     const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
+    const sidebarHelpers = read("src/components/dashboard/sidebar/dashboard-sidebar-helpers.ts");
+    const sidebarThreads = read("src/components/dashboard/sidebar/use-dashboard-sidebar-threads.ts");
 
     for (const label of ["主操作", "新对话", "搜索", "项目", "SunnyPanel", "工作区", "会话"]) {
       assert.match(sidebar, new RegExp(label));
@@ -74,9 +76,9 @@ describe("Dashboard layout contracts", () => {
     assert.doesNotMatch(sidebar, /aria-label="插件"/);
     assert.doesNotMatch(sidebar, /aria-label="自动化"/);
     assert.match(sidebar, /formatThreadMeta/);
-    assert.match(sidebar, /getPendingActionLabel\(thread\.pendingAction\)/);
-    assert.match(sidebar, /filterDashboardThreads/);
-    assert.match(sidebar, /filteredThreads\.slice/);
+    assert.match(sidebarHelpers, /getPendingActionLabel\(thread\.pendingAction\)/);
+    assert.match(sidebarThreads, /filterDashboardThreads/);
+    assert.match(sidebarThreads, /filteredThreads\.slice/);
     assert.match(sidebar, /visibleThreads\.map/);
     assert.match(sidebar, /is-active/);
   });
@@ -123,7 +125,8 @@ describe("Dashboard layout contracts", () => {
     assert.match(shellCss, /is-auto-collapsed/);
     assert.match(shellCss, /\.sunny-dashboard-sidebar-brand-row/);
     assert.match(shellCss, /\.sunny-sidebar-pin-button\.is-square/);
-    assert.match(sidebar, /triggerClassName="sunny-dashboard-sidebar-action sunny-dashboard-sidebar-settings-trigger"/);
+    assert.match(sidebar, /triggerAsChild/);
+    assert.match(sidebar, /className="sunny-dashboard-sidebar-action sunny-dashboard-sidebar-settings-trigger"/);
     assert.match(shellCss, /\.sunny-dashboard-settings-popover/);
     assert.doesNotMatch(shellCss, /is-hover-expanded[\s\S]*position:\s*fixed/);
 
@@ -167,12 +170,16 @@ describe("Dashboard layout contracts", () => {
   test("Sidebar is icon-first and does not own the right Inspector toggle", () => {
     const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
     const shell = read("src/components/dashboard/DashboardShell.tsx");
+    const sidebarItem = read("src/components/layout/SidebarItem.tsx");
+    const sidebarModes = read("src/components/dashboard/sidebar/dashboard-sidebar-modes.ts");
+    const icons = read("src/components/dashboard/icons.tsx");
     const sidebarNavCall = shell.match(/<SidebarNav[\s\S]*?\/>/)?.[0] ?? "";
 
     assert.match(sidebar, /DashboardIcon/);
-    assert.match(sidebar, /type DashboardIconName/);
-    assert.match(sidebar, /icon:\s*"calendar"/);
-    assert.match(sidebar, /icon:\s*"memory"/);
+    assert.match(icons, /export type DashboardIconName/);
+    assert.match(sidebarModes, /icon:\s*"calendar"/);
+    assert.match(sidebarModes, /icon:\s*"memory"/);
+    assert.match(sidebarItem, /app-sidebar-item__icon[\s\S]*app-sidebar-item__label/);
     assert.doesNotMatch(sidebar, /sunny-codex-sidebar-window-controls/);
     assert.doesNotMatch(sidebar, /sunny-codex-panel-toggle/);
     assert.doesNotMatch(sidebar, /onTogglePanel/);
@@ -478,13 +485,22 @@ describe("Dashboard layout contracts", () => {
     assert.match(read("src/components/dashboard/agent/AgentComposer.tsx"), /AppIconButton/);
   });
 
-  test("Dashboard syncs learning suggestions server-side without client inbox state", () => {
+  test("Dashboard syncs learning suggestions through the server endpoint without client inbox state", () => {
     const loadDashboardData = read("src/lib/dashboard/load-dashboard-data.ts");
     const pageClient = read("src/components/dashboard/DashboardPageClient.tsx");
     const messagingHook = read("src/components/dashboard/agent-chat/use-agent-chat-messaging.ts");
+    const syncRoute = read("src/app/api/agent/suggestions/sync/route.ts");
 
-    assert.match(loadDashboardData, /syncAgentSuggestionsFromWorkspaceSnapshot/);
-    assert.doesNotMatch(pageClient, /suggestions/);
+    assert.doesNotMatch(loadDashboardData, /syncAgentSuggestionsFromWorkspaceSnapshot/);
+    assert.match(pageClient, /\/api\/agent\/suggestions\/sync/);
+    assert.match(pageClient, /method: "POST"/);
+    assert.match(pageClient, /syncInFlightRef/);
+    assert.match(syncRoute, /syncAgentSuggestionsFromWorkspaceSnapshot/);
+    assert.match(syncRoute, /getCachedWorkspaceSnapshot/);
+    assert.doesNotMatch(pageClient, /initialSuggestions/);
+    assert.doesNotMatch(pageClient, /AgentInboxSuggestion/);
+    assert.doesNotMatch(pageClient, /getPendingAgentSuggestions/);
+    assert.doesNotMatch(pageClient, /setInboxSuggestions/);
     assert.doesNotMatch(messagingHook, /refreshInboxSuggestions/);
     assert.doesNotMatch(messagingHook, /setInboxSuggestions/);
   });
