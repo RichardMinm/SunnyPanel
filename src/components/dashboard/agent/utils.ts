@@ -4,6 +4,8 @@ import type {
   ProposedAgentAction,
   ScheduleProposal,
 } from "@/lib/agent/schemas";
+import type { ScheduleConflict } from "@/lib/agent/schedule/conflict-awareness";
+import type { ScheduleConflictSuggestion } from "@/lib/agent/schedule/conflict-suggestions";
 
 import { riskLevelLabelMap } from "./constants";
 import { isRecord } from "@/lib/shared/is-record";
@@ -177,12 +179,17 @@ export type ChecklistCompletionData = {
 
 export type ActionResultData = {
   checklistTitle?: string;
+  createdScheduleItemIds?: number[];
+  dateRange?: string;
   groupsCount?: number;
   groupTitle?: string | null;
   itemsCount?: number;
-  kind: "checklist_created" | "checklist_item_completed" | "plan_created";
+  kind: "checklist_created" | "checklist_item_completed" | "plan_created" | "schedule_items_created";
   linkedPlanId?: number | null;
   rollbackAvailable: boolean;
+  scheduleItemPreviews?: string[];
+  sourceChecklistId?: number | null;
+  sourcePlanId?: number | null;
   timelineStatus?: "not_synced" | "synced";
   title: string;
 };
@@ -232,6 +239,32 @@ export function parseActionResultMessage(content: string): ActionResultData | nu
 
   if (!trimmed) {
     return null;
+  }
+
+  const scheduleCreated = trimmed.match(/^已创建\s*(\d+)\s*个日程项，时间范围[：:]\s*(.+?)[。.]?(?:\n|$)/u);
+  if (scheduleCreated) {
+    const scheduleItemPreviews = Array.from(trimmed.matchAll(/^\s*-\s*(#\d+\s+.+)$/gmu), (match) =>
+      match[1].trim(),
+    );
+    const createdScheduleItemIds = scheduleItemPreviews
+      .map((preview) => preview.match(/^#(\d+)/u)?.[1])
+      .filter((value): value is string => Boolean(value))
+      .map(Number);
+    const sourcePlanId = trimmed.match(/来源计划\s*#(\d+)/u)?.[1];
+    const sourceChecklistId = trimmed.match(/来源清单\s*#(\d+)/u)?.[1];
+    const itemsCount = Number(scheduleCreated[1]);
+
+    return {
+      createdScheduleItemIds,
+      dateRange: scheduleCreated[2].trim(),
+      itemsCount,
+      kind: "schedule_items_created",
+      rollbackAvailable: true,
+      scheduleItemPreviews,
+      sourceChecklistId: sourceChecklistId ? Number(sourceChecklistId) : null,
+      sourcePlanId: sourcePlanId ? Number(sourcePlanId) : null,
+      title: `已创建 ${itemsCount} 个日程项`,
+    };
   }
 
   const checklistCreated = trimmed.match(
@@ -413,4 +446,97 @@ export const getScheduleProposalFromAction = (action: ProposedAgentAction): null
   const proposal = argsProposal ?? snapshot;
 
   return proposal as null | ScheduleProposal;
+};
+
+export type ScheduleCreationProposal = {
+  conflictSummary: {
+    conflictCount: number;
+    conflictPolicy?: null | string;
+    existingScheduleChecked: boolean;
+    message: string;
+    warningCount: number;
+  };
+  conflicts: ScheduleConflict[];
+  conflictSuggestions: ScheduleConflictSuggestion[];
+  dateRange: string;
+  itemCount: number;
+  sourceChecklistId?: null | number;
+  sourcePlanId?: null | number;
+  title?: null | string;
+};
+
+const isScheduleConflict = (value: unknown): value is ScheduleConflict => {
+  if (!isRecord(value)) return false;
+
+  return (
+    (value.type === "internal" || value.type === "existing" || value.type === "warning") &&
+    (value.severity === "info" || value.severity === "warning" || value.severity === "blocking") &&
+    typeof value.proposedTitle === "string" &&
+    typeof value.message === "string"
+  );
+};
+
+const isScheduleConflictSuggestion = (value: unknown): value is ScheduleConflictSuggestion => {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.label !== "string") {
+    return false;
+  }
+
+  if (value.riskLevel !== "low" && value.riskLevel !== "medium") {
+    return false;
+  }
+
+  const action = value.action;
+  if (!isRecord(action) || typeof action.type !== "string") {
+    return false;
+  }
+
+  if (action.type === "allow_overlap") return true;
+  if (action.type === "manual_adjust") return typeof action.message === "string";
+  if (action.type === "remove_item") return typeof action.itemTitle === "string";
+
+  return (
+    action.type === "move_item" &&
+    typeof action.itemTitle === "string" &&
+    (action.date == null || typeof action.date === "string") &&
+    (action.startTime == null || typeof action.startTime === "string") &&
+    (action.endTime == null || typeof action.endTime === "string")
+  );
+};
+
+export const getScheduleCreationProposalFromAction = (action: ProposedAgentAction): null | ScheduleCreationProposal => {
+  if (action.intent !== "create_schedule_items" || !isRecord(action.afterSnapshot)) {
+    return null;
+  }
+
+  const snapshot = action.afterSnapshot;
+  const conflictSummary = isRecord(snapshot.conflictSummary) ? snapshot.conflictSummary : null;
+
+  if (!conflictSummary || typeof conflictSummary.message !== "string") {
+    return null;
+  }
+
+  const items = Array.isArray(snapshot.items) ? snapshot.items : [];
+  const conflicts = Array.isArray(snapshot.scheduleConflicts)
+    ? snapshot.scheduleConflicts.filter(isScheduleConflict)
+    : [];
+  const conflictSuggestions = Array.isArray(snapshot.conflictSuggestions)
+    ? snapshot.conflictSuggestions.filter(isScheduleConflictSuggestion)
+    : [];
+
+  return {
+    conflictSummary: {
+      conflictCount: typeof conflictSummary.conflictCount === "number" ? conflictSummary.conflictCount : conflicts.length,
+      conflictPolicy: typeof conflictSummary.conflictPolicy === "string" ? conflictSummary.conflictPolicy : null,
+      existingScheduleChecked: conflictSummary.existingScheduleChecked === true,
+      message: conflictSummary.message,
+      warningCount: typeof conflictSummary.warningCount === "number" ? conflictSummary.warningCount : 0,
+    },
+    conflicts,
+    conflictSuggestions,
+    dateRange: typeof snapshot.dateRange === "string" ? snapshot.dateRange : "未确定日期",
+    itemCount: items.length,
+    sourceChecklistId: typeof snapshot.sourceChecklistId === "number" ? snapshot.sourceChecklistId : null,
+    sourcePlanId: typeof snapshot.sourcePlanId === "number" ? snapshot.sourcePlanId : null,
+    title: typeof snapshot.title === "string" ? snapshot.title : null,
+  };
 };

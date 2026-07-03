@@ -123,6 +123,17 @@ export const CAPABILITY_INPUT_SCHEMAS: Record<string, Record<string, unknown>> =
     required: ["date", "sourceText"],
     type: "object",
   },
+  preview_create_schedule_items: {
+    additionalProperties: true,
+    properties: {
+      items: { description: "批量日程项", type: "array" },
+      sourceChecklistId: numberProp("来源清单 ID"),
+      sourcePlanId: numberProp("来源计划 ID"),
+      title: stringProp("日程草案标题"),
+    },
+    required: ["items"],
+    type: "object",
+  },
   preview_update_plan: {
     additionalProperties: true,
     properties: {
@@ -170,6 +181,12 @@ export const CAPABILITY_INPUT_SCHEMAS: Record<string, Record<string, unknown>> =
     type: "object",
   },
   execute_create_schedule: {
+    additionalProperties: true,
+    properties: { actionId: stringProp("已确认提案 ID") },
+    required: ["actionId"],
+    type: "object",
+  },
+  execute_create_schedule_items: {
     additionalProperties: true,
     properties: { actionId: stringProp("已确认提案 ID") },
     required: ["actionId"],

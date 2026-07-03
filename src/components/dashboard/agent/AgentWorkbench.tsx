@@ -139,6 +139,23 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
               onPlanDraftRevise={() => {
                 onInputChange("我想调整这个计划草案：");
               }}
+              onScheduleDraftPrepareCreate={
+                onSendMessage
+                  ? () => {
+                      void onSendMessage("就按这个日程草案创建日程");
+                    }
+                  : undefined
+              }
+              onScheduleDraftRevise={() => {
+                onInputChange("我想调整这个日程草案：");
+              }}
+              onScheduleConflictSuggestionSelect={
+                onSendMessage
+                  ? (message) => {
+                      void onSendMessage(message);
+                    }
+                  : undefined
+              }
               onPlanConfirmationReturnToEdit={
                 onSendMessage
                   ? () => {

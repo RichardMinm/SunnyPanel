@@ -17,9 +17,10 @@ import { buildProposedActionMessage, dryRunAgentIntent } from "@/lib/agent/safet
 import type { AutoApprovalContext } from "@/lib/agent/safety";
 import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, ComposePlanArgs, PendingAction } from "@/lib/agent/schemas";
 import { isConversationalIntent } from "@/lib/agent/schemas";
+import { normalizeSessionState } from "@/lib/agent/session/normalize-session";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
-import { detectScheduleConflicts, getScheduleItemById } from "@/lib/schedule/items";
+import { detectScheduleConflicts, getScheduleForDateRange, getScheduleItemById } from "@/lib/schedule/items";
 import { decomposePlanForCompose } from "@/lib/agent/workflows/plan-decomposer";
 import type { DecomposedPlan } from "@/lib/agent/workflows/plan-decomposer";
 import { inferTopicWithLLM, normalizeComposePlanArgs, parsePlanSeedFromText } from "@/lib/agent/workflows/plan-seed";
@@ -363,6 +364,9 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       : normalizedArgs;
   }
 
+  const normalizedConversationState = conversationState
+    ? normalizeSessionState(conversationState)
+    : null;
   const dryRunResult = confirmedActionId
     ? {
         type: "bypass" as const,
@@ -370,6 +374,20 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     : await dryRunAgentIntent(resolution.intent, {
         detectScheduleConflicts: (args) =>
           detectScheduleConflicts(args.date, args.startTime, args.endTime, args.excludeId, payload),
+        findLocalBusyBlocks: async ({ endDate, startDate }) => {
+          const items = await getScheduleForDateRange(new Date(startDate), new Date(endDate), payload);
+
+          return items
+            .filter((item) => item.status !== "canceled")
+            .map((item) => ({
+              date: item.date,
+              endTime: item.endTime ?? null,
+              isAllDay: item.isAllDay ?? null,
+              sourceId: item.id,
+              startTime: item.startTime ?? null,
+              title: item.title ?? null,
+            }));
+        },
         findTimelineEvent: findChecklistTimelineEvent,
         now: context.now,
         planCandidates: context.plans,
@@ -378,6 +396,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
         resolveChecklistItem,
         resolveDeleteRecord: (args) => resolveDeleteRecordTarget(args, { payload }),
         resolveScheduleItem: (itemId) => getScheduleItemById(itemId, payload),
+        scheduleSlots: normalizedConversationState?.scheduling?.slots ?? null,
       });
 
   if (turnAudit && dryRunResult.type !== "bypass") {

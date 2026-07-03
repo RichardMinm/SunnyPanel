@@ -13,6 +13,19 @@ import type {
   PlanSlots,
 } from "../planning/readiness";
 import type { PlanDraft, PlanDraftStage } from "../planning/draft";
+import type {
+  ScheduleReadiness,
+  ScheduleReadinessStatus,
+  ScheduleSlotKey,
+  ScheduleSlots,
+  ScheduleTaskSlot,
+  ScheduleTimeWindow,
+} from "../schedule/readiness";
+import type { ScheduleDraft, ScheduleDraftItem } from "../schedule/draft";
+import {
+  MAX_SCHEDULE_DRAFT_ITEMS,
+  MAX_SCHEDULE_DRAFT_LIST_ITEMS,
+} from "../schedule/draft";
 
 /* ──── Factory ──── */
 
@@ -40,6 +53,11 @@ const asString = (v: unknown): string | undefined =>
 
 const asNumber = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isFinite(v) ? v : undefined;
+
+const asPositiveNumber = (v: unknown): number | undefined => {
+  const value = asNumber(v);
+  return value !== undefined && value > 0 ? value : undefined;
+};
 
 /* ──── Enum validation sets ──── */
 
@@ -79,6 +97,48 @@ const PLAN_READINESS_STATUSES = new Set<PlanReadinessStatus>([
   "draftable",
   "confirmable",
 ]);
+
+const VALID_SCHEDULE_SLOT_KEYS = new Set<ScheduleSlotKey>([
+  "sourceType",
+  "sourcePlanId",
+  "sourceChecklistId",
+  "tasks",
+  "deadline",
+  "availableDays",
+  "availableTimeWindows",
+  "dailyCapacity",
+  "preferredTime",
+  "excludedDates",
+  "priorityRule",
+  "durationEstimate",
+  "scheduleGranularity",
+  "conflictPolicy",
+]);
+
+const SCHEDULE_STRING_SLOT_KEYS = new Set<
+  Extract<
+    ScheduleSlotKey,
+    "deadline" | "dailyCapacity" | "preferredTime" | "priorityRule" | "durationEstimate"
+  >
+>([
+  "deadline",
+  "dailyCapacity",
+  "preferredTime",
+  "priorityRule",
+  "durationEstimate",
+]);
+
+const SCHEDULE_READINESS_STATUSES = new Set<ScheduleReadinessStatus>([
+  "insufficient",
+  "draftable",
+  "confirmable",
+]);
+
+const SCHEDULE_SOURCE_TYPES = new Set(["plan", "checklist", "manual"]);
+const SCHEDULE_GRANULARITIES = new Set(["day", "time-block", "unscheduled"]);
+const SCHEDULE_CONFLICT_POLICIES = new Set(["ask", "skip", "allow-overlap", "reschedule"]);
+const SCHEDULE_TASK_PRIORITIES = new Set(["low", "medium", "high"]);
+const SCHEDULE_DRAFT_SOURCE_TYPES = new Set(["plan", "checklist", "manual"]);
 
 const VALID_ENTITY_TYPES = new Set([
   "agent", "article", "checklist", "memory", "plan",
@@ -305,6 +365,345 @@ const sanitizePlanReadiness = (
   return readiness;
 };
 
+const sanitizeScheduleTaskSlot = (raw: unknown): ScheduleTaskSlot | undefined => {
+  if (!isRecord(raw)) return undefined;
+  const title = asString(raw.title);
+  if (!title || !normalizeText(title)) return undefined;
+
+  const sourceTaskTitle = asString(raw.sourceTaskTitle);
+  const sourceChecklistItemKey = asString(raw.sourceChecklistItemKey);
+  const sourcePlanId = asPositiveNumber(raw.sourcePlanId);
+  const sourceChecklistId = asPositiveNumber(raw.sourceChecklistId);
+  const estimatedMinutes = asPositiveNumber(raw.estimatedMinutes);
+  const priority = asString(raw.priority);
+
+  return {
+    title: normalizeText(title),
+    ...(sourceTaskTitle && normalizeText(sourceTaskTitle)
+      ? { sourceTaskTitle: normalizeText(sourceTaskTitle) }
+      : raw.sourceTaskTitle === null
+        ? { sourceTaskTitle: null }
+        : {}),
+    ...(sourceChecklistItemKey && normalizeText(sourceChecklistItemKey)
+      ? { sourceChecklistItemKey: normalizeText(sourceChecklistItemKey) }
+      : raw.sourceChecklistItemKey === null
+        ? { sourceChecklistItemKey: null }
+        : {}),
+    ...(sourcePlanId !== undefined
+      ? { sourcePlanId }
+      : raw.sourcePlanId === null
+        ? { sourcePlanId: null }
+        : {}),
+    ...(sourceChecklistId !== undefined
+      ? { sourceChecklistId }
+      : raw.sourceChecklistId === null
+        ? { sourceChecklistId: null }
+        : {}),
+    ...(estimatedMinutes !== undefined
+      ? { estimatedMinutes }
+      : raw.estimatedMinutes === null
+        ? { estimatedMinutes: null }
+        : {}),
+    ...(priority && SCHEDULE_TASK_PRIORITIES.has(priority)
+      ? { priority: priority as ScheduleTaskSlot["priority"] }
+      : raw.priority === null
+        ? { priority: null }
+        : {}),
+  };
+};
+
+const sanitizeScheduleTasks = (raw: unknown): ScheduleTaskSlot[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+
+  const seen = new Set<string>();
+  const result: ScheduleTaskSlot[] = [];
+  for (const item of raw) {
+    const task = sanitizeScheduleTaskSlot(item);
+    if (!task) continue;
+    const key = `${task.title.toLowerCase()}::${task.sourceChecklistItemKey ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(task);
+    if (result.length >= 40) break;
+  }
+
+  return result.length > 0 ? result : undefined;
+};
+
+const sanitizeScheduleTimeWindow = (raw: unknown): ScheduleTimeWindow | undefined => {
+  if (!isRecord(raw)) return undefined;
+  const day = asString(raw.day);
+  const startTime = asString(raw.startTime);
+  const endTime = asString(raw.endTime);
+  const window: ScheduleTimeWindow = {};
+
+  if (day && normalizeText(day)) window.day = normalizeText(day);
+  else if (raw.day === null) window.day = null;
+
+  if (startTime && normalizeText(startTime)) window.startTime = normalizeText(startTime);
+  else if (raw.startTime === null) window.startTime = null;
+
+  if (endTime && normalizeText(endTime)) window.endTime = normalizeText(endTime);
+  else if (raw.endTime === null) window.endTime = null;
+
+  return Object.keys(window).length > 0 ? window : undefined;
+};
+
+const sanitizeScheduleTimeWindows = (raw: unknown): ScheduleTimeWindow[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+
+  const seen = new Set<string>();
+  const result: ScheduleTimeWindow[] = [];
+  for (const item of raw) {
+    const window = sanitizeScheduleTimeWindow(item);
+    if (!window) continue;
+    const key = `${window.day ?? ""}::${window.startTime ?? ""}::${window.endTime ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(window);
+    if (result.length >= 21) break;
+  }
+
+  return result.length > 0 ? result : undefined;
+};
+
+const sanitizeScheduleSlots = (raw: unknown): ScheduleSlots | undefined => {
+  if (!isRecord(raw)) return undefined;
+
+  const result: ScheduleSlots = {};
+  for (const key of SCHEDULE_STRING_SLOT_KEYS) {
+    const value = raw[key];
+    if (typeof value === "string") {
+      const normalized = normalizeText(value);
+      if (normalized) {
+        result[key] = normalized;
+      }
+    } else if (value === null) {
+      result[key] = null;
+    }
+  }
+
+  const sourceType = asString(raw.sourceType);
+  if (sourceType && SCHEDULE_SOURCE_TYPES.has(sourceType)) {
+    result.sourceType = sourceType as ScheduleSlots["sourceType"];
+  } else if (raw.sourceType === null) {
+    result.sourceType = null;
+  }
+
+  const sourcePlanId = asPositiveNumber(raw.sourcePlanId);
+  if (sourcePlanId !== undefined) {
+    result.sourcePlanId = sourcePlanId;
+  } else if (raw.sourcePlanId === null) {
+    result.sourcePlanId = null;
+  }
+
+  const sourceChecklistId = asPositiveNumber(raw.sourceChecklistId);
+  if (sourceChecklistId !== undefined) {
+    result.sourceChecklistId = sourceChecklistId;
+  } else if (raw.sourceChecklistId === null) {
+    result.sourceChecklistId = null;
+  }
+
+  const tasks = sanitizeScheduleTasks(raw.tasks);
+  if (tasks) {
+    result.tasks = tasks;
+  } else if (raw.tasks === null) {
+    result.tasks = null;
+  }
+
+  const availableDays = sanitizeStringList(raw.availableDays, 21);
+  if (availableDays) {
+    result.availableDays = availableDays;
+  } else if (raw.availableDays === null) {
+    result.availableDays = null;
+  }
+
+  const excludedDates = sanitizeStringList(raw.excludedDates, 21);
+  if (excludedDates) {
+    result.excludedDates = excludedDates;
+  } else if (raw.excludedDates === null) {
+    result.excludedDates = null;
+  }
+
+  const availableTimeWindows = sanitizeScheduleTimeWindows(raw.availableTimeWindows);
+  if (availableTimeWindows) {
+    result.availableTimeWindows = availableTimeWindows;
+  } else if (raw.availableTimeWindows === null) {
+    result.availableTimeWindows = null;
+  }
+
+  const scheduleGranularity = asString(raw.scheduleGranularity);
+  if (scheduleGranularity && SCHEDULE_GRANULARITIES.has(scheduleGranularity)) {
+    result.scheduleGranularity = scheduleGranularity as ScheduleSlots["scheduleGranularity"];
+  } else if (raw.scheduleGranularity === null) {
+    result.scheduleGranularity = null;
+  }
+
+  const conflictPolicy = asString(raw.conflictPolicy);
+  if (conflictPolicy && SCHEDULE_CONFLICT_POLICIES.has(conflictPolicy)) {
+    result.conflictPolicy = conflictPolicy as ScheduleSlots["conflictPolicy"];
+  } else if (raw.conflictPolicy === null) {
+    result.conflictPolicy = null;
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+};
+
+const sanitizeScheduleSlotKeys = (raw: unknown): ScheduleSlotKey[] => {
+  if (!Array.isArray(raw)) return [];
+
+  const seen = new Set<ScheduleSlotKey>();
+  const result: ScheduleSlotKey[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string" || !VALID_SCHEDULE_SLOT_KEYS.has(item as ScheduleSlotKey)) {
+      continue;
+    }
+    const key = item as ScheduleSlotKey;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(key);
+  }
+
+  return result;
+};
+
+const sanitizeScheduleReadiness = (
+  raw: unknown,
+): ScheduleReadiness | undefined => {
+  if (!isRecord(raw)) return undefined;
+  const status = asString(raw.status);
+  const confidence = asNumber(raw.confidence);
+
+  if (
+    !status ||
+    !SCHEDULE_READINESS_STATUSES.has(status as ScheduleReadinessStatus) ||
+    confidence === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    confidence: Math.max(0, Math.min(1, confidence)),
+    knownSlots: sanitizeScheduleSlotKeys(raw.knownSlots),
+    missingSlots: sanitizeScheduleSlotKeys(raw.missingSlots),
+    reason: asString(raw.reason) != null ? normalizeText(asString(raw.reason)!) : "",
+    status: status as ScheduleReadinessStatus,
+    suggestedQuestions: sanitizeStringList(raw.suggestedQuestions, 5) ?? [],
+  };
+};
+
+const sanitizeScheduleDraftItem = (raw: unknown): ScheduleDraftItem | undefined => {
+  if (!isRecord(raw)) return undefined;
+  const title = asString(raw.title);
+  if (!title || !normalizeText(title)) return undefined;
+
+  const sourceTaskTitle = asString(raw.sourceTaskTitle);
+  const date = asString(raw.date);
+  const startTime = asString(raw.startTime);
+  const endTime = asString(raw.endTime);
+  const sourceChecklistItemKey = asString(raw.sourceChecklistItemKey);
+  const conflictNote = asString(raw.conflictNote);
+  const estimatedMinutes = asPositiveNumber(raw.estimatedMinutes);
+  const sourcePlanId = asPositiveNumber(raw.sourcePlanId);
+  const sourceChecklistId = asPositiveNumber(raw.sourceChecklistId);
+
+  return {
+    title: normalizeText(title),
+    ...(sourceTaskTitle && normalizeText(sourceTaskTitle)
+      ? { sourceTaskTitle: normalizeText(sourceTaskTitle) }
+      : raw.sourceTaskTitle === null
+        ? { sourceTaskTitle: null }
+        : {}),
+    ...(date && normalizeText(date) ? { date: normalizeText(date) } : raw.date === null ? { date: null } : {}),
+    ...(startTime && normalizeText(startTime)
+      ? { startTime: normalizeText(startTime) }
+      : raw.startTime === null
+        ? { startTime: null }
+        : {}),
+    ...(endTime && normalizeText(endTime)
+      ? { endTime: normalizeText(endTime) }
+      : raw.endTime === null
+        ? { endTime: null }
+        : {}),
+    ...(estimatedMinutes !== undefined
+      ? { estimatedMinutes }
+      : raw.estimatedMinutes === null
+        ? { estimatedMinutes: null }
+        : {}),
+    ...(sourcePlanId !== undefined
+      ? { sourcePlanId }
+      : raw.sourcePlanId === null
+        ? { sourcePlanId: null }
+        : {}),
+    ...(sourceChecklistId !== undefined
+      ? { sourceChecklistId }
+      : raw.sourceChecklistId === null
+        ? { sourceChecklistId: null }
+        : {}),
+    ...(sourceChecklistItemKey && normalizeText(sourceChecklistItemKey)
+      ? { sourceChecklistItemKey: normalizeText(sourceChecklistItemKey) }
+      : raw.sourceChecklistItemKey === null
+        ? { sourceChecklistItemKey: null }
+        : {}),
+    ...(conflictNote && normalizeText(conflictNote)
+      ? { conflictNote: normalizeText(conflictNote) }
+      : raw.conflictNote === null
+        ? { conflictNote: null }
+        : {}),
+  };
+};
+
+const sanitizeScheduleDraftItems = (raw: unknown): ScheduleDraftItem[] | undefined => {
+  if (!Array.isArray(raw)) return undefined;
+
+  const result: ScheduleDraftItem[] = [];
+  for (const item of raw) {
+    const draftItem = sanitizeScheduleDraftItem(item);
+    if (!draftItem) continue;
+    result.push(draftItem);
+    if (result.length >= MAX_SCHEDULE_DRAFT_ITEMS) break;
+  }
+
+  return result.length > 0 ? result : undefined;
+};
+
+const sanitizeScheduleDraft = (raw: unknown): ScheduleDraft | null | undefined => {
+  if (raw === null) return null;
+  if (!isRecord(raw)) return undefined;
+
+  const title = asString(raw.title);
+  const sourceType = asString(raw.sourceType);
+  const items = sanitizeScheduleDraftItems(raw.items);
+  if (!title || !normalizeText(title) || !sourceType || !SCHEDULE_DRAFT_SOURCE_TYPES.has(sourceType) || !items) {
+    return undefined;
+  }
+
+  const sourcePlanId = asPositiveNumber(raw.sourcePlanId);
+  const sourceChecklistId = asPositiveNumber(raw.sourceChecklistId);
+  const assumptions = sanitizeStringList(raw.assumptions, MAX_SCHEDULE_DRAFT_LIST_ITEMS);
+  const conflicts = sanitizeStringList(raw.conflicts, MAX_SCHEDULE_DRAFT_LIST_ITEMS);
+  const nextActions = sanitizeStringList(raw.nextActions, MAX_SCHEDULE_DRAFT_LIST_ITEMS);
+
+  return {
+    title: normalizeText(title),
+    sourceType: sourceType as ScheduleDraft["sourceType"],
+    ...(sourcePlanId !== undefined
+      ? { sourcePlanId }
+      : raw.sourcePlanId === null
+        ? { sourcePlanId: null }
+        : {}),
+    ...(sourceChecklistId !== undefined
+      ? { sourceChecklistId }
+      : raw.sourceChecklistId === null
+        ? { sourceChecklistId: null }
+        : {}),
+    items,
+    ...(assumptions ? { assumptions } : {}),
+    ...(conflicts ? { conflicts } : {}),
+    ...(nextActions ? { nextActions } : {}),
+  };
+};
+
 const sanitizePlanDraftStage = (raw: unknown): PlanDraftStage | undefined => {
   if (!isRecord(raw)) return undefined;
 
@@ -409,6 +808,70 @@ const sanitizePlanning = (
   const checklistDraft = sanitizeChecklistDraft(raw.checklistDraft);
   if (checklistDraft !== undefined) {
     result.checklistDraft = checklistDraft;
+  }
+
+  const questions = sanitizeStringList(raw.lastSuggestedQuestions, 5);
+  if (questions) {
+    result.lastSuggestedQuestions = questions;
+  }
+
+  const lastUpdatedAt = asString(raw.lastUpdatedAt);
+  if (lastUpdatedAt) {
+    result.lastUpdatedAt = trunc(lastUpdatedAt);
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+};
+
+const sanitizeScheduling = (
+  raw: unknown,
+): AgentSessionState["scheduling"] => {
+  if (!isRecord(raw)) return undefined;
+
+  const result: AgentSessionState["scheduling"] = {};
+  const workflow = asString(raw.workflow);
+  if (
+    workflow === "schedule_from_plan" ||
+    workflow === "schedule_from_checklist" ||
+    workflow === "manual_schedule"
+  ) {
+    result.workflow = workflow;
+  }
+
+  const sourceType = asString(raw.sourceType);
+  if (sourceType && SCHEDULE_SOURCE_TYPES.has(sourceType)) {
+    result.sourceType = sourceType as NonNullable<AgentSessionState["scheduling"]>["sourceType"];
+  } else if (raw.sourceType === null) {
+    result.sourceType = null;
+  }
+
+  const sourcePlanId = asPositiveNumber(raw.sourcePlanId);
+  if (sourcePlanId !== undefined) {
+    result.sourcePlanId = sourcePlanId;
+  } else if (raw.sourcePlanId === null) {
+    result.sourcePlanId = null;
+  }
+
+  const sourceChecklistId = asPositiveNumber(raw.sourceChecklistId);
+  if (sourceChecklistId !== undefined) {
+    result.sourceChecklistId = sourceChecklistId;
+  } else if (raw.sourceChecklistId === null) {
+    result.sourceChecklistId = null;
+  }
+
+  const slots = sanitizeScheduleSlots(raw.slots);
+  if (slots) {
+    result.slots = slots;
+  }
+
+  const readiness = sanitizeScheduleReadiness(raw.readiness);
+  if (readiness) {
+    result.readiness = readiness;
+  }
+
+  const draft = sanitizeScheduleDraft(raw.draft);
+  if (draft !== undefined) {
+    result.draft = draft;
   }
 
   const questions = sanitizeStringList(raw.lastSuggestedQuestions, 5);
@@ -549,6 +1012,7 @@ export const normalizeSessionState = (raw: unknown): AgentSessionState => {
       conversation: sanitizeConversation(raw.conversation),
       pending: sanitizePending(raw.pending),
       planning: sanitizePlanning(raw.planning),
+      scheduling: sanitizeScheduling(raw.scheduling),
       lastTransition: sanitizeLastTransition(raw.lastTransition),
     };
   }

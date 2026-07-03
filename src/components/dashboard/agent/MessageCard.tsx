@@ -5,6 +5,7 @@ import { ChecklistCompletionCard } from "./ChecklistCompletionCard";
 import { ChecklistDraftCard } from "./ChecklistDraftCard";
 import { PlanDraftCard } from "./PlanDraftCard";
 import { PlanOverviewCard } from "./PlanOverviewCard";
+import { ScheduleDraftCard } from "./ScheduleDraftCard";
 import { ScheduleResultCard } from "./ScheduleResultCard";
 import {
   parseActionResultMessage,
@@ -15,6 +16,7 @@ import {
 import { DashboardIcon } from "../icons";
 import type { ChecklistDraft } from "@/lib/agent/planning/checklist-draft";
 import type { PlanDraft } from "@/lib/agent/planning/draft";
+import type { ScheduleDraft } from "@/lib/agent/schedule/draft";
 
 type MessageCardProps = {
   content: string;
@@ -24,9 +26,12 @@ type MessageCardProps = {
   onPlanDraftGenerateChecklist?: () => void;
   onPlanDraftPrepareCreate?: () => void;
   onPlanDraftRevise?: () => void;
+  onScheduleDraftPrepareCreate?: () => void;
+  onScheduleDraftRevise?: () => void;
   planningChecklistDraft?: ChecklistDraft | null;
   planningDraft?: PlanDraft | null;
   role: "assistant" | "user";
+  schedulingDraft?: ScheduleDraft | null;
   thinkingContent?: string;
 };
 
@@ -38,9 +43,12 @@ export function MessageCard({
   onPlanDraftGenerateChecklist,
   onPlanDraftPrepareCreate,
   onPlanDraftRevise,
+  onScheduleDraftPrepareCreate,
+  onScheduleDraftRevise,
   planningChecklistDraft,
   planningDraft,
   role,
+  schedulingDraft,
   thinkingContent,
 }: MessageCardProps) {
   const [thinkingOpen, setThinkingOpen] = useState(isThinking === true);
@@ -81,6 +89,16 @@ export function MessageCard({
           onGenerateChecklist={onPlanDraftGenerateChecklist}
           onPrepareCreate={onPlanDraftPrepareCreate}
           onRevise={onPlanDraftRevise}
+        />
+      );
+    }
+
+    if (schedulingDraft && !isStreaming) {
+      return (
+        <ScheduleDraftCard
+          draft={schedulingDraft}
+          onPrepareCreate={onScheduleDraftPrepareCreate}
+          onRevise={onScheduleDraftRevise}
         />
       );
     }

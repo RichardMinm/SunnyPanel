@@ -119,7 +119,9 @@ export function AgentComposer({
   const pendingEditKind =
     singlePendingAction?.intent === "compose_plan" || singlePendingAction?.intent === "create_plan"
       ? "plan"
-      : singlePendingAction?.intent === "compose_schedule_item" || singlePendingAction?.intent === "reschedule_item"
+      : singlePendingAction?.intent === "compose_schedule_item" ||
+          singlePendingAction?.intent === "create_schedule_items" ||
+          singlePendingAction?.intent === "reschedule_item"
         ? "schedule"
         : "generic";
   const handleReturnToEdit = useCallback(() => {

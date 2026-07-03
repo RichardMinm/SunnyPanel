@@ -2,6 +2,12 @@ import type { LLMRouterAction, LLMRouterTarget } from "../router/llm-router-sche
 import type { ChecklistDraft } from "../planning/checklist-draft";
 import type { PlanDraft } from "../planning/draft";
 import type { PlanReadiness, PlanSlots } from "../planning/readiness";
+import type {
+  ScheduleReadiness,
+  ScheduleSlots,
+  ScheduleSourceType,
+} from "../schedule/readiness";
+import type { ScheduleDraft } from "../schedule/draft";
 
 /* ──── Enum types ──── */
 
@@ -86,6 +92,18 @@ export type PlanningSessionState = {
   lastUpdatedAt?: string;
 };
 
+export type SchedulingSessionState = {
+  workflow?: "schedule_from_plan" | "schedule_from_checklist" | "manual_schedule";
+  sourceType?: ScheduleSourceType | null;
+  sourcePlanId?: number | null;
+  sourceChecklistId?: number | null;
+  slots?: ScheduleSlots;
+  readiness?: ScheduleReadiness;
+  draft?: ScheduleDraft | null;
+  lastSuggestedQuestions?: string[];
+  lastUpdatedAt?: string;
+};
+
 /* ──── AgentSessionState ──── */
 
 export type AgentSessionState = {
@@ -127,6 +145,8 @@ export type AgentSessionState = {
   };
 
   planning?: PlanningSessionState;
+
+  scheduling?: SchedulingSessionState;
 
   lastTransition?: {
     transitionType: TransitionType;

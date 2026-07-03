@@ -428,6 +428,12 @@ export const CAPABILITY_REGISTRY: Record<string, AgentCapability> = {
     "compose_schedule_item",
     "预览创建日程的影响（DryRun，需确认后执行）。",
   ),
+  preview_create_schedule_items: previewMeta(
+    "preview_create_schedule_items",
+    "schedule",
+    "create_schedule_items",
+    "预览批量创建日程的影响（DryRun，需确认后执行）。",
+  ),
   preview_update_plan: previewMeta(
     "preview_update_plan",
     "plan",
@@ -487,6 +493,12 @@ export const CAPABILITY_REGISTRY: Record<string, AgentCapability> = {
     "schedule",
     "compose_schedule_item",
     "确认后创建日程（后端专用）。",
+  ),
+  execute_create_schedule_items: executeMeta(
+    "execute_create_schedule_items",
+    "schedule",
+    "create_schedule_items",
+    "确认后批量创建日程（K5 防御性 no-write，K6 实现写入）。",
   ),
   execute_update_plan: executeMeta(
     "execute_update_plan",

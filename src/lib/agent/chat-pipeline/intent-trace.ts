@@ -32,6 +32,11 @@ export const buildIntentTraceSummary = (intent: AgentIntent): { detail?: string;
         detail: intent.args.sourceText ?? intent.args.title ?? "将生成日程提案。",
         title: "识别为 Schedule Composer",
       };
+    case "create_schedule_items":
+      return {
+        detail: `将从日程草案创建 ${intent.args.items.length} 个日程项。`,
+        title: "识别为批量创建日程",
+      };
     case "compose_timeline_event":
       return {
         detail: intent.args.sourceTitle ?? intent.args.sourceText ?? intent.args.itemTitle ?? "需要定位 Timeline 来源",

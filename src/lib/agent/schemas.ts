@@ -1,6 +1,7 @@
 import { isRecord } from "@/lib/shared/is-record";
 import type { ChecklistDraft } from "./planning/checklist-draft";
 import type { PlanDraft } from "./planning/draft";
+import type { ScheduleDraft } from "./schedule/draft";
 import type { ConversationalAnswerArgs, ConversationalIntentName } from "./conversation/types";
 import { CONVERSATIONAL_INTENT_NAMES, isConversationalIntent } from "./conversation/types";
 
@@ -11,6 +12,7 @@ export type AgentChatMessage = {
   planningChecklistDraft?: ChecklistDraft | null;
   planningDraft?: PlanDraft | null;
   role: "assistant" | "user";
+  schedulingDraft?: ScheduleDraft | null;
 };
 
 export type PlanExecutionModeValue = "agent" | "hybrid" | "manual";
@@ -104,6 +106,7 @@ export type AgentWriteIntentName =
   | "cancel_schedule_item"
   | "complete_plan_item"
   | "create_checklist"
+  | "create_schedule_items"
   | "compose_plan"
   | "compose_schedule_item"
   | "compose_timeline_event"
@@ -210,6 +213,7 @@ export type PendingAction = {
     | CompletePlanItemArgs
     | ComposePlanArgs
     | ComposeScheduleItemArgs
+    | CreateScheduleItemsArgs
     | CreateChecklistArgs
     | CreatePlanArgs
     | DeleteRecordArgs
@@ -227,6 +231,7 @@ export type PendingAction = {
     | "complete_plan_item"
     | "compose_plan"
     | "compose_schedule_item"
+    | "create_schedule_items"
     | "create_checklist"
     | "create_plan"
     | "query_plan_progress"
@@ -372,6 +377,29 @@ export type ComposeScheduleItemArgs = {
   sourceType?: null | ScheduleSourceType;
   startTime?: null | string;
   title?: null | string;
+};
+
+export type CreateScheduleItemsArgs = {
+  title?: string;
+  sourceType?: "plan" | "checklist" | "manual";
+  sourcePlanId?: null | number;
+  sourceChecklistId?: null | number;
+  conflictPolicy?: "allow-overlap" | "ask" | "reschedule" | "skip" | null;
+  items: Array<{
+    title: string;
+    description?: null | string;
+    date: string;
+    startTime?: null | string;
+    endTime?: null | string;
+    isAllDay?: boolean | null;
+    priority?: null | PlanPriorityValue;
+    relatedPlanId?: null | number;
+    relatedChecklistId?: null | number;
+    relatedChecklistItemKey?: null | string;
+    conflictNote?: null | string;
+    sourceTaskTitle?: null | string;
+  }>;
+  sourceText?: null | string;
 };
 
 export type SchedulePlanArgs = {
@@ -552,6 +580,12 @@ export type AgentIntent =
       reply?: string;
     }
   | {
+      args: CreateScheduleItemsArgs;
+      confidence?: number;
+      intent: "create_schedule_items";
+      reply?: string;
+    }
+  | {
       args: CreatePlanArgs;
       confidence?: number;
       intent: "create_plan";
@@ -690,6 +724,8 @@ export type AgentChatResponse = {
   planningChecklistDraft?: ChecklistDraft | null;
   /** 计划草案仅用于前端 artifact 展示，不代表已写入 Plans collection。 */
   planningDraft?: PlanDraft | null;
+  /** 日程草案仅用于前端 artifact 展示，不代表已写入 Schedule collection。 */
+  schedulingDraft?: ScheduleDraft | null;
   trace?: AgentTraceStep[];
   /** 结构化回合审计（Router / Policy / Tools）。 */
   turnAudit?: import("./trace/agent-turn-trace").AgentTurnTrace;
@@ -743,6 +779,7 @@ const agentIntentValues = [
   "compose_timeline_event",
   "create_checklist",
   "create_plan",
+  "create_schedule_items",
   "evaluate_plan",
   "query_checklist_progress",
   "query_memory",
@@ -945,6 +982,44 @@ const parseCreateChecklistGroups = (value: unknown): CreateChecklistGroupArgs[] 
     .filter((group): group is CreateChecklistGroupArgs => Boolean(group));
 
   return groups.length > 0 ? groups : null;
+};
+
+const parseCreateScheduleItems = (value: unknown): CreateScheduleItemsArgs["items"] | null => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const items: CreateScheduleItemsArgs["items"] = [];
+
+  for (const item of value.slice(0, 24)) {
+    if (!isRecord(item)) {
+      continue;
+    }
+
+    const title = getRequiredString(item.title);
+    const date = getRequiredString(item.date);
+
+    if (!title || !date) {
+      continue;
+    }
+
+    items.push({
+      conflictNote: getOptionalString(item.conflictNote) ?? null,
+      date,
+      description: getOptionalString(item.description) ?? null,
+      endTime: getOptionalString(item.endTime) ?? null,
+      isAllDay: typeof item.isAllDay === "boolean" ? item.isAllDay : null,
+      priority: getOptionalEnum(item.priority, planPriorityValues) ?? null,
+      relatedChecklistId: getOptionalNumber(item.relatedChecklistId) ?? null,
+      relatedChecklistItemKey: getOptionalString(item.relatedChecklistItemKey) ?? null,
+      relatedPlanId: getOptionalNumber(item.relatedPlanId) ?? null,
+      sourceTaskTitle: getOptionalString(item.sourceTaskTitle) ?? null,
+      startTime: getOptionalString(item.startTime) ?? null,
+      title,
+    });
+  }
+
+  return items.length > 0 ? items : null;
 };
 
 const parseLearningProfile = (value: unknown): AgentLearningProfile | undefined => {
@@ -1190,6 +1265,7 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
     value.intent === "compose_schedule_item" ||
     value.intent === "create_checklist" ||
     value.intent === "create_plan" ||
+    value.intent === "create_schedule_items" ||
     value.intent === "reschedule_item" ||
     value.intent === "save_memory"
       ? value.intent
@@ -1208,6 +1284,7 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
       | ComposeScheduleItemArgs
       | CreateChecklistArgs
       | CreatePlanArgs
+      | CreateScheduleItemsArgs
       | SaveMemoryArgs
     >,
     intent,
@@ -1636,6 +1713,28 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         },
         confidence,
         intent: "create_checklist",
+        reply,
+      };
+    }
+    case "create_schedule_items": {
+      const items = parseCreateScheduleItems(value.args.items);
+
+      if (!items) {
+        return null;
+      }
+
+      return {
+        args: {
+          conflictPolicy: getOptionalEnum(value.args.conflictPolicy, ["ask", "skip", "allow-overlap", "reschedule"] as const) ?? null,
+          items,
+          sourceChecklistId: getOptionalNumber(value.args.sourceChecklistId) ?? null,
+          sourcePlanId: getOptionalNumber(value.args.sourcePlanId) ?? null,
+          sourceText: getOptionalString(value.args.sourceText) ?? null,
+          sourceType: getOptionalEnum(value.args.sourceType, ["plan", "checklist", "manual"] as const),
+          title: getOptionalString(value.args.title) ?? undefined,
+        },
+        confidence,
+        intent: "create_schedule_items",
         reply,
       };
     }

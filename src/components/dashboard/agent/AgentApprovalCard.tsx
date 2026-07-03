@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppButton } from "@/components/primitives/AppButton";
 import type { ProposedAgentAction } from "@/lib/agent/schemas";
+import {
+  scheduleConflictSuggestionToUserMessage,
+  type ScheduleConflictSuggestion,
+} from "@/lib/agent/schedule/conflict-suggestions";
 
 import {
   formatCollectionLabel,
@@ -16,7 +20,12 @@ import {
   riskLevelLabelMap,
   visibilityLabelMap,
 } from "./constants";
-import { getDecomposedFromAction, getPlanProposalFromAction, getScheduleProposalFromAction } from "./utils";
+import {
+  getDecomposedFromAction,
+  getPlanProposalFromAction,
+  getScheduleCreationProposalFromAction,
+  getScheduleProposalFromAction,
+} from "./utils";
 
 export type AgentApprovalCardProps = {
   action: null | ProposedAgentAction;
@@ -24,9 +33,57 @@ export type AgentApprovalCardProps = {
   onCancel: () => void;
   onEdit?: (kind: "plan" | "schedule" | "generic") => void;
   onConfirm: () => void;
+  onScheduleConflictSuggestionSelect?: (message: string) => void;
 };
 
-export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdit }: AgentApprovalCardProps) {
+function ScheduleConflictSuggestionList({
+  disabled,
+  onSelect,
+  suggestions,
+}: {
+  disabled?: boolean;
+  onSelect?: (message: string) => void;
+  suggestions: ScheduleConflictSuggestion[];
+}) {
+  if (suggestions.length === 0) return null;
+
+  return (
+    <div className="sunny-agent-proposal-brief sunny-agent-schedule-suggestions">
+      <span>可选调整建议</span>
+      <p>
+        可选调整建议。选择后只会更新草案，不会写入日程；准备创建时会重新检查冲突。仅基于 SunnyPanel 本地日程检测，未包含外部日历。
+      </p>
+      <div className="sunny-agent-schedule-suggestion-actions" role="list" aria-label="可选调整建议">
+        {suggestions.slice(0, 5).map((suggestion) => (
+          <AppButton
+            key={suggestion.id}
+            className="sunny-agent-schedule-suggestion-button"
+            disabled={disabled || !onSelect}
+            onClick={() => onSelect?.(scheduleConflictSuggestionToUserMessage(suggestion))}
+            type="button"
+            variant={suggestion.riskLevel === "medium" ? "outline" : "secondary"}
+          >
+            {suggestion.label}
+          </AppButton>
+        ))}
+      </div>
+      <ul>
+        {suggestions.slice(0, 5).map((suggestion) => (
+          <li key={`${suggestion.id}-description`}>{suggestion.description ?? "选择后只会修改草案，不会写入日程。"}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function AgentApprovalCard({
+  action,
+  disabled,
+  onCancel,
+  onConfirm,
+  onEdit,
+  onScheduleConflictSuggestionSelect,
+}: AgentApprovalCardProps) {
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [rovingIndex, setRovingIndex] = useState(0);
   const [confirmationDraft, setConfirmationDraft] = useState({ actionId: "", phrase: "" });
@@ -96,6 +153,7 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
   const planProposal = getPlanProposalFromAction(action);
   const decomposedPlan = getDecomposedFromAction(action);
   const scheduleProposal = getScheduleProposalFromAction(action);
+  const scheduleCreationProposal = getScheduleCreationProposalFromAction(action);
   const motivationDuplicatesGoal =
     planProposal?.motivation &&
     planProposal.goal &&
@@ -127,6 +185,10 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
     ? scheduleProposal.conflicts.length > 0
       ? `${scheduleProposal.conflicts.length} 个冲突`
       : "无冲突"
+    : scheduleCreationProposal
+      ? scheduleCreationProposal.conflictSummary.conflictCount > 0
+        ? `发现 ${scheduleCreationProposal.conflictSummary.conflictCount} 个时间冲突`
+        : "未发现明显时间冲突"
     : null;
   const rollbackStatus = action.rollbackAvailable
     ? "可回滚"
@@ -137,6 +199,14 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
     ? ["保存当前计划为草稿", "进入待办队列", "可继续拆分为学习阶段"]
     : scheduleProposal
       ? ["保存当前日程提案", "同步关联计划或清单", "保留执行摘要以便撤销或追踪"]
+    : scheduleCreationProposal
+      ? [
+            "确认后将写入日程",
+            scheduleCreationProposal.conflictSummary.conflictCount > 0
+              ? "保留冲突提醒，系统不会自动重排"
+              : "保留本次冲突检测摘要",
+            "保留执行摘要以便撤销或追踪",
+          ]
       : action.changes.slice(0, 3).map((change) => change.preview);
 
   return (
@@ -170,11 +240,11 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
           <span>操作类型</span>
           <strong>{operationType}</strong>
         </div>
-        {scheduleProposal ? (
+        {scheduleProposal || scheduleCreationProposal ? (
           <>
             <div>
-              <span>时间</span>
-              <strong>{scheduleTimeRange}</strong>
+              <span>{scheduleProposal ? "时间" : "时间范围"}</span>
+              <strong>{scheduleProposal ? scheduleTimeRange : scheduleCreationProposal?.dateRange}</strong>
             </div>
             <div>
               <span>冲突检测</span>
@@ -334,6 +404,60 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
               </div>
             )}
           </div>
+        ) : scheduleCreationProposal ? (
+          <div className="sunny-agent-proposal-card sunny-agent-schedule-proposal">
+            <div>
+              <span>日程创建</span>
+              <strong>{scheduleCreationProposal.title ?? action.summary}</strong>
+            </div>
+            <div className="sunny-agent-proposal-grid">
+              <div>
+                <span>日程项</span>
+                <p>将创建 {scheduleCreationProposal.itemCount} 个日程项</p>
+              </div>
+              <div>
+                <span>时间范围</span>
+                <p>{scheduleCreationProposal.dateRange}</p>
+              </div>
+              <div>
+                <span>冲突检测</span>
+                <p>{conflictStatus}</p>
+              </div>
+            </div>
+            <p>{scheduleCreationProposal.conflictSummary.message}</p>
+            <div className="sunny-agent-proposal-grid">
+              <div>
+                <span>来源计划</span>
+                <p>{scheduleCreationProposal.sourcePlanId ? `#${scheduleCreationProposal.sourcePlanId}` : "未关联"}</p>
+              </div>
+              <div>
+                <span>来源清单</span>
+                <p>{scheduleCreationProposal.sourceChecklistId ? `#${scheduleCreationProposal.sourceChecklistId}` : "未关联"}</p>
+              </div>
+            </div>
+            {scheduleCreationProposal.conflicts.length > 0 ? (
+              <div className="sunny-agent-proposal-warning">
+                <span>时间冲突</span>
+                <ul>
+                  {scheduleCreationProposal.conflicts.slice(0, 5).map((conflict, index) => (
+                    <li key={`${conflict.type}-${conflict.existingScheduleItemId ?? index}-${conflict.proposedTitle}`}>
+                      {conflict.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="sunny-agent-proposal-brief">
+                <span>冲突检测</span>
+                <p>{scheduleCreationProposal.conflictSummary.message}</p>
+              </div>
+            )}
+            <ScheduleConflictSuggestionList
+              disabled={disabled}
+              onSelect={onScheduleConflictSuggestionSelect}
+              suggestions={scheduleCreationProposal.conflictSuggestions}
+            />
+          </div>
         ) : (
           <p className="sunny-agent-approval-banner-preview">{firstChange?.preview ?? "确认前可查看详情面板。"}</p>
         )}
@@ -393,7 +517,7 @@ export function AgentApprovalCard({ action, disabled, onCancel, onConfirm, onEdi
             ref={setButtonRef(1)}
             className="sunny-agent-edit-button"
             disabled={disabled}
-            onClick={() => onEdit(planProposal ? "plan" : scheduleProposal ? "schedule" : "generic")}
+            onClick={() => onEdit(planProposal ? "plan" : scheduleProposal || scheduleCreationProposal ? "schedule" : "generic")}
             onFocus={() => setRovingIndex(1)}
             tabIndex={rovingIndex === 1 ? 0 : -1}
             type="button"

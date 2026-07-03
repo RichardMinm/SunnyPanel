@@ -276,6 +276,7 @@ export const executeAgentIntent = async (
     case "compose_plan":
     case "cancel_schedule_item":
     case "compose_schedule_item":
+    case "create_schedule_items":
     case "compose_timeline_event":
     case "add_completion_note":
     case "query_plan_progress":

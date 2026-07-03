@@ -71,6 +71,7 @@ import {
   evaluatePlanReadinessGate,
   extractPlanSlotsFromSessionState,
 } from "@/lib/agent/planning/readiness-gate";
+import { evaluateScheduleReadinessGate } from "@/lib/agent/schedule/readiness-gate";
 import {
   applyPlanCreationPreparationToResolution,
   evaluatePlanCreationPreparation,
@@ -81,6 +82,11 @@ import {
   applyChecklistCreationPreparationToResolution,
   evaluateChecklistCreationPreparation,
 } from "@/lib/agent/planning/prepare-checklist-creation";
+import {
+  applyScheduleCreationPreparationToResolution,
+  evaluateScheduleCreationPreparation,
+} from "@/lib/agent/schedule/prepare-schedule-creation";
+import { evaluateScheduleDraftRevision } from "@/lib/agent/schedule/revise-draft-flow";
 import {
   estimateTokenCount,
   splitIntoWordTokens,
@@ -739,6 +745,135 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         dryRunConversationState = planCreationPreparation.sessionState;
       }
 
+      const scheduleDraftRevision = evaluateScheduleDraftRevision({
+        intent: resolution.intent,
+        pendingAction: currentPendingAction,
+        referenceDate: currentContext.now,
+        sessionState: dryRunConversationState ?? conversationState,
+        userMessage: message,
+      });
+
+      if (
+        scheduleDraftRevision.status === "revised" ||
+        scheduleDraftRevision.status === "needs_clarification" ||
+        scheduleDraftRevision.status === "missing_draft"
+      ) {
+        emitStatus(
+          scheduleDraftRevision.status === "revised"
+            ? "正在更新日程草案..."
+            : "日程草案修改需要先澄清...",
+        );
+        pushTrace(scheduleDraftRevision.traceStep);
+        stream.start({
+          id: "stage-response",
+          phase: "response",
+          title: "组织日程草案修改回复",
+        });
+        for (const token of splitIntoWordTokens(scheduleDraftRevision.assistantMessage)) {
+          emitToken(token, "response");
+          await new Promise((resolve) => setTimeout(resolve, 6));
+        }
+        stream.complete("stage-response", "日程草案修改回复已生成");
+
+        const outputTokens = estimateTokenCount(scheduleDraftRevision.assistantMessage);
+        tokenUsage = {
+          ...tokenUsage,
+          outputTokens,
+          totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+        };
+        const updatedThread = await persistAgentTurn({
+          assistantMessage: scheduleDraftRevision.assistantMessage,
+          confidence: resolution.intent.confidence,
+          conversationState: scheduleDraftRevision.sessionState,
+          engine: resolution.engine,
+          intent: "clarify",
+          nextPendingAction: null,
+        });
+
+        lastResponse = attachMeta({
+          assistantMessage: scheduleDraftRevision.assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: "clarify",
+          pendingAction: null,
+          schedulingDraft: scheduleDraftRevision.status === "revised"
+            ? scheduleDraftRevision.schedulingDraft
+            : null,
+          threadId: updatedThread.id,
+          tokenUsage,
+          trace,
+        });
+        controller.setLastResponse(lastResponse.assistantMessage, lastResponse.pendingAction);
+        currentPendingAction = null;
+        break;
+      }
+
+      const scheduleCreationPreparation = evaluateScheduleCreationPreparation({
+        intent: resolution.intent,
+        sessionState: dryRunConversationState ?? conversationState,
+        userMessage: message,
+      });
+      const effectiveScheduleCreationPreparation = checklistCreationPreparation.status === "prepared" ||
+        planCreationPreparation.status === "prepared"
+        ? { reason: "not_prepare_request" as const, status: "not_prepare" as const }
+        : scheduleCreationPreparation;
+
+      if (
+        effectiveScheduleCreationPreparation.status === "missing_draft" ||
+        effectiveScheduleCreationPreparation.status === "invalid_draft"
+      ) {
+        emitStatus("当前没有可创建的日程草案，需要先生成草案...");
+        pushTrace(effectiveScheduleCreationPreparation.traceStep);
+        stream.start({
+          id: "stage-response",
+          phase: "response",
+          title: "组织日程草案提示",
+        });
+        for (const token of splitIntoWordTokens(effectiveScheduleCreationPreparation.assistantMessage)) {
+          emitToken(token, "response");
+          await new Promise((resolve) => setTimeout(resolve, 6));
+        }
+        stream.complete("stage-response", "日程草案提示已生成");
+
+        const outputTokens = estimateTokenCount(effectiveScheduleCreationPreparation.assistantMessage);
+        tokenUsage = {
+          ...tokenUsage,
+          outputTokens,
+          totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+        };
+        const updatedThread = await persistAgentTurn({
+          assistantMessage: effectiveScheduleCreationPreparation.assistantMessage,
+          confidence: resolution.intent.confidence,
+          conversationState: effectiveScheduleCreationPreparation.sessionState,
+          engine: resolution.engine,
+          intent: "clarify",
+          nextPendingAction: null,
+        });
+
+        lastResponse = attachMeta({
+          assistantMessage: effectiveScheduleCreationPreparation.assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: "clarify",
+          pendingAction: null,
+          schedulingDraft: effectiveScheduleCreationPreparation.sessionState.scheduling?.draft ?? null,
+          threadId: updatedThread.id,
+          tokenUsage,
+          trace,
+        });
+        controller.setLastResponse(lastResponse.assistantMessage, lastResponse.pendingAction);
+        break;
+      }
+
+      if (effectiveScheduleCreationPreparation.status === "prepared") {
+        pushTrace(effectiveScheduleCreationPreparation.traceStep);
+        resolution = applyScheduleCreationPreparationToResolution(
+          resolution,
+          effectiveScheduleCreationPreparation,
+        );
+        dryRunConversationState = effectiveScheduleCreationPreparation.sessionState;
+      }
+
       /* ── Second-Pass Context Loading (only when policy is ON, not shadow) ── */
       if (policyOn && contextLoadingMeta.allowSecondPass) {
         const requiredSections = getRequiredSectionsForIntent(resolution.intent.intent);
@@ -844,6 +979,61 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           intent: planReadinessGate.intent,
           pendingAction: null,
           planningDraft: planReadinessGate.planningDraft ?? null,
+          threadId: updatedThread.id,
+          tokenUsage,
+          trace,
+        });
+        controller.setLastResponse(lastResponse.assistantMessage, lastResponse.pendingAction);
+        break;
+      }
+
+      const scheduleReadinessGate = effectiveScheduleCreationPreparation.status === "prepared"
+        ? { gateApplied: false as const, reason: "ready_without_gate" as const }
+        : evaluateScheduleReadinessGate({
+            batchExecuteIntentCount: batchExecuteIntents?.length ?? 0,
+            confirmedActionId,
+            intent: resolution.intent,
+            sessionState: conversationState,
+            userMessage: message,
+          });
+
+      if (scheduleReadinessGate.gateApplied) {
+        emitStatus("日程上下文需要先补齐...");
+        pushTrace(scheduleReadinessGate.traceStep);
+        stream.start({
+          id: "stage-response",
+          phase: "response",
+          title: "组织日程澄清回复",
+        });
+        for (const token of splitIntoWordTokens(scheduleReadinessGate.assistantMessage)) {
+          emitToken(token, "response");
+          await new Promise((resolve) => setTimeout(resolve, 6));
+        }
+        stream.complete("stage-response", "日程澄清回复已生成");
+
+        const outputTokens = estimateTokenCount(scheduleReadinessGate.assistantMessage);
+        tokenUsage = {
+          ...tokenUsage,
+          outputTokens,
+          totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+        };
+        const updatedThread = await persistAgentTurn({
+          assistantMessage: scheduleReadinessGate.assistantMessage,
+          confidence: scheduleReadinessGate.readiness.confidence,
+          conversationState: scheduleReadinessGate.sessionState,
+          engine: resolution.engine,
+          intent: scheduleReadinessGate.intent,
+          nextPendingAction: null,
+        });
+
+        lastResponse = attachMeta({
+          assistantMessage: scheduleReadinessGate.assistantMessage,
+          confidence: scheduleReadinessGate.readiness.confidence,
+          engine: resolution.engine,
+          intent: scheduleReadinessGate.intent,
+          pendingAction: null,
+          planningDraft: null,
+          schedulingDraft: scheduleReadinessGate.scheduleDraft ?? null,
           threadId: updatedThread.id,
           tokenUsage,
           trace,

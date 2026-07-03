@@ -104,6 +104,9 @@ type AgentConversationProps = {
   onPlanDraftGenerateChecklist?: () => void;
   onPlanDraftPrepareCreate?: () => void;
   onPlanDraftRevise?: () => void;
+  onScheduleDraftPrepareCreate?: () => void;
+  onScheduleDraftRevise?: () => void;
+  onScheduleConflictSuggestionSelect?: (message: string) => void;
   onArchiveThread?: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
   debugMode: boolean;
@@ -134,6 +137,9 @@ export function AgentConversation({
   onPlanDraftGenerateChecklist,
   onPlanDraftPrepareCreate,
   onPlanDraftRevise,
+  onScheduleDraftPrepareCreate,
+  onScheduleDraftRevise,
+  onScheduleConflictSuggestionSelect,
   onArchiveThread,
   onRenameThread,
   debugMode,
@@ -303,9 +309,12 @@ export function AgentConversation({
                       onPlanDraftGenerateChecklist={isSubmitting ? undefined : onPlanDraftGenerateChecklist}
                       onPlanDraftPrepareCreate={isSubmitting ? undefined : onPlanDraftPrepareCreate}
                       onPlanDraftRevise={isSubmitting ? undefined : onPlanDraftRevise}
+                      onScheduleDraftPrepareCreate={isSubmitting ? undefined : onScheduleDraftPrepareCreate}
+                      onScheduleDraftRevise={isSubmitting ? undefined : onScheduleDraftRevise}
                       planningChecklistDraft={message.planningChecklistDraft}
                       planningDraft={message.planningDraft}
                       role={message.role}
+                      schedulingDraft={message.schedulingDraft}
                       thinkingContent={
                         isStreamingMsg && thinkingContent.trim()
                           ? thinkingContent
@@ -334,6 +343,7 @@ export function AgentConversation({
                       onCancel={onCancelApproval}
                       onConfirm={onConfirmApproval}
                       onEdit={onEditApproval}
+                      onScheduleConflictSuggestionSelect={onScheduleConflictSuggestionSelect}
                     />
                   )
                 ) : batchActions && batchActions.length > 0 ? (
