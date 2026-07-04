@@ -17,6 +17,14 @@
   line-height: 1.9;
 }
 
+.sunny-prose > :first-child {
+  margin-top: 0;
+}
+
+.sunny-prose > :last-child {
+  margin-bottom: 0;
+}
+
 .sunny-prose :where(h1, h2, h3, h4, h5, h6) {
   color: var(--foreground);
   font-weight: 700;
@@ -26,7 +34,23 @@
 }
 
 .sunny-prose :where(h2, h3, h4) {
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
+}
+
+.sunny-prose :where(h1) {
+  font-size: clamp(var(--text-2xl), 4vw, var(--text-3xl));
+}
+
+.sunny-prose :where(h2) {
+  font-size: clamp(var(--text-xl), 3vw, var(--text-2xl));
+}
+
+.sunny-prose :where(h3) {
+  font-size: clamp(var(--text-xl), 2.4vw, var(--text-2xl));
+}
+
+.sunny-prose :where(h4) {
+  font-size: var(--text-lg);
 }
 
 .sunny-prose :where(p, li, blockquote) {
@@ -37,6 +61,19 @@
   color: var(--accent-strong);
   text-decoration: underline;
   text-underline-offset: 0.15em;
+  transition:
+    color 160ms ease,
+    text-decoration-color 160ms ease;
+}
+
+.sunny-prose :where(a:hover) {
+  color: var(--accent);
+}
+
+.sunny-prose :where(a:focus-visible) {
+  outline: 2px solid color-mix(in oklch, var(--accent) 62%, transparent);
+  outline-offset: 0.18em;
+  border-radius: 0.25rem;
 }
 
 .sunny-prose :where(ul, ol) {
@@ -47,14 +84,14 @@
 .sunny-prose :where(blockquote) {
   border-left-width: 3px;
   border-left-color: color-mix(in oklch, var(--accent) 45%, var(--foreground));
-  background: var(--agent-control-bg);
+  background: color-mix(in oklch, var(--accent) 6%, var(--surface-strong));
   border-radius: 0 1.25rem 1.25rem 0;
   padding: 1rem 1.25rem;
   margin: 1em 0;
 }
 
 html[data-theme="dark"] .sunny-prose :where(blockquote) {
-  background: var(--agent-control-bg);
+  background: color-mix(in oklch, var(--accent) 10%, var(--surface-strong));
 }
 
 .sunny-prose :where(img) {
@@ -66,9 +103,10 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
 .sunny-prose :where(pre) {
   max-width: 100%;
   overflow-x: auto;
+  border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 0.85rem 1rem;
-  background: color-mix(in oklch, var(--foreground) 6%, transparent);
+  background: color-mix(in oklch, var(--foreground) 6%, var(--surface-strong));
 }
 
 .sunny-prose :where(code) {
@@ -76,16 +114,43 @@ html[data-theme="dark"] .sunny-prose :where(blockquote) {
   font-size: 0.9em;
 }
 
-.sunny-prose :where(table) {
-  display: block;
+.sunny-prose :where(:not(pre) > code) {
+  border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
+  border-radius: 0.35rem;
+  background: color-mix(in oklch, var(--foreground) 5%, var(--surface-strong));
+  padding: 0.1rem 0.32rem;
+}
+
+.sunny-prose-table-scroll {
   max-width: 100%;
   overflow-x: auto;
+  margin: 1.25rem 0;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+}
+
+.sunny-prose-table-scroll:focus-visible {
+  outline: 2px solid color-mix(in oklch, var(--accent) 62%, transparent);
+  outline-offset: 0.2rem;
+}
+
+.sunny-prose :where(table) {
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
+  margin: 0;
 }
 
 .sunny-prose :where(th, td) {
   border: 1px solid var(--border);
-  padding: 0.45rem 0.65rem;
+  padding: 0.6rem 0.75rem;
+  vertical-align: top;
+}
+
+.sunny-prose :where(th) {
+  background: color-mix(in oklch, var(--accent) 7%, var(--surface-strong));
+  color: var(--foreground);
+  font-weight: 700;
 }
 
 .sunny-rich-content-display {
@@ -265,9 +330,9 @@ html[data-theme="dark"] .sunny-prose table th {
   color: var(--foreground);
 }
 
-html[data-theme="dark"] .sunny-prose table td {
+html[data-theme="dark"] .sunny-prose :where(table td) {
   border-color: var(--border);
-  color: var(--border);
+  color: var(--foreground);
 }
 
 html[data-theme="dark"] .sunny-prose hr {

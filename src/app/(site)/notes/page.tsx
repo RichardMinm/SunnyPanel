@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { MarkdownField } from "@/components/public/ContentRenderer";
 import { PublicCollectionEmptySwitch } from "@/components/public/PublicCollectionEmptySwitch";
 import { PublicListPage } from "@/components/public/PublicListPage";
@@ -9,6 +11,20 @@ import { getPublicNotes } from "@/lib/payload/public";
 import { getContentMarkdownFallback } from "@/lib/rich-content/compat";
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/notes",
+  },
+  description: "SunnyPanel 的短札流，收纳轻量想法、片段观察和公开记忆信号。",
+  openGraph: {
+    description: "短札流：轻量想法、片段观察和公开记忆信号。",
+    title: "Notes | SunnyPanel",
+    type: "website",
+    url: "/notes",
+  },
+  title: "Notes | SunnyPanel",
+};
 
 export default async function NotesPage() {
   const { docs: notes } = await getPublicNotes();
@@ -36,11 +52,11 @@ export default async function NotesPage() {
               isEmpty={notes.length === 0}
               title={copy.notes.emptyTitle}
             >
-              <section className="grid gap-4 md:grid-cols-2">
+              <section className="sunny-notes-stream">
                 {notes.map((note, index) => (
                   <article
                     key={note.id}
-                    className={`sunny-card overflow-hidden rounded-[1.6rem] ${index % 3 === 0 ? "md:translate-y-2" : ""}`}
+                    className={`sunny-note-card sunny-card overflow-hidden rounded-[1.35rem] ${index % 3 === 0 ? "md:translate-y-1" : ""}`}
                   >
                     <RecordCoverImage
                       containerClassName="border-b border-border/80"

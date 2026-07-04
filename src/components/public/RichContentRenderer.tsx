@@ -285,7 +285,11 @@ const renderNode = (node: RichContentNode, key: string): ReactNode => {
   }
 
   if (node.type === "table") {
-    return <table key={key}><tbody>{renderChildren(node, key)}</tbody></table>;
+    return (
+      <div className="sunny-prose-table-scroll" key={key} tabIndex={0}>
+        <table><tbody>{renderChildren(node, key)}</tbody></table>
+      </div>
+    );
   }
 
   if (node.type === "tableRow") {

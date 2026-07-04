@@ -35,6 +35,13 @@ npm run build
 
 Do not point these checks at the production database.
 
+For public browser smoke coverage, use a non-production Postgres database and follow
+`docs/public-site-e2e.md`:
+
+```bash
+npm run test:e2e:public
+```
+
 ## CI Baseline
 
 GitHub Actions must pass:

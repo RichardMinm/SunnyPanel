@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { PublicCollectionEmptySwitch } from "@/components/public/PublicCollectionEmptySwitch";
 import { PublicListPage } from "@/components/public/PublicListPage";
 import { SectionIntro } from "@/components/public/SectionIntro";
@@ -6,6 +8,20 @@ import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicUpdates } from "@/lib/payload/public";
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/updates",
+  },
+  description: "SunnyPanel 的公开动态流，用时间顺序记录阶段进展、项目变化和轻量更新。",
+  openGraph: {
+    description: "公开动态流：阶段进展、项目变化和轻量更新。",
+    title: "Updates | SunnyPanel",
+    type: "website",
+    url: "/updates",
+  },
+  title: "Updates | SunnyPanel",
+};
 
 export default async function UpdatesPage() {
   const { docs: updates } = await getPublicUpdates();
@@ -33,7 +49,7 @@ export default async function UpdatesPage() {
               isEmpty={updates.length === 0}
               title={copy.updates.emptyTitle}
             >
-              <section className="sunny-card rounded-[1.6rem] p-5 sm:p-6 md:rounded-[2.2rem] md:p-8">
+              <section className="sunny-updates-feed sunny-card rounded-[1.6rem] p-5 sm:p-6 md:rounded-[2.2rem] md:p-8">
                 <div className="relative">
                   <div className="absolute left-5 top-4 bottom-4 hidden w-px sunny-gradient-timeline-line md:block" />
 

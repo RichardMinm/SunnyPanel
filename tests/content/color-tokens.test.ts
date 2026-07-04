@@ -378,6 +378,8 @@ describe("Color token unification", () => {
       "--base-px", "--base-body-size", "--gutter-h",
       "--spacing-view-bottom", "--nav-width",
       "--app-header-height", "--doc-controls-height",
+      // Radix Collapsible exposes this runtime variable on animated content.
+      "--radix-collapsible-content-height",
       // Tailwind CSS v4 + palette preview internals
       "--palette-preview", "--palette-preview-secondary",
       // Set via inline style in components (dynamic runtime values)

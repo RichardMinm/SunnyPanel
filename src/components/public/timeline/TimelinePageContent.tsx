@@ -43,7 +43,7 @@ export function TimelinePageContent({
   const hasFilters = Boolean(featuredOnly || selectedType || selectedYear);
 
   return (
-    <>
+    <div className="sunny-timeline-narrative">
       <SectionIntro
         description={timelineCopy.description}
         eyebrow="Timeline"
@@ -102,6 +102,6 @@ export function TimelinePageContent({
       ) : (
         <TimelineArchive groups={eventGroups} locale={locale} />
       )}
-    </>
+    </div>
   );
 }

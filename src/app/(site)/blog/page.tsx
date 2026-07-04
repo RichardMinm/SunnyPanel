@@ -1,4 +1,4 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 
 import { PublicCollectionEmptySwitch } from "@/components/public/PublicCollectionEmptySwitch";
 import { PostPreviewCard } from "@/components/public/PostPreviewCard";
@@ -9,6 +9,20 @@ import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPosts } from "@/lib/payload/public";
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/blog",
+  },
+  description: "SunnyPanel 的长篇写作归档，记录阶段思考、项目复盘和公开文章。",
+  openGraph: {
+    description: "长篇写作归档，连接 SunnyPanel 的时间线、动态和长期工作流。",
+    title: "Blog | SunnyPanel",
+    type: "website",
+    url: "/blog",
+  },
+  title: "Blog | SunnyPanel",
+};
 
 export default async function BlogIndexPage() {
   const { docs: posts } = await getPublicPosts();
@@ -25,11 +39,6 @@ export default async function BlogIndexPage() {
         return (
           <>
             <SectionIntro
-              actions={
-                <Link href="/admin/collections/posts" className="sunny-button-secondary">
-                  {copy.common.managePosts}
-                </Link>
-              }
               eyebrow="Blog"
               stats={[
                 { label: copy.blog.statsPosts, value: posts.length },
@@ -44,7 +53,7 @@ export default async function BlogIndexPage() {
               isEmpty={posts.length === 0}
               title={copy.blog.emptyTitle}
             >
-              <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+              <section className="sunny-blog-index grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
                 <PostPreviewCard locale={locale} post={posts[0]} variant="featured" />
 
                 <div className="grid gap-4">

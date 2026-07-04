@@ -7,7 +7,7 @@ export type ContextPreferences = {
   pinned: string[];
 };
 
-export type AgentInspectorTab = "approval" | "context" | "debug" | "linked" | "memory" | "trace" | "inbox";
+export type AgentInspectorTab = "approval" | "context" | "debug" | "linked" | "memory" | "trace" | "inbox" | "ops";
 
 export type AgentThreadSummary = {
   archived?: boolean;

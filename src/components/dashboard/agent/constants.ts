@@ -8,6 +8,7 @@ export const inspectorTabs: Array<{ key: AgentInspectorTab; label: string; icon:
   { key: "approval", label: "进度", icon: "checklist" },
   { key: "linked", label: "关联", icon: "project" },
   { key: "memory", label: "记忆", icon: "memory" },
+  { key: "ops", label: "Ops", icon: "command" },
   { key: "trace", label: "详细", icon: "command" },
   { key: "inbox", label: "建议", icon: "inbox" },
   { key: "debug", label: "调试", icon: "command" },

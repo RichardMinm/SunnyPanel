@@ -29,20 +29,28 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
 
   if (!post) {
     return {
+      alternates: {
+        canonical: `/blog/${slug}`,
+      },
       title: copy.blogPost.notFound,
     };
   }
 
   const coverImage = getMediaAsset(post.coverImage);
+  const description = post.summary || post.title;
 
   return {
+    alternates: {
+      canonical: `/blog/${post.slug}`,
+    },
     title: `${post.title} | SunnyPanel`,
-    description: post.summary,
+    description,
     openGraph: {
-      description: post.summary,
+      description,
       images: coverImage?.url ? [{ alt: coverImage.alt, url: coverImage.url }] : undefined,
       title: post.title,
       type: "article",
+      url: `/blog/${post.slug}`,
     },
   };
 }
@@ -73,7 +81,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </span>
         </div>
 
-        <article className="grid min-w-0 gap-6 xl:grid-cols-[0.88fr_1.52fr]">
+        <article className="sunny-public-article-shell grid min-w-0 gap-6 xl:grid-cols-[0.88fr_1.52fr]">
           <aside className="sunny-card min-w-0 rounded-[2.2rem] p-8">
             <p className="sunny-kicker text-xs text-muted">{copy.blogPost.overview}</p>
             <h1 className="sunny-display mt-4 break-words text-4xl leading-tight text-foreground md:text-5xl">

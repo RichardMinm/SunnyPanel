@@ -247,7 +247,7 @@ describe("Dashboard layout contracts", () => {
     assert.match(agentCss, /\.sunny-agent-stage-row/);
   });
 
-  test("Dashboard keeps the six-tab Inspector as a default-hidden detail drawer", () => {
+  test("Dashboard keeps the ops-enabled Inspector as a default-hidden detail drawer", () => {
     const pageClient = read("src/components/dashboard/DashboardPageClient.tsx");
     const shell = read("src/components/dashboard/DashboardShell.tsx");
     const rightPanel = read("src/components/dashboard/DashboardRightPanel.tsx");
@@ -275,11 +275,12 @@ describe("Dashboard layout contracts", () => {
     assert.match(rightPanel, /AgentContextPanel/);
     assert.match(rightPanel, /AgentApprovalPanel/);
     assert.match(rightPanel, /AgentTracePanel/);
+    assert.match(rightPanel, /AgentOpsPanel/);
     assert.match(rightPanel, /LinkedObjectsPanel/);
     assert.match(rightPanel, /MemoryInspectorPanel/);
     assert.doesNotMatch(rightPanel, /会话历史/);
-    assert.match(types, /AgentInspectorTab = "approval" \| "context" \| "debug" \| "linked" \| "memory" \| "trace" \| "inbox"/);
-    for (const label of ["上下文", "进度", "详细", "关联", "记忆", "建议", "调试"]) {
+    assert.match(types, /AgentInspectorTab = "approval" \| "context" \| "debug" \| "linked" \| "memory" \| "trace" \| "inbox" \| "ops"/);
+    for (const label of ["上下文", "进度", "详细", "关联", "记忆", "Ops", "建议", "调试"]) {
       assert.match(constants, new RegExp(label));
     }
     assert.doesNotMatch(constants, /label:\s*"确认"/);

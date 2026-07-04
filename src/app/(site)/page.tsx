@@ -35,7 +35,16 @@ type DatedHomeHeroSignal = {
 };
 
 export const generateMetadata = async (): Promise<Metadata> => ({
-  description: "个人工作台与知识管理 — SunnyPanel",
+  alternates: {
+    canonical: "/",
+  },
+  description: "SunnyPanel 是一个 AI 原生的个人长期工作台，用来公开呈现写作、时间线、清单和阶段进展。",
+  openGraph: {
+    description: "AI 原生的个人长期工作台：写作、时间线、清单和阶段进展。",
+    title: "SunnyPanel",
+    type: "website",
+    url: "/",
+  },
   title: "SunnyPanel",
 });
 

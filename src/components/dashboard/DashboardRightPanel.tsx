@@ -32,6 +32,10 @@ const AgentInboxPanel = dynamic(
   () => import("@/components/dashboard/agent/AgentInboxPanel").then((m) => m.AgentInboxPanel),
 );
 
+const AgentOpsPanel = dynamic(
+  () => import("@/components/dashboard/agent/AgentOpsPanel").then((m) => m.AgentOpsPanel),
+);
+
 const AgentTracePanel = dynamic(
   () => import("@/components/dashboard/agent/AgentTracePanel").then((m) => m.AgentTracePanel),
 );
@@ -388,6 +392,7 @@ export function DashboardRightPanel({
           ) : null}
           {activeInspectorTab === "linked" ? <LinkedObjectsPanel action={displayAction} debugMode={debugMode} selectedRunDetail={selectedRunDetail} /> : null}
           {activeInspectorTab === "memory" ? <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} /> : null}
+          {activeInspectorTab === "ops" ? <AgentOpsPanel /> : null}
           {activeInspectorTab === "inbox" ? <AgentInboxPanel onPrefillComposer={onPrefillComposer} /> : null}
           {activeInspectorTab === "debug" ? (
             <AgentDebugPanel

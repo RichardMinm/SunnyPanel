@@ -4,6 +4,15 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 
 它不是通用后台，也不是 NAS 导航页，而是一个让 AI 理解你的工作区、帮你拆解意图、协调多个专业能力完成复杂任务的个人操作系统。
 
+## Demo / Docs
+
+- [Demo Script](docs/demo-script.md) — 3 分钟演示与 10 分钟技术讲解脚本
+- [Showcase](docs/showcase.md) — 面向 GitHub / 项目展示的产品说明
+- [Agent Workflow v1](docs/agent-workflow-v1.md) — Planning、Checklist、Schedule、Safety、Rollback 的工作流总览
+- [Safety Model](docs/safety-model.md) — Agent 写操作的 dry-run、confirmation、receipt、rollback 边界
+- [System Architecture](docs/system-architecture.md) — Frontend、Agent、Data、Release 分层架构
+- [Public Site E2E](docs/public-site-e2e.md) — 公开站点浏览器 smoke 的本地测试要求
+
 ## 核心定位
 
 ### Agent 驱动的工作流

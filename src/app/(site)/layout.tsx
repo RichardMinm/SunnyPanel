@@ -8,8 +8,17 @@ import { getSiteLocale } from "@/lib/site-locale";
 import { getSitePalette } from "@/lib/site-palette-server";
 
 export const metadata: Metadata = {
-  title: "SunnyPanel",
+  alternates: {
+    canonical: "/",
+  },
   description: "A personal panel system for publishing, reflection, and private planning.",
+  openGraph: {
+    description: "A personal panel system for publishing, reflection, and private planning.",
+    title: "SunnyPanel",
+    type: "website",
+    url: "/",
+  },
+  title: "SunnyPanel",
 };
 
 export default async function SiteLayout({

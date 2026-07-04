@@ -1,4 +1,4 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 
 import { PublicCollectionEmptySwitch } from "@/components/public/PublicCollectionEmptySwitch";
 import { PublicListPage } from "@/components/public/PublicListPage";
@@ -9,6 +9,20 @@ import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicChecklists } from "@/lib/payload/public";
 
 export const revalidate = 60;
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/checklists",
+  },
+  description: "SunnyPanel 的公开清单进展页，用分组、完成率和更新时间展示项目推进状态。",
+  openGraph: {
+    description: "公开清单进展：分组、完成率和更新时间。",
+    title: "Checklists | SunnyPanel",
+    type: "website",
+    url: "/checklists",
+  },
+  title: "Checklists | SunnyPanel",
+};
 
 export default async function ChecklistsPage() {
   const checklists = await getPublicChecklists({ limit: 24 });
@@ -37,11 +51,6 @@ export default async function ChecklistsPage() {
                 { label: copy.checklists.statsGroups, value: totalGroups },
                 { label: copy.checklists.statsCompleted, value: `${totalCompleted}/${totalItems}` },
               ]}
-              actions={
-                <Link href="/admin/collections/checklists" className="sunny-button-secondary">
-                  {copy.common.manageChecklists}
-                </Link>
-              }
             />
 
             <PublicCollectionEmptySwitch
@@ -54,6 +63,7 @@ export default async function ChecklistsPage() {
                   const groups = checklist.groups ?? [];
                   const totalItems = getChecklistItemCount(groups);
                   const completedItems = getChecklistCompletedCount(groups);
+                  const completionPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
                   return (
                     <article key={checklist.id} className="sunny-card rounded-[1.5rem] px-4 py-5 sm:px-5 md:rounded-[1.8rem] md:px-7 md:py-6">
@@ -69,6 +79,28 @@ export default async function ChecklistsPage() {
                           {checklist.summary ? (
                             <p className="mt-3 text-sm leading-7 text-muted">{checklist.summary}</p>
                           ) : null}
+                          <div className="sunny-public-checklist-progress">
+                            <div className="flex items-center justify-between gap-3 text-xs text-muted">
+                              <span>{copy.checklists.completed}</span>
+                              <span className="font-semibold text-foreground">{completionPercent}%</span>
+                            </div>
+                            <div
+                              aria-label={`${checklist.title} progress`}
+                              aria-valuemax={100}
+                              aria-valuemin={0}
+                              aria-valuenow={completionPercent}
+                              className="sunny-public-checklist-progress-track"
+                              role="progressbar"
+                            >
+                              <span
+                                className="sunny-public-checklist-progress-value"
+                                style={{ width: `${completionPercent}%` }}
+                              />
+                            </div>
+                            <p className="mt-2 text-xs text-muted">
+                              {copy.common.updatedAt}：{formatDateTime(checklist.updatedAt, locale)}
+                            </p>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-1 gap-2 rounded-[1.15rem] border border-border sunny-surface-glass-55 px-4 py-4 text-center text-sm text-muted sm:grid-cols-3 md:min-w-[10rem] md:grid-cols-1 md:gap-0 md:rounded-[1.35rem] md:text-left">

@@ -19,10 +19,11 @@ const readWritingCss = () =>
 describe("Dashboard Writing workspace contracts", () => {
   test("sidebar exposes Writing workspace and embeds library rail below modes", () => {
     const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
+    const sidebarModes = read("src/components/dashboard/sidebar/dashboard-sidebar-modes.ts");
     const shellCss = read("src/app/styles/sunny-dashboard-shell.css");
 
-    assert.match(sidebar, /key: "writing"/);
-    assert.match(sidebar, /label: "写作"/);
+    assert.match(sidebarModes, /key: "writing"/);
+    assert.match(sidebarModes, /label: "写作"/);
     assert.match(sidebar, /WritingLibraryRail/);
     assert.match(sidebar, /isWritingMode \? <WritingLibraryRail/);
     assert.match(shellCss, /\.sunny-dashboard-writing-library-section/);
@@ -87,6 +88,7 @@ describe("Dashboard Writing workspace contracts", () => {
     const bottomRail = read("src/components/dashboard/writing/WritingSidebarBottomRail.tsx");
     const emptyState = read("src/components/dashboard/writing/WritingEmptyState.tsx");
     const categoryGroup = read("src/components/dashboard/writing/WritingCategoryGroup.tsx");
+    const sidebarSection = read("src/components/layout/SidebarSection.tsx");
     const shellCss = read("src/app/styles/sunny-dashboard-shell.css");
     const css = readWritingCss();
 
@@ -107,7 +109,12 @@ describe("Dashboard Writing workspace contracts", () => {
     assert.match(bottomRail, /归档/);
     assert.match(bottomRail, /搜索/);
     assert.match(bottomRail, /DashboardSettingsMenu/);
-    assert.match(bottomRail, /sunny-writing-rail-section-label/);
+    assert.match(bottomRail, /SidebarSection/);
+    assert.match(bottomRail, /className="sunny-writing-rail-section"/);
+    assert.match(bottomRail, /title="内容"/);
+    assert.match(bottomRail, /title="工具"/);
+    assert.match(bottomRail, /sunny-writing-rail-section-actions/);
+    assert.match(sidebarSection, /app-sidebar-section__title/);
     assert.match(bottomRail, /内容/);
     assert.match(bottomRail, /工具/);
     assert.match(bottomRail, /WritingLibrarySearchDialog/);

@@ -107,6 +107,55 @@ html[data-theme="dark"] .sunny-card-strong {
   box-shadow: 0 16px 40px var(--card-shadow);
 }
 
+.sunny-blog-index,
+.sunny-updates-feed,
+.sunny-timeline-narrative {
+  min-width: 0;
+}
+
+.sunny-notes-stream {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.sunny-note-card {
+  min-height: 14rem;
+}
+
+.sunny-public-article-shell {
+  align-items: start;
+}
+
+.sunny-public-checklist-progress {
+  margin-top: 1rem;
+  max-width: 28rem;
+}
+
+.sunny-public-checklist-progress-track {
+  position: relative;
+  overflow: hidden;
+  height: 0.5rem;
+  margin-top: 0.45rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
+  background: color-mix(in oklch, var(--foreground) 6%, var(--surface-strong));
+}
+
+.sunny-public-checklist-progress-value {
+  display: block;
+  height: 100%;
+  min-width: 0.35rem;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--accent) 78%, var(--surface-strong)),
+      var(--accent)
+    );
+}
+
 /* .sunny-kicker / .sunny-display 见 sunny-typography.css */
 
 /* Dashboard Shell 网格布局见 sunny-dashboard-shell.css；此处仅保留 Agent 加载态等共用样式。 */
