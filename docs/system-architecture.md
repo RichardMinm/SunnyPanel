@@ -12,6 +12,7 @@ flowchart TD
     Public["Public Site\nHome / Blog / Notes / Updates / Timeline / Checklists"]
     Dashboard["Dashboard\nAgent workbench / writing studio / inspector"]
     Cards["Agent Cards\nDraft / Confirmation / Result"]
+    Activity["Agent Activity UI\nTimeline / Trace"]
     Ops["Agent Ops Panel"]
   end
 
@@ -21,6 +22,7 @@ flowchart TD
     Gates["Readiness Gates"]
     Drafts["Draft Flows"]
     Registry["Tool Registry"]
+    Trace["Backend Trace Helper"]
     Policy["Policy Guard"]
     Executor["Executor"]
     Rollback["Rollback"]
@@ -48,14 +50,23 @@ flowchart TD
   Public --> Payload
   Dashboard --> Router
   Cards --> Dashboard
+  Activity --> Dashboard
   Ops --> Runs
   Ops --> Receipts
   Router --> Session
   Session --> Gates
   Gates --> Drafts
   Drafts --> Registry
+  Router --> Trace
+  Session --> Trace
+  Gates --> Trace
+  Drafts --> Trace
+  Registry --> Trace
   Registry --> Policy
+  Policy --> Trace
   Policy --> Executor
+  Executor --> Trace
+  Rollback --> Trace
   Executor --> Payload
   Executor --> Receipts
   Rollback --> Payload
@@ -111,6 +122,16 @@ Cards separate user mental states:
 
 `MessageCard` dispatches to the right card but does not own every workflow-specific card body.
 
+### Agent Activity / Trace UI
+
+Agent Activity is a structured status layer shown below Agent messages and in the right inspector. It maps existing response state, drafts, pending confirmations, execution results, rollback results, and legacy trace summaries into typed activity steps.
+
+The main conversation shows only user-visible activity such as "已识别为日程查询", "草案尚未写入数据库", or "等待你确认". The right Trace tab can show developer-visible metadata and sanitized details.
+
+Activity UI is not Chain-of-Thought and must not expose raw prompts, raw LLM responses, Authorization headers, cookies, tokens, or large unredacted payloads.
+
+Backend trace instrumentation emits sanitized `backendTraceEvents` from the Agent pipeline, LangGraph adapter, dry-run step, execute step, and rollback API. These events are attached to the terminal `AgentChatResponse`, persisted through existing `AgentThreadEvents`, and converted into developer-visible `AgentActivityStep` records for the Inspector. Trace write failures are non-blocking and must not alter Agent behavior.
+
 ### Agent Ops Panel
 
 Ops is read-only. It summarizes recent AgentRun, AgentActionReceipt, pending confirmations, failures, tokens, model, latency, action id, and thread id.
@@ -161,6 +182,8 @@ Executor performs confirmed writes. It should receive structured args, validate 
 ### Rollback
 
 Rollback applies server-recorded compensation payloads. It should not trust arbitrary client-provided mutation payloads.
+
+Rollback route instrumentation records sanitized rollback start/success/failure trace events in the API response. The rollback executor and receipt semantics remain unchanged.
 
 ## 4. Data Layer
 
