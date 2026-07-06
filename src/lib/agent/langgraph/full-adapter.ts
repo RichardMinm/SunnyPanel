@@ -56,6 +56,11 @@ import {
   extractPlanSlotsFromSessionState,
 } from "@/lib/agent/planning/readiness-gate";
 import { evaluateScheduleReadinessGate } from "@/lib/agent/schedule/readiness-gate";
+import { classifyScheduleIntentBoundary } from "@/lib/agent/schedule/intent-boundary";
+import {
+  formatScheduleQueryAssistantMessage,
+  inferScheduleQueryRangeLabel,
+} from "@/lib/agent/schedule/query-summary";
 import {
   applyPlanCreationPreparationToResolution,
   evaluatePlanCreationPreparation,
@@ -99,6 +104,11 @@ import {
   estimateTokenCount,
   splitIntoWordTokens,
 } from "@/lib/agent/token-usage";
+import {
+  sanitizeAgentTraceEvent,
+  type AgentTraceEventInput,
+  type AgentTraceEventPayload,
+} from "@/lib/agent/trace";
 
 export type FullLangGraphAdapterSteps = {
   appendAgentThreadTurn: typeof appendAgentThreadTurn;
@@ -196,8 +206,10 @@ export const createRunFullLangGraphAgentChatPipeline = (
     emitStage: (event: AgentStreamStageEvent) => void = () => undefined,
     emitProgress: (event: AgentStreamProgressEvent) => void = () => undefined,
     emitChange: (event: AgentStreamChangeEvent) => void = () => undefined,
+    emitActivity: (event: AgentTraceEventPayload) => void = () => undefined,
   ): Promise<AgentChatResponse> => {
     const trace: AgentTraceStep[] = [];
+    const backendTraceEvents: AgentTraceEventPayload[] = [];
     const stream = createAgentStreamController({
       emitChange,
       emitProgress,
@@ -208,6 +220,55 @@ export const createRunFullLangGraphAgentChatPipeline = (
       [];
     let tokenUsage = baseTokenUsage;
     let finalizedResponse: AgentChatResponse | null = null;
+    const recordBackendTrace = (event: AgentTraceEventInput) => {
+      const traceEvent = sanitizeAgentTraceEvent({
+        createdAt: new Date().toISOString(),
+        threadId: String(thread.id),
+        ...event,
+      });
+
+      backendTraceEvents.push(traceEvent);
+
+      try {
+        emitActivity(traceEvent);
+      } catch {
+        // Activity streaming is best-effort and must not alter Agent behavior.
+      }
+    };
+    const backendTraceKey = (event: AgentTraceEventPayload) =>
+      [
+        event.createdAt ?? "",
+        event.phase,
+        event.status,
+        event.title,
+        event.actionId ?? "",
+        event.intent ?? "",
+      ].join("|");
+    const attachBackendTrace = (response: AgentChatResponse): AgentChatResponse => {
+      const merged = new Map<string, AgentTraceEventPayload>();
+
+      for (const event of [
+        ...(response.backendTraceEvents ?? []),
+        ...backendTraceEvents,
+      ]) {
+        merged.set(backendTraceKey(event), event);
+      }
+
+      return {
+        ...response,
+        backendTraceEvents: [...merged.values()],
+      };
+    };
+
+    recordBackendTrace({
+      inputPreview: {
+        messageLength: message.length,
+        workbenchMode: workbenchMode ?? null,
+      },
+      phase: "user_message",
+      status: "success",
+      title: "收到用户请求",
+    });
 
     const pushTrace = (step: AgentTraceStep) => {
       const index = trace.findIndex((item) => item.id === step.id);
@@ -545,6 +606,16 @@ export const createRunFullLangGraphAgentChatPipeline = (
         ...turn,
         assistantMessage: resolvedAssistantMessage,
       };
+      recordBackendTrace({
+        intent: normalizedTurn.intent,
+        outputPreview: {
+          hasPendingAction: Boolean(normalizedTurn.nextPendingAction),
+          pendingActionType: normalizedTurn.nextPendingAction?.type ?? null,
+        },
+        phase: "finalize",
+        status: "success",
+        title: "Agent 响应已完成",
+      });
       // #region agent log
       if (process.env.AGENT_DEBUG_LOG) {
         try {
@@ -574,7 +645,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
           existingMemories: currentContextMemories ?? [],
           conversationStateOverride: normalizedTurn.conversationState,
           pushTrace,
-          response: {
+          response: attachBackendTrace({
             ...response,
             assistantMessage: normalizedTurn.assistantMessage,
             confidence: normalizedTurn.confidence ?? response.confidence,
@@ -583,13 +654,13 @@ export const createRunFullLangGraphAgentChatPipeline = (
             pendingAction: normalizedTurn.nextPendingAction,
             trace: mergeTrace(response.trace, trace),
             workbenchMode: workbenchMode ?? undefined,
-          },
+          }),
           tokenUsage: response.tokenUsage ?? tokenUsage,
         });
-        finalizedResponse = {
+        finalizedResponse = attachBackendTrace({
           ...finalized,
           trace: mergeTrace(finalized.trace, trace),
-        };
+        });
 
         return finalizedResponse;
       }
@@ -631,7 +702,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
         tokenUsage: response.tokenUsage ?? tokenUsage,
         user,
       });
-      finalizedResponse = {
+      finalizedResponse = attachBackendTrace({
         ...response,
         assistantMessage: normalizedTurn.assistantMessage,
         confidence: normalizedTurn.confidence ?? response.confidence,
@@ -641,7 +712,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
         threadId: updatedThread.id,
         trace: mergeTrace(response.trace, trace),
         workbenchMode: workbenchMode ?? undefined,
-      };
+      });
 
       return finalizedResponse;
     };
@@ -664,6 +735,18 @@ export const createRunFullLangGraphAgentChatPipeline = (
         });
         currentContextMemories = result.context.memories ?? [];
         tokenUsage = result.tokenUsage;
+        recordBackendTrace({
+          outputPreview: {
+            checklistsCount: result.context.checklists.length,
+            memoriesCount: result.context.memories?.length ?? 0,
+            plansCount: result.context.plans.length,
+            schedulesCount: result.context.schedules?.length ?? 0,
+          },
+          phase: "session",
+          status: "success",
+          summary: "LangGraph 上下文快照已加载。",
+          title: "上下文已就绪",
+        });
 
         return result;
       },
@@ -729,32 +812,70 @@ export const createRunFullLangGraphAgentChatPipeline = (
         preResolvedIntent,
         tokenUsage: usage,
       }) => {
-        const result = await steps.runResolveIntentStep({
-          confirmationSignals: resolveConfirmationSignals({
-            confirmation: graphInput.structuredConfirmation,
-            message: graphInput.message,
-            pendingAction: graphInput.pendingAction,
-          }),
-          context: context as BuildContextStepResult["context"],
-          emitStatus,
-          emitToken,
-          emitUsage,
-          intentModelEngine,
-          message: graphInput.message,
-          modelResolver,
-          orchestratorPlanSource,
-          pendingAction: graphInput.pendingAction,
-          persistAgentTurn: bufferAgentTurn,
-          preResolvedIntent,
-          pushTrace,
-          resolvedHistory,
-          stream,
-          thread,
-          tokenUsage: usage,
-          trace,
-          user,
-          workbenchMode,
+        const routerStartedAt = Date.now();
+        recordBackendTrace({
+          inputPreview: {
+            hasPendingAction: Boolean(graphInput.pendingAction),
+            messageLength: graphInput.message.length,
+            workbenchMode: workbenchMode ?? null,
+          },
+          phase: "router",
+          status: "started",
+          title: "开始路由判断",
         });
+        let result: Awaited<ReturnType<typeof steps.runResolveIntentStep>>;
+        try {
+          result = await steps.runResolveIntentStep({
+            confirmationSignals: resolveConfirmationSignals({
+              confirmation: graphInput.structuredConfirmation,
+              message: graphInput.message,
+              pendingAction: graphInput.pendingAction,
+            }),
+            context: context as BuildContextStepResult["context"],
+            emitStatus,
+            emitToken,
+            emitUsage,
+            intentModelEngine,
+            message: graphInput.message,
+            modelResolver,
+            orchestratorPlanSource,
+            pendingAction: graphInput.pendingAction,
+            persistAgentTurn: bufferAgentTurn,
+            preResolvedIntent,
+            pushTrace,
+            resolvedHistory,
+            stream,
+            thread,
+            tokenUsage: usage,
+            trace,
+            user,
+            workbenchMode,
+          });
+          recordBackendTrace({
+            intent: result.outcome === "early_exit"
+              ? result.response.intent
+              : result.data.resolution.intent.intent,
+            latencyMs: Date.now() - routerStartedAt,
+            outputPreview: {
+              outcome: result.outcome,
+            },
+            phase: "router",
+            status: "success",
+            title: "路由判断完成",
+          });
+        } catch (error) {
+          recordBackendTrace({
+            error: {
+              message: error instanceof Error ? error.message : String(error),
+              ...(error instanceof Error && error.name ? { name: error.name } : {}),
+            },
+            latencyMs: Date.now() - routerStartedAt,
+            phase: "router",
+            status: "failed",
+            title: "路由判断失败",
+          });
+          throw error;
+        }
 
         if (result.outcome === "early_exit") {
           return { response: result.response, type: "response" };
@@ -1172,6 +1293,97 @@ export const createRunFullLangGraphAgentChatPipeline = (
           dryRunConversationState = scheduleCreationPreparation.sessionState;
         }
 
+        const scheduleBoundary = classifyScheduleIntentBoundary({
+          hasPendingAction: Boolean(graphInput.pendingAction),
+          hasSchedulingDraft: Boolean(
+            (conversationState as { scheduling?: { draft?: unknown } } | null | undefined)?.scheduling?.draft,
+          ),
+          routerIntent: nextResolution.intent.intent,
+          userMessage: graphInput.message,
+        });
+
+        if (
+          scheduleBoundary.intent === "query_schedule" &&
+          !resolutionData.confirmedActionId
+        ) {
+          const promptContext = context as BuildContextStepResult["context"];
+          emitStatus("正在整理最近日程摘要...");
+          pushTrace({
+            detail: JSON.stringify({
+              boundaryConfidence: scheduleBoundary.confidence,
+              boundaryReason: scheduleBoundary.reason,
+              boundarySource: scheduleBoundary.source,
+              gateApplied: true,
+              intent: "query_schedule",
+              itemsCount: promptContext.schedules?.length ?? 0,
+              routerIntent: nextResolution.intent.intent,
+              writePath: false,
+            }),
+            id: "schedule-query-readonly",
+            kind: "analysis",
+            status: "done",
+            title: "日程查询只读返回",
+          });
+          recordBackendTrace({
+            apiPath: "schedule-items",
+            intent: "query_schedule",
+            outputPreview: {
+              itemsCount: promptContext.schedules?.length ?? 0,
+              rangeLabel: inferScheduleQueryRangeLabel(graphInput.message),
+              writePath: false,
+            },
+            phase: "api_call",
+            status: "success",
+            summary: "只读取本地 schedule-items，不进入写入链路。",
+            title: "读取本地日程",
+            toolName: "query_schedule",
+          });
+          stream.start({
+            id: "stage-response",
+            phase: "response",
+            title: "组织日程摘要",
+          });
+          const assistantMessage = formatScheduleQueryAssistantMessage({
+            rangeLabel: inferScheduleQueryRangeLabel(graphInput.message),
+            schedules: promptContext.schedules ?? [],
+          });
+          for (const token of splitIntoWordTokens(assistantMessage)) {
+            emitToken(token, "response");
+          }
+          stream.complete("stage-response", "日程摘要已生成");
+
+          const outputTokens = estimateTokenCount(assistantMessage);
+          const nextTokenUsage = {
+            ...usage,
+            outputTokens,
+            totalTokens: usage.contextTokens + usage.inputTokens + outputTokens,
+          };
+          const updatedThread = await bufferAgentTurn({
+            assistantMessage,
+            confidence: nextResolution.intent.confidence,
+            conversationState,
+            engine: nextResolution.engine,
+            intent: "query_schedule",
+            nextPendingAction: null,
+          });
+
+          tokenUsage = nextTokenUsage;
+
+          return {
+            response: {
+              assistantMessage,
+              confidence: nextResolution.intent.confidence,
+              engine: nextResolution.engine,
+              intent: "query_schedule",
+              pendingAction: null,
+              threadId: updatedThread.id,
+              tokenUsage: nextTokenUsage,
+              trace,
+            },
+            type: "response",
+          };
+        }
+
         const planReadinessGate = planCreationPreparation.status === "prepared"
           ? { gateApplied: false as const, reason: "ready_enough" as const }
           : evaluatePlanReadinessGate({
@@ -1294,6 +1506,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
           payload,
           persistAgentTurn: bufferAgentTurn,
           pushTrace,
+          recordBackendTrace,
           resolution: nextResolution,
           stream,
           tokenUsage: usage,
@@ -1354,6 +1567,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
               resolutionData.nextPendingAfterExecute ?? undefined,
             persistAgentTurn: bufferAgentTurn,
             pushTrace,
+            recordBackendTrace,
             resolution,
             stream,
             tokenUsage: usage,

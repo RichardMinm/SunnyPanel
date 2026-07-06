@@ -4,6 +4,10 @@ import { getAgentDebugLogPath } from "@/lib/agent/debug-log";
 import { NextResponse } from "next/server";
 
 import { type AgentChatResponse, type AgentTraceStep } from "@/lib/agent/schemas";
+import {
+  sanitizeAgentTraceEvent,
+  type AgentTraceEventPayload,
+} from "@/lib/agent/trace";
 import { createTokenUsageSnapshot, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
@@ -45,6 +49,7 @@ const intentToSuggestedMode: Partial<Record<AgentChatResponse["intent"], AgentWo
  * | stage    | `AgentStreamStageEvent` 当前阶段状态 |
  * | progress | `AgentStreamProgressEvent` 阶段内紧凑进度 |
  * | change   | `AgentStreamChangeEvent` DryRun/执行预览摘要 |
+ * | activity | `AgentTraceEventPayload` 脱敏后端 activity/trace 事件 |
  * | usage    | `AgentTokenUsage` 用量快照 |
  * | trace    | `AgentTraceStep` 单步追踪 |
  * | meta     | `{ confidence?, engine, intent, pendingAction?, threadId?, tokenUsage }` 终态元数据 |
@@ -143,6 +148,7 @@ export const createAgentChatStream = (
     emitStage: (event: AgentStreamStageEvent) => void,
     emitProgress: (event: AgentStreamProgressEvent) => void,
     emitChange: (event: AgentStreamChangeEvent) => void,
+    emitActivity: (event: AgentTraceEventPayload) => void,
   ) => Promise<AgentChatResponse>,
 ) => {
   const encoder = new TextEncoder();
@@ -199,6 +205,13 @@ export const createAgentChatStream = (
           (event) => enqueue("stage", event),
           (event) => enqueue("progress", event),
           (event) => enqueue("change", event),
+          (event) => {
+            try {
+              enqueue("activity", sanitizeAgentTraceEvent(event));
+            } catch {
+              // Streaming activity is observational; never fail the Agent turn.
+            }
+          },
         );
 
         const resolvedAssistantMessage =

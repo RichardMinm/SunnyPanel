@@ -6,6 +6,7 @@ import { attachCapabilityToProposedAction } from "@/lib/agent/capabilities/adapt
 import { normalizeRouterOutput } from "@/lib/agent/router/normalize-router-output";
 import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
 import { recordDryRunTrace, recordPolicyGuardOutputTrace, recordPolicyTrace, recordResolverTrace, recordToolPlanTrace } from "@/lib/agent/trace/agent-turn-trace";
+import type { AgentTraceRecorder } from "@/lib/agent/trace";
 import { resolveDeleteTarget, resolveModifyTarget } from "@/lib/agent/resolver/target-resolver";
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
 import type { IntentResolution } from "@/lib/agent/chat-pipeline/resolve-intent-step";
@@ -15,7 +16,7 @@ import { logAgentEvent } from "@/lib/agent/logger";
 import { buildConfirmedIntentSet, getConsecutiveAutoCount, incrementAutoCount, shouldAutoApprove } from "@/lib/agent/permission-resolver";
 import { buildProposedActionMessage, dryRunAgentIntent } from "@/lib/agent/safety";
 import type { AutoApprovalContext } from "@/lib/agent/safety";
-import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, ComposePlanArgs, PendingAction } from "@/lib/agent/schemas";
+import type { AgentChatResponse, AgentDryRunResult, AgentEngine, AgentIntent, AgentTraceStep, ComposePlanArgs, PendingAction } from "@/lib/agent/schemas";
 import { isConversationalIntent } from "@/lib/agent/schemas";
 import { normalizeSessionState } from "@/lib/agent/session/normalize-session";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
@@ -50,6 +51,7 @@ export type DryRunAndProposeStepParams = {
     nextPendingAction: null | PendingAction;
   }) => Promise<AgentThread>;
   pushTrace: (step: AgentTraceStep) => void;
+  recordBackendTrace?: AgentTraceRecorder;
   resolution: IntentResolution;
   stream?: AgentStreamController;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -82,6 +84,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     payload,
     persistAgentTurn,
     pushTrace,
+    recordBackendTrace,
     resolution,
     stream,
     tokenUsage: tokenUsageIn,
@@ -92,6 +95,10 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   } = params;
 
   let tokenUsage = tokenUsageIn;
+  const errorSummaryForTrace = (error: unknown) => ({
+    message: error instanceof Error ? error.message : String(error),
+    ...(error instanceof Error && error.name ? { name: error.name } : {}),
+  });
   const persistDryRunTurn = (args: {
     assistantMessage: string;
     confidence?: number;
@@ -212,6 +219,21 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       userContext: { preferences: userPreferences, userId: user.id },
     });
     const policyGuardOutput = applyPolicyGuard({ resolverStatus, router: routerOutput });
+    recordBackendTrace?.({
+      intent: resolution.intent.intent,
+      outputPreview: {
+        allowDryRun: policyGuardOutput.allowDryRun,
+        allowed: policy.allowed,
+        reason: policyGuardOutput.reason ?? policy.reason ?? null,
+        requiresWrite: routerOutput.requiresWrite,
+      },
+      phase: "policy_guard",
+      status: policy.allowed && policyGuardOutput.allowDryRun ? "success" : "failed",
+      summary: policyGuardOutput.reason ?? policy.reason,
+      title: policy.allowed && policyGuardOutput.allowDryRun
+        ? "Policy Guard 允许 Dry-run"
+        : "Policy Guard 阻止 Dry-run",
+    });
 
     if (turnAudit) {
       Object.assign(turnAudit, recordPolicyTrace(turnAudit, policy));
@@ -367,37 +389,126 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   const normalizedConversationState = conversationState
     ? normalizeSessionState(conversationState)
     : null;
-  const dryRunResult = confirmedActionId
-    ? {
-        type: "bypass" as const,
-      }
-    : await dryRunAgentIntent(resolution.intent, {
-        detectScheduleConflicts: (args) =>
-          detectScheduleConflicts(args.date, args.startTime, args.endTime, args.excludeId, payload),
-        findLocalBusyBlocks: async ({ endDate, startDate }) => {
-          const items = await getScheduleForDateRange(new Date(startDate), new Date(endDate), payload);
+  const dryRunStartedAt = Date.now();
+  const dryRunToolName = `dry_run:${resolution.intent.intent}`;
+  const dryRunResult: AgentDryRunResult = confirmedActionId
+    ? (() => {
+        recordBackendTrace?.({
+          intent: resolution.intent.intent,
+          phase: "dry_run",
+          status: "skipped",
+          summary: "该动作已经确认，本轮跳过 dry-run。",
+          title: "Dry-run 已跳过",
+        });
 
-          return items
-            .filter((item) => item.status !== "canceled")
-            .map((item) => ({
-              date: item.date,
-              endTime: item.endTime ?? null,
-              isAllDay: item.isAllDay ?? null,
-              sourceId: item.id,
-              startTime: item.startTime ?? null,
-              title: item.title ?? null,
-            }));
-        },
-        findTimelineEvent: findChecklistTimelineEvent,
-        now: context.now,
-        planCandidates: context.plans,
-        promptContext: context,
-        resolveChecklistGroupForAppend,
-        resolveChecklistItem,
-        resolveDeleteRecord: (args) => resolveDeleteRecordTarget(args, { payload }),
-        resolveScheduleItem: (itemId) => getScheduleItemById(itemId, payload),
-        scheduleSlots: normalizedConversationState?.scheduling?.slots ?? null,
-      });
+        return {
+          type: "bypass" as const,
+        };
+      })()
+    : await (async () => {
+        recordBackendTrace?.({
+          inputPreview: {
+            args: resolution.intent.args,
+          },
+          intent: resolution.intent.intent,
+          phase: "dry_run",
+          status: "started",
+          title: "开始 Dry-run",
+          toolName: dryRunToolName,
+        });
+        recordBackendTrace?.({
+          inputPreview: {
+            args: resolution.intent.args,
+            operation: "dryRun",
+          },
+          intent: resolution.intent.intent,
+          phase: "tool_call",
+          status: "started",
+          title: "调用 Dry-run 工具",
+          toolName: dryRunToolName,
+        });
+
+        try {
+          const result = await dryRunAgentIntent(resolution.intent, {
+            detectScheduleConflicts: (args) =>
+              detectScheduleConflicts(args.date, args.startTime, args.endTime, args.excludeId, payload),
+            findLocalBusyBlocks: async ({ endDate, startDate }) => {
+              const items = await getScheduleForDateRange(new Date(startDate), new Date(endDate), payload);
+
+              return items
+                .filter((item) => item.status !== "canceled")
+                .map((item) => ({
+                  date: item.date,
+                  endTime: item.endTime ?? null,
+                  isAllDay: item.isAllDay ?? null,
+                  sourceId: item.id,
+                  startTime: item.startTime ?? null,
+                  title: item.title ?? null,
+                }));
+            },
+            findTimelineEvent: findChecklistTimelineEvent,
+            now: context.now,
+            planCandidates: context.plans,
+            promptContext: context,
+            resolveChecklistGroupForAppend,
+            resolveChecklistItem,
+            resolveDeleteRecord: (args) => resolveDeleteRecordTarget(args, { payload }),
+            resolveScheduleItem: (itemId) => getScheduleItemById(itemId, payload),
+            scheduleSlots: normalizedConversationState?.scheduling?.slots ?? null,
+          });
+          const latencyMs = Date.now() - dryRunStartedAt;
+
+          recordBackendTrace?.({
+            intent: resolution.intent.intent,
+            latencyMs,
+            outputPreview: {
+              actionId: result.type === "proposed_action" ? result.action?.id ?? null : null,
+              pendingActionType: "pendingAction" in result ? result.pendingAction?.type ?? null : null,
+              type: result.type,
+            },
+            phase: "dry_run",
+            status: result.type === "clarify" ? "warning" : "success",
+            title: result.type === "clarify" ? "Dry-run 需要澄清" : "Dry-run 完成",
+            toolName: dryRunToolName,
+          });
+          recordBackendTrace?.({
+            intent: resolution.intent.intent,
+            latencyMs,
+            outputPreview: {
+              type: result.type,
+            },
+            phase: "tool_call",
+            status: result.type === "clarify" ? "warning" : "success",
+            title: "Dry-run 工具调用完成",
+            toolName: dryRunToolName,
+          });
+
+          return result;
+        } catch (error) {
+          const latencyMs = Date.now() - dryRunStartedAt;
+          const errorSummary = errorSummaryForTrace(error);
+
+          recordBackendTrace?.({
+            error: errorSummary,
+            intent: resolution.intent.intent,
+            latencyMs,
+            phase: "dry_run",
+            status: "failed",
+            title: "Dry-run 失败",
+            toolName: dryRunToolName,
+          });
+          recordBackendTrace?.({
+            error: errorSummary,
+            intent: resolution.intent.intent,
+            latencyMs,
+            phase: "tool_call",
+            status: "failed",
+            title: "Dry-run 工具调用失败",
+            toolName: dryRunToolName,
+          });
+          throw error;
+        }
+      })();
 
   if (turnAudit && dryRunResult.type !== "bypass") {
     Object.assign(turnAudit, recordDryRunTrace(turnAudit, dryRunResult));
@@ -465,8 +576,10 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   }
 
   const proposedActionRaw =
-    dryRunResult.type === "proposed_action" || dryRunResult.type === "bypass"
-      ? dryRunResult.action ?? null
+    "action" in dryRunResult && dryRunResult.type === "proposed_action"
+      ? dryRunResult.action
+      : "action" in dryRunResult && dryRunResult.type === "bypass"
+        ? dryRunResult.action ?? null
       : null;
   const proposedAction = proposedActionRaw ? attachCapabilityToProposedAction(proposedActionRaw) : null;
 
@@ -570,6 +683,20 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       action: proposedAction,
       type: "await_confirmation",
     };
+    recordBackendTrace?.({
+      actionId: proposedAction.id,
+      intent: proposedAction.intent,
+      outputPreview: {
+        changesCount: proposedAction.changes.length,
+        riskLevel: proposedAction.riskLevel,
+        summary: proposedAction.summary,
+      },
+      phase: "pending_confirmation",
+      status: "success",
+      summary: "已生成待确认动作，确认前不会执行写入。",
+      title: "已创建 pending confirmation",
+      toolName: proposedAction.toolName ?? proposedAction.capability,
+    });
     const outputTokens = estimateTokenCount(assistantMessage);
     tokenUsage = {
       ...tokenUsage,

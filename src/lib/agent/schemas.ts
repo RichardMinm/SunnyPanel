@@ -2,12 +2,15 @@ import { isRecord } from "@/lib/shared/is-record";
 import type { ChecklistDraft } from "./planning/checklist-draft";
 import type { PlanDraft } from "./planning/draft";
 import type { ScheduleDraft } from "./schedule/draft";
+import type { AgentActivityStep } from "./activity/types";
+import type { AgentTraceEventPayload } from "./trace/types";
 import type { ConversationalAnswerArgs, ConversationalIntentName } from "./conversation/types";
 import { CONVERSATIONAL_INTENT_NAMES, isConversationalIntent } from "./conversation/types";
 
 export { CONVERSATIONAL_INTENT_NAMES, isConversationalIntent };
 export type { ConversationalAnswerArgs, ConversationalIntentName };
 export type AgentChatMessage = {
+  activitySteps?: AgentActivityStep[];
   content: string;
   planningChecklistDraft?: ChecklistDraft | null;
   planningDraft?: PlanDraft | null;
@@ -713,7 +716,10 @@ export type AgentTokenUsage = {
 };
 
 export type AgentChatResponse = {
+  activitySteps?: AgentActivityStep[];
   assistantMessage: string;
+  /** 后端结构化 trace，供 Inspector / Ops debug 展示；已脱敏，不承载 raw prompt/response。 */
+  backendTraceEvents?: AgentTraceEventPayload[];
   confidence?: number;
   engine: AgentEngine;
   intent: AgentIntent["intent"];

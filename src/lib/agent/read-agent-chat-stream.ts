@@ -1,6 +1,10 @@
 import { getTokenUsageFromData, parseStreamBlock } from "@/lib/agent/chat-stream";
 import type { AgentChatResponse, AgentTokenUsage, AgentTraceStep } from "@/lib/agent/schemas";
 import {
+  sanitizeAgentTraceEvent,
+  type AgentTraceEventPayload,
+} from "@/lib/agent/trace";
+import {
   isAgentStreamChangeEvent,
   isAgentStreamProgressEvent,
   isAgentStreamStageEvent,
@@ -28,9 +32,18 @@ export type AgentChatStreamHandlers = {
   onThinkingToken: (content: string) => void;
   onTokenUsage: (usage: AgentTokenUsage) => void;
   onTraceStep: (step: AgentTraceStep) => void;
+  onBackendTraceEvent?: (event: AgentTraceEventPayload) => void;
   replaceAssistantContent: (content: string) => void;
   setStreamingState: (state: "idle" | "responding" | "thinking") => void;
 };
+
+const isBackendTraceStreamEvent = (data: unknown): data is AgentTraceEventPayload =>
+  typeof data === "object" &&
+  data !== null &&
+  "phase" in data &&
+  "status" in data &&
+  "threadId" in data &&
+  "title" in data;
 
 export async function readAgentChatStream(
   response: Response,
@@ -130,6 +143,10 @@ export async function readAgentChatStream(
         "id" in parsedBlock.data
       ) {
         handlers.onTraceStep(parsedBlock.data as AgentTraceStep);
+      }
+
+      if (parsedBlock.event === "activity" && isBackendTraceStreamEvent(parsedBlock.data)) {
+        handlers.onBackendTraceEvent?.(sanitizeAgentTraceEvent(parsedBlock.data));
       }
 
       if (

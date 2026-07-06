@@ -58,6 +58,11 @@ import {
   recordToolPlanTrace,
   type AgentTurnTrace,
 } from "@/lib/agent/trace/agent-turn-trace";
+import {
+  sanitizeAgentTraceEvent,
+  type AgentTraceEventInput,
+  type AgentTraceEventPayload,
+} from "@/lib/agent/trace";
 import type { AgentPerformanceTimer } from "@/lib/agent/trace/perf-trace";
 import {
   resolveContextLoadingPolicy,
@@ -72,6 +77,11 @@ import {
   extractPlanSlotsFromSessionState,
 } from "@/lib/agent/planning/readiness-gate";
 import { evaluateScheduleReadinessGate } from "@/lib/agent/schedule/readiness-gate";
+import { classifyScheduleIntentBoundary } from "@/lib/agent/schedule/intent-boundary";
+import {
+  formatScheduleQueryAssistantMessage,
+  inferScheduleQueryRangeLabel,
+} from "@/lib/agent/schedule/query-summary";
 import {
   applyPlanCreationPreparationToResolution,
   evaluatePlanCreationPreparation,
@@ -157,12 +167,48 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     emitStage: (event: AgentStreamStageEvent) => void = () => undefined,
     emitProgress: (event: AgentStreamProgressEvent) => void = () => undefined,
     emitChange: (event: AgentStreamChangeEvent) => void = () => undefined,
+    emitActivity: (event: AgentTraceEventPayload) => void = () => undefined,
   ): Promise<AgentChatResponse> => {
     const trace: AgentTraceStep[] = [];
+    const backendTraceEvents: AgentTraceEventPayload[] = [];
     const turnAudit: AgentTurnTrace = createEmptyTurnTrace(deps.turnId);
     Object.assign(turnAudit, recordRawUserInputTrace(turnAudit, message));
+    const recordBackendTrace = (event: AgentTraceEventInput) => {
+      const traceEvent = sanitizeAgentTraceEvent({
+        createdAt: new Date().toISOString(),
+        threadId: String(thread.id),
+        ...event,
+      });
+
+      backendTraceEvents.push(traceEvent);
+
+      try {
+        emitActivity(traceEvent);
+      } catch {
+        // Activity streaming is best-effort and must not alter Agent behavior.
+      }
+    };
+    const backendTraceKey = (event: AgentTraceEventPayload) =>
+      [
+        event.createdAt ?? "",
+        event.phase,
+        event.status,
+        event.title,
+        event.actionId ?? "",
+        event.intent ?? "",
+      ].join("|");
+    const mergeBackendTraceEvents = (existing: AgentTraceEventPayload[] = []) => {
+      const merged = new Map<string, AgentTraceEventPayload>();
+
+      for (const event of [...existing, ...backendTraceEvents]) {
+        merged.set(backendTraceKey(event), event);
+      }
+
+      return [...merged.values()];
+    };
     const attachMeta = (response: AgentChatResponse): AgentChatResponse => ({
       ...response,
+      backendTraceEvents: mergeBackendTraceEvents(response.backendTraceEvents),
       turnAudit,
       workbenchMode: workbenchMode ?? undefined,
     });
@@ -185,6 +231,20 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
 
       emitTrace(step);
     };
+    const errorSummaryForTrace = (error: unknown) => ({
+      message: error instanceof Error ? error.message : String(error),
+      ...(error instanceof Error && error.name ? { name: error.name } : {}),
+    });
+
+    recordBackendTrace({
+      inputPreview: {
+        messageLength: message.length,
+        workbenchMode: workbenchMode ?? null,
+      },
+      phase: "user_message",
+      status: "success",
+      title: "收到用户请求",
+    });
 
     /** Phase timing helper — no-op when perfTimer is null */
     const timePhase = async <T>(
@@ -362,6 +422,18 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     });
     stream.complete("stage-context", "上下文已就绪");
     const { context: initialContext, contextSummary } = contextStep;
+    recordBackendTrace({
+      outputPreview: {
+        checklistsCount: initialContext.checklists.length,
+        memoriesCount: initialContext.memories?.length ?? 0,
+        plansCount: initialContext.plans.length,
+        schedulesCount: initialContext.schedules?.length ?? 0,
+      },
+      phase: "session",
+      status: "success",
+      summary: "上下文快照已加载。",
+      title: "上下文已就绪",
+    });
     currentContextMemories = initialContext.memories ?? [];
     tokenUsage = contextStep.tokenUsage;
     controller.budget.consumeContext(contextStep.tokenUsage.contextTokens);
@@ -449,32 +521,67 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         message: "判断用户真实目标",
         stageId: "stage-arbitration",
       });
-      const intentResult = await timePhase("llmRouter", "router", () =>
-        runResolveIntentStep({
-          confirmationSignals,
-          context: currentContext,
-          conversationState,
-          emitStatus,
-          emitToken,
-          emitUsage,
-          intentModelEngine,
-          message,
-          modelResolver,
-          pendingAction: currentPendingAction,
-          preResolvedIntent: orchestrationResult.data.preResolvedIntent,
-          orchestratorPlanSource: orchestrationResult.data.orchestratorPlanSource,
-          persistAgentTurn,
-          pushTrace,
-          resolvedHistory,
-          stream,
-          thread,
-          tokenUsage,
-          trace,
-          user,
-          userPreferences,
-          workbenchMode,
-        }),
-      );
+      const routerStartMs = Date.now();
+      recordBackendTrace({
+        inputPreview: {
+          hasPendingAction: Boolean(currentPendingAction),
+          messageLength: message.length,
+          workbenchMode: workbenchMode ?? null,
+        },
+        phase: "router",
+        status: "started",
+        title: "开始路由判断",
+      });
+      let intentResult: Awaited<ReturnType<typeof runResolveIntentStep>>;
+      try {
+        intentResult = await timePhase("llmRouter", "router", () =>
+          runResolveIntentStep({
+            confirmationSignals,
+            context: currentContext,
+            conversationState,
+            emitStatus,
+            emitToken,
+            emitUsage,
+            intentModelEngine,
+            message,
+            modelResolver,
+            pendingAction: currentPendingAction,
+            preResolvedIntent: orchestrationResult.data.preResolvedIntent,
+            orchestratorPlanSource: orchestrationResult.data.orchestratorPlanSource,
+            persistAgentTurn,
+            pushTrace,
+            resolvedHistory,
+            stream,
+            thread,
+            tokenUsage,
+            trace,
+            user,
+            userPreferences,
+            workbenchMode,
+          }),
+        );
+        recordBackendTrace({
+          intent: intentResult.outcome === "early_exit"
+            ? intentResult.response.intent
+            : intentResult.data.resolution.intent.intent,
+          latencyMs: Date.now() - routerStartMs,
+          outputPreview: {
+            outcome: intentResult.outcome,
+          },
+          phase: "router",
+          status: "success",
+          title: "路由判断完成",
+        });
+      } catch (error) {
+        recordBackendTrace({
+          error: errorSummaryForTrace(error),
+          latencyMs: Date.now() - routerStartMs,
+          phase: "router",
+          status: "failed",
+          title: "路由判断失败",
+        });
+        throw error;
+      }
       stream.complete(
         "stage-arbitration",
         intentResult.outcome === "early_exit" ? "意图仲裁已完成" : "已决定下一步路线",
@@ -513,6 +620,15 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             : "当前没有可修改的计划草案...",
         );
         pushTrace(planDraftRevision.traceStep);
+        recordBackendTrace({
+          intent: resolution.intent.intent,
+          outputPreview: {
+            status: planDraftRevision.status,
+          },
+          phase: "draft",
+          status: planDraftRevision.status === "revised" ? "success" : "warning",
+          title: planDraftRevision.status === "revised" ? "计划草案已更新" : "计划草案不可更新",
+        });
         stream.start({
           id: "stage-response",
           phase: "response",
@@ -575,6 +691,18 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             : "当前没有可拆解的计划草案...",
         );
         pushTrace(checklistDraftGeneration.traceStep);
+        recordBackendTrace({
+          intent: checklistDraftGeneration.intent,
+          outputPreview: {
+            groupsCount: checklistDraftGeneration.status === "generated"
+              ? checklistDraftGeneration.planningChecklistDraft.groups.length
+              : 0,
+            status: checklistDraftGeneration.status,
+          },
+          phase: "draft",
+          status: checklistDraftGeneration.status === "generated" ? "success" : "warning",
+          title: checklistDraftGeneration.status === "generated" ? "清单草案已生成" : "清单草案未生成",
+        });
         stream.start({
           id: "stage-response",
           phase: "response",
@@ -764,6 +892,18 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             : "日程草案修改需要先澄清...",
         );
         pushTrace(scheduleDraftRevision.traceStep);
+        recordBackendTrace({
+          intent: resolution.intent.intent,
+          outputPreview: {
+            itemsCount: scheduleDraftRevision.status === "revised"
+              ? scheduleDraftRevision.schedulingDraft.items.length
+              : 0,
+            status: scheduleDraftRevision.status,
+          },
+          phase: "draft",
+          status: scheduleDraftRevision.status === "revised" ? "success" : "warning",
+          title: scheduleDraftRevision.status === "revised" ? "日程草案已更新" : "日程草案需要澄清",
+        });
         stream.start({
           id: "stage-response",
           phase: "response",
@@ -929,6 +1069,95 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         }
       }
 
+      const scheduleBoundary = classifyScheduleIntentBoundary({
+        hasPendingAction: Boolean(currentPendingAction),
+        hasSchedulingDraft: Boolean(
+          (conversationState as { scheduling?: { draft?: unknown } } | null | undefined)?.scheduling?.draft,
+        ),
+        routerIntent: resolution.intent.intent,
+        userMessage: message,
+      });
+
+      if (
+        scheduleBoundary.intent === "query_schedule" &&
+        !confirmedActionId &&
+        (!batchExecuteIntents || batchExecuteIntents.length === 0)
+      ) {
+        emitStatus("正在整理最近日程摘要...");
+        pushTrace({
+          detail: JSON.stringify({
+            boundaryConfidence: scheduleBoundary.confidence,
+            boundaryReason: scheduleBoundary.reason,
+            boundarySource: scheduleBoundary.source,
+            gateApplied: true,
+            intent: "query_schedule",
+            itemsCount: currentContext.schedules?.length ?? 0,
+            routerIntent: resolution.intent.intent,
+            writePath: false,
+          }),
+          id: "schedule-query-readonly",
+          kind: "analysis",
+          status: "done",
+          title: "日程查询只读返回",
+        });
+        recordBackendTrace({
+          apiPath: "schedule-items",
+          intent: "query_schedule",
+          outputPreview: {
+            itemsCount: currentContext.schedules?.length ?? 0,
+            rangeLabel: inferScheduleQueryRangeLabel(message),
+            writePath: false,
+          },
+          phase: "api_call",
+          status: "success",
+          summary: "只读取本地 schedule-items，不进入写入链路。",
+          title: "读取本地日程",
+          toolName: "query_schedule",
+        });
+        stream.start({
+          id: "stage-response",
+          phase: "response",
+          title: "组织日程摘要",
+        });
+        const assistantMessage = formatScheduleQueryAssistantMessage({
+          rangeLabel: inferScheduleQueryRangeLabel(message),
+          schedules: currentContext.schedules ?? [],
+        });
+        for (const token of splitIntoWordTokens(assistantMessage)) {
+          emitToken(token, "response");
+          await new Promise((resolve) => setTimeout(resolve, 6));
+        }
+        stream.complete("stage-response", "日程摘要已生成");
+
+        const outputTokens = estimateTokenCount(assistantMessage);
+        tokenUsage = {
+          ...tokenUsage,
+          outputTokens,
+          totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+        };
+        const updatedThread = await persistAgentTurn({
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          conversationState,
+          engine: resolution.engine,
+          intent: "query_schedule",
+          nextPendingAction: null,
+        });
+
+        lastResponse = attachMeta({
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: "query_schedule",
+          pendingAction: null,
+          threadId: updatedThread.id,
+          tokenUsage,
+          trace,
+        });
+        controller.setLastResponse(lastResponse.assistantMessage, lastResponse.pendingAction);
+        break;
+      }
+
       const routerOutput =
         resolution.routerOutput ??
         normalizeRouterOutput({ arbitration: resolution.arbitration, intent: resolution.intent });
@@ -942,6 +1171,27 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             sessionSlots: extractPlanSlotsFromSessionState(conversationState),
             userMessage: message,
           });
+      if (resolution.intent.intent === "compose_plan" || resolution.intent.intent === "create_plan") {
+        recordBackendTrace({
+          intent: resolution.intent.intent,
+          outputPreview: {
+            gateApplied: planReadinessGate.gateApplied,
+            reason: planReadinessGate.gateApplied
+              ? planReadinessGate.readiness.reason
+              : planReadinessGate.reason,
+            ...(planReadinessGate.gateApplied
+              ? {
+                  knownSlots: planReadinessGate.readiness.knownSlots,
+                  missingSlots: planReadinessGate.readiness.missingSlots,
+                  readinessStatus: planReadinessGate.readiness.status,
+                }
+              : {}),
+          },
+          phase: "readiness",
+          status: planReadinessGate.gateApplied ? "warning" : "success",
+          title: planReadinessGate.gateApplied ? "计划上下文不足" : "计划上下文已通过",
+        });
+      }
 
       if (planReadinessGate.gateApplied) {
         emitStatus("计划上下文不足，需要先澄清关键问题...");
@@ -996,6 +1246,31 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             sessionState: conversationState,
             userMessage: message,
           });
+      if (
+        resolution.intent.intent === "create_schedule_items" ||
+        resolution.intent.intent === "compose_schedule_item" ||
+        resolution.intent.intent === "schedule_plan"
+      ) {
+        recordBackendTrace({
+          intent: resolution.intent.intent,
+          outputPreview: {
+            gateApplied: scheduleReadinessGate.gateApplied,
+            reason: scheduleReadinessGate.gateApplied
+              ? scheduleReadinessGate.readiness.reason
+              : scheduleReadinessGate.reason,
+            ...(scheduleReadinessGate.gateApplied
+              ? {
+                  knownSlots: scheduleReadinessGate.readiness.knownSlots,
+                  missingSlots: scheduleReadinessGate.readiness.missingSlots,
+                  readinessStatus: scheduleReadinessGate.readiness.status,
+                }
+              : {}),
+          },
+          phase: "readiness",
+          status: scheduleReadinessGate.gateApplied ? "warning" : "success",
+          title: scheduleReadinessGate.gateApplied ? "日程上下文不足" : "日程上下文已通过",
+        });
+      }
 
       if (scheduleReadinessGate.gateApplied) {
         emitStatus("日程上下文需要先补齐...");
@@ -1092,11 +1367,12 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
               isDirectAnswer: false,
               persistAgentTurn,
               pushTrace,
+              recordBackendTrace,
               resolution,
-            stream,
-            tokenUsage,
-            trace,
-            user,
+              stream,
+              tokenUsage,
+              trace,
+              user,
             }),
           ),
         );
@@ -1133,6 +1409,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           payload,
           persistAgentTurn,
           pushTrace,
+          recordBackendTrace,
           resolution,
           stream,
           conversationState: dryRunConversationState,
@@ -1191,6 +1468,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             pendingAction: currentPendingAction,
             persistAgentTurn,
             pushTrace,
+            recordBackendTrace,
             resolution,
             stream,
             structuredConfirmation,
@@ -1277,6 +1555,13 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         const nextPhase = controller.observe();
         if (nextPhase === "done") break;
       } catch (error) {
+        recordBackendTrace({
+          error: errorSummaryForTrace(error),
+          intent: resolution.intent.intent,
+          phase: "error",
+          status: "failed",
+          title: "Agent 动作执行失败",
+        });
         logAgentEvent("error", "chat.pipeline_error", {
           error: error instanceof Error ? error.message : String(error),
           intent: resolution.intent.intent,
@@ -1322,6 +1607,17 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     if (lastContextSummary && !lastResponse.contextSummary) {
       lastResponse = { ...lastResponse, contextSummary: lastContextSummary };
     }
+    recordBackendTrace({
+      intent: lastResponse.intent,
+      outputPreview: {
+        hasPendingAction: Boolean(lastResponse.pendingAction),
+        pendingActionType: lastResponse.pendingAction?.type ?? null,
+      },
+      phase: "finalize",
+      status: "success",
+      title: "Agent 响应已完成",
+    });
+    lastResponse = attachMeta(lastResponse);
 
     if (finalizeTurn) {
       const turn = bufferedTurn as {
@@ -1332,7 +1628,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         intent: AgentIntent["intent"];
         nextPendingAction: null | PendingAction;
       } | null;
-      const response = turn
+      const response = attachMeta(turn
         ? {
             ...lastResponse,
             assistantMessage: turn.assistantMessage,
@@ -1341,7 +1637,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             intent: turn.intent,
             pendingAction: turn.nextPendingAction,
           }
-        : lastResponse;
+        : lastResponse);
 
       return finalizeTurn({
         existingMemories: currentContextMemories,
@@ -1352,6 +1648,6 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       });
     }
 
-    return lastResponse;
+    return attachMeta(lastResponse);
   };
 };

@@ -21,6 +21,7 @@ import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage
 import type { AgentThread } from "@/payload-types";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
 import { resolveCreatedPlanConversationState } from "@/lib/agent/planning/created-plan-lifecycle";
+import type { AgentTraceRecorder } from "@/lib/agent/trace";
 
 export type ExecuteAndPersistStepParams = {
   batchExecuteIntents?: AgentIntent[];
@@ -42,6 +43,7 @@ export type ExecuteAndPersistStepParams = {
     nextPendingAction: null | PendingAction;
   }) => Promise<AgentThread>;
   pushTrace: (step: AgentTraceStep) => void;
+  recordBackendTrace?: AgentTraceRecorder;
   resolution: IntentResolution;
   stream?: AgentStreamController;
   structuredConfirmation?: null | StructuredConfirmation;
@@ -90,6 +92,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     pendingAction = null,
     persistAgentTurn,
     pushTrace,
+    recordBackendTrace,
     resolution,
     stream,
     structuredConfirmation = null,
@@ -99,6 +102,10 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   } = params;
 
   let tokenUsage = tokenUsageIn;
+  const errorSummaryForTrace = (error: unknown) => ({
+    message: error instanceof Error ? error.message : String(error),
+    ...(error instanceof Error && error.name ? { name: error.name } : {}),
+  });
 
   // #region agent log
   if (process.env.AGENT_DEBUG_LOG) {
@@ -141,6 +148,18 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
       status: "running",
       title: `事务批量执行 (${batchExecuteIntents.length})`,
     });
+    const batchStartedAt = Date.now();
+    recordBackendTrace?.({
+      inputPreview: {
+        count: batchExecuteIntents.length,
+        intents: batchExecuteIntents.map((intent) => intent.intent),
+        operation: "execute",
+      },
+      phase: "execute",
+      status: "started",
+      title: "开始批量执行已确认动作",
+      toolName: "execute_batch",
+    });
     const batchResult = await executeAgentIntentsTransactional(batchExecuteIntents, pushTrace, {
       userId: user.id,
     });
@@ -182,6 +201,30 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
       intent: resolution.intent.intent,
       nextPendingAction: lastPending,
     });
+    recordBackendTrace?.({
+      latencyMs: Date.now() - batchStartedAt,
+      outputPreview: {
+        count: batchExecuteIntents.length,
+        pendingActionType: lastPending?.type ?? null,
+        status: batchResult.status,
+      },
+      phase: "execute",
+      status: batchFailed ? "failed" : "success",
+      title: batchFailed ? "批量执行已中止" : "批量执行完成",
+      toolName: "execute_batch",
+    });
+    if (!batchFailed) {
+      recordBackendTrace?.({
+        outputPreview: {
+          threadId: updatedThread.id,
+        },
+        phase: "receipt",
+        status: "success",
+        summary: "批量执行结果已经通过现有 Agent turn / receipt 链路记录。",
+        title: "已记录批量执行结果",
+        toolName: "execute_batch",
+      });
+    }
 
     logAgentEvent("info", "chat.batch_executed", {
       count: batchExecuteIntents.length,
@@ -325,7 +368,8 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     }
   }
 
-  let execution: Awaited<ReturnType<typeof executeAgentIntent>>;
+  const shouldTraceWriteExecution =
+    !isDirectAnswer && (confirmedActionId !== null || executionApproved);
   const pendingProposal =
     pendingAction?.type === "await_confirmation" && pendingAction.action.id === confirmedActionId
       ? pendingAction.action
@@ -338,66 +382,182 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     previewCapability && executeCapabilityForPreview(previewCapability)
       ? executeCapabilityForPreview(previewCapability)
       : capabilityForLegacyIntent(resolution.intent.intent as AgentWriteIntentName, "execute");
+  const executeToolName =
+    executeCapability ?? `execute:${resolution.intent.intent}`;
+  const executeStartedAt = Date.now();
 
-  if (
-    !isDirectAnswer &&
-    (confirmedActionId || executionApproved) &&
-    executeCapability &&
-    pendingProposal
-  ) {
-    const capabilityResult = await runExecuteCapability(executeCapability, pendingProposal.args ?? {}, {
-      confirmedPreviewId: confirmedActionId,
-      pendingAction: pendingProposal,
-      structuredCapability: structuredConfirmation?.capability ?? null,
-      userId: user.id,
+  if (shouldTraceWriteExecution) {
+    recordBackendTrace?.({
+      actionId: confirmedActionId ?? undefined,
+      inputPreview: {
+        args: pendingProposal?.args ?? resolution.intent.args,
+        operation: "execute",
+      },
+      intent: resolution.intent.intent,
+      phase: "execute",
+      status: "started",
+      title: "开始执行已确认动作",
+      toolName: executeToolName,
     });
-
-    if (!capabilityResult.ok) {
-      const assistantMessage = capabilityResult.summary;
-      pushTrace({
-        detail: capabilityResult.error ?? capabilityResult.summary,
-        id: "capability-execute-block",
-        kind: "error",
-        status: "error",
-        title: "Execute 能力校验失败",
-      });
-      const updatedThread = await persistAgentTurn({
-        assistantMessage,
-        confidence: resolution.intent.confidence,
-        engine: resolution.engine,
-        intent: resolution.intent.intent,
-        nextPendingAction: null,
-      });
-
-      return {
-        assistantMessage,
-        confidence: resolution.intent.confidence,
-        engine: resolution.engine,
-        intent: resolution.intent.intent,
-        pendingAction: null,
-        trace,
-        threadId: updatedThread.id,
-        tokenUsage,
-      };
-    }
-
-    executedCapability?.(executeCapability);
-    execution = {
-      ...(capabilityResult.data && typeof capabilityResult.data === "object" && !Array.isArray(capabilityResult.data)
-        ? capabilityResult.data
-        : {}),
-      assistantMessage: capabilityResult.summary,
-      pendingAction: null,
-      status: "completed",
-    };
-  } else {
-    execution = await executeAgentIntent(resolution.intent, pushTrace, {
-      userId: user.id,
+    recordBackendTrace?.({
+      actionId: confirmedActionId ?? undefined,
+      inputPreview: {
+        args: pendingProposal?.args ?? resolution.intent.args,
+        operation: "execute",
+      },
+      intent: resolution.intent.intent,
+      phase: "tool_call",
+      status: "started",
+      title: "调用 Execute 工具",
+      toolName: executeToolName,
     });
+  }
 
-    if (executeCapability && (confirmedActionId || executionApproved)) {
+  let execution: Awaited<ReturnType<typeof executeAgentIntent>>;
+  try {
+    if (
+      !isDirectAnswer &&
+      (confirmedActionId || executionApproved) &&
+      executeCapability &&
+      pendingProposal
+    ) {
+      const capabilityResult = await runExecuteCapability(executeCapability, pendingProposal.args ?? {}, {
+        confirmedPreviewId: confirmedActionId,
+        pendingAction: pendingProposal,
+        structuredCapability: structuredConfirmation?.capability ?? null,
+        userId: user.id,
+      });
+
+      if (!capabilityResult.ok) {
+        const assistantMessage = capabilityResult.summary;
+        const latencyMs = Date.now() - executeStartedAt;
+        recordBackendTrace?.({
+          actionId: confirmedActionId ?? undefined,
+          error: {
+            message: capabilityResult.error ?? capabilityResult.summary,
+          },
+          intent: resolution.intent.intent,
+          latencyMs,
+          phase: "tool_call",
+          status: "failed",
+          title: "Execute 工具校验失败",
+          toolName: executeToolName,
+        });
+        recordBackendTrace?.({
+          actionId: confirmedActionId ?? undefined,
+          error: {
+            message: capabilityResult.error ?? capabilityResult.summary,
+          },
+          intent: resolution.intent.intent,
+          latencyMs,
+          phase: "execute",
+          status: "failed",
+          title: "Execute 已阻止",
+          toolName: executeToolName,
+        });
+        pushTrace({
+          detail: capabilityResult.error ?? capabilityResult.summary,
+          id: "capability-execute-block",
+          kind: "error",
+          status: "error",
+          title: "Execute 能力校验失败",
+        });
+        const updatedThread = await persistAgentTurn({
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: resolution.intent.intent,
+          nextPendingAction: null,
+        });
+
+        return {
+          assistantMessage,
+          confidence: resolution.intent.confidence,
+          engine: resolution.engine,
+          intent: resolution.intent.intent,
+          pendingAction: null,
+          trace,
+          threadId: updatedThread.id,
+          tokenUsage,
+        };
+      }
+
       executedCapability?.(executeCapability);
+      execution = {
+        ...(capabilityResult.data && typeof capabilityResult.data === "object" && !Array.isArray(capabilityResult.data)
+          ? capabilityResult.data
+          : {}),
+        assistantMessage: capabilityResult.summary,
+        pendingAction: null,
+        status: "completed",
+      };
+    } else {
+      execution = await executeAgentIntent(resolution.intent, pushTrace, {
+        userId: user.id,
+      });
+
+      if (executeCapability && (confirmedActionId || executionApproved)) {
+        executedCapability?.(executeCapability);
+      }
     }
+  } catch (error) {
+    if (shouldTraceWriteExecution) {
+      const latencyMs = Date.now() - executeStartedAt;
+      const errorSummary = errorSummaryForTrace(error);
+      recordBackendTrace?.({
+        actionId: confirmedActionId ?? undefined,
+        error: errorSummary,
+        intent: resolution.intent.intent,
+        latencyMs,
+        phase: "tool_call",
+        status: "failed",
+        title: "Execute 工具调用失败",
+        toolName: executeToolName,
+      });
+      recordBackendTrace?.({
+        actionId: confirmedActionId ?? undefined,
+        error: errorSummary,
+        intent: resolution.intent.intent,
+        latencyMs,
+        phase: "execute",
+        status: "failed",
+        title: "Execute 失败",
+        toolName: executeToolName,
+      });
+    }
+
+    throw error;
+  }
+
+  if (shouldTraceWriteExecution) {
+    const latencyMs = Date.now() - executeStartedAt;
+    recordBackendTrace?.({
+      actionId: confirmedActionId ?? undefined,
+      intent: resolution.intent.intent,
+      latencyMs,
+      outputPreview: {
+        hasRollbackPayload: "rollbackPayload" in execution,
+        pendingActionType: execution.pendingAction?.type ?? null,
+        status: execution.status,
+      },
+      phase: "tool_call",
+      status: "success",
+      title: "Execute 工具调用完成",
+      toolName: executeToolName,
+    });
+    recordBackendTrace?.({
+      actionId: confirmedActionId ?? undefined,
+      intent: resolution.intent.intent,
+      latencyMs,
+      outputPreview: {
+        pendingActionType: execution.pendingAction?.type ?? null,
+        status: execution.status,
+      },
+      phase: "execute",
+      status: "success",
+      title: "已执行写入动作",
+      toolName: executeToolName,
+    });
   }
   const resolvedPending = execution.pendingAction ?? nextPendingAfterExecute ?? null;
   let assistantMessage =
@@ -493,6 +653,21 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     intent: resolution.intent.intent,
     nextPendingAction: resolvedPending,
   });
+  if (shouldTraceWriteExecution) {
+    recordBackendTrace?.({
+      actionId: confirmedActionId ?? undefined,
+      intent: resolution.intent.intent,
+      outputPreview: {
+        pendingActionType: resolvedPending?.type ?? null,
+        threadId: updatedThread.id,
+      },
+      phase: "receipt",
+      status: "success",
+      summary: "执行结果已经通过现有 Agent turn / receipt 链路记录。",
+      title: "已记录执行结果",
+      toolName: executeToolName,
+    });
+  }
 
   logAgentEvent("info", "chat.intent_executed", {
     confirmedActionId,
