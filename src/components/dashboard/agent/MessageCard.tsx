@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { AgentActivityTimeline } from "./AgentActivityTimeline";
 import { ActionResultCard } from "./ActionResultCard";
 import { AgentMarkdownBubble } from "./AgentMarkdownBubble";
 import { ChecklistCompletionCard } from "./ChecklistCompletionCard";
@@ -17,8 +18,10 @@ import { DashboardIcon } from "../icons";
 import type { ChecklistDraft } from "@/lib/agent/planning/checklist-draft";
 import type { PlanDraft } from "@/lib/agent/planning/draft";
 import type { ScheduleDraft } from "@/lib/agent/schedule/draft";
+import type { AgentActivityStep } from "@/lib/agent/activity";
 
 type MessageCardProps = {
+  activitySteps?: AgentActivityStep[];
   content: string;
   isStreaming?: boolean;
   isThinking?: boolean;
@@ -36,6 +39,7 @@ type MessageCardProps = {
 };
 
 export function MessageCard({
+  activitySteps = [],
   content,
   isStreaming,
   isThinking,
@@ -76,6 +80,9 @@ export function MessageCard({
   const thinkingSteps = hasThinking
     ? thinkingContent!.split(/\n{2,}/).filter(Boolean)
     : [];
+  const hasUserActivitySteps = activitySteps.some(
+    (step) => step.visibility !== "developer",
+  );
 
   const renderAssistantContent = () => {
     if (planningChecklistDraft && !isStreaming) {
@@ -106,7 +113,10 @@ export function MessageCard({
     if (!structuredCard) {
       return (
         <AgentMarkdownBubble
-          content={content || (isStreaming ? "正在生成回复..." : "")}
+          content={
+            content ||
+            (isStreaming && !hasUserActivitySteps ? "正在生成回复..." : "")
+          }
           isStreaming={isStreaming && Boolean(content)}
         />
       );
@@ -124,7 +134,10 @@ export function MessageCard({
       default:
         return (
           <AgentMarkdownBubble
-            content={content || (isStreaming ? "正在生成回复..." : "")}
+            content={
+              content ||
+              (isStreaming && !hasUserActivitySteps ? "正在生成回复..." : "")
+            }
             isStreaming={isStreaming && Boolean(content)}
           />
         );
@@ -144,7 +157,7 @@ export function MessageCard({
             <span className={`sunny-thinking-fold-arrow${thinkingOpen ? " is-open" : ""}`}>
               <DashboardIcon name="chevronDown" />
             </span>
-            <span className="sunny-thinking-icon"><DashboardIcon name="thinking" /></span> 思考过程
+            <span className="sunny-thinking-icon"><DashboardIcon name="thinking" /></span> 执行过程
             {thinkingSteps.length > 1 ? ` (${thinkingSteps.length} 步)` : ""}
           </button>
           {thinkingOpen ? (
@@ -155,7 +168,10 @@ export function MessageCard({
       {role === "user" ? (
         <p className="sunny-message-card-user-text">{content}</p>
       ) : (
-        renderAssistantContent()
+        <>
+          {renderAssistantContent()}
+          <AgentActivityTimeline steps={activitySteps} />
+        </>
       )}
     </div>
   );

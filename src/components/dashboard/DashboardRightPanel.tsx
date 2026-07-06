@@ -374,6 +374,7 @@ export function DashboardRightPanel({
           {activeInspectorTab === "trace" ? (
             <AgentTracePanel
               action={action}
+              activitySteps={latestAssistantMessage?.activitySteps ?? []}
               artifactsRollbackBusy={artifactsRollbackBusy}
               artifactsRollbackError={artifactsRollbackError}
               latestAssistantMessage={latestAssistantMessage}

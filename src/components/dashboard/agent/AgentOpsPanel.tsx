@@ -109,6 +109,14 @@ export function AgentOpsPanel({ limit = 20, snapshot: providedSnapshot }: AgentO
         <SummaryTile label="Failures" value={data.summary.failureCount} />
       </div>
 
+      <AppSection title="Activity / Trace">
+        <AppCard padding="sm" variant="quiet">
+          <p className="sunny-agent-ops-trace-note">
+            Activity 展示结构化执行状态，不展示隐藏推理链；详细步骤和脱敏 details 可在右侧 Trace 标签查看。
+          </p>
+        </AppCard>
+      </AppSection>
+
       <AppSection title="Recent Runs">
         {data.recentRuns.length === 0 ? (
           <EmptyState>暂无 AgentRun。</EmptyState>

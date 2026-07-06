@@ -650,6 +650,243 @@ html[data-theme="dark"] .sunny-agent-change-row{
 }html[data-theme="dark"] .sunny-agent-run-step-content,
 html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   background: var(--agent-control-bg);
+}.sunny-agent-activity-timeline{
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: color-mix(in oklch, var(--agent-control-bg) 88%, transparent);
+  padding: 0.62rem;
+}.sunny-agent-activity-timeline-head{
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}.sunny-agent-activity-timeline-head span{
+  display: block;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 650;
+}.sunny-agent-activity-timeline-head p,
+.sunny-agent-activity-copy p{
+  margin: 0.12rem 0 0;
+  color: var(--sunny-fg-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}.sunny-agent-activity-toggle{
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--sunny-fg-secondary);
+  cursor: pointer;
+  font-size: var(--text-2xs);
+  padding: 0.28rem 0.52rem;
+}.sunny-agent-activity-toggle:hover{
+  color: var(--foreground);
+  border-color: color-mix(in oklch, var(--accent) 36%, var(--border));
+}.sunny-agent-activity-list,
+.sunny-agent-activity-trace-list{
+  display: grid;
+  gap: 0.44rem;
+}.sunny-agent-activity-step{
+  display: grid;
+  grid-template-columns: 0.82rem minmax(0, 1fr);
+  gap: 0.6rem;
+  position: relative;
+}.sunny-agent-activity-marker{
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-top: 0.5rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-strong);
+}.sunny-agent-activity-step-running .sunny-agent-activity-marker{
+  border-color: var(--tone-info-text);
+  box-shadow: 0 0 0 4px var(--tone-info-bg);
+  animation: sunny-agent-presence 1.35s ease-out infinite;
+}.sunny-agent-activity-step-success .sunny-agent-activity-marker{
+  border-color: var(--tone-success-text);
+  background: var(--tone-success-bg);
+}.sunny-agent-activity-step-waiting .sunny-agent-activity-marker,
+.sunny-agent-activity-step-warning .sunny-agent-activity-marker{
+  border-color: var(--tone-warning-text);
+  background: var(--tone-warning-bg);
+}.sunny-agent-activity-step-failed .sunny-agent-activity-marker{
+  border-color: var(--tone-danger-text);
+  background: var(--tone-danger-bg);
+}.sunny-agent-activity-step-skipped .sunny-agent-activity-marker,
+.sunny-agent-activity-step-idle .sunny-agent-activity-marker,
+.sunny-agent-activity-step-queued .sunny-agent-activity-marker{
+  border-color: var(--sunny-fg-secondary);
+  opacity: 0.65;
+}.sunny-agent-activity-copy{
+  min-width: 0;
+  border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
+  border-radius: 0.58rem;
+  background: var(--surface);
+  padding: 0.5rem 0.56rem;
+}.sunny-agent-activity-step.is-compact .sunny-agent-activity-copy{
+  padding: 0.44rem 0.52rem;
+}.sunny-agent-activity-head{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+}.sunny-agent-activity-head h4{
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  line-height: 1.35;
+}.sunny-agent-activity-meta{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+  margin-top: 0.42rem;
+}.sunny-agent-activity-meta span{
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--sunny-fg-secondary);
+  font-size: var(--text-3xs);
+  padding: 0.12rem 0.34rem;
+}.sunny-agent-activity-error{
+  color: var(--tone-danger-text) !important;
+}.sunny-agent-activity-details{
+  margin-top: 0.48rem;
+  color: var(--sunny-fg-secondary);
+  font-size: var(--text-xs);
+}.sunny-agent-activity-details summary{
+  cursor: pointer;
+  color: var(--foreground);
+}.sunny-agent-activity-details dl{
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.45rem 0 0;
+}.sunny-agent-activity-details div{
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 0.36fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}.sunny-agent-activity-details dt{
+  color: var(--foreground);
+  font-weight: 600;
+}.sunny-agent-activity-details dd{
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}.sunny-agent-activity-trace-section{
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--agent-control-bg);
+  padding: 0.7rem;
+}.sunny-agent-ops-trace-note{
+  margin: 0;
+  color: var(--sunny-fg-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}@media (prefers-reduced-motion: reduce){
+  .sunny-agent-activity-step-running .sunny-agent-activity-marker{
+    animation: none;
+  }
+}.sunny-agent-activity-step{
+  animation: sunny-agent-activity-reveal 180ms ease-out both;
+}.sunny-agent-activity-timeline{
+  border: 0;
+  border-left: 1px solid color-mix(in oklch, var(--accent) 28%, var(--border));
+  border-radius: 0;
+  background: color-mix(in oklch, var(--agent-control-bg) 48%, transparent);
+  padding: 0.18rem 0 0.18rem 0.75rem;
+}.sunny-agent-activity-timeline-head{
+  margin-bottom: 0.38rem;
+}.sunny-agent-activity-list{
+  gap: 0.2rem;
+}.sunny-agent-activity-step{
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: 0.5rem;
+}.sunny-agent-activity-marker{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.86rem;
+  height: 0.86rem;
+  margin-top: 0.32rem;
+  border-width: 1px;
+  color: var(--sunny-fg-secondary);
+  font-size: var(--text-3xs);
+  font-weight: var(--font-weight-title);
+  line-height: 1;
+}.sunny-agent-activity-marker span{
+  transform: translateY(-0.01rem);
+}.sunny-agent-activity-copy{
+  border-color: transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  padding: 0.3rem 0.42rem;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}.sunny-agent-activity-step.is-compact .sunny-agent-activity-copy{
+  padding: 0.28rem 0.42rem;
+}.sunny-agent-activity-step[data-active="true"] .sunny-agent-activity-copy{
+  border-color: color-mix(in oklch, var(--accent) 18%, transparent);
+  background: color-mix(in oklch, var(--accent) 7%, transparent);
+}.sunny-agent-activity-step[data-active="true"] .sunny-agent-activity-head h4{
+  color: var(--foreground);
+}.sunny-agent-activity-head h4{
+  color: var(--sunny-fg-secondary);
+  font-weight: 600;
+}.sunny-agent-activity-state-label{
+  flex-shrink: 0;
+  color: var(--sunny-fg-secondary);
+  font-size: var(--text-3xs);
+  font-weight: var(--font-weight-ui);
+}.sunny-agent-activity-step-running .sunny-agent-activity-marker{
+  background: var(--tone-info-bg);
+  color: var(--tone-info-text);
+  animation: sunny-agent-activity-pulse 1.25s ease-out infinite;
+}.sunny-agent-activity-step-success .sunny-agent-activity-marker{
+  color: var(--tone-success-text);
+}.sunny-agent-activity-step-waiting .sunny-agent-activity-marker,
+.sunny-agent-activity-step-warning .sunny-agent-activity-marker{
+  color: var(--tone-warning-text);
+}.sunny-agent-activity-step-failed .sunny-agent-activity-marker{
+  color: var(--tone-danger-text);
+}.sunny-agent-activity-step-running .sunny-agent-activity-state-label{
+  color: var(--tone-info-text);
+}.sunny-agent-activity-step-success .sunny-agent-activity-state-label{
+  color: var(--tone-success-text);
+}.sunny-agent-activity-step-waiting .sunny-agent-activity-state-label,
+.sunny-agent-activity-step-warning .sunny-agent-activity-state-label{
+  color: var(--tone-warning-text);
+}.sunny-agent-activity-step-failed .sunny-agent-activity-state-label{
+  color: var(--tone-danger-text);
+}@media (prefers-reduced-motion: reduce){
+  .sunny-agent-activity-step{
+    animation: none;
+  }
+}@keyframes sunny-agent-activity-reveal{
+  from{
+    opacity: 0;
+    transform: translateY(0.18rem);
+  }
+  to{
+    opacity: 1;
+    transform: translateY(0);
+  }
+}@keyframes sunny-agent-activity-pulse{
+  0%{
+    box-shadow: 0 0 0 0 var(--tone-info-bg);
+    transform: scale(1);
+  }
+  70%{
+    box-shadow: 0 0 0 5px color-mix(in oklch, var(--tone-info-bg) 30%, transparent);
+    transform: scale(1.04);
+  }
+  100%{
+    box-shadow: 0 0 0 0 transparent;
+    transform: scale(1);
+  }
 }.sunny-agent-run-step-content > div{
   display: flex;
   align-items: center;

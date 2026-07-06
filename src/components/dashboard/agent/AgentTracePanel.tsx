@@ -1,6 +1,9 @@
 import type { AgentChatMessage, AgentTraceStep, ProposedAgentAction } from "@/lib/agent/schemas";
 import { canRollbackAgentRunDetail, formatAgentRunRollbackAction } from "@/lib/agent/run-summary";
+import type { AgentActivityStep } from "@/lib/agent/activity";
+import { AppSection } from "@/components/primitives/AppSection";
 
+import { AgentActivityStepItem } from "./AgentActivityStep";
 import { AgentArtifactsPanel } from "./AgentArtifactsPanel";
 import { PlanOperatingCard } from "./PlanOperatingCard";
 import { formatRunStepLevelLabel, traceKindLabelMap, traceStatusLabelMap } from "./constants";
@@ -13,6 +16,7 @@ import type { AgentRunDetail } from "./types";
 
 type AgentTracePanelProps = {
   action: null | ProposedAgentAction;
+  activitySteps?: AgentActivityStep[];
   artifactsRollbackBusy?: boolean;
   artifactsRollbackError?: null | string;
   lastRollbackResult?: AgentRollbackExecutionResult | null;
@@ -125,6 +129,7 @@ function AgentRunDetailCard({
 
 export function AgentTracePanel({
   action,
+  activitySteps = [],
   artifactsRollbackBusy = false,
   artifactsRollbackError = null,
   lastRollbackResult = null,
@@ -141,9 +146,10 @@ export function AgentTracePanel({
   traceSteps,
 }: AgentTracePanelProps) {
   const hasArtifacts = Boolean(action || latestAssistantMessage || lastRollbackPayload);
+  const hasActivitySteps = activitySteps.length > 0;
   const showDebugTrace = debugMode;
 
-  if (traceSteps.length === 0 && !hasArtifacts && !lastRollbackResult && !selectedRunDetail) {
+  if (traceSteps.length === 0 && !hasActivitySteps && !hasArtifacts && !lastRollbackResult && !selectedRunDetail) {
     return (
       <div className="sunny-agent-inspector-empty">
         <h3>等待执行详情</h3>
@@ -175,6 +181,19 @@ export function AgentTracePanel({
         />
       ) : null}
       {lastRollbackResult ? <RollbackResultCard result={lastRollbackResult} /> : null}
+      {hasActivitySteps ? (
+        <AppSection
+          className="sunny-agent-activity-trace-section"
+          description="结构化执行状态，不展示模型内部推理链。details 已做敏感字段脱敏。"
+          title="Activity Trace"
+        >
+          <div className="sunny-agent-activity-trace-list">
+            {activitySteps.map((step) => (
+              <AgentActivityStepItem key={step.id} showDetails step={step} />
+            ))}
+          </div>
+        </AppSection>
+      ) : null}
       {traceSteps.length > 0 ? (
         <div className="sunny-agent-trace-panel-list">
           {traceSteps.map((step) => (

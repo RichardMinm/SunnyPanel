@@ -14,6 +14,7 @@ import { useAgentChatMessaging } from "@/components/dashboard/agent-chat/use-age
 import { useDashboardUrlThreadSync } from "@/components/dashboard/agent-chat/use-dashboard-url-thread-sync";
 import { useAgentThreadList } from "@/components/dashboard/agent-chat/use-agent-thread";
 import { canRollbackAgentRunDetail } from "@/lib/agent/run-summary";
+import { attachAgentActivityStepsToMessages } from "@/lib/agent/activity";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
 import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type {
@@ -120,7 +121,7 @@ export function useAgentDashboardChat({
         setErrorMessage(null);
         setPendingAction(null);
         setThreadTitle("");
-        setMessages(initialMessages);
+        setMessages(attachAgentActivityStepsToMessages(initialMessages));
         setTokenUsage(
           createTokenUsageSnapshot({
             contextTokens: estimateMessagesTokenCount(initialMessages),
@@ -146,7 +147,12 @@ export function useAgentDashboardChat({
       setErrorMessage(null);
       setPendingAction(selectedThread.pendingAction);
       setThreadTitle(selectedThread.title || "");
-      setMessages(selectedThread.messages.length > 0 ? selectedThread.messages : initialMessages);
+      setMessages(
+        attachAgentActivityStepsToMessages(
+          selectedThread.messages.length > 0 ? selectedThread.messages : initialMessages,
+          selectedThread.pendingAction,
+        ),
+      );
       setTokenUsage(
         createTokenUsageSnapshot({
           contextTokens: estimateMessagesTokenCount(selectedThread.messages),

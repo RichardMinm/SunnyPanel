@@ -11,6 +11,11 @@ import {
 } from "@/components/dashboard/agent/rollback-display";
 import { readAgentChatStream } from "@/lib/agent/read-agent-chat-stream";
 import {
+  appendBackendTraceEventToActivitySteps,
+  attachActivityStepsToLastAssistantMessage,
+  buildAgentActivitySteps,
+} from "@/lib/agent/activity";
+import {
   attachPlanningChecklistDraftToLastAssistantMessage,
   attachPlanningDraftToLastAssistantMessage,
 } from "@/lib/agent/planning/draft-message";
@@ -23,6 +28,7 @@ import type {
   PendingAction,
 } from "@/lib/agent/schemas";
 import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
+import type { AgentTraceEventPayload } from "@/lib/agent/trace";
 import type {
   AgentStreamChangeEvent,
   AgentStreamProgressEvent,
@@ -192,6 +198,38 @@ export function useAgentChatMessaging({
     [setMessages],
   );
 
+  const appendRealtimeBackendTraceEvent = useCallback(
+    (event: AgentTraceEventPayload) => {
+      setMessages((current) => {
+        for (let index = current.length - 1; index >= 0; index -= 1) {
+          const message = current[index];
+
+          if (message.role !== "assistant") {
+            continue;
+          }
+
+          const nextMessages = [...current];
+          nextMessages[index] = {
+            ...message,
+            activitySteps: appendBackendTraceEventToActivitySteps(
+              message.activitySteps ?? [],
+              event,
+            ),
+          };
+
+          return nextMessages;
+        }
+
+        return current;
+      });
+
+      if (event.status === "started") {
+        setStatusText(event.title);
+      }
+    },
+    [setMessages, setStatusText],
+  );
+
   const stopGeneration = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -277,6 +315,7 @@ export function useAgentChatMessaging({
         const data = isStreamingResponse
           ? await readAgentChatStream(response, {
               appendAssistantToken: appendStreamingAssistantContent,
+              onBackendTraceEvent: appendRealtimeBackendTraceEvent,
               onChange: (event) => setStreamChanges((current) => [...current.slice(-11), event]),
               onDone: () => {},
               onErrorMessage: replaceStreamingAssistantContent,
@@ -318,6 +357,20 @@ export function useAgentChatMessaging({
         const planningChecklistDraft = responseData.planningChecklistDraft ?? null;
         const planningDraft = responseData.planningDraft ?? null;
         const schedulingDraft = responseData.schedulingDraft ?? null;
+        const activitySteps = responseData.activitySteps ?? buildAgentActivitySteps({
+          assistantMessage,
+          backendTraceEvents: responseData.backendTraceEvents ?? [],
+          intent: responseData.intent ?? null,
+          lastRollbackPayload:
+            "lastRollbackPayload" in responseData && responseData.lastRollbackPayload !== undefined
+              ? responseData.lastRollbackPayload
+              : null,
+          pendingAction: responseData.pendingAction ?? null,
+          planningChecklistDraft,
+          planningDraft,
+          schedulingDraft,
+          traceSteps: responseData.trace ?? [],
+        });
 
         if (!response.ok || !assistantMessage) {
           throw new Error(assistantMessage || "Agent 暂时没有返回可用结果。");
@@ -331,6 +384,7 @@ export function useAgentChatMessaging({
               ...(planningChecklistDraft ? { planningChecklistDraft } : {}),
               ...(planningDraft ? { planningDraft } : {}),
               ...(schedulingDraft ? { schedulingDraft } : {}),
+              ...(activitySteps.length > 0 ? { activitySteps } : {}),
               role: "assistant",
             },
           ]);
@@ -358,6 +412,9 @@ export function useAgentChatMessaging({
               responseData.pendingAction ?? null,
             ),
           );
+        }
+        if (isStreamingResponse && activitySteps.length > 0) {
+          setMessages((current) => attachActivityStepsToLastAssistantMessage(current, activitySteps));
         }
 
         setPendingAction(responseData.pendingAction ?? null);
@@ -425,6 +482,7 @@ export function useAgentChatMessaging({
     [
       activeSuggestionSource,
       appendStreamingAssistantContent,
+      appendRealtimeBackendTraceEvent,
       contextPreferences,
       isSubmitting,
       loadThread,

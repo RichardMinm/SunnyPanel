@@ -300,9 +300,8 @@ export function AgentConversation({
                     transition={{ duration: messageView.transition.duration }}
                   >
                     <MessageCard
-                      content={
-                        messageContent || (isSubmitting && index === messages.length - 1 ? "正在生成回复..." : "")
-                      }
+                      activitySteps={message.activitySteps}
+                      content={messageContent}
                       isStreaming={isStreamingMsg}
                       isThinking={isStreamingMsg && isThinking}
                       onChecklistDraftPrepareCreate={isSubmitting ? undefined : onChecklistDraftPrepareCreate}
