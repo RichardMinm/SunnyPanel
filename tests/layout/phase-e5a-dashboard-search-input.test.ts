@@ -288,7 +288,7 @@ describe("CSS — sidebar search AppSearchInput compatibility", () => {
     assert.ok(rule, "Compound selector for sidebar search wrapper should exist");
     assert.match(rule![0], /border-color/);
     assert.match(rule![0], /border-radius:\s*0\.5rem/);
-    assert.match(rule![0], /padding:\s*0\s+0\.5rem/);
+    assert.match(rule![0], /padding:\s*0\s+0\.45rem/);
     assert.match(rule![0], /min-height:\s*unset/);
   });
 
@@ -306,7 +306,7 @@ describe("CSS — sidebar search AppSearchInput compatibility", () => {
     );
     assert.ok(rule, "Field override should exist");
     assert.match(rule![0], /font-size:\s*var\(--text-xs\)/);
-    assert.match(rule![0], /padding:\s*0\.35rem\s+0/);
+    assert.match(rule![0], /padding:\s*0\.28rem\s+0/);
     assert.match(rule![0], /color:\s*var\(--foreground\)/);
   });
 

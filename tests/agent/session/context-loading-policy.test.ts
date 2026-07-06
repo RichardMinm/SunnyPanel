@@ -102,6 +102,14 @@ test("query_schedule → schedules section with dateRange", () => {
     workbenchMode: null,
   });
   assert.equal(policy3.meta.dateRange?.type, "this_week");
+
+  /* General recent/upcoming schedule query defaults to upcoming 7 days */
+  const policy4 = resolveContextLoadingPolicy({
+    message: "帮我查看最近的日程安排",
+    workbenchMode: null,
+  });
+  assert.equal(policy4.meta.dateRange?.type, "upcoming");
+  assert.equal(policy4.meta.dateRange?.days, 7);
 });
 
 /* ═══════════════════════════════════════════════════════════════════════

@@ -111,10 +111,9 @@ describe("Dashboard layout contracts", () => {
     assert.match(sidebar, /sunny-sidebar-pin-button is-square/);
     assert.match(sidebar, /sunny-dashboard-sidebar-brand-row/);
     assert.match(sidebar, /handleTogglePin/);
-    assert.doesNotMatch(
-      sidebar,
-      /sunny-dashboard-icon-bar-bottom[\s\S]*?sunny-sidebar-pin-button/,
-    );
+    const sidebarBottom = sidebar.match(/const sidebarBottom = \([\s\S]*?\n\s*\);/);
+    assert.ok(sidebarBottom, "sidebar bottom region should be declared");
+    assert.doesNotMatch(sidebarBottom[0], /sunny-sidebar-pin-button/);
     assert.match(sidebar, /sunny-dashboard-sidebar-settings-trigger/);
 
     // CSS variables
@@ -139,6 +138,62 @@ describe("Dashboard layout contracts", () => {
       shellCss,
       /\.sunny-dashboard-shell\.is-sidebar-expanded[\s\S]*grid-template-columns:\s*var\(--dashboard-sidebar-width\)/,
     );
+  });
+
+  test("Sidebar settings are pinned in AppSidebar bottom slot", () => {
+    const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
+
+    assert.match(
+      sidebar,
+      /const sidebarBottom = \([\s\S]*sunny-dashboard-icon-bar-bottom[\s\S]*DashboardSettingsMenu/,
+    );
+    assert.match(sidebar, /<AppSidebar[\s\S]*bottom=\{sidebarBottom\}/);
+  });
+
+  test("Sidebar tooltips only render for collapsed icon-only navigation", () => {
+    const sidebar = read("src/components/dashboard/DashboardIconBar.tsx");
+    const sidebarItem = read("src/components/layout/SidebarItem.tsx");
+
+    assert.match(sidebarItem, /showTooltip\?: boolean/);
+    assert.match(sidebarItem, /showTooltip = true/);
+    assert.match(sidebarItem, /if \(tooltip\)/);
+    assert.match(sidebarItem, /if \(!showTooltip\) return element/);
+    assert.match(sidebar, /const showSidebarTooltips = stripCollapsed && !hoverExpanded/);
+    assert.match(sidebar, /tooltip="新对话"[\s\S]*showTooltip=\{showSidebarTooltips\}/);
+    assert.match(sidebar, /tooltip=\{mode\.label\}[\s\S]*showTooltip=\{showSidebarTooltips\}/);
+    assert.match(sidebar, /tooltip="设置"[\s\S]*showTooltip=\{showSidebarTooltips\}/);
+  });
+
+  test("Sidebar visual polish keeps settings aligned and navigation hierarchy quiet", () => {
+    const css = read("src/app/styles/sunny-dashboard-shell.css");
+
+    const bottomRule = css.match(/\.sunny-dashboard-icon-bar-bottom\s*\{[^}]*\}/s);
+    assert.ok(bottomRule);
+    assert.match(bottomRule[0], /align-items:\s*stretch/);
+
+    const topRule = css.match(/\.sunny-dashboard-sidebar-top\s*\{[^}]*\}/s);
+    assert.ok(topRule);
+    assert.match(topRule[0], /gap:\s*0\.65rem/);
+
+    const titleRule = css.match(/\.sunny-dashboard-sidebar-section p\s*\{[^}]*\}/s);
+    assert.ok(titleRule);
+    assert.match(titleRule[0], /font-weight:\s*500/);
+    assert.match(titleRule[0], /letter-spacing:\s*0/);
+
+    const iconRule = css.match(/\.sunny-dashboard-icon-bar \.app-sidebar-item__icon\s*\{[^}]*\}/s);
+    assert.ok(iconRule);
+    assert.match(iconRule[0], /width:\s*1\.1rem/);
+    assert.match(iconRule[0], /color:\s*var\(--muted\)/);
+
+    const searchRule = css.match(/\.sunny-dashboard-search-wrapper\.app-input\s*\{[^}]*\}/s);
+    assert.ok(searchRule);
+    assert.match(searchRule[0], /border-color:\s*color-mix\(in oklch, var\(--border\) 38%/);
+    assert.match(searchRule[0], /background:\s*color-mix\(in oklch, var\(--muted\) 4%/);
+
+    const collapseRule = css.match(/\.sunny-dashboard-sidebar-collapse-toggle\s*\{[^}]*\}/s);
+    assert.ok(collapseRule);
+    assert.match(collapseRule[0], /font-weight:\s*520/);
+    assert.match(collapseRule[0], /padding:\s*0\.3rem 0\.5rem/);
   });
 
   test("Session sidebar is limited to workbench mode", () => {

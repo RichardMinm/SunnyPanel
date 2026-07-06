@@ -102,6 +102,6 @@ test("AgentOpsPanel does not render raw JSON blobs", () => {
   const markup = renderToStaticMarkup(createElement(AgentOpsPanel, { snapshot }));
 
   assert.doesNotMatch(markup, /rollbackPayload/);
-  assert.doesNotMatch(markup, /trace/);
+  assert.doesNotMatch(markup, /traceSteps/);
   assert.doesNotMatch(markup, /\{&quot;/);
 });

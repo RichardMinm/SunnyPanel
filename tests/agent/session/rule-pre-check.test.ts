@@ -166,7 +166,9 @@ test("isScheduleQueryMessage matches schedule queries", () => {
   assert.equal(isScheduleQueryMessage("明天有什么安排"), true);
   assert.equal(isScheduleQueryMessage("看看我这周的日程"), true);
   assert.equal(isScheduleQueryMessage("查看日程"), true);
+  assert.equal(isScheduleQueryMessage("帮我查看最近的日程安排"), true);
   assert.equal(isScheduleQueryMessage("最近有什么安排"), true);
+  assert.equal(isScheduleQueryMessage("日程安排"), true);
   assert.equal(isScheduleQueryMessage("本周日程"), true);
   assert.equal(isScheduleQueryMessage("下周日程"), true);
   assert.equal(isScheduleQueryMessage("今天我要做什么"), true);
@@ -197,6 +199,7 @@ test("isScheduleCreateMessage matches schedule creation", () => {
 test("isScheduleCreateMessage rejects schedule queries", () => {
   assert.equal(isScheduleCreateMessage("今天有什么安排"), false);
   assert.equal(isScheduleCreateMessage("明天有什么日程"), false);
+  assert.equal(isScheduleCreateMessage("帮我查看最近的日程安排"), false);
   assert.equal(isScheduleCreateMessage("查看日程"), false);
   assert.equal(isScheduleCreateMessage("看看我这周的日程"), false);
 });

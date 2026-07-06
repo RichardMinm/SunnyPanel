@@ -2,20 +2,20 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { parseComposeScheduleItemIntent } from "../../src/lib/agent/intent/heuristics/plan-schedule";
-import { dryRunAgentIntent } from "../../src/lib/agent/safety";
-import { restoreConfirmedIntent } from "../../src/lib/agent/chat-pipeline/confirmation-step";
-import type { AgentToolDryRunContext } from "../../src/lib/agent/tool-registry";
+import { parseComposeScheduleItemIntent } from "../../../src/lib/agent/intent/heuristics/plan-schedule";
+import { dryRunAgentIntent } from "../../../src/lib/agent/safety";
+import { restoreConfirmedIntent } from "../../../src/lib/agent/chat-pipeline/confirmation-step";
+import type { AgentToolDryRunContext } from "../../../src/lib/agent/tool-registry";
 import {
   composeScheduleProposal,
   composeScheduleProposalAsync,
-} from "../../src/lib/agent/workflows/schedule-composer";
+} from "../../../src/lib/agent/workflows/schedule-composer";
 import {
   getScheduleProposalFromAction,
   parseScheduleResultMessage,
   type ScheduleResultSummary,
-} from "../../src/components/dashboard/agent/utils";
-import type { ProposedAgentAction, ScheduleProposal } from "../../src/lib/agent/schemas";
+} from "../../../src/components/dashboard/agent/utils";
+import type { ProposedAgentAction, ScheduleProposal } from "../../../src/lib/agent/schemas";
 
 const userMessage = "今天晚上五点钟创建日程，上产品经理课程";
 const fixedNow = "2026-06-08T04:00:00.000Z";
@@ -30,9 +30,7 @@ const dryRunContext: AgentToolDryRunContext = {
   resolveChecklistItem: async () => ({ question: null, resolved: null }),
 };
 
-// ─── Phase 1: Intent Resolution ───
-
-test("Phase 1: parseComposeScheduleItemIntent resolves to compose_schedule_item", () => {
+test("legacy schedule pipeline resolves compose_schedule_item from a single-item request", () => {
   const intent = parseComposeScheduleItemIntent(userMessage);
 
   assert.ok(intent, "intent should not be null");
@@ -43,9 +41,7 @@ test("Phase 1: parseComposeScheduleItemIntent resolves to compose_schedule_item"
   assert.equal(intent?.args.title, null);
 });
 
-// ─── Phase 2: Proposal Generation ───
-
-test("Phase 2a: composeScheduleProposal produces correct date/time/title", () => {
+test("legacy schedule pipeline composes a deterministic proposal", () => {
   const proposal = composeScheduleProposal({ sourceText: userMessage }, { now: fixedNow });
 
   assert.equal(proposal.date, "2026-06-08");
@@ -58,7 +54,7 @@ test("Phase 2a: composeScheduleProposal produces correct date/time/title", () =>
   assert.deepEqual(proposal.conflicts, []);
 });
 
-test("Phase 2b: composeScheduleProposalAsync with LLM args override still yields 17:00", async () => {
+test("legacy schedule pipeline keeps source text time over LLM args", async () => {
   // Simulate LLM returning 09:00-10:30 — the rule-based source parsing should win
   const proposal = await composeScheduleProposalAsync(
     {
@@ -75,9 +71,7 @@ test("Phase 2b: composeScheduleProposalAsync with LLM args override still yields
   assert.equal(proposal.title, "产品经理课程");
 });
 
-// ─── Phase 3: Dry-Run → ProposedAction ───
-
-test("Phase 3: dryRunAgentIntent produces proposed_action with correct snapshot", async () => {
+test("legacy schedule pipeline dry-run produces a confirmable proposed action", async () => {
   const result = await dryRunAgentIntent(
     {
       args: {
@@ -127,9 +121,7 @@ test("Phase 3: dryRunAgentIntent produces proposed_action with correct snapshot"
   assert.equal(doc.operation, "create");
 });
 
-// ─── Phase 4: Confirmation → Restore Intent ───
-
-test("Phase 4a: restoreConfirmedIntent restores schedule intent with proposal from afterSnapshot", () => {
+test("legacy schedule pipeline restores confirmed intent from proposal snapshot", () => {
   // Build a ProposedAgentAction as the dry-run would produce
   const proposedAction: ProposedAgentAction = {
     id: "pipeline-test-action",
@@ -198,7 +190,7 @@ test("Phase 4a: restoreConfirmedIntent restores schedule intent with proposal fr
   assert.equal((restoredIntent.args as Record<string, unknown>).startTime, "09:00");
 });
 
-test("Phase 4b: restoreConfirmedIntent without required fields throws", () => {
+test("legacy schedule pipeline restores args-only confirmed intent gracefully", () => {
   // create_plan requires a title — without it, the restore should throw
   const proposedAction: ProposedAgentAction = {
     id: "no-title-action",
@@ -225,9 +217,7 @@ test("Phase 4b: restoreConfirmedIntent without required fields throws", () => {
   assert.equal(restoredIntent.intent, "compose_schedule_item");
 });
 
-// ─── Phase 5: Result Message Parsing ───
-
-test("Phase 5a: parseScheduleResultMessage extracts date/time/title from execution result", () => {
+test("legacy schedule result parser extracts date time and title from execution text", () => {
   const proposal = composeScheduleProposal({ sourceText: userMessage }, { now: fixedNow });
 
   const assistantMessage = `已创建日程「${proposal.title}」：${proposal.date} ${proposal.startTime}-${proposal.endTime}。`;
@@ -240,15 +230,13 @@ test("Phase 5a: parseScheduleResultMessage extracts date/time/title from executi
   } satisfies ScheduleResultSummary);
 });
 
-test("Phase 5b: parseScheduleResultMessage returns null for non-schedule messages", () => {
+test("legacy schedule result parser ignores non-result messages", () => {
   assert.equal(parseScheduleResultMessage("这是一条普通回复。"), null);
   assert.equal(parseScheduleResultMessage(""), null);
   assert.equal(parseScheduleResultMessage("已创建日程「test」"), null); // missing date/time
 });
 
-// ─── Phase 6: Utility Functions ───
-
-test("Phase 6a: getScheduleProposalFromAction extracts proposal from afterSnapshot", () => {
+test("legacy schedule UI helper reads proposal from afterSnapshot", () => {
   const proposal: ScheduleProposal = {
     conflicts: [],
     date: "2026-06-08",
@@ -284,7 +272,7 @@ test("Phase 6a: getScheduleProposalFromAction extracts proposal from afterSnapsh
   assert.deepEqual(extracted, proposal);
 });
 
-test("Phase 6b: getScheduleProposalFromAction returns null for non-schedule intents", () => {
+test("legacy schedule UI helper ignores non-schedule intents", () => {
   const action: ProposedAgentAction = {
     id: "test",
     intent: "compose_plan",
@@ -304,7 +292,7 @@ test("Phase 6b: getScheduleProposalFromAction returns null for non-schedule inte
   assert.equal(getScheduleProposalFromAction(action), null);
 });
 
-test("Phase 6c: getScheduleProposalFromAction falls back to args.proposal", () => {
+test("legacy schedule UI helper falls back to args proposal", () => {
   const proposal: ScheduleProposal = {
     conflicts: [],
     date: "2026-06-08",
@@ -340,9 +328,7 @@ test("Phase 6c: getScheduleProposalFromAction falls back to args.proposal", () =
   assert.deepEqual(extracted, proposal);
 });
 
-// ─── Phase 7: Component Source Verification ───
-
-test("Phase 7: Dashboard components wire schedule UI correctly", () => {
+test("architecture guard: legacy schedule result and approval UI remain wired", () => {
   const read = (relativePath: string) => readFileSync(relativePath, "utf8");
 
   const messageCard = read("src/components/dashboard/agent/MessageCard.tsx");

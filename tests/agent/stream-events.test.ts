@@ -16,6 +16,7 @@ import type {
   AgentTraceStep,
   PendingAction,
 } from "../../src/lib/agent/schemas";
+import type { AgentTraceEventPayload } from "../../src/lib/agent/trace";
 
 const encodeBlock = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
@@ -155,6 +156,52 @@ test("readAgentChatStream routes stream stage events without mixing progress int
   assert.equal(tokenUsages.length, 1);
 });
 
+test("readAgentChatStream routes realtime backend activity events", async () => {
+  const activityEvents: AgentTraceEventPayload[] = [];
+  const response = createStreamResponse([
+    encodeBlock("activity", {
+      createdAt: "2026-07-05T00:00:00.000Z",
+      inputPreview: {
+        authorization: "Bearer should-not-render",
+      },
+      intent: "query_schedule",
+      phase: "api_call",
+      status: "started",
+      summary: "正在查询本地日程",
+      threadId: "thread-activity",
+      title: "正在查询本地日程",
+    } satisfies AgentTraceEventPayload),
+    encodeBlock("done", {
+      assistantMessage: "完成",
+      engine: "workflow",
+      intent: "query_schedule",
+      pendingAction: null,
+    }),
+  ]);
+
+  await readAgentChatStream(response, {
+    appendAssistantToken: () => undefined,
+    onBackendTraceEvent: (event) => activityEvents.push(event),
+    onDone: () => undefined,
+    onErrorMessage: () => undefined,
+    onMeta: () => undefined,
+    onStatus: () => undefined,
+    onStreamStart: () => undefined,
+    onThinkingToken: () => undefined,
+    onTokenUsage: () => undefined,
+    onTraceStep: () => undefined,
+    replaceAssistantContent: () => undefined,
+    setStreamingState: () => undefined,
+  });
+
+  assert.equal(activityEvents.length, 1);
+  assert.equal(activityEvents[0].phase, "api_call");
+  assert.equal(activityEvents[0].intent, "query_schedule");
+  assert.deepEqual(activityEvents[0].inputPreview, {
+    authorization: "[redacted]",
+  });
+});
+
 test("createAgentChatStream exposes stage, progress, and change events from the runner", async () => {
   const response = createAgentChatStream(async (_status, _trace, _usage, _token, emitStage, emitProgress, emitChange) => {
     emitStage({
@@ -189,6 +236,42 @@ test("createAgentChatStream exposes stage, progress, and change events from the 
   assert.match(body, /event: stage\ndata: .*"phase":"arbitration"/);
   assert.match(body, /event: progress\ndata: .*"message":"仲裁结果：直接回答"/);
   assert.match(body, /event: change\ndata: .*"summary":"预览低风险更新"/);
+  assert.match(body, /event: done\ndata: .*"assistantMessage":"完成"/);
+});
+
+test("createAgentChatStream emits realtime backend activity events from the runner", async () => {
+  const response = createAgentChatStream(async (
+    _status,
+    _trace,
+    _usage,
+    _token,
+    _emitStage,
+    _emitProgress,
+    _emitChange,
+    emitActivity,
+  ) => {
+    emitActivity({
+      createdAt: "2026-07-05T00:00:00.000Z",
+      intent: "create_schedule_items",
+      phase: "dry_run",
+      status: "started",
+      summary: "正在 dry-run",
+      threadId: "thread-stream-activity",
+      title: "正在 dry-run",
+    });
+
+    return {
+      assistantMessage: "完成",
+      engine: "workflow",
+      intent: "create_schedule_items",
+      pendingAction: null,
+    };
+  });
+
+  const body = await response.text();
+
+  assert.match(body, /event: activity\ndata: .*"phase":"dry_run"/);
+  assert.match(body, /event: activity\ndata: .*"status":"started"/);
   assert.match(body, /event: done\ndata: .*"assistantMessage":"完成"/);
 });
 

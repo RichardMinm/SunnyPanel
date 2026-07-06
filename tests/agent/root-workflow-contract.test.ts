@@ -68,7 +68,7 @@ const weeklySnapshot: WeeklyReviewSnapshot = {
   ],
 };
 
-test("weekly review generates PlanReview payload", async () => {
+test("weekly review workflow contract generates PlanReview payload", async () => {
   const capturedReviews: Array<Record<string, unknown>> = [];
 
   const result = await runWeeklyReviewWorkflow(
@@ -103,7 +103,7 @@ test("weekly review generates PlanReview payload", async () => {
   assert.equal(result.reviewId, 45);
 });
 
-test("timeline composer proposal includes required fields", () => {
+test("timeline composer workflow contract includes required proposal fields", () => {
   const proposal = composeTimelineEventProposal(
     {
       sourceId: 7,

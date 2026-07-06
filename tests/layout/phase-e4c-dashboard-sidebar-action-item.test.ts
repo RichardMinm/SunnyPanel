@@ -41,7 +41,7 @@ describe("DashboardIconBar — 新对话 button SidebarItem replacement", () => 
     assert.match(sidebarItemSrc, /type="button"/);
     /* Verify no href on the 新对话 SidebarItem */
     const actionItem = source.match(
-      /<SidebarItem[\s\S]*?label="新对话"[\s\S]*?\/>/,
+      /<SidebarItem(?:(?!<SidebarItem)[\s\S])*label="新对话"(?:(?!<SidebarItem)[\s\S])*?\/>/,
     );
     assert.ok(actionItem);
     assert.doesNotMatch(actionItem![0], /href=/);
@@ -213,8 +213,8 @@ describe("CSS — sidebar-action SidebarItem compound selector", () => {
       /\.sunny-dashboard-sidebar-action\.app-sidebar-item\s*\{[^}]*\}/s,
     );
     assert.ok(rule);
-    assert.match(rule![0], /gap:\s*0\.65rem/);
-    assert.match(rule![0], /min-height:\s*2rem/);
+    assert.match(rule![0], /gap:\s*0\.55rem/);
+    assert.match(rule![0], /min-height:\s*1\.9rem/);
     assert.match(rule![0], /padding:\s*0\s+0\.5rem/);
     assert.match(rule![0], /border-radius:\s*0\.55rem/);
   });
