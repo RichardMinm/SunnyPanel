@@ -72,6 +72,7 @@ export function DashboardIconBar({
   const stripCollapsed = !pinned;
   const isWritingMode = activeMode === "writing";
   const showSessionSidebar = activeMode === "agent";
+  const showSidebarTooltips = stripCollapsed && !hoverExpanded;
 
   // Nav-only classes; shell layout classes live on AppShell to survive panel re-renders
   useEffect(() => {
@@ -188,12 +189,39 @@ export function DashboardIconBar({
     }
   }, [deleteTarget, onDeleteThread]);
 
+  const sidebarBottom = (
+    <div className="sunny-dashboard-icon-bar-bottom sunny-dashboard-sidebar-bottom">
+      {isWritingMode ? <WritingSidebarBottomRail /> : null}
+      {!isWritingMode ? (
+        <div className="sunny-dashboard-sidebar-settings-row sunny-dashboard-settings">
+          <DashboardSettingsMenu
+            locale={locale}
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
+            palette={palette}
+            triggerAsChild
+            trigger={
+              <SidebarItem
+                className="sunny-dashboard-sidebar-action sunny-dashboard-sidebar-settings-trigger"
+                icon={<DashboardIcon name="settings" />}
+                label="设置"
+                tooltip="设置"
+                showTooltip={showSidebarTooltips}
+              />
+            }
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+
   return (
     <>
     <AppSidebar
       ref={navRef}
       className={`sunny-dashboard-icon-bar sunny-sidebar-nav sunny-dashboard-sidebar${isWritingMode ? " is-writing-mode" : ""}`}
       aria-label="工作台导航"
+      bottom={sidebarBottom}
       onMouseEnter={handleSidebarMouseEnter}
       onMouseLeave={handleSidebarMouseLeave}
     >
@@ -202,8 +230,8 @@ export function DashboardIconBar({
           <Link
             href="/dashboard"
             className="sunny-dashboard-project-row"
-            title="SunnyPanel"
-            aria-label="SunnyPanel 首页"
+            title="返回 SunnyPanel 工作台首页"
+            aria-label="返回 SunnyPanel 工作台首页"
           >
             <span className="sunny-dashboard-project-mark">S</span>
             <span>SunnyPanel</span>
@@ -232,6 +260,7 @@ export function DashboardIconBar({
               label="新对话"
               onClick={onNewThread}
               tooltip="新对话"
+              showTooltip={showSidebarTooltips}
             />
           </div>
         </SidebarSection>
@@ -278,6 +307,7 @@ export function DashboardIconBar({
                 label={mode.label}
                 onClick={() => onModeChange(mode.key, mode.prompt)}
                 tooltip={mode.label}
+                showTooltip={showSidebarTooltips}
               />
             ))}
           </div>
@@ -368,29 +398,6 @@ export function DashboardIconBar({
           ) : null}
         </section>
           </>
-        ) : null}
-      </div>
-
-      <div className="sunny-dashboard-icon-bar-bottom sunny-dashboard-sidebar-bottom">
-        {isWritingMode ? <WritingSidebarBottomRail /> : null}
-        {!isWritingMode ? (
-          <div className="sunny-dashboard-sidebar-settings-row sunny-dashboard-settings">
-            <DashboardSettingsMenu
-              locale={locale}
-              open={settingsOpen}
-              onOpenChange={setSettingsOpen}
-              palette={palette}
-              triggerAsChild
-              trigger={
-                <SidebarItem
-                  className="sunny-dashboard-sidebar-action sunny-dashboard-sidebar-settings-trigger"
-                  icon={<DashboardIcon name="settings" />}
-                  label="设置"
-                  tooltip="设置"
-                />
-              }
-            />
-          </div>
         ) : null}
       </div>
     </AppSidebar>

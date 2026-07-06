@@ -16,6 +16,7 @@ export type SidebarItemProps = Omit<HTMLAttributes<HTMLElement>, "onClick"> & {
   label?: ReactNode;
   nested?: boolean;
   onClick?: (event: MouseEvent) => void;
+  showTooltip?: boolean;
   target?: string;
   tooltip?: string;
 };
@@ -33,6 +34,7 @@ export const SidebarItem = forwardRef<HTMLAnchorElement | HTMLButtonElement, Sid
       label,
       nested = false,
       onClick,
+      showTooltip = true,
       target,
       tooltip,
       ...props
@@ -97,6 +99,8 @@ export const SidebarItem = forwardRef<HTMLAnchorElement | HTMLButtonElement, Sid
     );
 
     if (tooltip) {
+      if (!showTooltip) return element;
+
       return (
         <AppTooltip content={tooltip} side="right">
           {element}

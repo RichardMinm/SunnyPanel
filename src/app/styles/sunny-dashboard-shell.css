@@ -101,10 +101,18 @@ position: relative;
 }
 
 .sunny-dashboard-icon-bar .app-sidebar__body {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
   padding: 0;
+}
+
+.sunny-dashboard-icon-bar .app-sidebar__bottom {
+  width: 100%;
+  padding: 0;
+  border-top: 0;
 }
 
 /* Auto-collapsed sidebar visual state */
@@ -227,7 +235,7 @@ display: flex;
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.65rem;
   overflow: hidden;
   padding-bottom: 0.35rem;
 }
@@ -262,11 +270,11 @@ gap: 0.55rem;
   font-weight: 650;
 }
 
-.sunny-dashboard-project-row:hover
-.sunny-dashboard-sidebar-action:hover
-.sunny-dashboard-mode-row:hover
+.sunny-dashboard-project-row:hover,
+.sunny-dashboard-sidebar-action:hover,
+.sunny-dashboard-mode-row:hover,
 .sunny-dashboard-thread-row:hover {
-background: color-mix(in oklch, var(--foreground) 6%, transparent);
+background: color-mix(in oklch, var(--foreground) 4%, transparent);
 }
 
 .sunny-dashboard-project-row.is-static {
@@ -279,27 +287,38 @@ display: inline-flex;
   justify-content: center;
   width: 1.35rem;
   height: 1.35rem;
-  border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 64%, transparent);
   border-radius: 0.42rem;
-  background: var(--surface-strong);
-  color: var(--accent);
+  background: color-mix(in oklch, var(--surface-strong) 72%, transparent);
+  color: color-mix(in oklch, var(--accent) 72%, var(--muted));
   font-size: var(--text-2xs);
-  font-weight: 800;
+  font-weight: 720;
   flex: 0 0 auto;
 }
 
 .sunny-dashboard-sidebar-actions {
 display: grid;
-  gap: 0.2rem;
+  gap: 0.12rem;
 }
 
 .sunny-dashboard-sidebar-action {
-gap: 0.65rem;
-  min-height: 2rem;
+gap: 0.55rem;
+  min-height: 1.9rem;
   padding: 0 0.5rem;
   border-radius: 0.55rem;
   font-size: var(--text-sm-compact);
   font-weight: 500;
+}
+
+.sunny-dashboard-icon-bar .app-sidebar-item__icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--muted);
+}
+
+.sunny-dashboard-icon-bar .app-sidebar-item__icon .sunny-dashboard-nav-icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 .sunny-dashboard-sidebar-icon {
@@ -334,7 +353,7 @@ border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
 
 .sunny-dashboard-sidebar-section {
 display: grid;
-  gap: 0.22rem;
+  gap: 0.14rem;
 }
 
 /* Phase E3: SidebarSection compatibility — preserve grid layout when SidebarSection adds app-sidebar-section class.
@@ -342,7 +361,7 @@ display: grid;
    This compound selector (0-2-0) beats both single-class selectors (0-1-0). */
 .sunny-dashboard-sidebar-section.app-sidebar-section {
   display: grid;
-  gap: 0.22rem;
+  gap: 0.14rem;
 }
 
 /* Phase E3: prevent SidebarSection's adjacent-sibling margin from adding extra space
@@ -354,9 +373,10 @@ display: grid;
 .sunny-dashboard-sidebar-section p {
 margin: 0;
   padding: 0 0.5rem 0.1rem;
-  color: color-mix(in oklch, var(--muted) 82%, transparent);
+  color: color-mix(in oklch, var(--muted) 72%, transparent);
   font-size: var(--text-2xs);
-  font-weight: 650;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .sunny-dashboard-sidebar-collapse-toggle {
@@ -364,19 +384,19 @@ display: flex;
   align-items: center;
   gap: 0.35rem;
   width: 100%;
-  padding: 0.4rem 0.5rem;
+  padding: 0.3rem 0.5rem;
   background: none;
   border: none;
   cursor: pointer;
   font-size: var(--text-2xs);
-  font-weight: 650;
-  color: color-mix(in oklch, var(--muted) 82%, transparent);
+  font-weight: 520;
+  color: color-mix(in oklch, var(--muted) 74%, transparent);
   text-align: left;
 }
 
 .sunny-dashboard-sidebar-collapse-toggle:hover {
 color: var(--foreground);
-  background: color-mix(in oklch, var(--foreground) 6%, transparent);
+  background: color-mix(in oklch, var(--foreground) 4%, transparent);
   border-radius: 0.55rem;
 }
 
@@ -405,12 +425,12 @@ color: var(--foreground);
 
 .sidebar-collapse-toggle__count {
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 450;
 }
 
 .sunny-dashboard-mode-list {
 display: grid;
-  gap: 0.18rem;
+  gap: 0.12rem;
 }
 
 .sunny-dashboard-mode-row {
@@ -441,8 +461,8 @@ position: relative;
    Compound selector (0-2-0) beats both single-class selectors (0-1-0). */
 .sunny-dashboard-sidebar-action.app-sidebar-item {
   font-size: var(--text-sm-compact);
-  gap: 0.65rem;
-  min-height: 2rem;
+  gap: 0.55rem;
+  min-height: 1.9rem;
   padding: 0 0.5rem;
   border-radius: 0.55rem;
 }
@@ -492,7 +512,7 @@ flex: 0 0 auto;
 .sunny-dashboard-thread-list {
 display: grid;
   flex: 1 1 auto;
-  gap: 0.22rem;
+  gap: 0.14rem;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -522,12 +542,12 @@ font-size: var(--text-xs);
 
 .sunny-dashboard-thread-row small,
 .sunny-dashboard-empty-label {
-color: var(--muted);
+color: color-mix(in oklch, var(--muted) 76%, transparent);
   font-size: var(--text-2xs);
 }
 
 .sunny-dashboard-empty-label {
-padding: 0.35rem 0.5rem;
+padding: 0.25rem 0.5rem;
 }
 
 .sunny-dashboard-sidebar-bottom {
@@ -550,8 +570,8 @@ background: var(--surface);
 .sunny-dashboard-icon-bar-bottom {
 display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
+  align-items: stretch;
+  gap: 0.2rem;
   margin-top: auto;
   flex-shrink: 0;
 }
@@ -925,15 +945,15 @@ display: flex;
 .sunny-dashboard-search-wrapper {
 display: flex;
   align-items: center;
-  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 38%, transparent);
   border-radius: 0.5rem;
-  background: color-mix(in oklch, var(--muted) 8%, transparent);
-  padding: 0 0.5rem;
+  background: color-mix(in oklch, var(--muted) 4%, transparent);
+  padding: 0 0.45rem;
   transition: border-color 160ms ease;
 }
 
 .sunny-dashboard-search-wrapper:focus-within {
-border-color: color-mix(in oklch, var(--accent-ring-strong, var(--accent)) 45%, transparent);
+border-color: color-mix(in oklch, var(--accent-ring-strong, var(--accent)) 34%, transparent);
 }
 
 .sunny-dashboard-sidebar-search-input {
@@ -943,7 +963,7 @@ flex: 1;
   background: transparent;
   color: var(--foreground);
   font-size: var(--text-xs);
-  padding: 0.35rem 0;
+  padding: 0.28rem 0;
   outline: none;
 }
 
@@ -979,22 +999,22 @@ background: color-mix(in oklch, var(--muted) 15%, transparent);
    override the AppInput defaults without affecting AppSearchInput usage
    elsewhere (e.g. MemoryCardGrid). */
 .sunny-dashboard-search-wrapper.app-input {
-  border-color: color-mix(in oklch, var(--border) 60%, transparent);
+  border-color: color-mix(in oklch, var(--border) 38%, transparent);
   border-radius: 0.5rem;
-  background: color-mix(in oklch, var(--muted) 8%, transparent);
-  padding: 0 0.5rem;
+  background: color-mix(in oklch, var(--muted) 4%, transparent);
+  padding: 0 0.45rem;
   min-height: unset;
   gap: 0;
 }
 
 .sunny-dashboard-search-wrapper.app-input:focus-within {
-  border-color: color-mix(in oklch, var(--accent-ring-strong, var(--accent)) 45%, transparent);
+  border-color: color-mix(in oklch, var(--accent-ring-strong, var(--accent)) 34%, transparent);
   box-shadow: none;
 }
 
 .sunny-dashboard-search-wrapper .app-input__field {
   font-size: var(--text-xs);
-  padding: 0.35rem 0;
+  padding: 0.28rem 0;
   color: var(--foreground);
 }
 
@@ -1299,8 +1319,8 @@ background: var(--surface-strong);
 }
 
 html[data-theme="dark"] .sunny-dashboard-project-mark {
-background: var(--accent);
-  color: var(--agent-text-on-accent);
+background: color-mix(in oklch, var(--accent) 18%, var(--surface-strong));
+  color: color-mix(in oklch, var(--accent-strong) 78%, var(--muted));
 }
 
 /* Sidebar sections */
@@ -1318,7 +1338,7 @@ color: var(--muted);
 html[data-theme="dark"] .sunny-dashboard-sidebar-action:hover,
 html[data-theme="dark"] .sunny-dashboard-mode-row:hover,
 html[data-theme="dark"] .sunny-dashboard-thread-row:hover {
-background: var(--surface-strong);
+background: color-mix(in oklch, var(--surface-strong) 76%, transparent);
   color: var(--foreground);
 }
 
@@ -1379,8 +1399,8 @@ color: var(--muted);
 /* Search */
 /* Search */
 html[data-theme="dark"] .sunny-dashboard-search-wrapper {
-background: color-mix(in oklch, var(--muted) 10%, transparent);
-  border-color: color-mix(in oklch, var(--border) 70%, transparent);
+background: color-mix(in oklch, var(--muted) 5%, transparent);
+  border-color: color-mix(in oklch, var(--border) 48%, transparent);
 }
 
 html[data-theme="dark"] .sunny-dashboard-sidebar-search-input {
