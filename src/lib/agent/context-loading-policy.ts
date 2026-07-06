@@ -65,6 +65,7 @@ export type ScheduleDateRange =
   | { type: "tomorrow" }
   | { type: "this_week" }
   | { type: "next_week" }
+  | { type: "upcoming"; days?: number }
   | { type: "custom"; start: string; end: string };
 
 /* ──── Preset Level (backward-compatible with v1) ──── */
@@ -281,8 +282,16 @@ const detectDateRange = (normalized: string): ScheduleDateRange | undefined => {
   if (normalized.includes("今天") || normalized.includes("today")) {
     return { type: "today" };
   }
-  // Default: this_week for general schedule references
-  return { type: "this_week" };
+  if (
+    normalized.includes("最近") ||
+    normalized.includes("近期") ||
+    normalized.includes("upcoming") ||
+    normalized.includes("recent")
+  ) {
+    return { type: "upcoming", days: 7 };
+  }
+  // Default: upcoming 7 days for general schedule references.
+  return { type: "upcoming", days: 7 };
 };
 
 /* ──── Writing Differentiation ──── */

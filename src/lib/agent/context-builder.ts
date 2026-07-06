@@ -85,6 +85,20 @@ export type AgentContextTimelineEvent = {
   visibility: string;
 };
 
+export type AgentContextScheduleItem = {
+  date?: null | string;
+  endTime?: null | string;
+  id: number;
+  isAllDay?: boolean | null;
+  priority?: null | string;
+  relatedChecklist?: null | number | { id?: number; title?: string };
+  relatedPlan?: null | number | { id?: number; title?: string };
+  sourceType?: null | string;
+  startTime?: null | string;
+  status?: null | string;
+  title: string;
+};
+
 export type AgentContextAgentRun = {
   completedAt?: null | string;
   goal?: null | string;
@@ -129,6 +143,7 @@ export type AgentContextSource = {
   now?: string;
   planReviews?: AgentContextPlanReview[];
   plans?: AgentContextPlan[];
+  schedules?: AgentContextScheduleItem[];
   timelineCandidates?: AgentContextContentItem[];
   timelineEvents?: AgentContextTimelineEvent[];
 };
@@ -564,6 +579,22 @@ const toPromptTimelineEvent = (
   visibility: event.visibility,
 });
 
+const toPromptScheduleItem = (
+  item: AgentContextScheduleItem,
+): NonNullable<AgentPromptContext["schedules"]>[number] => ({
+  date: item.date ?? null,
+  endTime: item.endTime ?? null,
+  id: item.id,
+  isAllDay: item.isAllDay ?? null,
+  priority: item.priority ?? null,
+  relatedChecklist: item.relatedChecklist ?? null,
+  relatedPlan: item.relatedPlan ?? null,
+  sourceType: item.sourceType ?? null,
+  startTime: item.startTime ?? null,
+  status: item.status ?? null,
+  title: item.title,
+});
+
 const toPromptAgentRun = (run: AgentContextAgentRun): NonNullable<AgentPromptContext["agentRuns"]>[number] => ({
   completedAt: run.completedAt ?? null,
   id: run.id,
@@ -808,6 +839,14 @@ export const buildAgentContext = ({
   const timelineCandidates = deriveTimelineCandidates(source).slice(0, effectiveBudget.maxContentItems);
   const agentRuns = selectAgentRuns(source, mode, effectiveBudget);
   const planReviews = selectPlanReviews(source, mode, effectiveBudget);
+  const schedules = [...(source.schedules ?? [])]
+    .sort((left, right) => {
+      const leftKey = `${left.date ?? ""} ${left.startTime ?? ""}`;
+      const rightKey = `${right.date ?? ""} ${right.startTime ?? ""}`;
+
+      return leftKey.localeCompare(rightKey);
+    })
+    .slice(0, 20);
 
   return {
     agentRuns: agentRuns.map(toPromptAgentRun),
@@ -822,6 +861,7 @@ export const buildAgentContext = ({
         memories: memories.length,
         planReviews: planReviews.length,
         plans: plans.length,
+        schedules: schedules.length,
         timelineCandidates: timelineCandidates.length,
         timelineEvents: timelineEvents.length,
       },
@@ -832,6 +872,7 @@ export const buildAgentContext = ({
         memories: source.memories?.length ?? 0,
         planReviews: source.planReviews?.length ?? 0,
         plans: source.plans?.length ?? 0,
+        schedules: source.schedules?.length ?? 0,
         timelineEvents: source.timelineEvents?.length ?? 0,
       },
     },
@@ -847,6 +888,7 @@ export const buildAgentContext = ({
     pendingAction,
     planReviews: planReviews.map(toPromptPlanReview),
     plans: plans.map(toPromptPlan),
+    schedules: schedules.map(toPromptScheduleItem),
     threadSummary: threadSummary ?? null,
     timelineCandidates: timelineCandidates.map(toPromptContentItem),
     timelineEvents: timelineEvents.map(toPromptTimelineEvent),

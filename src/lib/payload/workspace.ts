@@ -6,6 +6,7 @@ import type { AgentRun, Checklist, Note, Page, Plan, PlanReview, Post, TimelineE
 import type {
   AgentContextBudget,
   AgentContextContentItem,
+  AgentContextScheduleItem,
   AgentContextSource,
 } from "@/lib/agent/context-builder";
 import {
@@ -218,6 +219,36 @@ const createAgentContextContentItem = (
   }
 };
 
+const relationForAgentContext = (
+  value: null | number | { id?: number; title?: string } | undefined,
+): AgentContextScheduleItem["relatedPlan"] => {
+  if (typeof value === "number") return value;
+  if (value && typeof value === "object") {
+    return {
+      ...(typeof value.id === "number" ? { id: value.id } : {}),
+      ...(typeof value.title === "string" ? { title: value.title } : {}),
+    };
+  }
+
+  return null;
+};
+
+const createAgentContextScheduleItem = (
+  item: ScheduleItemRecord,
+): AgentContextScheduleItem => ({
+  date: item.date,
+  endTime: item.endTime ?? null,
+  id: item.id,
+  isAllDay: item.isAllDay ?? null,
+  priority: item.priority ?? null,
+  relatedChecklist: relationForAgentContext(item.relatedChecklist),
+  relatedPlan: relationForAgentContext(item.relatedPlan),
+  sourceType: item.sourceType ?? null,
+  startTime: item.startTime ?? null,
+  status: item.status ?? null,
+  title: item.title,
+});
+
 export type WorkspaceCoreData = {
   agentRuns: { docs: AgentRun[]; totalDocs: number };
   checklists: { docs: Checklist[] };
@@ -252,6 +283,11 @@ export const buildAgentContextSourceFromCore = (
   budget: AgentContextBudget,
 ): AgentContextSource => {
   const planDocs = core.plans.docs;
+  const scheduleItems = [...core.schedule.today, ...core.schedule.tomorrow]
+    .map(createAgentContextScheduleItem)
+    .sort((left, right) =>
+      `${left.date ?? ""} ${left.startTime ?? ""}`.localeCompare(`${right.date ?? ""} ${right.startTime ?? ""}`),
+    );
   const contentItems = [
     ...core.posts.docs.map((doc) => createAgentContextContentItem("posts", doc, planDocs)),
     ...core.notes.docs.map((doc) => createAgentContextContentItem("notes", doc, planDocs)),
@@ -281,6 +317,7 @@ export const buildAgentContextSourceFromCore = (
     now: new Date().toISOString(),
     planReviews: core.planReviews.docs,
     plans: planDocs,
+    schedules: scheduleItems,
     timelineCandidates: contentItems
       .filter(
         (item) =>

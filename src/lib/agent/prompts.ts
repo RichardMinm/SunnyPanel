@@ -45,6 +45,7 @@ export type AgentPromptContext = {
       memories: number;
       planReviews: number;
       plans: number;
+      schedules: number;
       timelineCandidates: number;
       timelineEvents: number;
     };
@@ -55,6 +56,7 @@ export type AgentPromptContext = {
       memories: number;
       planReviews: number;
       plans: number;
+      schedules: number;
       timelineEvents: number;
     };
   };
@@ -95,6 +97,19 @@ export type AgentPromptContext = {
     state: string;
     title: string;
     visibility?: null | string;
+  }>;
+  schedules?: Array<{
+    date?: null | string;
+    endTime?: null | string;
+    id: number;
+    isAllDay?: boolean | null;
+    priority?: null | string;
+    relatedChecklist?: null | number | { id?: number; title?: string };
+    relatedPlan?: null | number | { id?: number; title?: string };
+    sourceType?: null | string;
+    startTime?: null | string;
+    status?: null | string;
+    title: string;
   }>;
   timelineCandidates?: Array<{
     id: number;

@@ -168,6 +168,10 @@ export const getScheduleForRange = async (
       const nextWeek = new Date(now.getTime() + 7 * dayInMs);
       return getScheduleForDateRange(startOfWeek(nextWeek), endOfWeek(nextWeek), payload);
     }
+    case "upcoming": {
+      const days = Math.max(1, Math.min(range.days ?? 7, 31));
+      return getScheduleForDateRange(now, new Date(now.getTime() + (days - 1) * dayInMs), payload);
+    }
     case "custom":
       return getScheduleForDateRange(new Date(range.start), new Date(range.end), payload);
     default:

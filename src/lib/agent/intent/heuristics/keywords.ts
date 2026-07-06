@@ -24,6 +24,7 @@ export const composePlanKeywords = [
 ];
 
 export const schedulePlanKeywords = [
+  "安排进日程",
   "排进日程",
   "排入日程",
   "安排到日程",
@@ -47,7 +48,22 @@ export const confirmationReplyKeywords = ["确认", "确认执行", "执行", "�
 export const cancellationReplyKeywords = ["取消", "不要执行", "不执行", "先别执行", "先别", "放弃", "停止"];
 
 /* ── Query keywords (query-first, higher priority than writes) ── */
-export const queryScheduleKeywords = ["有什么安排", "有哪些安排", "有哪些日程", "查看日程", "看下日程", "查日程", "日程安排", "今天的安排", "明天的安排"];
+export const queryScheduleKeywords = [
+  "有什么安排",
+  "有什么日程",
+  "最近有什么日程",
+  "最近的日程",
+  "最近日程",
+  "有哪些安排",
+  "有哪些日程",
+  "查看日程",
+  "查看最近的日程",
+  "看下日程",
+  "查日程",
+  "日程安排",
+  "今天的安排",
+  "明天的安排",
+];
 export const queryPlanKeywords = ["有哪些计划", "查看计划", "看下计划", "进行中的计划", "计划进展", "计划进度", "计划情况", "计划的进展", "计划列表"];
 export const queryChecklistKeywords = ["清单进度", "完成得怎么样", "完成了多少", "还剩多少", "清单情况", "清单完成"];
 export const queryTimelineKeywords = ["最近完成", "最近做了", "完成哪些", "完成了哪些", "最近的事", "时间线", "动态", "最近.*完成了"];

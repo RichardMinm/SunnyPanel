@@ -16,6 +16,7 @@ import {
   type ScheduleSourceType,
   type ScheduleTaskSlot,
 } from "./readiness";
+import { classifyScheduleIntentBoundary } from "./intent-boundary";
 
 export type ScheduleReadinessGateApplied = {
   assistantMessage: string;
@@ -458,6 +459,20 @@ export const evaluateScheduleReadinessGate = (
   const normalizedSession = input.sessionState
     ? normalizeSessionState(input.sessionState)
     : undefined;
+  const boundary = classifyScheduleIntentBoundary({
+    hasPendingAction: Boolean(input.confirmedActionId),
+    hasSchedulingDraft: Boolean(normalizedSession?.scheduling?.draft),
+    routerIntent: input.intent.intent,
+    userMessage: input.userMessage,
+  });
+
+  // Read-only schedule queries must not inherit scheduling source slots from
+  // previous plan/checklist turns. Otherwise "查看日程安排" can be mistaken for
+  // "把上一轮计划安排进日程".
+  if (boundary.intent === "query_schedule") {
+    return { gateApplied: false, reason: "not_schedule_request" };
+  }
+
   const messageSlots = extractScheduleSlotsFromMessage(input.userMessage);
   const intentSlots = extractSourceSlotsFromIntent(input.intent);
   const planningSourceSlots = extractSourceSlotsFromPlanning(normalizedSession);

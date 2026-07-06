@@ -236,6 +236,13 @@ export const isScheduleQueryMessage = (message: string): boolean => {
 
   if (SCHEDULE_QUERY_MESSAGES.has(normalized)) return true;
 
+  // Strong query patterns win before checking create verbs. In Chinese,
+  // "日程安排" is often a noun phrase, not the verb "安排".
+  if (/查看.*(日程安排|日程)/.test(normalized)) return true;
+  if (/看看.*(日程安排|日程)/.test(normalized)) return true;
+  if (/(最近|近期).*(有什么|有哪些).*(日程|安排)/.test(normalized)) return true;
+  if (/^(日程安排|我的日程安排)$/.test(normalized)) return true;
+
   // Query indicators: 有什么/查看/查询/看看/最近/本周/下周 + no creation verbs
   const hasQueryWord = /有什么|查看|查询|看看|最近|本周|下周|日程|安排/.test(normalized);
   const hasCreateVerb = /安排|加一|创建|新增|排到|定在|开会|添加|新建/.test(normalized);
