@@ -1,3 +1,13 @@
+/**
+ * [R6-B LEGACY HEURISTIC QUARANTINE]
+ *
+ * This test covers the pre-LLM Tool Planner heuristic business fallback path.
+ * It is NOT part of the AGENT_REQUIRE_LLM=1 protected baseline.
+ * Keep temporarily for AGENT_REQUIRE_LLM=0 legacy mode compatibility.
+ * Do NOT delete until: Tool Planner replacement exists AND legacy mode is retired.
+ * See: docs/phase-r6b-legacy-heuristic-test-quarantine.md
+ */
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

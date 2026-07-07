@@ -1,7 +1,7 @@
 import { appendFileSync } from "node:fs";
 
 import { getAgentDebugLogPath } from "./debug-log";
-import { parseDefinitionQuestionIntent } from "./intent/heuristics/knowledge";
+import { parseDefinitionQuestionIntent } from "./intent/retired-intent-response";
 import { buildAgentSystemPrompt, type AgentPromptContext } from "./prompts";
 import { parseAgentArbitrationResult, type AgentArbitrationDecision } from "./intent/arbitration";
 import {

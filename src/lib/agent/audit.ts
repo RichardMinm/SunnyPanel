@@ -11,6 +11,7 @@ const workflowByIntent: Record<AgentIntent["intent"], "planning" | "readiness-au
   capability_query: "readiness-audit",
   cancel_schedule_item: "planning",
   clarify: "readiness-audit",
+  compose_checklist: "readiness-audit",
   complete_plan_item: "sync",
   compose_plan: "planning",
   compose_schedule_item: "planning",

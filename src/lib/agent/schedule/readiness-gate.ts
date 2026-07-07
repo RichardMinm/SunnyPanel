@@ -2,6 +2,10 @@ import type { AgentIntent, AgentTraceStep } from "../schemas";
 import { createDefaultSessionState, normalizeSessionState } from "../session/normalize-session";
 import type { AgentSessionState } from "../session/types";
 import {
+  buildScheduleClarificationContext,
+  composeClarificationWithLLM,
+} from "../response/clarification";
+import {
   generateScheduleDraft,
   ScheduleDraftGenerationError,
   type ScheduleDraft,
@@ -48,6 +52,8 @@ export type EvaluateScheduleReadinessGateInput = {
   confirmedActionId?: null | string;
   hasExistingDraft?: boolean;
   intent: AgentIntent;
+  /** Optional LLM-extracted slots to merge with message-level deterministic extraction */
+  llmSlots?: Partial<ScheduleSlots>;
   sessionState?: null | unknown;
   userMessage: string;
 };
@@ -474,20 +480,24 @@ export const evaluateScheduleReadinessGate = (
   }
 
   const messageSlots = extractScheduleSlotsFromMessage(input.userMessage);
+  /* Merge LLM-extracted slots into messageSlots when available */
+  const enhancedMessageSlots = input.llmSlots
+    ? mergeScheduleSlots(messageSlots, input.llmSlots)
+    : messageSlots;
   const intentSlots = extractSourceSlotsFromIntent(input.intent);
   const planningSourceSlots = extractSourceSlotsFromPlanning(normalizedSession);
   const sessionSlots = getSessionScheduleSlots(normalizedSession);
   const sourceSlots = mergeScheduleSlots(planningSourceSlots, intentSlots);
   const slots = mergeScheduleSlots(
     mergeScheduleSlots(sessionSlots, sourceSlots),
-    messageSlots,
+    enhancedMessageSlots,
   );
   const isScheduleIntent = SCHEDULE_GATE_INTENTS.has(input.intent.intent);
   const isFollowup = isSchedulingSession(normalizedSession);
   const shouldConsider =
     (hasScheduleGateSignal(input.userMessage) && hasTaskSource(mergeScheduleSlots(sourceSlots, sessionSlots))) ||
     (isScheduleIntent && hasTaskSource(slots)) ||
-    (isFollowup && hasFollowupSlotSignal(messageSlots));
+    (isFollowup && hasFollowupSlotSignal(enhancedMessageSlots));
 
   if (!shouldConsider) {
     return { gateApplied: false, reason: "not_schedule_request" };
@@ -497,12 +507,12 @@ export const evaluateScheduleReadinessGate = (
     explicitCreateIntent: hasExplicitScheduleCreateIntent(input.userMessage),
     hasExistingDraft: input.hasExistingDraft ?? Boolean(normalizedSession?.scheduling?.draft),
     sessionSlots: mergeScheduleSlots(sessionSlots, sourceSlots),
-    slots: messageSlots,
+    slots: enhancedMessageSlots,
     userMessage: input.userMessage,
   });
   const mergedSlots = mergeScheduleSlots(
     mergeScheduleSlots(sessionSlots, sourceSlots),
-    messageSlots,
+    enhancedMessageSlots,
   );
 
   if (readiness.status === "insufficient") {
@@ -595,4 +605,45 @@ export const evaluateScheduleReadinessGate = (
     sessionState,
     traceStep: buildTraceStep(readiness, "日程可进入创建准备，但 K2 不写入"),
   };
+};
+
+/* ──── LLM-assisted clarification message composer ──── */
+
+/**
+ * Compose a user-facing clarification message for schedule readiness.
+ *
+ * Tries LLM-assisted composition first (when enabled), falls back to the
+ * existing deterministic template on failure.
+ *
+ * Readiness evaluation remains deterministic — this only replaces the
+ * user-visible message text.
+ *
+ * @param fallbackMessage — The original deterministic template message (used when LLM fails)
+ * @param userMessage — The user's original input
+ * @param missingSlotKeys — The readiness.missingSlots
+ * @param sourceLabel — Human-readable source (from humanSourceLabel)
+ * @param deadline — Optional deadline from slots
+ */
+export const composeScheduleClarificationAsync = async (params: {
+  deadline?: null | string;
+  fallbackMessage: string;
+  hasSchedulingDraft?: boolean;
+  missingSlotKeys: string[];
+  sourceLabel?: null | string;
+  userMessage: string;
+}): Promise<string> => {
+  try {
+    const context = buildScheduleClarificationContext({
+      deadline: params.deadline,
+      hasSchedulingDraft: params.hasSchedulingDraft,
+      missingSlotKeys: params.missingSlotKeys,
+      sourceLabel: params.sourceLabel,
+      userMessage: params.userMessage,
+    });
+
+    const composed = await composeClarificationWithLLM(context);
+    return composed.message;
+  } catch {
+    return params.fallbackMessage;
+  }
 };

@@ -75,8 +75,27 @@ import {
 import {
   evaluatePlanReadinessGate,
   extractPlanSlotsFromSessionState,
+  composePlanClarificationAsync,
 } from "@/lib/agent/planning/readiness-gate";
-import { evaluateScheduleReadinessGate } from "@/lib/agent/schedule/readiness-gate";
+import {
+  evaluateScheduleReadinessGate,
+  composeScheduleClarificationAsync,
+} from "@/lib/agent/schedule/readiness-gate";
+import { extractSlotsWithLLM, mergeLLMSlots } from "@/lib/agent/schedule/slot-extraction";
+import { humanSourceLabel } from "@/lib/agent/response/clarification";
+import {
+  checkAgentLLMAvailability,
+  buildLLMUnavailableAgentResponse,
+  isAgentRequireLLMEnabled,
+} from "@/lib/agent/llm-required";
+import {
+  isAgentToolPlannerGraphRuntimeEnabled,
+  isAgentToolPlannerTraceOnlyEnabled,
+  isAgentToolPlannerRealPendingActionEnabled,
+  runToolPlannerGraphRuntime,
+  runToolPlannerShadowGraph,
+  buildToolPlannerUnavailableAgentResponse,
+} from "@/lib/agent/tool-planner";
 import { classifyScheduleIntentBoundary } from "@/lib/agent/schedule/intent-boundary";
 import {
   formatScheduleQueryAssistantMessage,
@@ -351,6 +370,26 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     let currentPendingAction = pendingAction;
     emitUsage(tokenUsage);
 
+    // ── LLM Required Mode: availability check ──
+    const llmAvailability = await checkAgentLLMAvailability();
+    if (!llmAvailability.available) {
+      recordBackendTrace({
+        outputPreview: { reason: llmAvailability.reason },
+        phase: "llm_availability",
+        status: "failed",
+        summary: "LLM required but unavailable",
+        title: "LLM 不可用，pipeline 停止",
+      });
+      emitStatus("Agent 需要模型配置后才能继续");
+      emitToken("当前 Agent 需要 LLM 才能处理这个请求。请检查模型配置后重试。\n", "response");
+      return attachMeta(
+        buildLLMUnavailableAgentResponse({
+          reason: llmAvailability.reason,
+          threadId: thread.id,
+        }),
+      );
+    }
+
     // Emit placeholder immediately so the user sees content without waiting
     emitToken("正在分析你的请求...\n", 'thinking');
 
@@ -438,7 +477,134 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     tokenUsage = contextStep.tokenUsage;
     controller.budget.consumeContext(contextStep.tokenUsage.contextTokens);
 
+    // ── R4B/R4A/R4D/R5-A: Tool Planner ──
+    // R4D: await graph runtime, check for real PendingAction (early exit if valid)
+    // R5-A: in AGENT_REQUIRE_LLM=1, always await graph runtime to gate heuristic fallback
+    // R4B: graph runtime trace-only (fire-and-forget when R4D off AND require mode off)
+    // R4A: shadow runner trace-only (fire-and-forget)
+    let toolPlannerRealPending: Awaited<ReturnType<typeof runToolPlannerGraphRuntime>>["realPendingAction"] = undefined;
+    let toolPlannerAssistantMessage: string | undefined;
+    /** R5-A: track graph failure for controlled rejection in require mode. */
+    let toolPlannerGraphFailed = false;
+    let toolPlannerGraphError: { code?: string; message?: string } | undefined;
+
+    if (isAgentToolPlannerGraphRuntimeEnabled()) {
+      // R5-A: in require mode, always await graph runtime even without R4D flag
+      const shouldAwaitGraph = isAgentToolPlannerRealPendingActionEnabled() || isAgentRequireLLMEnabled();
+      if (shouldAwaitGraph) {
+        // R4D / R5-A: await graph runtime — may produce real PendingAction
+        try {
+          const result = await runToolPlannerGraphRuntime({
+            currentDate: new Date().toISOString().split("T")[0],
+            sessionId: String(thread.id),
+            userMessage: message,
+          });
+          for (const event of result.traceEvents) {
+            event.threadId = String(thread.id);
+            recordBackendTrace(event);
+          }
+          toolPlannerGraphFailed = result.status === "failed";
+          toolPlannerGraphError = result.error;
+          if (result.realPendingAction) {
+            toolPlannerRealPending = result.realPendingAction;
+            toolPlannerAssistantMessage = result.assistantMessage;
+          } else if (result.assistantMessage) {
+            // R5-B: capture read/draft assistant message even without write proposal
+            toolPlannerAssistantMessage = result.assistantMessage;
+          }
+        } catch {
+          // Graph runtime failure must NEVER affect the main pipeline.
+          toolPlannerGraphFailed = true;
+          toolPlannerGraphError = { code: "graph_runtime_error", message: "Tool Planner graph runtime threw an unexpected error." };
+        }
+      } else {
+        // R4B trace-only: fire-and-forget (only when require mode is off)
+        runToolPlannerGraphRuntime({
+          currentDate: new Date().toISOString().split("T")[0],
+          sessionId: String(thread.id),
+          userMessage: message,
+        })
+          .then((result) => {
+            for (const event of result.traceEvents) {
+              event.threadId = String(thread.id);
+              recordBackendTrace(event);
+            }
+          })
+          .catch(() => {
+            // Graph runtime failure must NEVER affect the main pipeline.
+          });
+      }
+    } else if (isAgentToolPlannerTraceOnlyEnabled()) {
+      runToolPlannerShadowGraph({
+        currentDate: new Date().toISOString().split("T")[0],
+        sessionId: String(thread.id),
+        userMessage: message,
+      })
+        .then((result) => {
+          for (const event of result.traceEvents) {
+            event.threadId = String(thread.id);
+            recordBackendTrace(event);
+          }
+        })
+        .catch(() => {
+          // Shadow planner failure must NEVER affect the main pipeline.
+        });
+    }
+
     let lastContextSummary = contextSummary;
+
+    // ── R4D: Early exit with tool planner real PendingAction ──
+    let lastResponse: AgentChatResponse | null = null;
+    if (toolPlannerRealPending) {
+      const rpa = toolPlannerRealPending;
+      const assistantMessage = toolPlannerAssistantMessage ?? rpa.proposedAction.summary;
+      const nextPendingAction: PendingAction = rpa.pendingAction;
+
+      recordBackendTrace({
+        actionId: rpa.proposedAction.id,
+        intent: rpa.proposedAction.intent,
+        outputPreview: {
+          changesCount: rpa.proposedAction.changes.length,
+          riskLevel: rpa.proposedAction.riskLevel,
+          source: "llm_tool_planner",
+          summary: rpa.proposedAction.summary,
+        },
+        phase: "pending_confirmation",
+        status: "success",
+        summary: "LLM Tool Planner 已生成待确认动作，确认前不会执行写入。",
+        title: "Tool Planner 已创建 pending confirmation",
+        toolName: rpa.toolName,
+      });
+
+      const updatedThread = await persistAgentTurn({
+        assistantMessage,
+        confidence: 0.9,
+        engine: "workflow",
+        intent: rpa.proposedAction.intent,
+        nextPendingAction,
+      });
+
+      lastResponse = {
+        assistantMessage,
+        confidence: 0.9,
+        engine: "workflow",
+        intent: rpa.proposedAction.intent,
+        pendingAction: nextPendingAction,
+        trace,
+        threadId: updatedThread.id,
+        tokenUsage,
+        backendTraceEvents: undefined,
+      };
+
+      logAgentEvent("info", "chat.tool_planner_pending_action", {
+        actionId: rpa.proposedAction.id,
+        intent: rpa.proposedAction.intent,
+        riskLevel: rpa.proposedAction.riskLevel,
+        source: "llm_tool_planner",
+        threadId: updatedThread.id,
+        userId: user.id,
+      });
+    }
 
     const confirmationSignals = resolveConfirmationSignals({
       confirmation: structuredConfirmation,
@@ -446,11 +612,125 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       pendingAction,
     });
 
-    let lastResponse: AgentChatResponse | null = null;
     let currentContext = initialContext;
 
-    // ── EOD Loop ──
-    while (controller.shouldContinue()) {
+    // ── R5-A: LLM-required mode — block heuristic business fallback ──
+    // When AGENT_REQUIRE_LLM=1, new business requests MUST go through the Tool Planner.
+    // If the Tool Planner is unavailable, failed, or produced no valid result,
+    // return a controlled response instead of falling through to heuristic paths.
+    //
+    // EXCEPTION: existing pendingAction confirmation/cancel is still handled
+    // deterministically by the EOD loop (resolveIntentStep).
+    if (isAgentRequireLLMEnabled() && !lastResponse && !pendingAction) {
+      if (!isAgentToolPlannerGraphRuntimeEnabled()) {
+        // Tool Planner not enabled in require mode → unavailable
+        recordBackendTrace({
+          outputPreview: { reason: "tool_planner_disabled" },
+          phase: "tool_planner_unavailable",
+          status: "failed",
+          summary: "LLM require mode active but Tool Planner graph runtime is not enabled.",
+          title: "Tool Planner 未启用",
+        });
+        const plannerResponse = buildToolPlannerUnavailableAgentResponse({
+          reason: "tool_planner_disabled",
+          threadId: thread.id,
+        });
+        lastResponse = {
+          ...plannerResponse,
+          trace,
+          tokenUsage,
+          backendTraceEvents: undefined,
+        };
+        const updatedThread = await persistAgentTurn({
+          assistantMessage: plannerResponse.assistantMessage,
+          confidence: plannerResponse.confidence,
+          engine: "workflow",
+          intent: "clarify",
+          nextPendingAction: null,
+        });
+        lastResponse = { ...lastResponse, threadId: updatedThread.id };
+      } else if (toolPlannerGraphFailed) {
+        // Tool Planner ran but failed → controlled rejection
+        const reason = (
+          toolPlannerGraphError?.code === "validation_failed" ? "tool_planner_invalid_plan"
+          : "tool_planner_failed"
+        ) as import("@/lib/agent/tool-planner/unavailable-response").AgentToolPlannerUnavailableReason;
+        recordBackendTrace({
+          error: { code: toolPlannerGraphError?.code, message: toolPlannerGraphError?.message ?? "Tool Planner graph runtime failed." },
+          outputPreview: { reason, graphError: toolPlannerGraphError },
+          phase: "tool_planner_unavailable",
+          status: "failed",
+          summary: `Tool Planner failed: ${toolPlannerGraphError?.code ?? "unknown"}`,
+          title: "Tool Planner 执行失败",
+        });
+        const plannerResponse = buildToolPlannerUnavailableAgentResponse({
+          detail: toolPlannerGraphError?.message,
+          reason,
+          threadId: thread.id,
+        });
+        lastResponse = {
+          ...plannerResponse,
+          trace,
+          tokenUsage,
+          backendTraceEvents: undefined,
+        };
+        const updatedThread = await persistAgentTurn({
+          assistantMessage: plannerResponse.assistantMessage,
+          confidence: plannerResponse.confidence,
+          engine: "workflow",
+          intent: "clarify",
+          nextPendingAction: null,
+        });
+        lastResponse = { ...lastResponse, threadId: updatedThread.id };
+
+        logAgentEvent("warn", "chat.tool_planner_blocked_heuristic_fallback", {
+          graphErrorCode: toolPlannerGraphError?.code ?? "unknown",
+          reason,
+          threadId: updatedThread.id,
+          userId: user.id,
+        });
+      } else if (toolPlannerAssistantMessage) {
+        // R5-B: Read/draft completion — graph succeeded without write proposal
+        // Build a controlled response from the graph's assistant message.
+        // No pendingAction, no write, no Policy Guard, no execute.
+        recordBackendTrace({
+          outputPreview: { source: "llm_tool_planner", mode: "read_draft_preview" },
+          phase: "tool_planning",
+          status: "success",
+          summary: "Tool Planner produced read/draft preview.",
+          title: "Tool Planner 已生成预览",
+        });
+
+        lastResponse = {
+          assistantMessage: toolPlannerAssistantMessage,
+          confidence: 0.7,
+          engine: "workflow",
+          intent: "answer_question",
+          pendingAction: null,
+          trace,
+          tokenUsage,
+          backendTraceEvents: undefined,
+        };
+        const updatedThread = await persistAgentTurn({
+          assistantMessage: toolPlannerAssistantMessage,
+          confidence: 0.7,
+          engine: "workflow",
+          intent: "answer_question",
+          nextPendingAction: null,
+        });
+        lastResponse = { ...lastResponse, threadId: updatedThread.id };
+
+        logAgentEvent("info", "chat.tool_planner_read_draft_preview", {
+          threadId: updatedThread.id,
+          userId: user.id,
+          source: "llm_tool_planner",
+        });
+      }
+    }
+
+    // ── EOD Loop (skipped if R4D tool planner already produced a response,
+    //              or R5-A gate produced a controlled response) ──
+    if (!lastResponse) while (controller.shouldContinue()) {
       controller.advance("orchestrate");
 
       stream.start({
@@ -1201,20 +1481,30 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           phase: "response",
           title: "组织计划澄清回复",
         });
-        for (const token of splitIntoWordTokens(planReadinessGate.assistantMessage)) {
+
+        const planClarificationMessage = await composePlanClarificationAsync({
+          deadline: planReadinessGate.readiness.knownSlots.includes("deadline") ? undefined : undefined,
+          fallbackMessage: planReadinessGate.assistantMessage,
+          goal: undefined,
+          hasPlanningDraft: Boolean(planReadinessGate.planningDraft),
+          missingSlotKeys: planReadinessGate.readiness.missingSlots,
+          userMessage: message,
+        });
+
+        for (const token of splitIntoWordTokens(planClarificationMessage)) {
           emitToken(token, "response");
           await new Promise((resolve) => setTimeout(resolve, 6));
         }
         stream.complete("stage-response", "计划澄清回复已生成");
 
-        const outputTokens = estimateTokenCount(planReadinessGate.assistantMessage);
+        const outputTokens = estimateTokenCount(planClarificationMessage);
         tokenUsage = {
           ...tokenUsage,
           outputTokens,
           totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
         };
         const updatedThread = await persistAgentTurn({
-          assistantMessage: planReadinessGate.assistantMessage,
+          assistantMessage: planClarificationMessage,
           confidence: planReadinessGate.readiness.confidence,
           conversationState: planReadinessGate.sessionState,
           engine: resolution.engine,
@@ -1223,7 +1513,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         });
 
         lastResponse = attachMeta({
-          assistantMessage: planReadinessGate.assistantMessage,
+          assistantMessage: planClarificationMessage,
           confidence: planReadinessGate.readiness.confidence,
           engine: resolution.engine,
           intent: planReadinessGate.intent,
@@ -1237,12 +1527,37 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         break;
       }
 
+      /* ──── LLM Slot Extraction (schedule_creation path only, before readiness gate) ──── */
+      const isScheduleCreationPath =
+        resolution.intent.intent === "create_schedule_items" ||
+        resolution.intent.intent === "compose_schedule_item" ||
+        resolution.intent.intent === "schedule_plan";
+      const llmSlotResult = isScheduleCreationPath
+        ? await extractSlotsWithLLM({
+            currentDate: new Date().toISOString().split("T")[0],
+            userMessage: message,
+          })
+        : null;
+      const llmEnhancedSlots = llmSlotResult
+        ? mergeLLMSlots({}, llmSlotResult).slots
+        : undefined;
+      if (llmSlotResult && llmSlotResult.source === "llm") {
+        recordBackendTrace({
+          inputPreview: { source: llmSlotResult.source, candidateCount: llmSlotResult.candidates.length },
+          phase: "slot_extraction",
+          status: "success",
+          summary: `LLM 提取了 ${llmSlotResult.candidates.length} 个 slot candidate`,
+          title: "LLM 辅助提取日程 slots",
+        });
+      }
+
       const scheduleReadinessGate = effectiveScheduleCreationPreparation.status === "prepared"
         ? { gateApplied: false as const, reason: "ready_without_gate" as const }
         : evaluateScheduleReadinessGate({
             batchExecuteIntentCount: batchExecuteIntents?.length ?? 0,
             confirmedActionId,
             intent: resolution.intent,
+            llmSlots: llmEnhancedSlots,
             sessionState: conversationState,
             userMessage: message,
           });
@@ -1280,20 +1595,31 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           phase: "response",
           title: "组织日程澄清回复",
         });
-        for (const token of splitIntoWordTokens(scheduleReadinessGate.assistantMessage)) {
+
+        const scheduleClarificationMessage = await composeScheduleClarificationAsync({
+          fallbackMessage: scheduleReadinessGate.assistantMessage,
+          hasSchedulingDraft: Boolean(scheduleReadinessGate.scheduleDraft),
+          missingSlotKeys: scheduleReadinessGate.readiness.missingSlots,
+          sourceLabel: scheduleReadinessGate.scheduleDraft
+            ? humanSourceLabel(scheduleReadinessGate.scheduleDraft.sourceType)
+            : null,
+          userMessage: message,
+        });
+
+        for (const token of splitIntoWordTokens(scheduleClarificationMessage)) {
           emitToken(token, "response");
           await new Promise((resolve) => setTimeout(resolve, 6));
         }
         stream.complete("stage-response", "日程澄清回复已生成");
 
-        const outputTokens = estimateTokenCount(scheduleReadinessGate.assistantMessage);
+        const outputTokens = estimateTokenCount(scheduleClarificationMessage);
         tokenUsage = {
           ...tokenUsage,
           outputTokens,
           totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
         };
         const updatedThread = await persistAgentTurn({
-          assistantMessage: scheduleReadinessGate.assistantMessage,
+          assistantMessage: scheduleClarificationMessage,
           confidence: scheduleReadinessGate.readiness.confidence,
           conversationState: scheduleReadinessGate.sessionState,
           engine: resolution.engine,
@@ -1302,7 +1628,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
         });
 
         lastResponse = attachMeta({
-          assistantMessage: scheduleReadinessGate.assistantMessage,
+          assistantMessage: scheduleClarificationMessage,
           confidence: scheduleReadinessGate.readiness.confidence,
           engine: resolution.engine,
           intent: scheduleReadinessGate.intent,

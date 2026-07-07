@@ -42,6 +42,11 @@ const intentParameterHints: Record<AgentWriteIntentName, Record<string, Paramete
     itemTitle: { description: "要完成的计划条目", type: "string" },
     planId: { description: "计划 ID", type: "number" },
   },
+  compose_checklist: {
+    goal: { description: "清单目标", type: "string" },
+    items: { description: "待办条目数组", type: "array" },
+    title: { description: "清单标题", type: "string" },
+  },
   compose_plan: {
     dueDate: { description: "期望完成日期 YYYY-MM-DD", type: "string" },
     goal: { description: "计划目标（一句话成果）", type: "string" },
@@ -97,6 +102,16 @@ const intentParameterHints: Record<AgentWriteIntentName, Record<string, Paramete
     planId: { description: "计划 ID", type: "number" },
     planTitle: { description: "计划标题（用于匹配）", type: "string" },
   },
+  query_schedule: {
+    endDate: { description: "结束日期 YYYY-MM-DD", type: "string" },
+    limit: { description: "返回数量上限", type: "number" },
+    range: {
+      description: "查询范围",
+      enum: ["today", "tomorrow", "this_week", "next_week", "upcoming"],
+      type: "string",
+    },
+    startDate: { description: "开始日期 YYYY-MM-DD", type: "string" },
+  },
   reschedule_item: {
     date: { description: "新日期 YYYY-MM-DD", type: "string" },
     endTime: { description: "新结束时间 HH:mm", type: "string" },
@@ -141,6 +156,7 @@ const requiredFields: Partial<Record<AgentWriteIntentName, string[]>> = {
   append_plan_item: ["planId", "itemTitle"],
   cancel_schedule_item: ["scheduleItemId"],
   complete_plan_item: ["planId", "itemTitle"],
+  compose_checklist: [],
   compose_plan: ["goal", "title"],
   compose_schedule_item: ["date", "sourceText"],
   compose_timeline_event: ["title", "eventDate"],
@@ -148,6 +164,7 @@ const requiredFields: Partial<Record<AgentWriteIntentName, string[]>> = {
   create_schedule_items: ["items"],
   create_plan: ["title"],
   query_plan_progress: ["planTitle"],
+  query_schedule: [],
   reschedule_item: ["scheduleItemId"],
   save_memory: ["content", "title"],
   schedule_plan: ["planId"],

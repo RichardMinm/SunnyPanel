@@ -3,7 +3,7 @@ import {
   buildExpandedDefinitionAnswer,
   lookupKnownSubjectByTopic,
   resolveSubjectByTopic,
-} from "../intent/heuristics/knowledge";
+} from "../intent/retired-intent-response";
 import type { AgentIntent } from "../schemas";
 import type { AgentConversationState, ConversationalAnswerArgs, ConversationalIntentName } from "./types";
 

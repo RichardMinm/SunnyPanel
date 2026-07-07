@@ -6,15 +6,16 @@ import {
   type AgentIntent,
   type PendingAction,
 } from "../schemas";
-import type { HeuristicCandidate } from "./heuristics";
-import { parseDefinitionQuestionIntent } from "./heuristics/knowledge";
+import { parseDefinitionQuestionIntent } from "./retired-intent-response";
 import {
   isCancellationReply,
+  isNegativeReply,
+} from "./intent-safety-signals";
+import {
   isGeneralConsultationQuestion,
   isLearningAdviceQuestion,
-  isNegativeReply,
   parseKnowledgeAnswerIntent,
-} from "./heuristics";
+} from "../heuristic-intent-resolver";
 import { routeFollowUpIntent } from "../conversation/follow-up-router";
 import type { AgentConversationState } from "../conversation/types";
 import { isConversationalIntent } from "../schemas";
@@ -54,6 +55,11 @@ export type AgentArbitrationDecision = {
   route: AgentRouteClass;
   writeSafety: WriteSafetyAssessment;
 };
+
+/* R6-C1-E: HeuristicCandidate type was in deleted intent/heuristics/index.ts.
+ * Inlined here since heuristic candidates no longer exist — the type is kept
+ * only for backward compatibility with AgentArbitrationInput. */
+type HeuristicCandidate = { intent: AgentIntent; source: string };
 
 export type AgentArbitrationInput = {
   context: AgentPromptContext;

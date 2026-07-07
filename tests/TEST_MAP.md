@@ -50,6 +50,25 @@ Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, a
 | Memory and learning | `tests/agent/memory*.test.ts`, `tests/agent/learning-loop.test.ts`, `tests/agent/strategy-feedback-memory.test.ts` | Memory validation, ranking, learning persistence and feedback. | normal |
 | Suggestions | `tests/agent/suggestions.test.ts`, `tests/agent/suggestion-feedback.test.ts`, `tests/agent/llm-enhancement.test.ts` | Suggestion generation, feedback, LLM enhancement fallback. | normal |
 | Content/writing assist | `tests/agent/writing-assist.test.ts`, `tests/agent/cognitive-advisory.test.ts` | Read-only assistance and writing prompt contracts. | normal |
+| LLM Required Mode | `tests/agent/llm-required-mode.test.ts`, `tests/agent/no-llm-unavailable.test.ts` | Feature flag, availability check, pipeline stop before business fallback. Phase LLM-R1. | protected |
+| Tool Registry Contract | `tests/agent/tool-registry-contract.test.ts` | Metadata completeness, invariants across 17 tools. Phase LLM-R2. | protected |
+| Tool Planner | `tests/agent/llm-tool-catalog.test.ts`, `tests/agent/llm-tool-plan-validator.test.ts`, `tests/agent/llm-tool-planner.test.ts` | Catalog, validation safety, planner feature flags. Phase LLM-R3. | protected |
+| Tool Planner Shadow | `tests/agent/llm-tool-planner-shadow-graph.test.ts`, `tests/agent/llm-tool-planner-trace-only-integration.test.ts` | Shadow runner trace-only mode. Phase LLM-R4A. | protected |
+| Tool Planner Graph Runtime | `tests/agent/llm-tool-planner-langgraph-runtime.test.ts`, `tests/agent/llm-tool-planner-read-draft-runtime.test.ts`, `tests/agent/llm-tool-planner-runtime-integration.test.ts` | LangGraph StateGraph, read/draft dryRun previews, write blocked. Phase LLM-R4B. | protected |
+| Tool Planner Write Proposals | `tests/agent/llm-tool-planner-write-dry-run-proposal.test.ts`, `tests/agent/llm-tool-planner-write-proposal-policy.test.ts`, `tests/agent/llm-tool-planner-write-proposal-integration.test.ts` | Write step eligibility, allowlist, dryRun proposals, preview-only. Phase LLM-R4C. | protected |
+| Tool Planner Real Policy Guard | `tests/agent/llm-tool-planner-real-policy-guard.test.ts` | Real Policy Guard + PendingAction. Phase LLM-R4D. | protected |
+| Tool Planner Real Pending Action | `tests/agent/llm-tool-planner-real-pending-action.test.ts`, `tests/agent/llm-tool-planner-real-pending-integration.test.ts` | Real PendingAction shape, feature flag gating. Phase LLM-R4D. | protected |
+| Tool Planner Confirmation Compat | `tests/agent/llm-tool-planner-confirmation-compat.test.ts`, `tests/agent/llm-tool-planner-confirmation-to-execute-e2e.test.ts`, `tests/agent/llm-tool-planner-confirmation-cancel.test.ts` | confirmation-to-execute E2E. Phase LLM-R4E. | protected |
+| Tool Planner Receipt / Rollback | `tests/agent/llm-tool-planner-receipt-rollback-compat.test.ts` | Receipt key, rollback metadata. Phase LLM-R4E. | protected |
+| Tool Planner DB Smoke | `tests/agent/llm-tool-planner-db-smoke.test.ts` | Real Postgres DB smoke (skips without DATABASE_URL). Phase LLM-R4F. | protected |
+| R5-A Heuristic Gate | `tests/agent/llm-required-no-heuristic-business-path.test.ts`, `tests/agent/tool-planner-required-mode.test.ts`, `tests/agent/tool-planner-failure-responses.test.ts` | AGENT_REQUIRE_LLM=1 disables heuristic business fallback. Phase R5-A. | protected |
+| R5-B Read/Draft Parity | `tests/agent/tool-planner-read-draft-parity.test.ts`, `tests/agent/tool-planner-read-query-parity.test.ts`, `tests/agent/tool-planner-capability-response.test.ts` | Read/draft dryRun preview, schedule query unsupported, capability answer. Phase R5-B. | protected |
+| R5-C Schedule Read Tool | `tests/agent/tool-planner-schedule-read-tool.test.ts`, `tests/agent/tool-planner-capability-answer-path.test.ts`, `tests/agent/tool-planner-no-heuristic-query-fallback.test.ts` | query_schedule read-only tool, capability answer path. Phase R5-C. | protected |
+| R5-D Naming Boundary | `tests/agent/tool-planner-naming-boundary.test.ts` | query_schedule read-only contract, naming audit. Phase R5-D. | protected |
+| R6-A Reachability Audit | `docs/phase-r6a-legacy-heuristic-reachability-audit.md` | Read-only audit: reachability, classification, deletion sequence. Phase R6-A. | reference |
+| R6-C2-A Schedule/Planning Audit | `docs/phase-r6-c2-a-schedule-planning-deterministic-boundary-audit.md` | Read-only audit: safety vs legacy fallback in schedule/planning modules. Phase R6-C2-A. | reference |
+| **R6-C2 Boundary Doc** | `docs/phase-r6-c2-schedule-planning-tool-planner-boundary.md` | Final R6-C2 schedule/planning Tool Planner boundary, gated/kept/deferred summary, replacement coverage. Phase R6-C2-Docs. | reference |
+| **R6 Final Audit** | `docs/r6-final-heuristic-and-test-coverage-audit.md` | R6 post-mortem: heuristic residue, test validity, coverage matrix, protected tests status, risk register. Verdict: Pass with follow-up. | reference |
 | Root workflow contracts | `tests/agent/root-workflow-contract.test.ts`, `tests/agent/root-router-contract.test.ts` | Root weekly/timeline workflow contracts and router/tool-plan handoff boundaries. | normal |
 
 ## Planning
@@ -80,7 +99,8 @@ Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, a
 | Create schedule items | `tests/agent/schedule/create-schedule-items-*.test.ts` | Confirmed batch write, dry-run, idempotency, rollback. | protected |
 | Conflict awareness | `tests/agent/schedule/schedule-conflict-*.test.ts`, `tests/agent/schedule/local-free-slots.test.ts` | Local conflict detection and suggestions without automatic rescheduling. | protected |
 | Legacy schedule compatibility | `tests/agent/schedule/schedule-legacy-pipeline-contract.test.ts`, `tests/agent/schedule/schedule-conflict-detection.test.ts` | Legacy single-item schedule proposal/result helpers and conflict detector compatibility. | normal |
-| Query schedule | `tests/agent/schedule/schedule-query-*.test.ts`, `tests/agent/schedule/schedule-intent-boundary.test.ts` | Read-only schedule lookup does not enter creation workflow. | protected |
+| Query schedule | `tests/agent/schedule/schedule-query-flow.test.ts` | Read-only schedule lookup does not enter creation workflow. | protected |
+| ~~Schedule intent boundary (legacy)~~ | ~~`tests/agent/schedule/schedule-intent-boundary.test.ts`~~ | R6-C2-B: Deleted — pure keyword/regex boundary. Replaced by Tool Planner. | deleted |
 | Product polish | `tests/agent/schedule/schedule-ui-state-contract.test.tsx`, `tests/agent/schedule/schedule-result-card.test.tsx`, `tests/agent/schedule/schedule-product-*.test.tsx` | Draft / confirmation / result / suggestion / query state separation. | normal |
 | Full workflow | `tests/agent/schedule/schedule-workflow-e2e.test.ts`, `tests/agent/schedule/schedule-workflow-product-e2e.test.tsx` | End-to-end schedule workflow closure. | protected |
 
@@ -174,6 +194,150 @@ Use a non-production database for E2E. Do not connect browser or smoke tests to 
 - `tests/layout`, `tests/writing`, `tests/primitives`, and `tests/performance` were outside the first T1 scan and need a later full-map pass.
 - E2E auth/seed prerequisites should be standardized in one place before expanding browser coverage.
 - There is no single `verify:ci` script yet; the current baseline is expressed as separate commands.
+
+## Legacy Heuristic Quarantine (R6-B → R6-Final)
+
+Tests in this section cover the pre-LLM Tool Planner heuristic business fallback path.
+They are **not part of the `AGENT_REQUIRE_LLM=1` protected baseline**.
+R6-Final-Audit verdict: each file now has a clear disposition.
+
+See: `docs/phase-r6b-legacy-heuristic-test-quarantine.md`, `docs/r6-final-heuristic-and-test-coverage-audit.md`
+
+### Quarantine: Legacy Heuristic Intent
+
+| Module | Files | Contract | R6-Final Status |
+| --- | --- | --- | --- |
+| Heuristic intent parsing | `tests/agent/plan-source.test.ts`, `tests/agent/pipeline-trace.trace.ts` | Pre-LLM heuristic intent classification (retired stubs). | 🔷 keep-as-legacy-compat |
+
+### Quarantine: Schedule Legacy
+
+| Module | Files | Contract | R6-Final Status |
+| --- | --- | --- | --- |
+| Schedule readiness | `tests/agent/schedule/schedule-readiness.test.ts`, `tests/agent/schedule/schedule-readiness-gate.test.ts`, `tests/agent/schedule/schedule-slots.test.ts` | Readiness evaluation + slot merging — product behavior. | 🔷 **keep-as-legacy-compat** (readiness is safety, not heuristic) |
+| Schedule draft | `tests/agent/schedule/schedule-draft.test.ts`, `tests/agent/schedule/schedule-draft-flow.test.ts`, `tests/agent/schedule/schedule-draft-revise.test.ts`, `tests/agent/schedule/schedule-session-draft.test.ts` | Draft generation + revision — product behavior. | 🔷 **keep-as-legacy-compat** (draft is product, not heuristic) |
+| ~~Schedule query intent~~ | ~~`tests/agent/schedule/schedule-query-intent.test.ts`~~ | R6-C2-B Deleted. Replaced by query_schedule read tool. | ✅ deleted |
+| Legacy pipeline | `tests/agent/schedule/schedule-legacy-pipeline-contract.test.ts` | Legacy pipeline + UI wiring contracts (mixed safety/legacy). | 🔷 **keep-as-legacy-compat** (tests safety/confirmation functions) |
+| Schedule preparation | `tests/agent/schedule/prepare-schedule-creation.test.ts` | Draft → create args conversion. | 🔷 **keep-as-legacy-compat** (product behavior) |
+
+### Quarantine: Planning Legacy
+
+| Module | Files | Contract | R6-Final Status |
+| --- | --- | --- | --- |
+| Plan readiness | `tests/agent/planning/plan-readiness.test.ts`, `tests/agent/planning/planning-readiness-gate.test.ts`, `tests/agent/planning/planning-session-slots.test.ts` | Readiness evaluation + slot merging — product behavior. | 🔷 **keep-as-legacy-compat** (readiness is safety, not heuristic) |
+| Plan draft | `tests/agent/planning/plan-draft.test.ts`, `tests/agent/planning/planning-draft-flow.test.ts`, `tests/agent/planning/revise-plan-draft.test.ts`, `tests/agent/planning/revise-plan-draft-flow.test.ts` | Draft generation + revision — product behavior. | 🔷 **keep-as-legacy-compat** (draft is product, not heuristic) |
+| Checklist draft | `tests/agent/planning/checklist-draft.test.ts`, `tests/agent/planning/checklist-draft-flow.test.ts` | Checklist draft — product behavior. compose_checklist replacement exists (R5-E). | 🔷 **keep-as-legacy-compat** (migrate to compose_checklist later) |
+| Plan preparation | `tests/agent/planning/prepare-plan-creation.test.ts`, `tests/agent/planning/prepare-checklist-creation.test.ts` | Draft → create args conversion. | 🔷 **keep-as-legacy-compat** (product behavior) |
+
+### Quarantine: Session Rules (Business)
+
+| Module | Files | Contract | R6-Final Status |
+| --- | --- | --- | --- |
+| Rule pre-check (business) | `tests/agent/session/rule-pre-check.test.ts` (deepen/schedule-query/schedule-create/writing-revision sub-tests) | Heuristic session business rules. Confirm/cancel sub-tests remain protected. | legacy-quarantine |
+
+### Quarantine: Needs Replacement
+
+| Module | Representative files | Missing Replacement | Protection |
+| --- | --- | --- | --- |
+| Checklist plan linkage | `tests/agent/planning/checklist-plan-linkage.test.ts`, `tests/agent/planning/plan-to-checklist-source-plan-id.test.ts` | compose_checklist draft tool (R5-E) | legacy-quarantine |
+
+## R6-C1 Legacy Heuristic Removal Regression (COMPLETED)
+
+Tests verifying heuristic modules were safely removed and replacement coverage exists.
+
+| Module | Representative files | Contract | Protection |
+| --- | --- | --- | --- |
+| Modules removed | `tests/agent/tool-planner-no-heuristic-query-fallback.test.ts`, `tests/agent/llm-required-no-heuristic-business-path.test.ts` | Deleted heuristic modules NOT importable; parse-heuristic-intent.ts absent from filesystem. | protected |
+| Aggregator retired | `tests/agent/chat-pipeline/legacy-heuristic-retired.test.ts` | resolveAgentIntent / parseHeuristicIntent no longer called. | protected |
+| Import consumers retired | `tests/agent/chat-pipeline/legacy-heuristic-import-consumers-retired.test.ts` | intent-resolution / orchestrator / heuristic-intent-resolver no longer import heuristics. | protected |
+| Query router retired | `tests/agent/chat-pipeline/legacy-query-router-imports-retired.test.ts` | capability-router / pre-router no longer import query.ts. | protected |
+| Knowledge retired | `tests/agent/chat-pipeline/legacy-knowledge-imports-retired.test.ts` | knowledge.ts / shared-text.ts consumers migrated to retired-intent-response. | protected |
+
+## R6-C2-B LOW-risk Legacy Test Retirement (COMPLETED)
+
+Phase R6-C2-B classified and processed LOW-risk schedule/planning legacy-only tests.
+No production code was modified. All deferred tests remain for R6-C2-C or later.
+
+| Module | Representative files | Action | Replacement Coverage |
+| --- | --- | --- | --- |
+| Schedule intent boundary | ~~`tests/agent/schedule/schedule-intent-boundary.test.ts`~~ | Deleted — pure keyword/regex boundary. | `tool-planner-schedule-read-tool`, `tool-planner-no-heuristic-query-fallback`, `llm-required-no-heuristic-business-path` |
+| Schedule query intent | ~~`tests/agent/schedule/schedule-query-intent.test.ts`~~ | Deleted — stub killed all assertions (3/3 fail). | `tool-planner-schedule-read-tool`, `tool-planner-no-heuristic-query-fallback`, `tool-planner-capability-answer-path` |
+
+### Deferred (R6-C2-C or later)
+
+| Category | Files | Reason |
+| --- | --- | --- |
+| Readiness | `schedule-readiness.test.ts`, `schedule-readiness-gate.test.ts`, `schedule-slots.test.ts`, `plan-readiness.test.ts`, `planning-readiness-gate.test.ts`, `planning-session-slots.test.ts` | Readiness evaluation is product behavior, not purely legacy |
+| Draft builders | `schedule-draft*.test.ts`, `plan-draft.test.ts`, `planning-draft-flow.test.ts`, `checklist-draft*.test.ts` | Draft generation is product behavior |
+| Draft revision | `schedule-draft-revise*.test.ts`, `revise-plan-draft*.test.ts` | Draft revision may be product behavior |
+| Preparation | `prepare-schedule-creation.test.ts`, `prepare-plan-creation.test.ts`, `prepare-checklist-creation.test.ts` | Draft → create args conversion may be product behavior |
+| Legacy pipeline | `schedule-legacy-pipeline-contract.test.ts` | Mixed content — tests safety/confirmation functions |
+| Checkpoint linkage | `checklist-plan-linkage*.test.ts` | compose_checklist draft tool replacement pending |
+| Session draft | `schedule-session-draft.test.ts` | Session state draft may be product behavior |
+| Query flow | `schedule-query-flow.test.ts` | R6-B says keep for legacy-compat |
+
+See: `docs/phase-r6-c2-a-schedule-planning-deterministic-boundary-audit.md`
+
+## LLM Tool Planner Replacement Coverage
+
+| Module | Representative files | Contract | Protection |
+| --- | --- | --- | --- |
+| No heuristic fallback | `tests/agent/llm-required-no-heuristic-business-path.test.ts` | AGENT_REQUIRE_LLM=1 blocks all heuristic fallback paths. | protected |
+| Capability answer | `tests/agent/tool-planner-capability-answer-path.test.ts` | Capability questions return controlled response, not regex router. | protected |
+| Schedule read tool | `tests/agent/tool-planner-schedule-read-tool.test.ts` | query_schedule read-only tool exists and works via Tool Planner. | protected |
+| No query fallback | `tests/agent/tool-planner-no-heuristic-query-fallback.test.ts` | Schedule/read queries do not fallback to heuristic parser. | protected |
+| Read/draft parity | `tests/agent/tool-planner-read-draft-parity.test.ts` | Read/draft tools support dryRun preview. | protected |
+
+## R6-C2-C Tool Planner Schedule/Planning Proposal Contract (COMPLETED)
+
+Phase R6-C2-C strengthened Tool Planner contract tests for schedule/planning proposals.
+No production code was modified. All tests use deterministic registry/metadata/readiness assertions.
+
+| Module | Representative files | Contract | Protection |
+| --- | --- | --- | --- |
+| Schedule proposal contract | `tests/agent/tool-planner-schedule-proposal-contract.test.ts` | Write tool metadata, draft dryRun→proposed_action, no DB write before confirm, no execute before confirm, missing slots→insufficient, planner unavailable→controlled, invalid tool→null, write allowlist boundary. | protected |
+| Planning proposal contract | `tests/agent/tool-planner-planning-proposal-contract.test.ts` | Write tool metadata, draft dryRun→proposed_action, no DB write before confirm, no execute before confirm, missing fields→insufficient, compose_checklist draft-only, mergePlanSlots safety, planner unavailable→controlled. | protected |
+
+### R6-C2-C Coverage Matrix
+
+| Scenario | Schedule | Planning |
+|----------|----------|----------|
+| Write tool metadata (capability, requiresConfirmation, supportsExecute/DryRun/Rollback) | ✅ | ✅ |
+| Draft tool dryRun → proposed_action with requiresConfirmation | ✅ | ✅ |
+| Draft tool dryRun snapshot: no DB write, no receipt, no execute | ✅ | ✅ |
+| Missing slots/fields → readiness status=insufficient | ✅ | ✅ |
+| Complete slots → draftable | ✅ | ✅ |
+| Existing draft + explicit create → confirmable | ✅ | ✅ |
+| Read-only tool dryRun → clarify (not proposed_action) | ✅ | — |
+| compose_checklist: draft-only, no execute | — | ✅ |
+| mergePlanSlots: non-mutating, preserves useful values | — | ✅ |
+| Planner unavailable response: no pendingAction, no execute, no DB write | ✅ | ✅ |
+| Planner unavailable response: user-facing message, no heuristic language | ✅ | ✅ |
+| Invalid tool → null/safe rejection | ✅ | ✅ |
+| Write allowlist boundary (3 write tools, no draft/read cross) | ✅ | ✅ |
+| dryRun supported by ALL tools | ✅ | ✅ |
+| Readiness is deterministic (no network, no side effects) | — | ✅ |
+
+## R6-C2-D Gated Legacy Fallback Entrypoints (COMPLETED)
+
+Phase R6-C2-D gated keyword/regex write-intent rules in `classifyScheduleIntentBoundary`
+behind `AGENT_REQUIRE_LLM=0`. In LLM-required mode, the keyword regex patterns that
+produce `schedule_creation` or `revise_schedule_draft` with `source: "rule"` are skipped.
+The query guard (`hasQuerySignal` → `query_schedule`) and LLM classifier path remain active.
+
+| Module | File | Action | Detail |
+| --- | --- | --- | --- |
+| intent-boundary gate | `src/lib/agent/schedule/intent-boundary.ts` | **Gated** | `hasExplicitCreateSignal` + `hasDraftRevisionSignal` keyword rules gated behind `!isAgentRequireLLMEnabled()` |
+| intent-boundary safety guard | `src/lib/agent/schedule/intent-boundary.ts` | **Kept** | `hasQuerySignal` → `query_schedule` read-only guard still works in all modes |
+| Gating tests | `tests/agent/llm-required-no-heuristic-business-path.test.ts` | **Added** | 4 new tests verify: write intent blocked in AGENT_REQUIRE_LLM=1, query guard preserved, legacy mode unchanged, no fallback to write from generic messages |
+
+### Deferred (unchanged)
+
+| Category | Files | Reason |
+| --- | --- | --- |
+| Readiness gates | `schedule/readiness-gate.ts`, `planning/readiness-gate.ts` | Readiness orchestration — product behavior |
+| Readiness evaluation | `schedule/readiness.ts`, `planning/readiness.ts` | Slot validation — safety contract |
+| Draft revision | `schedule/revise-draft*.ts`, `planning/revise-plan-draft.ts` | May be product behavior (0 production callers, but spec says defer) |
+| Checklist draft flow | `planning/checklist-draft-flow.ts` | May be product behavior (0 production callers, but spec says defer) |
 
 ## Test Pruning Plan
 

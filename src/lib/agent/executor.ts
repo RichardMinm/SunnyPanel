@@ -296,9 +296,35 @@ export const executeAgentIntent = async (
           status: "failed",
         }
       );
+    case "compose_checklist":
+      onTrace?.({
+        detail: "清单草案预览，不写入 checklist 数据。",
+        id: "workflow-compose-checklist",
+        kind: "analysis",
+        status: "done",
+        title: "清单草案预览",
+      });
+      return {
+        assistantMessage: "清单草案预览已生成（仅草案，未写入数据库）。",
+        pendingAction: null,
+        status: "completed",
+      };
     case "query_checklist_progress":
-    case "query_plan":
     case "query_schedule":
+      onTrace?.({
+        detail: "只读日程查询，不写入 schedule-items。",
+        id: "workflow-query-schedule",
+        kind: "analysis",
+        status: "done",
+        title: "只读日程查询",
+      });
+      // query_schedule is read-only — return a simple receipt, no DB write
+      return {
+        assistantMessage: "日程查询完成（只读，未写入数据库）。",
+        pendingAction: null,
+        status: "completed",
+      };
+    case "query_plan":
     case "query_timeline":
     case "query_progress":
       onTrace?.({

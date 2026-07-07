@@ -7,7 +7,7 @@ import {
   type BaseCheckpointSaver,
 } from "@langchain/langgraph";
 
-import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/heuristics/knowledge";
+import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/retired-intent-response";
 import {
   createPayloadActionReceiptStore,
   runIdempotentAgentAction,

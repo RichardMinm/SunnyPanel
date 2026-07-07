@@ -1,5 +1,5 @@
 import type { AgentChatMessage, AgentIntent } from "../schemas";
-import { parseDefinitionQuestionIntent } from "../intent/heuristics/knowledge";
+import { parseDefinitionQuestionIntent } from "../intent/retired-intent-response";
 import type { AgentConversationState, ConversationUserIntent } from "./types";
 import { isConversationalIntent } from "./types";
 

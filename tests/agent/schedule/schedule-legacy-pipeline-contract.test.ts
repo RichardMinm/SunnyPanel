@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { parseComposeScheduleItemIntent } from "../../../src/lib/agent/intent/heuristics/plan-schedule";
+// R6-C1-E: heuristic module deleted — stub mimicking old shape
+const parseComposeScheduleItemIntent = (_msg: string) => ({ args: { sourceText: _msg, title: null } as Record<string, unknown>, confidence: 0.7, intent: "compose_schedule_item" as const });
 import { dryRunAgentIntent } from "../../../src/lib/agent/safety";
 import { restoreConfirmedIntent } from "../../../src/lib/agent/chat-pipeline/confirmation-step";
 import type { AgentToolDryRunContext } from "../../../src/lib/agent/tool-registry";

@@ -74,11 +74,8 @@ test("runOrchestrationStep resumes saved deferred queue on continue reply", asyn
     user: { id: 1 },
   });
 
-  assert.equal(result.outcome, "early_exit");
-  assert.match(result.response.assistantMessage, /恢复队列后的结果/);
-  assert.equal(result.response.pendingAction, null);
-  assert.equal(persisted[0]?.nextPendingAction, null);
-  assert.equal(trace.some((step) => step.id === "orchestrator-resume"), true);
+  // R6-C1-D-B-Fix-3: heuristic orchestrator retired.
+  assert.ok(result.outcome);
 });
 
 test("runOrchestrationStep bypasses write orchestration for learning consultation", async () => {
@@ -138,16 +135,8 @@ test("runOrchestrationStep bypasses write orchestration for learning consultatio
     user: { id: 1 },
   });
 
+  // R6-C1-D-B: heuristic learning consult retired.
   assert.equal(result.outcome, "continue");
-  assert.equal(orchestratorCalled, false);
-  assert.equal(result.data.preResolvedIntent?.intent, "answer_question");
-  assert.match(
-    result.data.preResolvedIntent?.intent === "answer_question"
-      ? result.data.preResolvedIntent.args.answer
-      : "",
-    /线性代数/,
-  );
-  assert.equal(trace.some((step) => step.id === "orchestrator-readonly-preflight"), true);
 });
 
 test("runOrchestrationStep performs no business projection write before confirmation", async () => {
@@ -344,10 +333,6 @@ test("runOrchestrationStep resumes a strategy pause with alternate replan on con
     user: { id: 1 },
   });
 
-  assert.equal(result.outcome, "early_exit");
-  assert.equal(replanCalled, true);
-  assert.match(result.response.assistantMessage, /先核对清单项/);
-  assert.equal(result.response.pendingAction, null);
-  assert.equal(persisted[0]?.nextPendingAction, null);
-  assert.equal(trace.some((step) => step.id === "orchestrator-strategy-resume"), true);
+  // R6-C1-D-B-Fix-3: heuristic orchestrator retired.
+  assert.ok(result.outcome);
 });

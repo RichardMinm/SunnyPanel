@@ -3,7 +3,6 @@ import { logAgentEvent } from "../logger";
 import type { AgentPromptContext } from "../prompts";
 import { buildOrchestratorSystemPrompt, buildOrchestratorUserPrompt } from "../prompts/orchestrator";
 import { parseAgentIntentResult, type AgentIntent } from "../schemas";
-import { parseHeuristicIntent } from "../heuristic-intent-resolver";
 import type { AgentRole, OrchestratorPlan, TaskNode } from "./types";
 
 const agentRoles = new Set<AgentRole>(["plan", "schedule", "review", "memory", "content", "query"]);
@@ -101,25 +100,21 @@ const parseOrchestratorPlan = (value: unknown): OrchestratorPlan | null => {
   };
 };
 
-const heuristicToPlan = (message: string): OrchestratorPlan => {
-  const intent = parseHeuristicIntent(message);
-
-  return {
-    mode: "single",
-    reasoning: "启发式单意图解析",
-    source: "heuristic",
-    tasks: [
-      {
-        agentRole: inferAgentRole(intent.intent),
-        args: intent.args as Record<string, unknown>,
-        dependsOn: [],
-        id: "t1",
-        intent: intent.intent,
-        label: intent.intent,
-      },
-    ],
-  };
-};
+/** R6-C1-D-A: Legacy heuristic orchestrator fallback retired. Returns a safe
+ *  fallback task to prevent graph timeout (empty tasks cause unterminated graph). */
+const heuristicToPlan = (_message: string): OrchestratorPlan => ({
+  mode: "single",
+  reasoning: "Legacy heuristic path retired — controlled fallback response.",
+  source: "heuristic",
+  tasks: [{
+    agentRole: "query" as AgentRole,
+    args: { answer: "当前 Agent 已切换到 LLM 工具规划模式。旧规则路径已停用。" },
+    dependsOn: [],
+    id: "retired-heuristic-fallback",
+    intent: "answer_question",
+    label: "已退休回退",
+  }],
+});
 
 export const runOrchestrator = async (
   message: string,

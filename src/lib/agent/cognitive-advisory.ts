@@ -1,5 +1,5 @@
 import type { AgentArbitrationDecision } from "@/lib/agent/intent/arbitration";
-import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/heuristics/knowledge";
+import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/retired-intent-response";
 import {
   completeStructured,
   type CompleteStructuredOptions,

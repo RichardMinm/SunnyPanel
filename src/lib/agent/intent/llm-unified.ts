@@ -3,10 +3,9 @@ import type { AgentModelIntentResolver } from "../intent-resolution";
 import type { AgentPromptContext } from "../prompts";
 import type { AgentChatMessage, AgentEngine, AgentIntent, AgentTokenUsage, PendingAction } from "../schemas";
 import { arbitrateAgentIntent, type AgentArbitrationDecision } from "./arbitration";
-import { collectHeuristicCandidates } from "./heuristics";
-
 /**
- * Phase 1 统一意图入口：优先 LLM 结构化解析，失败则用启发式候选集（非单一关键词链）。
+ * Phase 1 统一意图入口：LLM 结构化解析。
+ * R6-C1-E: Heuristic candidate collection removed (retired).
  */
 export const resolveUnifiedIntent = async (input: {
   context: AgentPromptContext;
@@ -51,7 +50,8 @@ export const resolveUnifiedIntent = async (input: {
     console.warn("[agent] Intent model unavailable; falling back to heuristics.", error);
   }
 
-  const candidates = collectHeuristicCandidates(input.message);
+  // R6-C1-E: heuristic candidates retired.
+  const candidates: import("./arbitration").AgentArbitrationInput["heuristicCandidates"] = [];
   const arbitration = await arbitrateAgentIntent({
     context: input.context,
     conversationState: input.conversationState ?? null,

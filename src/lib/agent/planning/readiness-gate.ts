@@ -4,6 +4,10 @@ import type {
 } from "@/lib/agent/schemas";
 import { createDefaultSessionState, normalizeSessionState } from "@/lib/agent/session/normalize-session";
 import type { AgentSessionState } from "@/lib/agent/session/types";
+import {
+  buildPlanningClarificationContext,
+  composeClarificationWithLLM,
+} from "@/lib/agent/response/clarification";
 
 import {
   generatePlanDraft,
@@ -531,4 +535,39 @@ export const evaluatePlanReadinessGate = (
     sessionState,
     traceStep: buildTraceStep(readiness),
   };
+};
+
+/* ──── LLM-assisted clarification message composer ──── */
+
+/**
+ * Compose a user-facing clarification message for planning readiness insufficient.
+ *
+ * Tries LLM-assisted composition first (when enabled), falls back to the
+ * existing deterministic template on failure.
+ *
+ * Readiness evaluation remains deterministic — this only replaces the
+ * user-visible message text.
+ */
+export const composePlanClarificationAsync = async (params: {
+  deadline?: null | string;
+  fallbackMessage: string;
+  goal?: null | string;
+  hasPlanningDraft?: boolean;
+  missingSlotKeys: string[];
+  userMessage: string;
+}): Promise<string> => {
+  try {
+    const context = buildPlanningClarificationContext({
+      deadline: params.deadline,
+      goal: params.goal,
+      hasPlanningDraft: params.hasPlanningDraft,
+      missingSlotKeys: params.missingSlotKeys,
+      userMessage: params.userMessage,
+    });
+
+    const composed = await composeClarificationWithLLM(context);
+    return composed.message;
+  } catch {
+    return params.fallbackMessage;
+  }
 };

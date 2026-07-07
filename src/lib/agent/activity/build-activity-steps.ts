@@ -85,6 +85,10 @@ const backendTracePhaseToActivityKind: Record<AgentTracePhase, AgentActivityKind
   rollback: "rollback",
   router: "routing",
   session: "loading_context",
+  slot_extraction: "understanding",
+  llm_availability: "failed",
+  tool_planning: "planning",
+  tool_planner_unavailable: "failed",
   tool_call: "calling_tool",
   user_message: "received",
 };

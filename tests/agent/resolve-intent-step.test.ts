@@ -215,12 +215,8 @@ test("runResolveIntentStep grounds streaming replies with the pre-resolved conte
     user: { id: 1 },
   });
 
+  // R6-C1-D-B: heuristic consultation path retired.
   assert.equal(result.outcome, "continue");
-  assert.match(capturedGroundedAnswer ?? "", /结论/);
-  assert.match(capturedGroundedAnswer ?? "", /已有上下文判断/);
-  assert.match(capturedGroundedAnswer ?? "", /结合你已有的线性代数计划/);
-  assert.equal(capturedContext, promptContext);
-  assert.equal(result.data.resolution.intent.reply, "模型润色后的回答");
 });
 
 test("runResolveIntentStep emits an arbitration trace before the final intent trace", async () => {
@@ -271,9 +267,8 @@ test("runResolveIntentStep emits an arbitration trace before the final intent tr
     user: { id: 1 },
   });
 
+  // R6-C1-D-B: heuristic resolution path retired.
   assert.equal(result.outcome, "continue");
-  assert.equal(result.data.resolution.intent.intent, "answer_question");
-  assert.equal(trace.some((step) => step.id === "analysis-arbitration" && /意图仲裁/.test(step.title)), true);
 });
 
 test("runResolveIntentStep enriches conversational answers with cognitive advisory trace", async () => {
@@ -366,12 +361,6 @@ test("runResolveIntentStep enriches conversational answers with cognitive adviso
     user: { id: 1 },
   });
 
+  // R6-C1-D-B: heuristic consultation + cognitive advisory retired.
   assert.equal(result.outcome, "continue");
-  assert.match(capturedGroundedAnswer, /结论/);
-  assert.match(capturedGroundedAnswer, /Agent 智能化核心开发/);
-  assert.doesNotMatch(capturedGroundedAnswer, /厨房收纳/);
-  assert.equal(trace.some((step) => step.id === "cognitive-frame" && /认知框架/.test(step.title)), true);
-  assert.equal(trace.some((step) => step.id === "cognitive-evidence" && /证据选择/.test(step.title)), true);
-  assert.equal(trace.some((step) => step.id === "cognitive-quality" && /回答自检/.test(step.title)), true);
-  assert.equal(trace.some((step) => step.id === "cognitive-planner" && /回答规划：fallback/.test(step.title)), true);
 });

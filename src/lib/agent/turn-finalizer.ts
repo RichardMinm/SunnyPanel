@@ -20,7 +20,7 @@ import {
   resolveConversationState,
 } from "@/lib/agent/conversation/conversation-state";
 import type { AgentConversationState } from "@/lib/agent/conversation/types";
-import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/heuristics/knowledge";
+import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/retired-intent-response";
 import { isConversationalIntent, type AgentChatMessage } from "@/lib/agent/schemas";
 
 type LearningInput = Parameters<typeof runAgentLearningLoop>[0];

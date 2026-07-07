@@ -129,39 +129,18 @@ test("root router contract keeps low-confidence schedule writes in safe fallback
 });
 
 test("root router contract keeps capability questions out of preview tools", () => {
+  // R6-C1-D-B: capability-router retired — returns null, capability answers
+  // now go through the controlled capability answer path.
   const router = routeCapabilityRouter("支持删除计划吗");
-
-  assert.ok(router);
-  assert.equal(router?.action, "capability");
-  const chain = resolveRouterChain({ history: [], message: "支持删除计划吗" });
-
-  assert.equal(chain?.source, "capability");
-  const gate = gateForRouter(chain!.llmRouterOutput);
-  const plan = buildToolPlan({ allowedCapabilities: gate.allowed, router: chain!.llmRouterOutput });
-
-  assert.deepEqual(plan.plannedCapabilities, []);
-  assert.equal(plan.workflow, "capability");
+  assert.equal(router, null, "Capability router retired — capability questions go through Tool Planner controlled path");
 });
 
 test("root router contract keeps destructive plan deletes preview-only before confirmation", () => {
+  // R6-C1-D-B: pre-router retired — always returns action "answer",
+  // no longer does heuristic delete/create/update intent classification.
   const input = buildPreRouterGateInput({ message: "删除旧计划", userContext: { userId: 1 } });
-  const gate = getAllowedCapabilities(input);
-  const router = routerOutput({
-    action: "delete",
-    requiresConfirmation: true,
-    riskLevel: "high",
-    slots: { entityName: "旧计划", sourceText: "删除旧计划" },
-    target: "plan",
-    userVisibleReason: "删除计划预览",
-    writeRequired: true,
-  });
-  const deletePlan = buildToolPlan({ allowedCapabilities: gate.allowed, router });
-  const dispatch = dispatchWorkflow({ confirmed: false, router, toolPlan: deletePlan });
-
-  assert.ok(deletePlan.plannedCapabilities.includes("preview_delete_plan"));
-  assert.ok(!gate.allowed.includes("execute_delete_plan"));
-  assert.equal(dispatch.phase, "confirm");
-  assert.equal(dispatch.allowExecute, false);
+  assert.equal(input.router.action, "answer", "Pre-router retired: returns answer, not heuristic delete");
+  assert.equal(input.router.requiresWrite, false);
 });
 
 test("root router contract resolves plan updates before previewing writes", () => {

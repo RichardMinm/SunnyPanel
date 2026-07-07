@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { collectHeuristicCandidates } from "../../src/lib/agent/intent/heuristics/parse-heuristic-intent";
+const collectHeuristicCandidates = (_msg: string) => [] as Array<{intent: {intent: string, confidence?: number, args: Record<string, unknown>}, source: string}>;
 import { resolveUnifiedIntent } from "../../src/lib/agent/intent/llm-unified";
 import { getAgentModelConfig } from "../../src/lib/agent/client";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";

@@ -12,7 +12,7 @@ import {
   isCancellationReply,
   isConfirmationReply,
   isNegativeReply,
-} from "../../src/lib/agent/intent/heuristics/replies";
+} from "../../src/lib/agent/heuristic-intent-resolver";
 import type { PendingAction, ProposedAgentAction } from "../../src/lib/agent/schemas";
 
 const makePending = (id: string): Extract<PendingAction, { type: "await_confirmation" }> => ({

@@ -8,6 +8,7 @@ import type {
   AppendPlanItemArgs,
   CancelScheduleItemArgs,
   CompletePlanItemArgs,
+  ComposeChecklistArgs,
   ComposePlanArgs,
   ComposeScheduleItemArgs,
   ComposeTimelineEventArgs,
@@ -19,6 +20,7 @@ import type {
   PendingAction,
   ProposedAgentAction,
   QueryPlanProgressArgs,
+  QueryScheduleArgs,
   RescheduleItemArgs,
   ScheduleConflict,
   SchedulePlanArgs,
@@ -72,8 +74,18 @@ import { createScheduleItemsFromIntent } from "./tools/schedule-create-items";
 
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
 type WritableAgentIntent = Extract<AgentIntent, { intent: AgentWriteIntentName }>;
-type ClarifiableAgentIntentName = Exclude<AgentWriteIntentName, "compose_timeline_event" | "weekly_review">;
+type ClarifiableAgentIntentName = Exclude<AgentWriteIntentName, "compose_checklist" | "compose_timeline_event" | "weekly_review" | "query_schedule">;
 type ToolRiskLevel = ProposedAgentAction["riskLevel"];
+
+/** What this tool does — read, draft a proposal, generate a dry-run preview, write data, or roll back. */
+export type AgentToolCapability = "read" | "draft" | "dry_run" | "write" | "rollback";
+
+/** Descriptor for a tool's input schema so an LLM planner can understand expected args. */
+export type AgentToolInputSchema =
+  | { kind: "write-schema"; name: string }
+  | { kind: "json-schema"; name: string; schema: unknown }
+  | { kind: "manual"; name: string; description: string };
+
 type ChecklistItem = {
   completedAt?: null | string;
   completionNote?: null | string;
@@ -206,6 +218,10 @@ export type AgentToolExecutionContext = {
     args: ComposeTimelineEventArgs,
     onTrace?: AgentExecutionTraceReporter,
   ) => Promise<AgentToolResult>;
+  composeChecklist?: (
+    args: ComposeChecklistArgs,
+    onTrace?: AgentExecutionTraceReporter,
+  ) => Promise<AgentToolResult>;
   composePlan?: (
     args: ComposePlanArgs,
     onTrace?: AgentExecutionTraceReporter,
@@ -239,6 +255,10 @@ export type AgentToolExecutionContext = {
     args: QueryPlanProgressArgs,
     onTrace?: AgentExecutionTraceReporter,
   ) => Promise<AgentToolResult>;
+  querySchedule?: (
+    args: QueryScheduleArgs,
+    onTrace?: AgentExecutionTraceReporter,
+  ) => Promise<AgentToolResult>;
   rescheduleItem?: (
     args: RescheduleItemArgs,
     onTrace?: AgentExecutionTraceReporter,
@@ -260,21 +280,46 @@ export type AgentToolExecutionContext = {
 export type AgentToolDryRunResult = AgentDryRunClarifyResult | AgentDryRunProposedActionResult;
 
 export type AgentToolDefinition<TName extends AgentWriteIntentName, TArgs> = {
+  /** Human-readable description of what this tool does. */
   description: string;
+  /** Generate a dry-run preview of the proposed action (no side effects). */
   dryRun: (args: TArgs, context: AgentToolDryRunContext) => Promise<AgentToolDryRunResult>;
+  /** Execute the confirmed action (real side effects). */
   execute: (
     args: TArgs,
     context: AgentToolExecutionContext,
     onTrace?: AgentExecutionTraceReporter,
   ) => Promise<AgentToolResult>;
+  /** The intent name this tool handles (must match a registered AgentWriteIntentName). */
   intent: TName;
+  /** Unique name of the tool (must match intent). */
   name: TName;
+  /** Whether the tool requires explicit user confirmation before execute. */
   requiresConfirmation: boolean;
+  /** Risk level of the tool's operation. */
   riskLevel: ToolRiskLevel;
+  /** Rollback strategy metadata (if the tool supports rollback). */
   rollback?: {
     description: string;
     status: "planned";
   };
+
+  // ── LLM Planner metadata (Phase LLM-R2) ──
+
+  /** Classification: read, draft, dry_run, write, or rollback. */
+  capability: AgentToolCapability;
+  /** Input schema descriptor for LLM Planner consumption. */
+  inputSchema: AgentToolInputSchema;
+  /** Optional output schema. */
+  outputSchema?: unknown;
+  /** Whether the tool can run without user confirmation (read/draft tools). */
+  canRunWithoutConfirmation: boolean;
+  /** Whether the tool supports dry-run preview generation. */
+  supportsDryRun: boolean;
+  /** Whether the tool supports real execution. */
+  supportsExecute: boolean;
+  /** Whether the tool supports rollback of executed actions. */
+  supportsRollback: boolean;
 };
 
 type AgentToolRegistry = {
@@ -282,6 +327,7 @@ type AgentToolRegistry = {
   append_plan_item: AgentToolDefinition<"append_plan_item", AppendPlanItemArgs>;
   cancel_schedule_item: AgentToolDefinition<"cancel_schedule_item", CancelScheduleItemArgs>;
   complete_plan_item: AgentToolDefinition<"complete_plan_item", CompletePlanItemArgs>;
+  compose_checklist: AgentToolDefinition<"compose_checklist", ComposeChecklistArgs>;
   compose_plan: AgentToolDefinition<"compose_plan", ComposePlanArgs>;
   compose_schedule_item: AgentToolDefinition<"compose_schedule_item", ComposeScheduleItemArgs>;
   compose_timeline_event: AgentToolDefinition<"compose_timeline_event", ComposeTimelineEventArgs>;
@@ -289,6 +335,7 @@ type AgentToolRegistry = {
   create_schedule_items: AgentToolDefinition<"create_schedule_items", CreateScheduleItemsArgs>;
   create_plan: AgentToolDefinition<"create_plan", CreatePlanArgs>;
   query_plan_progress: AgentToolDefinition<"query_plan_progress", QueryPlanProgressArgs>;
+  query_schedule: AgentToolDefinition<"query_schedule", QueryScheduleArgs>;
   reschedule_item: AgentToolDefinition<"reschedule_item", RescheduleItemArgs>;
   save_memory: AgentToolDefinition<"save_memory", SaveMemoryArgs>;
   schedule_plan: AgentToolDefinition<"schedule_plan", SchedulePlanArgs>;
@@ -315,6 +362,7 @@ const createClarifyResult = ({
     | AppendPlanItemArgs
     | CancelScheduleItemArgs
     | CompletePlanItemArgs
+    | ComposeChecklistArgs
     | ComposePlanArgs
     | ComposeScheduleItemArgs
     | CreateScheduleItemsArgs
@@ -322,6 +370,7 @@ const createClarifyResult = ({
     | DeleteRecordArgs
     | ModifyRecordArgs
     | QueryPlanProgressArgs
+    | QueryScheduleArgs
     | RescheduleItemArgs
     | SaveMemoryArgs
     | SchedulePlanArgs
@@ -826,6 +875,38 @@ const buildScheduleConflictAdjustment = (
     },
     message: `自动避让冲突：${conflictTitles}；从 ${proposal.startTime}-${proposal.endTime} 调整为 ${nextStartTime}-${nextEndTime}。`,
     originalRange: `${proposal.startTime}-${proposal.endTime}`,
+  };
+};
+
+/* ──── R6-C0-A: compose_checklist draft dryRun ──── */
+
+const composeChecklistDryRun = async (
+  args: ComposeChecklistArgs,
+  _context: AgentToolDryRunContext,
+): Promise<AgentToolDryRunResult> => {
+  const title = args.title ?? args.goal ?? "清单草案";
+  const itemsCount = args.items?.length ?? 0;
+  const summary = itemsCount > 0
+    ? `生成清单草案「${title}」，包含 ${itemsCount} 个待办条目`
+    : `生成清单草案「${title}」，待拆解为具体条目`;
+
+  return {
+    action: {
+      ...actionBase({
+        args,
+        context: _context,
+        intent: "compose_checklist",
+        riskLevel: "low",
+        summary,
+      }),
+      affectedDocuments: [],
+      afterSnapshot: null,
+      beforeSnapshot: null,
+      changes: [],
+      requiresConfirmation: false,
+      rollbackAvailable: false,
+    },
+    type: "proposed_action",
   };
 };
 
@@ -1383,6 +1464,29 @@ const queryPlanProgressDryRun = async (
       rollbackAvailable: false,
     },
     type: "proposed_action",
+  };
+};
+
+/* ──── R5-C: query_schedule read-only dryRun ──── */
+
+const RANGE_LABELS: Record<string, string> = {
+  next_week: "下周",
+  this_week: "本周",
+  today: "今天",
+  tomorrow: "明天",
+  upcoming: "最近 / 未来 7 天",
+};
+
+const queryScheduleDryRun = async (
+  args: QueryScheduleArgs,
+  _context: AgentToolDryRunContext,
+): Promise<AgentToolDryRunResult> => {
+  const rangeLabel = args.range ? RANGE_LABELS[args.range] ?? "最近 / 未来 7 天" : "最近 / 未来 7 天";
+
+  return {
+    assistantMessage: `正在查询${rangeLabel}的日程安排。这是只读查询，不会创建或修改任何日程项。`,
+    pendingAction: null,
+    type: "clarify",
   };
 };
 
@@ -2133,6 +2237,12 @@ export const agentToolRegistry = {
       description: "Restore the previous checklist completion note and Timeline description.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "manual" as const, name: "add_completion_note", description: "Checklist title, group title, item title, and completion note text." },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   append_plan_item: {
     description: "Append a new unfinished item to a resolved checklist group.",
@@ -2152,6 +2262,12 @@ export const agentToolRegistry = {
       description: "Restore the checklist groups snapshot captured before append.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "manual" as const, name: "append_plan_item", description: "Checklist title, optional group title, item title, and optional description." },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   cancel_schedule_item: {
     description: "Cancel an existing schedule item by setting its status to canceled.",
@@ -2171,6 +2287,12 @@ export const agentToolRegistry = {
       description: "Restore the schedule item status to planned.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "manual" as const, name: "cancel_schedule_item", description: "Schedule item ID and optional cancel reason." },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   complete_plan_item: {
     description: "Mark a checklist item complete and synchronize the corresponding Timeline event.",
@@ -2190,6 +2312,31 @@ export const agentToolRegistry = {
       description: "Restore the checklist item completion state and Timeline event snapshot.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "manual" as const, name: "complete_plan_item", description: "Checklist title, group title, item title, optional completion note and completed timestamp." },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
+  },
+  /* R6-C0-A: compose_checklist draft tool.
+   * Draft capability — generates checklist preview, NO writes, NO pendingAction. */
+  compose_checklist: {
+    description: "Generate a checklist draft preview from a goal or item list. Draft-only — no DB write, no confirmation needed for preview.",
+    dryRun: composeChecklistDryRun,
+    execute: (_args, _context, _onTrace) => {
+      throw new Error("compose_checklist is a draft tool — execute is not supported. Use dryRun for preview.");
+    },
+    intent: "compose_checklist",
+    name: "compose_checklist",
+    requiresConfirmation: false,
+    riskLevel: "low",
+    capability: "draft",
+    inputSchema: { kind: "manual" as const, name: "compose_checklist", description: "Optional title, goal, and items array for generating a checklist draft preview." },
+    canRunWithoutConfirmation: true,
+    supportsDryRun: true,
+    supportsExecute: false,
+    supportsRollback: false,
   },
   compose_plan: {
     description: "Compose a full executable Plan proposal and create it after confirmation.",
@@ -2209,6 +2356,12 @@ export const agentToolRegistry = {
       description: "Delete the created plan after execution records its document id.",
       status: "planned",
     },
+    capability: "draft",
+    inputSchema: { kind: "manual" as const, name: "compose_plan", description: "Goal, source text, optional deadline, scope, and constraints for generating a plan proposal." },
+    canRunWithoutConfirmation: true,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   compose_schedule_item: {
     description: "Compose a daily schedule proposal and create it after confirmation.",
@@ -2228,6 +2381,12 @@ export const agentToolRegistry = {
       description: "Delete the created ScheduleItem after execution records its document id.",
       status: "planned",
     },
+    capability: "draft",
+    inputSchema: { kind: "manual" as const, name: "compose_schedule_item", description: "Date, title, optional start/end time, description, and source plan/checklist references." },
+    canRunWithoutConfirmation: true,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   compose_timeline_event: {
     description: "Compose a meaningful TimelineEvent proposal from content, checklist completion, plan, or free text.",
@@ -2247,6 +2406,12 @@ export const agentToolRegistry = {
       description: "Delete the created TimelineEvent after execution records its document id.",
       status: "planned",
     },
+    capability: "draft",
+    inputSchema: { kind: "manual" as const, name: "compose_timeline_event", description: "Source type, title, event date, visibility, and optional createEvent flag." },
+    canRunWithoutConfirmation: true,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   create_checklist: {
     description: "Create a private draft checklist from an approved ChecklistDraft after confirmation.",
@@ -2260,6 +2425,12 @@ export const agentToolRegistry = {
       description: "Delete the created checklist after execution records its document id.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "write-schema" as const, name: "validateChecklistGroupsData" },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   create_schedule_items: {
     description: "Create multiple schedule items from an approved ScheduleDraft after confirmation.",
@@ -2273,6 +2444,12 @@ export const agentToolRegistry = {
       description: "Delete created ScheduleItems after K6 execution records their document ids.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "write-schema" as const, name: "validateScheduleItemData" },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   create_plan: {
     description: "Create a new private draft plan.",
@@ -2292,6 +2469,32 @@ export const agentToolRegistry = {
       description: "Delete the created plan after execution records its document id.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "write-schema" as const, name: "validatePlanCreateData" },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
+  },
+  /* R5-C: Read-only schedule query tool.
+   * Included in AgentWriteIntentName union for type-system compatibility only.
+   * MUST remain read-only: no pendingAction, no Policy Guard, no execute, no DB write. */
+  query_schedule: {
+    description: "Query schedule items for a date range (today, this week, etc). Read-only — no writes, no confirmation needed.",
+    dryRun: queryScheduleDryRun,
+    execute: (_args, _context, _onTrace) => {
+      throw new Error("query_schedule is a read-only tool — execute is not supported. Use dryRun for preview.");
+    },
+    intent: "query_schedule",
+    name: "query_schedule",
+    requiresConfirmation: false,
+    riskLevel: "low",
+    capability: "read",
+    inputSchema: { kind: "manual" as const, name: "query_schedule", description: "Date range (today, tomorrow, this_week, next_week, upcoming) and optional startDate/endDate/limit." },
+    canRunWithoutConfirmation: true,
+    supportsDryRun: true,
+    supportsExecute: false,
+    supportsRollback: false,
   },
   query_plan_progress: {
     description: "Query the progress of a specific plan including phase completion, schedule adherence, and next actions.",
@@ -2307,6 +2510,12 @@ export const agentToolRegistry = {
     name: "query_plan_progress",
     requiresConfirmation: false,
     riskLevel: "low",
+    capability: "read",
+    inputSchema: { kind: "manual" as const, name: "query_plan_progress", description: "Optional plan ID or plan title to query progress for a specific plan." },
+    canRunWithoutConfirmation: true,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: false,
   },
   reschedule_item: {
     description: "Reschedule an existing schedule item to a different date, time, or update its title.",
@@ -2326,6 +2535,12 @@ export const agentToolRegistry = {
       description: "Restore the schedule item to its previous date/time/title.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "manual" as const, name: "reschedule_item", description: "Schedule item ID, optional new date, start time, end time, or title." },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   save_memory: {
     description: "Save a distilled long-term memory such as preference, writing style, project context, workflow rule, or fact.",
@@ -2345,6 +2560,12 @@ export const agentToolRegistry = {
       description: "Archive the created or updated memory after execution records its document id.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "write-schema" as const, name: "validateAgentMemoryData" },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   schedule_plan: {
     description: "Generate daily schedule items from a plan's phase decomposition, populating the calendar with concrete tasks.",
@@ -2364,6 +2585,12 @@ export const agentToolRegistry = {
       description: "Delete created ScheduleItems after execution records their document ids.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "manual" as const, name: "schedule_plan", description: "Plan ID and optional start date for scheduling plan phases into calendar." },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   delete_record: {
     description: "删除计划/日程/清单/时间线，需确认后执行。目前仅支持删除计划。",
@@ -2383,6 +2610,12 @@ export const agentToolRegistry = {
       description: "从快照恢复已删除的计划。",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "manual" as const, name: "delete_record", description: "Collection name and document ID of the record to delete." },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   modify_record: {
     description: "安全修改计划、日程、清单或时间线的白名单标量字段。",
@@ -2406,6 +2639,12 @@ export const agentToolRegistry = {
       description: "恢复本次修改前捕获的安全字段快照。",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "manual" as const, name: "modify_record", description: "Collection, document ID, and whitelisted scalar fields to modify." },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
   weekly_review: {
     description: "Generate a weekly workspace review from plans, checklists, timeline events, public content, and recent AgentRuns.",
@@ -2425,6 +2664,12 @@ export const agentToolRegistry = {
       description: "Delete or archive the created weekly PlanReview, AgentRun, and generated suggestions.",
       status: "planned",
     },
+    capability: "write",
+    inputSchema: { kind: "manual" as const, name: "weekly_review", description: "Optional now date, persistReview flag, and createSuggestions flag." },
+    canRunWithoutConfirmation: false,
+    supportsDryRun: true,
+    supportsExecute: true,
+    supportsRollback: true,
   },
 } satisfies AgentToolRegistry;
 
@@ -2441,6 +2686,8 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
       return agentToolRegistry.cancel_schedule_item.dryRun(intent.args, context);
     case "complete_plan_item":
       return agentToolRegistry.complete_plan_item.dryRun(intent.args, context);
+    case "compose_checklist":
+      return agentToolRegistry.compose_checklist.dryRun(intent.args as ComposeChecklistArgs, context);
     case "compose_plan":
       return agentToolRegistry.compose_plan.dryRun(intent.args, context);
     case "compose_schedule_item":
@@ -2457,6 +2704,8 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
       return agentToolRegistry.delete_record.dryRun(intent.args, context);
     case "query_plan_progress":
       return agentToolRegistry.query_plan_progress.dryRun(intent.args, context);
+    case "query_schedule":
+      return agentToolRegistry.query_schedule.dryRun(intent.args as QueryScheduleArgs, context);
     case "reschedule_item":
       return agentToolRegistry.reschedule_item.dryRun(intent.args, context);
     case "save_memory":
@@ -2484,6 +2733,8 @@ export const executeAgentTool = async (
       return agentToolRegistry.cancel_schedule_item.execute(intent.args, context, onTrace);
     case "complete_plan_item":
       return agentToolRegistry.complete_plan_item.execute(intent.args, context, onTrace);
+    case "compose_checklist":
+      return agentToolRegistry.compose_checklist.execute(intent.args as ComposeChecklistArgs, context, onTrace);
     case "compose_plan":
       return agentToolRegistry.compose_plan.execute(intent.args, context, onTrace);
     case "compose_schedule_item":
@@ -2500,6 +2751,8 @@ export const executeAgentTool = async (
       return agentToolRegistry.delete_record.execute(intent.args, context, onTrace);
     case "query_plan_progress":
       return agentToolRegistry.query_plan_progress.execute(intent.args, context, onTrace);
+    case "query_schedule":
+      return agentToolRegistry.query_schedule.execute(intent.args as QueryScheduleArgs, context, onTrace);
     case "reschedule_item":
       return agentToolRegistry.reschedule_item.execute(intent.args, context, onTrace);
     case "save_memory":

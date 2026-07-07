@@ -2,18 +2,12 @@ import type { AgentPromptContext } from "./prompts";
 import { appendFileSync } from "node:fs";
 import { getAgentDebugLogPath } from "./debug-log";
 import {
-  cleanupText,
-  extractConsultationTopic,
-  inferMemoryType,
   isBatchConfirmationReply,
   isCancellationReply,
   isConfirmationReply,
-  isGeneralConsultationQuestion,
   isNegativeReply,
-  isNewCommand,
-  parseKnowledgeAnswerIntent,
   shouldSkipPendingAction,
-} from "./heuristic-intent-resolver";
+} from "./intent/intent-safety-signals";
 import { buildConversationalIntent } from "./conversation/answer-generator";
 import { classifyFollowUpIntent, routeDefinitionIntent, routeFollowUpIntent } from "./conversation/follow-up-router";
 import type { AgentConversationState } from "./conversation/types";
@@ -57,6 +51,15 @@ export {
   isNegativeReply,
   shouldSkipPendingAction,
 };
+
+/* ── R6-C1-D-A-Fix-2: Local stubs replace heuristic-intent-resolver dependency ── */
+
+const cleanupText = (text: string): string => text.trim();
+const isNewCommand = (_message: string): boolean => false;
+const parseKnowledgeAnswerIntent = (_message: string): AgentIntent | null => null;
+const isGeneralConsultationQuestion = (_message: string): boolean => false;
+const extractConsultationTopic = (_message: string): string | null => null;
+const inferMemoryType = (_content: string) => "fact" as const;
 
 const resolveClarificationIntent = (pendingAction: PendingAction, message: string): AgentIntent | null => {
   if (pendingAction.type !== "await_clarification" || isNegativeReply(message) || isNewCommand(message)) {
@@ -705,6 +708,16 @@ const withRouterChain = (
       }
     : result;
 
+/**
+ * R6-C0-C BOUNDARY:
+ * - PendingAction confirmation path (await_confirmation, cancel, still_waiting)
+ *   is handled in resolve-intent-step.ts BEFORE this function is called.
+ * - This function handles legacy heuristic intent resolution.
+ * - In AGENT_REQUIRE_LLM=1, new user goals are gated by R5-A and never reach here.
+ * - In AGENT_REQUIRE_LLM=0, legacy hybrid mode uses this path for intent resolution.
+ *
+ * Future: extract legacy heuristic path into separate module (R6-C4).
+ */
 export const resolveAgentIntent = async ({
   context,
   conversationState = null,

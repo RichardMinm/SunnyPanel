@@ -3,6 +3,7 @@ export type AgentTracePhase =
   | "router"
   | "session"
   | "readiness"
+  | "slot_extraction"
   | "draft"
   | "dry_run"
   | "policy_guard"
@@ -13,6 +14,9 @@ export type AgentTracePhase =
   | "receipt"
   | "rollback"
   | "finalize"
+  | "llm_availability"
+  | "tool_planning"
+  | "tool_planner_unavailable"
   | "error";
 
 export type AgentTraceStatus =

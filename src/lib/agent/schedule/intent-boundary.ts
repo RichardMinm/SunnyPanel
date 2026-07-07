@@ -44,6 +44,8 @@ export type ClassifyScheduleIntentBoundaryInput = {
   userMessage: string;
 };
 
+import { isAgentRequireLLMEnabled } from "../llm-required";
+
 const WRITE_CONFIDENCE_THRESHOLD = 0.75;
 
 const normalize = (value: string): string =>
@@ -156,24 +158,29 @@ export const classifyScheduleIntentBoundary = (
     };
   }
 
-  if (input.hasSchedulingDraft && hasDraftRevisionSignal(message)) {
-    return {
-      confidence: 0.88,
-      intent: "revise_schedule_draft",
-      readOrWrite: "write",
-      reason: "已有日程草案且用户表达修改草案。",
-      source: "rule",
-    };
-  }
+  // R6-C2-D: Keyword/regex write-intent rules are gated behind AGENT_REQUIRE_LLM=0.
+  // In LLM-required mode, only the LLM classifier (or query guard below) may produce
+  // a non-ambiguous intent. Keyword guessing of write intents is retired.
+  if (!isAgentRequireLLMEnabled()) {
+    if (input.hasSchedulingDraft && hasDraftRevisionSignal(message)) {
+      return {
+        confidence: 0.88,
+        intent: "revise_schedule_draft",
+        readOrWrite: "write",
+        reason: "已有日程草案且用户表达修改草案。",
+        source: "rule",
+      };
+    }
 
-  if (hasExplicitCreateSignal(message)) {
-    return {
-      confidence: 0.9,
-      intent: "schedule_creation",
-      readOrWrite: "write",
-      reason: "命中明确安排 / 创建 / 写入日程规则。",
-      source: "rule",
-    };
+    if (hasExplicitCreateSignal(message)) {
+      return {
+        confidence: 0.9,
+        intent: "schedule_creation",
+        readOrWrite: "write",
+        reason: "命中明确安排 / 创建 / 写入日程规则。",
+        source: "rule",
+      };
+    }
   }
 
   if (input.routerIntent === "query_schedule" && hasScheduleNoun(message)) {

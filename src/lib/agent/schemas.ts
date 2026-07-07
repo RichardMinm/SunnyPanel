@@ -103,6 +103,22 @@ export type ProposedAgentAction = {
   toolName?: string;
 };
 
+/**
+ * Union of all tool intent names recognized by the Agent.
+ *
+ * NOTE — naming debt: despite the type name "AgentWriteIntentName", this union
+ * includes read-only tools (query_plan_progress, query_schedule) and draft tools
+ * (compose_plan, compose_schedule_item, compose_timeline_event). They are included
+ * here only for compatibility with the existing intent/executor type system.
+ *
+ * Read tools MUST remain read-only:
+ *  - no pendingAction
+ *  - no Policy Guard
+ *  - no execute / DB write / receipt / rollback
+ *
+ * TODO(R5-D): rename to AgentToolIntentName and split into:
+ *   AgentReadIntentName  | AgentDraftIntentName | AgentWriteIntentName
+ */
 export type AgentWriteIntentName =
   | "add_completion_note"
   | "append_plan_item"
@@ -110,6 +126,7 @@ export type AgentWriteIntentName =
   | "complete_plan_item"
   | "create_checklist"
   | "create_schedule_items"
+  | "compose_checklist"
   | "compose_plan"
   | "compose_schedule_item"
   | "compose_timeline_event"
@@ -117,6 +134,7 @@ export type AgentWriteIntentName =
   | "delete_record"
   | "modify_record"
   | "query_plan_progress"
+  | "query_schedule"
   | "reschedule_item"
   | "save_memory"
   | "schedule_plan"
@@ -214,6 +232,7 @@ export type PendingAction = {
     | AppendPlanItemArgs
     | CancelScheduleItemArgs
     | CompletePlanItemArgs
+    | ComposeChecklistArgs
     | ComposePlanArgs
     | ComposeScheduleItemArgs
     | CreateScheduleItemsArgs
@@ -222,6 +241,7 @@ export type PendingAction = {
     | DeleteRecordArgs
     | ModifyRecordArgs
     | QueryPlanProgressArgs
+    | QueryScheduleArgs
     | RescheduleItemArgs
     | SaveMemoryArgs
     | SchedulePlanArgs
@@ -511,6 +531,23 @@ export type QueryPlanProgressArgs = {
   planTitle?: null | string;
 };
 
+export type ComposeChecklistArgs = {
+  goal?: null | string;
+  items?: Array<{
+    description?: null | string;
+    priority?: null | "high" | "low" | "medium";
+    title: string;
+  }>;
+  title?: null | string;
+};
+
+export type QueryScheduleArgs = {
+  endDate?: null | string;
+  limit?: null | number;
+  range?: null | "next_week" | "this_week" | "today" | "tomorrow" | "upcoming";
+  startDate?: null | string;
+};
+
 export type ComposeTimelineEventArgs = {
   checklistTitle?: null | string;
   createEvent?: boolean;
@@ -556,6 +593,12 @@ export type AgentIntent =
       args: CompletePlanItemArgs;
       confidence?: number;
       intent: "complete_plan_item";
+      reply?: string;
+    }
+  | {
+      args: ComposeChecklistArgs;
+      confidence?: number;
+      intent: "compose_checklist";
       reply?: string;
     }
   | {
@@ -610,6 +653,12 @@ export type AgentIntent =
       args: QueryPlanProgressArgs;
       confidence?: number;
       intent: "query_plan_progress";
+      reply?: string;
+    }
+  | {
+      args: QueryScheduleArgs;
+      confidence?: number;
+      intent: "query_schedule";
       reply?: string;
     }
   | {
@@ -780,6 +829,7 @@ const agentIntentValues = [
   "delete_record",
   "modify_record",
   "complete_plan_item",
+  "compose_checklist",
   "compose_plan",
   "compose_schedule_item",
   "compose_timeline_event",
@@ -1286,6 +1336,7 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
       | AddCompletionNoteArgs
       | AppendPlanItemArgs
       | CompletePlanItemArgs
+      | ComposeChecklistArgs
       | ComposePlanArgs
       | ComposeScheduleItemArgs
       | CreateChecklistArgs
