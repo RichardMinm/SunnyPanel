@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AppBadge } from "@/components/primitives/AppBadge";
 import { AppCard } from "@/components/primitives/AppCard";
 import { AppSection } from "@/components/primitives/AppSection";
+import { formatCollectionLabel } from "./constants";
 import type { AgentOpsSnapshot } from "@/lib/agent/ops/snapshot";
 
 type AgentOpsPanelProps = {
@@ -152,7 +153,12 @@ export function AgentOpsPanel({ limit = 20, snapshot: providedSnapshot }: AgentO
                       {receipt.status ?? "unknown"}
                     </AppBadge>
                   </div>
-                  <p>{receipt.actionId ?? "未知 actionId"}</p>
+                  {receipt.title ? <p className="sunny-agent-ops-field">{receipt.title}</p> : null}
+                  <p className="sunny-agent-ops-meta">
+                    {receipt.collection ? <span>{formatCollectionLabel(receipt.collection)}</span> : null}
+                    {receipt.documentId ? <span>#{receipt.documentId}</span> : null}
+                    {receipt.actionId ? <span className="sunny-agent-ops-muted">{receipt.actionId}</span> : null}
+                  </p>
                   <small>thread #{receipt.threadId ?? "?"} · {formatDate(receipt.createdAt)}</small>
                 </AppCard>
               </li>
@@ -173,7 +179,11 @@ export function AgentOpsPanel({ limit = 20, snapshot: providedSnapshot }: AgentO
                     <strong>{pending.intent ?? "unknown"}</strong>
                     <AppBadge tone="warning">等待确认</AppBadge>
                   </div>
-                  <p>{pending.actionId ?? "未知 actionId"}</p>
+                  {pending.preview ? <p className="sunny-agent-ops-field">{pending.preview}</p> : null}
+                  <p className="sunny-agent-ops-meta">
+                    {pending.collection ? <span>{formatCollectionLabel(pending.collection)}</span> : null}
+                    {pending.actionId ? <span className="sunny-agent-ops-muted">{pending.actionId}</span> : null}
+                  </p>
                   <small>thread #{pending.threadId} · {formatDate(pending.createdAt)}</small>
                 </AppCard>
               </li>

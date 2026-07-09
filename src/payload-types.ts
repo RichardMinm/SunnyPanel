@@ -274,7 +274,7 @@ export interface Post {
    */
   tags?: string[] | null;
   coverImage?: (number | null) | Media;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'archived';
   /**
    * 可选。用于前台排序和显示时间。
    */
@@ -336,7 +336,7 @@ export interface Note {
   category: string;
   pinned?: boolean | null;
   coverImage?: (number | null) | Media;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'archived';
   visibility: 'public' | 'private';
   writingCategory?: (number | null) | WritingCategory;
   updatedAt: string;
@@ -385,7 +385,7 @@ export interface Update {
    */
   link?: string | null;
   coverImage?: (number | null) | Media;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'archived';
   visibility: 'public' | 'private';
   writingCategory?: (number | null) | WritingCategory;
   updatedAt: string;
@@ -411,6 +411,10 @@ export interface Checklist {
   slug: string;
   summary?: string | null;
   /**
+   * 此清单所属的计划。清单也可以独立存在，不强制关联。
+   */
+  planId?: (number | null) | Plan;
+  /**
    * 先创建章节或模块，再往每个分组里补具体条目。
    */
   groups?:
@@ -435,39 +439,11 @@ export interface Checklist {
         id?: string | null;
       }[]
     | null;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'archived';
   /**
    * 可选。用于前台排序和显示时间。
    */
   publishedAt?: string | null;
-  visibility: 'public' | 'private';
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "timeline-events".
- */
-export interface TimelineEvent {
-  id: number;
-  title: string;
-  description?: string | null;
-  /**
-   * 记录这个节点真正发生的时间。
-   */
-  eventDate: string;
-  type: 'milestone' | 'project' | 'life' | 'study' | 'exam' | 'agent';
-  sourceType?: ('checklist' | 'schedule' | 'plan' | 'manual' | 'agent') | null;
-  relatedPost?: (number | null) | Post;
-  relatedUpdate?: (number | null) | Update;
-  relatedChecklist?: (number | null) | Checklist;
-  /**
-   * 系统内部使用，用来避免重复生成完成记录。
-   */
-  relatedTaskKey?: string | null;
-  isFeatured?: boolean | null;
-  sortOrder?: number | null;
-  status: 'draft' | 'published';
   visibility: 'public' | 'private';
   updatedAt: string;
   createdAt: string;
@@ -525,6 +501,10 @@ export interface Plan {
             relationTo: 'pages';
             value: number | Page;
           }
+        | {
+            relationTo: 'schedule-items';
+            value: number | ScheduleItem;
+          }
       )[]
     | null;
   /**
@@ -532,7 +512,7 @@ export interface Plan {
    */
   lastAgentRun?: (number | null) | AgentRun;
   state: 'backlog' | 'active' | 'paused' | 'done';
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'archived';
   priority: 'low' | 'medium' | 'high';
   startDate?: string | null;
   dueDate?: string | null;
@@ -593,6 +573,34 @@ export interface Plan {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "timeline-events".
+ */
+export interface TimelineEvent {
+  id: number;
+  title: string;
+  description?: string | null;
+  /**
+   * 记录这个节点真正发生的时间。
+   */
+  eventDate: string;
+  type: 'milestone' | 'project' | 'life' | 'study' | 'exam' | 'agent';
+  sourceType?: ('checklist' | 'schedule' | 'plan' | 'manual' | 'agent') | null;
+  relatedPost?: (number | null) | Post;
+  relatedUpdate?: (number | null) | Update;
+  relatedChecklist?: (number | null) | Checklist;
+  /**
+   * 系统内部使用，用来避免重复生成完成记录。
+   */
+  relatedTaskKey?: string | null;
+  isFeatured?: boolean | null;
+  sortOrder?: number | null;
+  status: 'draft' | 'published' | 'archived';
+  visibility: 'public' | 'private';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "pages".
  */
 export interface Page {
@@ -639,9 +647,40 @@ export interface Page {
    */
   legacyContentMarkdown?: string | null;
   coverImage?: (number | null) | Media;
-  status: 'draft' | 'published';
+  status: 'draft' | 'published' | 'archived';
   visibility: 'public' | 'private';
   writingCategory?: (number | null) | WritingCategory;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "schedule-items".
+ */
+export interface ScheduleItem {
+  id: number;
+  title: string;
+  description?: string | null;
+  date: string;
+  /**
+   * 使用 HH:mm，例如 09:30。全天事项可留空。
+   */
+  startTime?: string | null;
+  /**
+   * 使用 HH:mm，例如 10:30。全天事项可留空。
+   */
+  endTime?: string | null;
+  isAllDay?: boolean | null;
+  status: 'planned' | 'done' | 'skipped' | 'canceled';
+  priority: 'low' | 'medium' | 'high';
+  sourceType: 'plan' | 'checklist' | 'manual' | 'agent';
+  category?: ('course' | 'study' | 'plan_action' | 'agent' | 'exam' | 'default') | null;
+  relatedPlan?: (number | null) | Plan;
+  relatedChecklist?: (number | null) | Checklist;
+  relatedChecklistItemKey?: string | null;
+  agentBrief?: string | null;
+  createdBy: 'manual' | 'agent';
+  conflictNote?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -971,37 +1010,6 @@ export interface AgentThread {
     | boolean
     | null;
   archived?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "schedule-items".
- */
-export interface ScheduleItem {
-  id: number;
-  title: string;
-  description?: string | null;
-  date: string;
-  /**
-   * 使用 HH:mm，例如 09:30。全天事项可留空。
-   */
-  startTime?: string | null;
-  /**
-   * 使用 HH:mm，例如 10:30。全天事项可留空。
-   */
-  endTime?: string | null;
-  isAllDay?: boolean | null;
-  status: 'planned' | 'done' | 'skipped' | 'canceled';
-  priority: 'low' | 'medium' | 'high';
-  sourceType: 'plan' | 'checklist' | 'manual' | 'agent';
-  category?: ('course' | 'study' | 'plan_action' | 'agent' | 'exam' | 'default') | null;
-  relatedPlan?: (number | null) | Plan;
-  relatedChecklist?: (number | null) | Checklist;
-  relatedChecklistItemKey?: string | null;
-  agentBrief?: string | null;
-  createdBy: 'manual' | 'agent';
-  conflictNote?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1395,6 +1403,7 @@ export interface ChecklistsSelect<T extends boolean = true> {
   generateSlug?: T;
   slug?: T;
   summary?: T;
+  planId?: T;
   groups?:
     | T
     | {

@@ -157,7 +157,7 @@ test("AgentTracePanel renders developer details with redacted sensitive fields",
     }),
   );
 
-  assert.match(markup, /Activity Trace/);
+  assert.match(markup, /Activity/);
   assert.match(markup, /读取 schedule-items/);
   assert.match(markup, /query_schedule/);
   assert.match(markup, /tool: query_schedule/);
@@ -192,7 +192,7 @@ test("AgentTracePanel renders backend trace events as developer activity", async
     }),
   );
 
-  assert.match(markup, /Activity Trace/);
+  assert.match(markup, /Activity/);
   assert.match(markup, /Execute 工具调用完成/);
   assert.match(markup, /create_schedule_items/);
   assert.match(markup, /34ms/);
@@ -285,7 +285,7 @@ test("MessageCard does not show loading text when activitySteps are present", as
 
   assert.match(markup, /正在理解你的请求/);
   assert.match(markup, /已读取工作区上下文/);
-  assert.doesNotMatch(markup, /正在生成回复/);
+  assert.doesNotMatch(markup, /正在处理请求/);
 });
 
 test("MessageCard shows loading fallback when no activitySteps and streaming", async () => {
@@ -299,7 +299,7 @@ test("MessageCard shows loading fallback when no activitySteps and streaming", a
     }),
   );
 
-  assert.match(markup, /正在生成回复/);
+  assert.match(markup, /正在处理请求/);
 });
 
 test("MessageCard loading fallback hidden with developer-only activity steps", async () => {
@@ -321,7 +321,7 @@ test("MessageCard loading fallback hidden with developer-only activity steps", a
   );
 
   // developer-only steps are filtered out, so fallback should show
-  assert.match(markup, /正在生成回复/);
+  assert.match(markup, /正在处理请求/);
   assert.doesNotMatch(markup, /debug trace/);
 });
 

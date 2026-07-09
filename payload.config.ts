@@ -76,7 +76,7 @@ export default buildConfig({
     },
     livePreview: {
       breakpoints: [...livePreviewBreakpoints],
-      collections: ["posts", "pages", "notes", "updates", "checklists", "timeline-events"],
+      collections: ["posts", "pages", "notes", "timeline-events"],
       url: ({ collectionConfig, data }) => {
         const collectionSlug = collectionConfig?.slug;
 

@@ -246,8 +246,8 @@ export function AgentConversation({
         {messages.length === 0 ? (
           <div className="sunny-agent-welcome">
             <div className="sunny-agent-welcome-head">
-              <h2>准备好开始一次 Agent 会话</h2>
-              <p>描述目标、约束或需要推进的任务，Sunny 会自动判断是咨询、规划还是执行。</p>
+              <h2>New Session</h2>
+              <p>描述需要推进的任务。Sunny 会判断是查询还是写入，生成草案或直接回答。</p>
             </div>
             <div className="sunny-agent-welcome-cards">
               {[

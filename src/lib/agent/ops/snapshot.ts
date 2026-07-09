@@ -18,14 +18,24 @@ export type AgentOpsSnapshot = {
     id: number | string;
     threadId?: number | string;
     actionId?: string;
+    /** 操作的集合，如 checklists / plans / schedule-items */
+    collection?: string | null;
+    /** 操作的文档 ID */
+    documentId?: number | string | null;
     operation?: "execute" | "rollback";
     status?: string;
+    /** 操作文档的标题或简短摘要 */
+    title?: string | null;
     createdAt?: string;
   }>;
   pendingActions: Array<{
     threadId: number | string;
     actionId?: string;
+    /** 目标集合，如 checklists / plans / schedule-items */
+    collection?: string | null;
     intent?: string;
+    /** 待确认操作的简短预览 */
+    preview?: string | null;
     createdAt?: string;
   }>;
   failures: Array<{
@@ -147,14 +157,24 @@ const mapRun = (run: Record<string, unknown>): AgentOpsSnapshot["recentRuns"][nu
 
 const mapReceipt = (receipt: Record<string, unknown>): AgentOpsSnapshot["recentReceipts"][number] => {
   const operation = asString(receipt.operation);
+  const response = asRecord(receipt.response);
+  const affectedDocs = Array.isArray(response?.affectedDocuments)
+    ? (response!.affectedDocuments as Array<Record<string, unknown>>)
+    : [];
+  const firstDoc = affectedDocs[0];
 
   return {
     actionId: asString(receipt.actionId),
+    collection: typeof firstDoc?.collection === "string" ? firstDoc.collection : null,
     createdAt: asString(receipt.createdAt) ?? asString(receipt.completedAt),
+    documentId: asId(firstDoc?.documentId) ?? null,
     id: asId(receipt.id) ?? "unknown-receipt",
     operation: operation === "rollback" ? "rollback" : "execute",
     status: asString(receipt.status),
     threadId: getRelationId(receipt.thread) ?? undefined,
+    title: typeof firstDoc?.title === "string" && firstDoc.title.trim().length > 0
+      ? firstDoc.title.trim().slice(0, 80)
+      : null,
   };
 };
 
@@ -171,10 +191,26 @@ const mapPendingAction = (thread: Record<string, unknown>): null | AgentOpsSnaps
     return null;
   }
 
+  const action = pendingAction.action as Record<string, unknown> | undefined;
+  const changes = Array.isArray(action?.changes) ? (action.changes as Array<Record<string, unknown>>) : [];
+  const firstChange = changes[0];
+  const collection =
+    (typeof firstChange?.collection === "string" ? firstChange.collection : null) ??
+    (typeof action?.collection === "string" ? (action as Record<string, string>).collection : null);
+  const preview =
+    (typeof firstChange?.preview === "string" && firstChange.preview.trim().length > 0
+      ? firstChange.preview.trim().slice(0, 80)
+      : null) ??
+    (typeof action?.summary === "string" && (action as Record<string, string>).summary.trim().length > 0
+      ? (action as Record<string, string>).summary.trim().slice(0, 80)
+      : null);
+
   return {
     actionId: pendingAction.action.id,
+    collection,
     createdAt: asString(thread.lastInteractionAt) ?? asString(thread.updatedAt) ?? asString(thread.createdAt),
     intent: pendingAction.action.intent,
+    preview,
     threadId,
   };
 };

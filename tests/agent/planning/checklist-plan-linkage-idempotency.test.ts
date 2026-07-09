@@ -102,6 +102,14 @@ test("action receipt replay prevents duplicate checklist creation and duplicate 
   assert.equal(first.checklistId, 701);
   assert.equal(first.linkedPlanId, 88);
   assert.deepEqual(first.afterLinkedContent, [{ relationTo: "checklists", value: 701 }]);
+
+  /* checklist planId should be written on create */
+  const checklistsCreate = getPayloadStubOperations().find((operation) => {
+    const args = operation.args as { collection?: string };
+    return operation.type === "create" && args.collection === "checklists";
+  });
+  const createData = (checklistsCreate?.args as { data?: Record<string, unknown> })?.data;
+  assert.equal(createData?.planId, 88, "checklist planId should equal sourcePlanId");
   assert.equal(
     getPayloadStubOperations().filter(
       (operation) =>

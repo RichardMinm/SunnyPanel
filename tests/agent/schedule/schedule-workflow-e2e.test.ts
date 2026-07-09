@@ -371,11 +371,13 @@ test("schedule workflow closes readiness draft confirmation execute receipt and 
   assert.ok(deleteOperations.some((args) => JSON.stringify(args) === JSON.stringify({ collection: "schedule-items", id: 901, overrideAccess: true })));
   assert.ok(deleteOperations.some((args) => JSON.stringify(args) === JSON.stringify({ collection: "schedule-items", id: 902, overrideAccess: true })));
   assert.equal(deleteOperations.some((args) => JSON.stringify(args) === JSON.stringify(unrelatedBeforeRollback)), false);
+  /* plan findByID reads are now expected when relatedPlan is set — verify no WRITE ops to plans/checklists */
   assert.equal(
     getPayloadStubOperations().some(
       (operation) =>
-        (operation.args as { collection?: string }).collection === "plans" ||
-        (operation.args as { collection?: string }).collection === "checklists",
+        operation.type !== "findByID" &&
+        ((operation.args as { collection?: string }).collection === "plans" ||
+          (operation.args as { collection?: string }).collection === "checklists"),
     ),
     false,
   );

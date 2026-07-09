@@ -50,6 +50,10 @@ export const statusField: Field = {
       label: "已发布",
       value: "published",
     },
+    {
+      label: "已归档",
+      value: "archived",
+    },
   ],
   required: true,
 };

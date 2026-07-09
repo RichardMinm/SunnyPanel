@@ -27,24 +27,25 @@ export function PostPreviewCard({
 
   return (
     <MotionReveal>
-      <Link
-        href={`/blog/${post.slug}`}
-        className={`sunny-card group block overflow-hidden transition ${
+      <div
+        className={`sunny-card group overflow-hidden transition ${
           isFeatured ? "sunny-card-strong rounded-xl" : "rounded-xl"
         }`}
       >
         {coverImage ? (
           <div className={isFeatured ? "border-b border-border" : ""}>
-            <Image
-              alt={coverImage.alt}
-              className={`w-full object-cover transition duration-300 group-hover:scale-[1.02] ${
-                isFeatured ? "h-64 md:h-80" : "h-48"
-              }`}
-              height={coverImage.height || 900}
-              src={getMediaDisplayUrl(coverImage, isFeatured ? "card" : "thumbnail")}
-              unoptimized
-              width={coverImage.width || 1600}
-            />
+            <Link href={`/blog/${post.slug}`} aria-label={post.title}>
+              <Image
+                alt={coverImage.alt}
+                className={`w-full object-cover transition duration-300 group-hover:scale-[1.02] ${
+                  isFeatured ? "h-64 md:h-80" : "h-48"
+                }`}
+                height={coverImage.height || 900}
+                src={getMediaDisplayUrl(coverImage, isFeatured ? "card" : "thumbnail")}
+                unoptimized
+                width={coverImage.width || 1600}
+              />
+            </Link>
           </div>
         ) : null}
 
@@ -70,7 +71,12 @@ export function PostPreviewCard({
           <h3
             className={`mt-4 text-foreground ${isFeatured ? "sunny-display text-4xl leading-tight" : "text-2xl font-semibold"}`}
           >
-            {post.title}
+            <Link
+              href={`/blog/${post.slug}`}
+              className="hover:underline"
+            >
+              {post.title}
+            </Link>
           </h3>
 
           <p className={`mt-3 text-muted ${isCompact ? "line-clamp-2 text-sm leading-7" : "text-sm leading-8"}`}>
@@ -80,17 +86,18 @@ export function PostPreviewCard({
           {post.tags && post.tags.length > 0 ? (
             <div className="mt-5 flex flex-wrap gap-2">
               {post.tags.slice(0, isFeatured ? 4 : 3).map((tag) => (
-                <span
+                <Link
                   key={`${post.id}-${tag}`}
-                  className="rounded-md sunny-surface-glass-70 px-3 py-1 text-xs text-accent-strong"
+                  href={`/tags/${encodeURIComponent(tag)}`}
+                  className="rounded-md sunny-surface-glass-70 px-3 py-1 text-xs text-accent-strong hover:underline"
                 >
                   {tag}
-                </span>
+                </Link>
               ))}
             </div>
           ) : null}
         </div>
-      </Link>
+      </div>
     </MotionReveal>
   );
 }

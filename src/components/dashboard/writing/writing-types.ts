@@ -11,7 +11,7 @@ export type WritingDocumentListItem = {
   excerpt: string;
   id: number;
   publicHref: null | string;
-  status: "draft" | "published";
+  status: "draft" | "published" | "archived";
   title: string;
   updatedAt: string;
   visibility: "private" | "public";

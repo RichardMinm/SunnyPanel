@@ -143,6 +143,7 @@ test("createScheduleItemsFromIntent writes schedule items and AgentRun", async (
       collection: "schedule-items",
       documentIds: [801, 802],
     },
+    planCleanup: [{ planId: 99, scheduleItemIds: [801, 802] }],
   });
 
   const operations = getPayloadStubOperations();

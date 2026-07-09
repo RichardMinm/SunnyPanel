@@ -14,9 +14,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/blog",
   },
-  description: "SunnyPanel 的长篇写作归档，记录阶段思考、项目复盘和公开文章。",
+  description: "Published posts.",
   openGraph: {
-    description: "长篇写作归档，连接 SunnyPanel 的时间线、动态和长期工作流。",
+    description: "Published posts.",
     title: "Blog | SunnyPanel",
     type: "website",
     url: "/blog",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
+import { buildPlansByIdMap, resolveChecklistPlanId } from "@/components/dashboard/agent/utils";
 
 export async function GET(request: Request) {
   const authResult = await getPayloadAuthResult();
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
 
   const result = await payload.find({
     collection: "schedule-items",
-    depth: 0,
+    depth: 1,
     limit: 200,
     overrideAccess: true,
     sort: "date",
@@ -39,6 +40,49 @@ export async function GET(request: Request) {
       ],
     },
   });
+
+  /* Collect unique plan and checklist IDs for batch resolution */
+  const planIds = new Set<number>();
+  const checklistIds = new Set<number>();
+  for (const doc of result.docs) {
+    const resolvedPlan = resolveChecklistPlanId((doc as unknown as { relatedPlan?: unknown }).relatedPlan);
+    if (resolvedPlan !== null) planIds.add(resolvedPlan);
+    const rawChecklist = (doc as unknown as { relatedChecklist?: unknown }).relatedChecklist;
+    const resolvedChecklist = resolveChecklistPlanId(rawChecklist);
+    if (resolvedChecklist !== null) checklistIds.add(resolvedChecklist);
+  }
+
+  /* Batch query plans */
+  let plansById = new Map<number, { id: number; title: string }>();
+  if (planIds.size > 0) {
+    const planResults = await payload.find({
+      collection: "plans",
+      depth: 0,
+      limit: planIds.size,
+      overrideAccess: true,
+      pagination: false,
+      where: { id: { in: Array.from(planIds) } },
+    });
+    plansById = buildPlansByIdMap(
+      planResults.docs.map((p) => ({ id: p.id, title: (p as { title?: string }).title })),
+    );
+  }
+
+  /* Batch query checklists */
+  let checklistsById = new Map<number, { id: number; title: string }>();
+  if (checklistIds.size > 0) {
+    const checklistResults = await payload.find({
+      collection: "checklists",
+      depth: 0,
+      limit: checklistIds.size,
+      overrideAccess: true,
+      pagination: false,
+      where: { id: { in: Array.from(checklistIds) } },
+    });
+    checklistsById = buildPlansByIdMap(
+      checklistResults.docs.map((c) => ({ id: c.id, title: (c as { title?: string }).title })),
+    );
+  }
 
   const normalizeDate = (value: unknown) => {
     if (value instanceof Date) {
@@ -52,22 +96,30 @@ export async function GET(request: Request) {
     return String(value ?? "");
   };
 
-  const items = result.docs.map((doc) => ({
-    id: doc.id,
-    title: doc.title,
-    date: normalizeDate(doc.date),
-    startTime: doc.startTime ?? null,
-    endTime: doc.endTime ?? null,
-    status: doc.status,
-    priority: doc.priority ?? "medium",
-    sourceType: doc.sourceType ?? "manual",
-    category: doc.category ?? null,
-    planId:
-      typeof doc.relatedPlan === "number"
-        ? doc.relatedPlan
-        : doc.relatedPlan?.id ?? null,
-    description: doc.description ?? null,
-  }));
+  const items = result.docs.map((doc) => {
+    const rawPlanId = (doc as unknown as { relatedPlan?: unknown }).relatedPlan;
+    const resolvedPlanId = resolveChecklistPlanId(rawPlanId);
+    const rawChecklistId = (doc as unknown as { relatedChecklist?: unknown }).relatedChecklist;
+    const resolvedChecklistId = resolveChecklistPlanId(rawChecklistId);
+
+    return {
+      id: doc.id,
+      title: doc.title,
+      date: normalizeDate(doc.date),
+      startTime: doc.startTime ?? null,
+      endTime: doc.endTime ?? null,
+      status: doc.status,
+      priority: doc.priority ?? "medium",
+      sourceType: doc.sourceType ?? "manual",
+      category: doc.category ?? null,
+      planId: resolvedPlanId,
+      relatedPlan: resolvedPlanId !== null ? (plansById.get(resolvedPlanId) ?? null) : null,
+      relatedChecklist: resolvedChecklistId !== null ? (checklistsById.get(resolvedChecklistId) ?? null) : null,
+      relatedChecklistItemKey: (doc as unknown as { relatedChecklistItemKey?: string | null }).relatedChecklistItemKey ?? null,
+      conflictNote: (doc as unknown as { conflictNote?: string | null }).conflictNote ?? null,
+      description: doc.description ?? null,
+    };
+  });
 
   return NextResponse.json({ month: monthParam, items, count: items.length });
 }

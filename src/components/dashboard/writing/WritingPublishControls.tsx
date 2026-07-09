@@ -8,8 +8,11 @@ type WritingPublishControlsProps = {
   saveState: WritingSaveState;
 };
 
-const getStatusLabel = (document: WritingDocument) =>
-  document.status === "published" ? "已发布" : "草稿";
+const getStatusLabel = (document: WritingDocument) => {
+  if (document.status === "published") return "已发布";
+  if (document.status === "archived") return "已归档";
+  return "草稿";
+};
 
 export function WritingPublishControls({
   document,
@@ -32,6 +35,8 @@ export function WritingPublishControls({
           <button disabled={busy} onClick={() => void onUnpublish(document)} type="button">
             转回草稿
           </button>
+        ) : document.status === "archived" ? (
+          <p className="sunny-writing-side-muted">已归档的文档。如需重新发布，请先转回草稿。</p>
         ) : (
           <p className="sunny-writing-side-muted">在编辑器顶栏发布此文档。</p>
         )}

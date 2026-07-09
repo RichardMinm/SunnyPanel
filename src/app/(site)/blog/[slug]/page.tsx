@@ -107,12 +107,13 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             {post.tags && post.tags.length > 0 ? (
               <div className="mt-8 flex flex-wrap gap-2">
                 {post.tags.map((tag) => (
-                  <span
+                  <Link
                     key={`${post.id}-${tag}`}
-                    className="rounded-full border border-border sunny-surface-glass-70 px-3 py-1 text-xs text-accent-strong"
+                    href={`/tags/${encodeURIComponent(tag)}`}
+                    className="rounded-full border border-border sunny-surface-glass-70 px-3 py-1 text-xs text-accent-strong hover:underline"
                   >
                     {tag}
-                  </span>
+                  </Link>
                 ))}
               </div>
             ) : null}

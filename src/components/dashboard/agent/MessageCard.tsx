@@ -115,7 +115,7 @@ export function MessageCard({
         <AgentMarkdownBubble
           content={
             content ||
-            (isStreaming && !hasUserActivitySteps ? "正在生成回复..." : "")
+            (isStreaming && !hasUserActivitySteps ? "正在处理请求" : "")
           }
           isStreaming={isStreaming && Boolean(content)}
         />
@@ -136,7 +136,7 @@ export function MessageCard({
           <AgentMarkdownBubble
             content={
               content ||
-              (isStreaming && !hasUserActivitySteps ? "正在生成回复..." : "")
+              (isStreaming && !hasUserActivitySteps ? "正在处理请求" : "")
             }
             isStreaming={isStreaming && Boolean(content)}
           />

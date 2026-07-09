@@ -16,7 +16,7 @@ const MODE_OPTIONS: Array<{
     key: "ask",
     label: "自动",
     description: "系统会判断回答或规划，执行前需要确认。",
-    placeholder: "输入问题或任务，Sunny 会自动判断如何处理...",
+    placeholder: "输入问题或任务...",
   },
   {
     key: "answer",

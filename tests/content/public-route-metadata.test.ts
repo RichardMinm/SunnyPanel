@@ -7,10 +7,10 @@ const read = (path: string) => readFileSync(path, "utf8");
 const staticPublicRoutes = [
   ["home", "src/app/(site)/page.tsx"],
   ["blog", "src/app/(site)/blog/page.tsx"],
+  ["categories", "src/app/(site)/categories/[slug]/page.tsx"],
   ["notes", "src/app/(site)/notes/page.tsx"],
-  ["updates", "src/app/(site)/updates/page.tsx"],
+  ["tags", "src/app/(site)/tags/[slug]/page.tsx"],
   ["timeline", "src/app/(site)/timeline/page.tsx"],
-  ["checklists", "src/app/(site)/checklists/page.tsx"],
 ] as const;
 
 describe("Public route metadata", () => {

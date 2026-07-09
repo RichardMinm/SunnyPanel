@@ -1,317 +1,274 @@
-# SunnyPanel Agent Workflow v1
+# Agent Workflow v1
 
-Status: frozen for Agent Workflow v1 closure.
+## 1. Intent Types
 
-This document records the current Agent workflow contract after the Planning, Checklist, Schedule, Timeline, Progress, Safety, Dashboard, Ops, and public-site closure phases. It is an architecture reference for future workflow changes. It does not introduce new behavior.
+### Read Intent
 
-## 1. Overview
+Examples:
 
-SunnyPanel Agent Workflow v1 turns natural-language goals into structured workspace artifacts: plans, checklists, schedules, timeline events, public writing context, and auditable execution results.
+- 查询已有文章
+- 查询已有计划
+- 查询日程
+- 总结已有内容
+- 查找 timeline event
 
-The v1 design is intentionally staged. The Agent can understand, clarify, draft, prepare, and propose before any write. Database writes happen only after the safety chain accepts the operation and the user confirms it.
+Flow:
 
-```mermaid
-flowchart TD
-  User["User message"] --> Session["Semantic Session Coordinator"]
-  Session --> Router["Intent Router / Arbitration"]
-  Router --> Gate["Readiness / Workflow Gates"]
-  Gate --> Clarify["Clarification response"]
-  Gate --> Draft["Draft response"]
-  Gate --> Prepare["Prepare creation intent"]
-  Prepare --> DryRun["Dry-run"]
-  DryRun --> Policy["Policy Guard"]
-  Policy --> Pending["Pending confirmation"]
-  Pending --> Execute["Execute"]
-  Execute --> Receipt["AgentActionReceipt"]
-  Execute --> Result["ActionResultCard"]
-  Receipt --> Rollback["Rollback payload"]
+```txt
+User Input
+→ Intent Router
+→ Read Boundary
+→ Query
+→ Summarize
+→ Response
 ```
 
-## 2. Core Principles
+Rules:
 
-- Understanding intent is not execution.
-- A draft is not a database write.
-- User approval of a draft is not final execution.
-- Medium and high risk writes must pass dry-run, Policy Guard, pending confirmation, execute, receipt, and rollback boundaries.
-- Execution must be traceable through AgentRun, AgentThreadEvent, and AgentActionReceipt records.
-- Supported writes must have an explicit rollback payload or clearly report that rollback is unavailable.
-- Large or under-specified workflows should clarify or draft before creating a write proposal.
+- 不生成 write draft
+- 不进入 dry-run
+- 不进入 Policy Guard
+- 不进入 pending confirmation
+- 不写数据库
+- 不生成 write receipt
 
-These principles are product rules, not just implementation details. New workflows should preserve the same user mental model: draft first, confirm later, execute last.
+### Write Intent
 
-## 3. Planning Workflow
+Examples:
 
-Planning handles long-running goals such as product launches, study plans, projects, and multi-stage work.
+- 创建文章草稿
+- 创建计划
+- 创建 checklist
+- 创建 schedule item
+- 创建 timeline event
+- 修改内容 metadata
+- 发布内容
 
-```mermaid
-flowchart LR
-  A["Plan request"] --> B["PlanReadinessEvaluator"]
-  B -->|insufficient| C["clarify_plan_requirements"]
-  B -->|draftable| D["PlanDraft"]
-  D --> E["PlanDraftCard"]
-  E --> F["prepare_plan_creation"]
-  F --> G["compose_plan / create_plan dry-run"]
-  G --> H["pending confirmation"]
-  H --> I["confirmed create_plan execute"]
-  I --> J["createdPlanId backfill"]
-  J --> K["ActionResultCard"]
+Flow:
+
+```txt
+User Input
+→ Intent Router
+→ Write Boundary
+→ Draft
+→ Dry-run
+→ Policy Guard
+→ Pending Confirmation
+→ Execute
+→ Receipt
+→ Rollback if supported
 ```
 
-### Readiness
+Rules:
 
-`PlanReadinessEvaluator` is a rule-first pure function. It does not call an LLM, read the database, or depend on current time unless time is passed in.
+- 必须生成 draft
+- draft 不写数据库
+- dry-run 不写数据库
+- Policy Guard 失败不得进入 confirmation
+- 用户确认前不得 execute
+- Execute 成功后必须生成 receipt
+- rollback support 必须显式声明
 
-Plan slots include:
+---
 
-- `goal`
-- `deadline`
-- `scope`
-- `currentProgress`
-- `availableTime`
-- `successCriteria`
-- `priority`
-- `deliverables`
-- `constraints`
+## 2. Workflow Stages
 
-A large plan with only `goal + deadline` is insufficient. It should ask follow-up questions instead of inventing scope and moving directly into confirmation.
+### Intent Router
 
-### PlanDraft
+Responsibilities:
 
-`draftable` readiness creates a PlanDraft. The draft can include stages, tasks, assumptions, risks, and success criteria, but it is still only an assistant artifact. It must not write to Plans.
+- 识别 read / write
+- 识别目标模块
+- 识别 action type
+- 提取必要 entities
 
-`PlanDraftCard` shows the draft state and provides actions to continue editing or prepare creation. It must not show execution or result wording.
+Rules:
 
-### prepare_plan_creation / create_plan
+- 不执行写入
+- 不创建 receipt
+- 不改变业务数据
 
-`prepare_plan_creation` converts a valid PlanDraft into the existing plan creation intent and args. It does not execute. The existing dry-run and Policy Guard path creates the pending confirmation.
+### Read / Write Boundary
 
-Only after confirmation can `create_plan` execute and return created plan ids. The created plan id is backfilled into planning session state so downstream checklist creation can link to the real Plan record.
+Responsibilities:
 
-## 4. Checklist Workflow
+- 阻断 query 意图进入 write flow
+- 阻断 write 意图直接 execute
 
-Checklist workflow turns a PlanDraft into concrete grouped tasks.
+Rules:
 
-```mermaid
-flowchart LR
-  A["PlanDraft"] --> B["ChecklistDraft"]
-  B --> C["ChecklistDraftCard"]
-  C --> D["prepare_checklist_creation"]
-  D --> E["create_checklist dry-run"]
-  E --> F["Policy Guard"]
-  F --> G["pending confirmation"]
-  G --> H["confirmed create_checklist execute"]
-  H --> I["Checklists collection"]
-  H --> J["Plan.linkedContent update"]
-  H --> K["ActionResultCard"]
+- query-only request 不得产生 pending confirmation
+- write request 必须进入 draft
+
+### Draft
+
+Responsibilities:
+
+- 创建可检查草案
+- 保留 action type
+- 保留 target collection
+- 保留 proposed payload
+
+Rules:
+
+- 不写数据库
+- 不调用 executor
+- 不创建业务实体
+
+### Dry-run
+
+Responsibilities:
+
+- 预览写入影响
+- 预览冲突
+- 预览目标 collection
+- 预览 rollback support
+
+Rules:
+
+- 不写数据库
+- 不修改现有实体
+- 不创建业务实体
+
+### Policy Guard
+
+Responsibilities:
+
+- 检查 action 是否允许
+- 检查 payload 是否安全
+- 检查是否需要 confirmation
+- 检查是否支持 rollback
+
+Rules:
+
+- failure 阻止 pending confirmation
+- 不允许 UI 绕过
+- 不允许 executor 绕过
+
+### Pending Confirmation
+
+Responsibilities:
+
+- 展示 draft summary
+- 展示 dry-run impact
+- 展示 policy result
+- 展示 rollback support
+- 等待用户确认
+
+Rules:
+
+- 用户未确认不得 execute
+- 用户取消后不得写入
+
+### Execute
+
+Responsibilities:
+
+- 执行确认后的 action
+- 写入本地 Payload / PostgreSQL
+- 返回 targetId
+
+Rules:
+
+- 只能执行 confirmed action
+- 不能执行过期 confirmation
+- 不能执行 policy failed action
+
+### Receipt
+
+Responsibilities:
+
+- 记录 actionType
+- 记录 status
+- 记录 targetCollection
+- 记录 targetId
+- 记录 rollbackSupported
+- 记录 createdAt
+
+Rules:
+
+- Execute 成功后必须生成
+- Execute 失败也应记录失败状态或错误摘要
+- 不记录 secrets
+- 不记录 raw prompt
+- 不记录 hidden reasoning
+
+### Rollback
+
+Responsibilities:
+
+- 对支持 rollback 的本地写入提供回滚策略
+- 展示 rollback availability
+- 记录 rollback result
+- 对支持 plan linkage 的写入，rollback 时清理关联 Plan.linkedContent
+
+Rules:
+
+- rollback support 必须显式声明
+- 不承诺外部系统 rollback
+- 不承诺分布式事务 rollback
+- Plan.linkedContent cleanup 属于 rollback 一致性修复，不允许 dangling reference
+
+---
+
+## 3. Planning Execution Lifecycle
+
+The Agent manages the full lifecycle from Plan through Checklist/ScheduleItem
+to Progress tracking:
+
+```
+Plan
+  → Checklist.planId                     (D2-A1)
+  → Checklist groups/items (embedded)    (v1)
+  → ScheduleItem.relatedPlan             (D2-A3a)
+  → ScheduleItem.relatedChecklist
+  → ScheduleItem.relatedChecklistItemKey
+  → Checklist item completion            (complete_plan_item)
+  → Plan.progress auto-sync              (D2-A2)
+  → TimelineEvent from completion        (checklist afterChange hook)
+  → Plan.linkedContent(schedule-items)   (D2-A3a)
+  → Receipt (AgentRun + AgentActionReceipt)
+  → Rollback (with linkedContent cleanup)(D2-A3a-fix)
 ```
 
-Key rules:
+### Currently Implemented
 
-- ChecklistDraft is draft-only and never writes.
-- Checklist creation executes only after pending confirmation.
-- `sourcePlanId` is carried from the executed Plan lifecycle. It is never guessed from a title.
-- When `sourcePlanId` exists, successful checklist creation appends a checklist relation into `Plan.linkedContent`.
-- If Plan linkage fails after checklist creation, the created checklist is cleaned up as compensation.
-- Duplicate confirmation is protected by AgentActionReceipt replay.
+- Checklist.planId → Plan bidirectional link
+- Plan.progress auto-sync (hook, derived from checklist completion rate)
+- ScheduleItem → Plan.linkedContent (with dedup)
+- Rollback cleanup for schedule-items linkedContent
+- Completion → TimelineEvent (deterministic)
+- Receipt and Rollback for all write actions
 
-## 5. Schedule Workflow
+### Not Yet Implemented (v1 scope boundary)
 
-Schedule workflow turns tasks into concrete local schedule items. v1 does not support recurrence, external calendars, or automatic rescheduling.
+- ChecklistItem as independent collection (current: embedded)
+- Task collection
+- Auto-rescheduling
+- External Calendar integration
+- TimelineEvent.relatedPlan (D2-A3b, deferred)
+- Legacy data planId backfill
 
-```mermaid
-flowchart TD
-  A["Schedule request"] --> B["ScheduleReadiness"]
-  B -->|insufficient| C["Clarify schedule context"]
-  B -->|draftable| D["ScheduleDraft"]
-  D --> E["ScheduleDraftCard"]
-  E --> F["prepare_schedule_creation"]
-  F --> G["Local conflict detection"]
-  G --> H["Conflict suggestions"]
-  H --> I["revise_schedule_draft"]
-  I --> E
-  G --> J["create_schedule_items dry-run"]
-  J --> K["Policy Guard"]
-  K --> L["pending confirmation"]
-  L --> M["confirmed execute"]
-  M --> N["ActionResultCard"]
-```
+---
 
-Schedule readiness considers source tasks, available time, deadline, preferred time, conflict policy, and whether an existing draft is being confirmed.
+## 4. Protected Modules
 
-ScheduleDraft remains non-persistent. It can show assumptions, conflicts, and local suggestions. Selecting a suggestion only updates the draft through `revise_schedule_draft`.
+- Agent pipeline
+- Executor
+- Policy Guard
+- rollback
+- AgentActionReceipt
+- Payload schema
+- migration
+- LangGraph runtime / checkpoint / adapter
+- Planning workflow (including Checklist.planId, Plan.progress sync)
+- Schedule workflow (including Plan.linkedContent, rollback cleanup)
+- protected tests
 
-Conflict detection is local to SunnyPanel schedule-items. Suggestions can propose moving to a local free slot, allowing overlap, removing an item, or manual adjustment. They do not claim that external calendars were checked.
+Rules:
 
-`create_schedule_items` writes schedule-items only after confirmation. Execution returns created ids, count, date range, rollback payload, and a result card.
-
-## 6. Timeline / Progress
-
-Timeline and progress semantics are deliberately narrow.
-
-Checklist completion:
-
-- Completing a checklist item creates or updates one checklist-sourced Timeline event.
-- `relatedChecklist` points to the checklist.
-- `relatedTaskKey` uses the checklist item id.
-- Completion notes update Timeline description without duplicate events.
-- Creating a checklist does not create Timeline events.
-- Appending checklist items does not create Timeline events.
-
-Plan progress:
-
-- Plan progress is computed from linked checklists.
-- v1 does not write `Plan.progress`.
-- Rollback restores checklist state or linkedContent; computed progress follows from restored data.
-
-This keeps progress derivable and avoids a second mutable truth source.
-
-## 7. Safety Workflow
-
-All write workflows use the same safety chain:
-
-```text
-intent
--> readiness or workflow gate
--> draft or dry-run
--> Policy Guard
--> pending confirmation
--> execute
--> AgentActionReceipt
--> rollback payload
-```
-
-Non-negotiable rules:
-
-- No direct writes from draft cards.
-- No medium or high risk write before pending confirmation is confirmed.
-- Executors must not bypass Policy Guard.
-- Raw LLM output is not treated as trusted final data.
-- Repeated confirmations must replay receipts instead of writing again.
-- Rollback must target only documents affected by the recorded action.
-
-## 8. Session State
-
-AgentSessionState stores workflow context without adding database columns.
-
-Planning state can hold:
-
-- current planning workflow stage
-- plan slots
-- PlanDraft
-- ChecklistDraft
-- `sourcePlanId` lifecycle metadata
-
-Scheduling state can hold:
-
-- current scheduling workflow stage
-- schedule slots
-- ScheduleDraft
-- conflict policy
-- local conflict notes
-- local free slot suggestions
-
-`pendingAction` remains the confirmation boundary. When present, confirmation UI has priority over draft projection.
-
-Compatibility rules:
-
-- Old threads must normalize safely.
-- Invalid draft fields are filtered.
-- Session state can guide routing and UI projection, but it must not force writes.
-
-## 9. UI Cards
-
-Workflow UI is state-separated.
-
-Draft cards:
-
-- `PlanDraftCard`
-- `ChecklistDraftCard`
-- `ScheduleDraftCard`
-
-Draft cards must say the work is not written yet and must not show confirmation or result language.
-
-Confirmation cards:
-
-- `PlanConfirmationCard`
-- `AgentApprovalCard` variants for checklist and schedule creation
-
-Confirmation cards must say confirmation is required before writing.
-
-Result cards:
-
-- `ActionResultCard`
-
-Result cards show completed writes, created ids, counts, linked sources, rollback availability, and user-facing summaries.
-
-`MessageCard` remains a dispatcher. It should not accumulate workflow-specific card body JSX.
-
-## 10. Observability
-
-Agent Ops Center provides a read-only operational view:
-
-- recent AgentRun records
-- recent AgentActionReceipt records
-- pending confirmations
-- recent failures or indeterminate actions
-- token, latency, model, actionId, threadId, and operation summaries
-
-Ops UI is diagnostic. It does not execute pending actions, trigger rollback, or mutate Agent state.
-
-## 11. Rollback / Receipt
-
-AgentActionReceipts protect execute and rollback operations.
-
-Write execution should:
-
-- claim or replay a receipt by stable action id
-- write exactly once for repeated confirmations
-- store created ids and rollback payloads
-- return prior terminal results when replayed
-
-Rollback should:
-
-- use server-stored payloads, not arbitrary client input
-- target only documents created or changed by the action
-- be idempotent where practical
-- avoid affecting unrelated Timeline, Checklist, Plan, or Schedule records
-- report indeterminate state when compensation cannot be completed
-
-## 12. Test Baseline
-
-Current v1 baseline:
-
-- `npm run test:content`
-- `npm run test:agent`
-- `npm run test:agent:planning`
-- `npm run test:agent:schedule`
-- `npm run typecheck`
-- `npm run lint`
-- `git diff --check`
-
-Public browser smoke exists separately as `npm run test:e2e:public` and requires a non-production Postgres database. See `docs/public-site-e2e.md`.
-
-## 13. Known Boundaries
-
-Agent Workflow v1 intentionally does not include:
-
-- ChecklistDraft revise workflow.
-- Schedule recurrence.
-- External Calendar integration.
-- Automatic conflict rescheduling.
-- Multi-user planning permissions beyond existing access boundaries.
-- New Payload schema or migrations for workflow state.
-- Direct Plan progress writes.
-- Full natural-language editing of every created draft field.
-- High-risk external system writes.
-
-## 14. Backlog
-
-Recommended post-v1 backlog:
-
-- ChecklistDraft revise flow.
-- More precise natural-language draft editing.
-- Optional Plan to Schedule sequencing controls.
-- External Calendar read-only conflict awareness.
-- Recurrence design with explicit confirmation and rollback semantics.
-- Better rollback result UI for partially compensated actions.
-- More E2E coverage for full browser interaction flows.
+- 未明确要求不得修改
+- 必须先只读审计
+- 必须输出风险分析
+- 必须给出最小变更方案
+- 必须运行对应测试

@@ -8,6 +8,9 @@ import {
   CHECKLIST_TIMELINE_TYPE,
 } from "../lib/agent/checklist-timeline-semantics";
 import {
+  calculatePlanChecklistProgress,
+} from "../lib/agent/planning/plan-checklist-progress";
+import {
   createSlugField,
   publishedAtField,
   statusField,
@@ -32,6 +35,7 @@ type ChecklistGroup = {
 
 type ChecklistDocument = {
   id: number;
+  planId?: null | number | { id: number };
   status: "draft" | "published";
   title: string;
   visibility: "private" | "public";
@@ -138,6 +142,68 @@ const syncChecklistCompletionsToTimeline: CollectionAfterChangeHook = async ({
   return doc;
 };
 
+export const resolvePlanId = (doc: ChecklistDocument): number | null => {
+  const raw = doc.planId;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (raw && typeof raw === "object" && typeof (raw as { id?: unknown }).id === "number") {
+    return (raw as { id: number }).id;
+  }
+  return null;
+};
+
+export const syncPlanProgressOnChecklistChange: CollectionAfterChangeHook = async ({
+  doc,
+  operation,
+  previousDoc,
+  req,
+}) => {
+  /* Only act on updates, skip if context flag is set */
+  if (operation !== "update" || !previousDoc || req.context?.skipChecklistPlanProgressSync) return doc;
+
+  const checklist = doc as ChecklistDocument;
+  const planId = resolvePlanId(checklist);
+  if (planId === null) return doc;
+
+  /* Fetch current plan progress to avoid unnecessary write */
+  const currentPlan = await req.payload.findByID({
+    collection: "plans",
+    id: planId,
+    overrideAccess: true,
+    depth: 0,
+  });
+
+  /* Fetch all checklists linked to this plan via planId */
+  const linkedChecklists = await req.payload.find({
+    collection: "checklists",
+    depth: 0,
+    limit: 200,
+    overrideAccess: true,
+    pagination: false,
+    where: { planId: { equals: planId } },
+  });
+
+  const progress = calculatePlanChecklistProgress({
+    checklists: linkedChecklists.docs.map((cl) => ({
+      groups: (cl as ChecklistDocument).groups,
+      id: cl.id,
+    })),
+  });
+
+  /* Only persist when progress actually changed */
+  if ((currentPlan as { progress?: number | null }).progress === progress.completionRate) {
+    return doc;
+  }
+
+  await req.payload.update({
+    collection: "plans",
+    data: { progress: progress.completionRate },
+    id: planId,
+    overrideAccess: true,
+  });
+
+  return doc;
+};
+
 export const Checklist: CollectionConfig = {
   slug: "checklists",
   access: {
@@ -172,6 +238,18 @@ export const Checklist: CollectionConfig = {
       admin: {
         placeholder: "补一句这份清单的用途，例如：用于整理高数各章节学习进度。",
       },
+    },
+    {
+      name: "planId",
+      type: "relationship",
+      relationTo: "plans",
+      label: "关联计划",
+      admin: {
+        description: "此清单所属的计划。清单也可以独立存在，不强制关联。",
+        position: "sidebar",
+      },
+      index: true,
+      required: false,
     },
     {
       name: "groups",
@@ -277,7 +355,7 @@ export const Checklist: CollectionConfig = {
     visibilityField(),
   ],
   hooks: {
-    afterChange: [syncChecklistCompletionsToTimeline],
+    afterChange: [syncChecklistCompletionsToTimeline, syncPlanProgressOnChecklistChange],
   },
   labels: {
     plural: {

@@ -759,6 +759,17 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
 }.sunny-agent-activity-details summary{
   cursor: pointer;
   color: var(--foreground);
+  transition: color 160ms ease;
+}.sunny-agent-activity-details summary:hover{
+  color: var(--accent);
+}.sunny-agent-activity-details[open] > div,
+.sunny-agent-activity-details[open] > dl{
+  animation: sunny-agent-activity-details-open 160ms ease-out both;
+}@media (prefers-reduced-motion: reduce){
+  .sunny-agent-activity-details[open] > div,
+  .sunny-agent-activity-details[open] > dl{
+    animation: none;
+  }
 }.sunny-agent-activity-details dl{
   display: grid;
   gap: 0.35rem;
@@ -784,8 +795,29 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   color: var(--sunny-fg-secondary);
   font-size: var(--text-xs);
   line-height: 1.5;
+}.sunny-agent-ops-field{
+  margin: 0.25rem 0 0;
+  color: var(--sunny-fg);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}.sunny-agent-ops-meta{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0;
+  font-size: var(--text-xs);
+  color: var(--sunny-fg-secondary);
+}.sunny-agent-ops-muted{
+  color: var(--sunny-fg-secondary);
+  font-size: var(--text-xs);
 }@media (prefers-reduced-motion: reduce){
   .sunny-agent-activity-step-running .sunny-agent-activity-marker{
+    animation: none;
+  }
+  .sunny-agent-activity-step{
+    animation: none;
+  }
+  .sunny-agent-activity-marker span{
     animation: none;
   }
 }.sunny-agent-activity-step{
@@ -869,6 +901,15 @@ html[data-theme="dark"] .sunny-agent-run-empty-v2 > div{
   from{
     opacity: 0;
     transform: translateY(0.18rem);
+  }
+  to{
+    opacity: 1;
+    transform: translateY(0);
+  }
+}@keyframes sunny-agent-activity-details-open{
+  from{
+    opacity: 0;
+    transform: translateY(-0.12rem);
   }
   to{
     opacity: 1;

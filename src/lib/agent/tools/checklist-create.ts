@@ -20,6 +20,7 @@ export type ChecklistCreateData = {
     }>;
     title: string;
   }>;
+  planId?: null | number;
   slug: string;
   status: "draft" | "published";
   summary: null | string;
@@ -273,6 +274,7 @@ export const buildChecklistCreateData = (
       })),
       title: group.title,
     })),
+    planId: typeof args.sourcePlanId === "number" ? args.sourcePlanId : null,
     slug: trimRequired(options.slug, "slug"),
     status: args.status ?? "draft",
     summary: args.summary?.trim() ? args.summary.trim() : null,

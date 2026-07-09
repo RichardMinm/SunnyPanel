@@ -29,7 +29,7 @@ export function ContextInspector({
 }: ContextInspectorProps) {
   const hasApprovalBadge = pendingAction?.type === "await_confirmation";
   const visibleTabs = inspectorTabs.filter((tab) => {
-    if (tab.key === "context" || tab.key === "memory" || tab.key === "linked" || tab.key === "inbox" || tab.key === "ops") return true;
+    if (tab.key === "context" || tab.key === "memory" || tab.key === "linked" || tab.key === "inbox" || tab.key === "ops" || tab.key === "plans") return true;
     if (tab.key === "approval") return pendingAction != null;
     if (tab.key === "trace") return debugMode;
     if (tab.key === "debug") return debugMode;

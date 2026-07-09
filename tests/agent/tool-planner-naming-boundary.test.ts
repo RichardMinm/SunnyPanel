@@ -227,33 +227,39 @@ test("exactly 2 read tools in registry", async () => {
 });
 
 /* ═══════════════════════════════════════════════════════════════
-   8. docs mention key R5-D terms (minimal content check)
+   8. TEST_MAP.md documents R5-D naming boundary (minimal content check)
    ═══════════════════════════════════════════════════════════════ */
 
-test("agent-tool-planner.md mentions query_schedule read-only", async () => {
+test("TEST_MAP.md documents query_schedule as read-only with write allowlist", async () => {
   const fs = await import("node:fs");
-  const content = fs.readFileSync("docs/agent-tool-planner.md", "utf-8");
-  assert.ok(content.includes("query_schedule"), "docs should mention query_schedule");
-  assert.ok(content.includes("read-only") || content.includes("capability: \"read\""), "docs should mention read-only");
-  assert.ok(content.includes("write allowlist") || content.includes("Write Allowlist") || content.includes("create_plan"), "docs should mention write allowlist");
-});
-
-test("agent-tool-registry.md mentions naming note", async () => {
-  const fs = await import("node:fs");
-  const content = fs.readFileSync("docs/agent-tool-registry.md", "utf-8");
-  assert.ok(content.includes("query_schedule"), "should mention query_schedule");
-  assert.ok(content.includes("AgentWriteIntentName"), "should mention naming debt");
-  // Should mention capability is authoritative
+  const content = fs.readFileSync("tests/TEST_MAP.md", "utf-8");
+  assert.ok(content.includes("query_schedule"), "TEST_MAP should mention query_schedule");
+  assert.ok(content.includes("read-only"), "TEST_MAP should mention read-only");
   assert.ok(
-    content.includes("capability") && (content.includes("authoritative") || content.includes("semantic")),
-    "should state capability is authoritative",
+    content.includes("write allowlist") || content.includes("create_plan"),
+    "TEST_MAP should mention write allowlist",
   );
 });
 
-test("agent-llm-required-architecture.md mentions R5 completion", async () => {
+test("TEST_MAP.md documents R5-D naming boundary and capability metadata", async () => {
   const fs = await import("node:fs");
-  const content = fs.readFileSync("docs/agent-llm-required-architecture.md", "utf-8");
-  assert.ok(content.includes("R5-A"), "should mention R5-A");
-  assert.ok(content.includes("R5-C"), "should mention R5-C");
-  assert.ok(content.includes("已完成"), "R5 phases should be marked completed");
+  const content = fs.readFileSync("tests/TEST_MAP.md", "utf-8");
+  assert.ok(content.includes("query_schedule"), "should mention query_schedule");
+  assert.ok(
+    content.includes("R5-D") || content.includes("naming audit"),
+    "should mention naming boundary (R5-D)",
+  );
+  // Capability metadata (read/draft/write) is the authoritative semantic source
+  assert.ok(content.includes("capability"), "should mention capability metadata");
+});
+
+test("TEST_MAP.md documents R5-A and R5-C phases as protected", async () => {
+  const fs = await import("node:fs");
+  const content = fs.readFileSync("tests/TEST_MAP.md", "utf-8");
+  assert.ok(content.includes("R5-A"), "should mention R5-A Heuristic Gate");
+  assert.ok(content.includes("R5-C"), "should mention R5-C Schedule Read Tool");
+  assert.ok(
+    content.includes("protected"),
+    "R5 phases should be documented as protected (completed)",
+  );
 });

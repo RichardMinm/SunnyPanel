@@ -1,0 +1,149 @@
+--- CLAUDE.md
++++ CLAUDE.updated.md
+@@ -124,6 +124,104 @@
+ - LangGraph runtime / checkpoint / adapter
+ - Planning / Schedule 主链路
+ - protected tests
++
++### 1.1 Docs Reading Gate
++
++每次 VibeCoding 前，必须先读取 `docs/` 中与本次任务相关的设计、架构、安全、测试文档。
++
++这一步是代码修改前置条件，不是可选建议。
++
++#### 必读规则
++
++在输出改动计划前，必须完成：
++
++1. 查找与任务相关的 `docs/` 文档。
++2. 阅读相关设计边界、功能规格、Agent workflow、安全模型、测试策略。
++3. 在计划中列出已读取的 docs 文件。
++4. 说明本次任务与这些 docs 的关系。
++5. 如代码实现与 docs 冲突，必须先标记冲突，不得直接按代码猜测继续实现。
++6. 如 docs 缺失或过期，必须先建议补齐 / 更新 docs，再进入实现。
++
++#### 默认必读文档
++
++所有 VibeCoding 任务默认先检查：
++
++- `docs/product-map.md`
++- `docs/feature-index.md`
++- `docs/agent-workflow-v1.md`
++- `docs/safety-model.md`
++- `docs/system-architecture.md`
++- `docs/testing-strategy.md`
++- `tests/TEST_MAP.md`
++
++#### 按任务类型追加阅读
++
++Public Site / 路由 / 内容展示：
++
++- `docs/design/route-map.md`
++- `docs/features/public-site.md`
++- `docs/design/content-lifecycle.md`
++
++Writing / Blog / Notes / Editor：
++
++- `docs/features/writing.md`
++- `docs/design/content-lifecycle.md`
++- `docs/design/design-system.md`
++- `docs/design/aesthetic-standard.md`
++- `docs/design/copywriting-standard.md`
++
++Planning / Checklist / Schedule 联动：
++
++- `docs/features/planning.md`
++- `docs/features/checklist.md`
++- `docs/features/schedule.md`
++- `docs/design/planning-execution-lifecycle.md`
++- `docs/design/domain-model.md`
++
++Agent Workbench / Activity / Trace：
++
++- `docs/features/agent-workbench.md`
++- `docs/design/agent-activity-states.md`
++- `docs/agent-observability.md`
++- `docs/safety-model.md`
++
++UI / UX / Design System：
++
++- `docs/design/design-system.md`
++- `docs/design/aesthetic-standard.md`
++- `docs/design/copywriting-standard.md`
++- `docs/design/dashboard-layout.md`
++
++测试整理：
++
++- `docs/testing-strategy.md`
++- `tests/TEST_MAP.md`
++
++#### 输出要求
++
++每次 VibeCoding 的计划中必须包含：
++
++```txt
++Docs reviewed:
++- <doc path>: <why relevant>
++- <doc path>: <why relevant>
++
++Docs conflicts:
++- none
++```
++
++如果没有读取 docs，不得进入实现。
++
++#### 禁止事项
++
++- 不要绕过 docs 直接实现。
++- 不要只读代码不读设计文档。
++- 不要在未检查 docs 的情况下修改 Agent workflow。
++- 不要在未检查 docs 的情况下修改 Payload schema / migration。
++- 不要在未检查 docs 的情况下调整 Public routes。
++- 不要在未检查 docs 的情况下修改 protected tests。
++- 不要用“代码里现在这样”覆盖 docs 中已经冻结的产品边界。
++- 如 docs 与代码不一致，先报告差异，再提出最小处理方案。
+ 
+ ---
+ 
+@@ -693,17 +791,19 @@
+ 
+ 每次完成后必须输出：
+ 
+-1. 修改文件列表。
+-2. 每个文件改了什么。
+-3. 是否扩大了任务范围。
+-4. 是否影响 Agent 安全链路。
+-5. 是否影响数据库 / schema。
+-6. 是否影响性能关键路径。
+-7. 是否触碰 protected tests。
+-8. 是否修改 Agent pipeline / Executor / Policy Guard / rollback。
+-9. 测试结果。
+-10. 未解决风险。
+-11. 下一步建议。
++1. 已读取的 docs 列表。
++2. docs 与本次改动是否存在冲突。
++3. 修改文件列表。
++4. 每个文件改了什么。
++5. 是否扩大了任务范围。
++6. 是否影响 Agent 安全链路。
++7. 是否影响数据库 / schema。
++8. 是否影响性能关键路径。
++9. 是否触碰 protected tests。
++10. 是否修改 Agent pipeline / Executor / Policy Guard / rollback。
++11. 测试结果。
++12. 未解决风险。
++13. 下一步建议。
+ 
+ 如果阶段完成，先判断：
+ 
+@@ -762,8 +862,9 @@
+ 
+ 默认工作方式：
+ 
++> 先读取相关 docs。  
+ > 先审计，不要直接改代码。  
+-> 先输出当前实现、改动计划、不改范围、风险和测试方案。  
++> 先输出已读取 docs、当前实现、改动计划、不改范围、风险和测试方案。  
+ > 等用户确认后再实现。
+ 
+ 如果用户明确要求直接给出 VibeCoding 提示词，则输出完整、可复制的提示词，而不是只给提纲。

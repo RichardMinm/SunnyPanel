@@ -476,6 +476,8 @@ export function WritingEditorPane({
                 </span>
                 {documentByline.status === "draft" ? (
                   <span className="sunny-writing-byline-chip">草稿</span>
+                ) : documentByline.status === "archived" ? (
+                  <span className="sunny-writing-byline-chip">已归档</span>
                 ) : (
                   <span>已发布</span>
                 )}

@@ -10,7 +10,7 @@ import { HomeHero } from "@/components/public/HomeHero";
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("Public site polish contracts", () => {
-  test("homepage hero renders the AI-native long-term workbench positioning", () => {
+  test("homepage hero renders the public surface positioning", () => {
     const html = renderToStaticMarkup(
       React.createElement(HomeHero, {
         currentFocus: {
@@ -34,40 +34,25 @@ describe("Public site polish contracts", () => {
     );
 
     assert.match(html, /SunnyPanel/);
-    assert.match(html, /AI 原生/);
-    assert.match(html, /个人长期工作台/);
+    assert.match(html, /写作、笔记与时间线/);
     assert.match(html, /查看 Now/);
     assert.match(html, /阅读写作/);
   });
 
-  test("public writing pages keep Blog Notes and Updates visually distinct", () => {
+  test("public writing pages keep Blog and Notes visually distinct", () => {
     const blogPage = read("src/app/(site)/blog/page.tsx");
     const notesPage = read("src/app/(site)/notes/page.tsx");
-    const updatesPage = read("src/app/(site)/updates/page.tsx");
 
     assert.match(blogPage, /sunny-blog-index/);
     assert.match(notesPage, /sunny-notes-stream/);
-    assert.match(updatesPage, /sunny-updates-feed/);
     assert.doesNotMatch(notesPage, /grid gap-4 md:grid-cols-2/);
   });
 
-  test("public Blog and Checklists pages do not surface admin management CTAs", () => {
+  test("public Blog page does not surface admin management CTAs", () => {
     const blogPage = read("src/app/(site)/blog/page.tsx");
-    const checklistsPage = read("src/app/(site)/checklists/page.tsx");
 
     assert.doesNotMatch(blogPage, /\/admin\/collections\/posts/);
-    assert.doesNotMatch(checklistsPage, /\/admin\/collections\/checklists/);
     assert.doesNotMatch(blogPage, /managePosts/);
-    assert.doesNotMatch(checklistsPage, /manageChecklists/);
-  });
-
-  test("public checklists page presents progress instead of a backend task table", () => {
-    const checklistsPage = read("src/app/(site)/checklists/page.tsx");
-
-    assert.match(checklistsPage, /sunny-public-checklist-progress/);
-    assert.match(checklistsPage, /role="progressbar"/);
-    assert.match(checklistsPage, /aria-valuenow/);
-    assert.match(checklistsPage, /formatDateTime\(checklist\.updatedAt/);
   });
 
   test("blog detail keeps a readable article shell and article body renderer", () => {

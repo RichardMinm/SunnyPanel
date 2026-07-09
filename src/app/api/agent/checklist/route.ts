@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
+import { buildPlansByIdMap, getChecklistRelatedPlan, resolveChecklistPlanId } from "@/components/dashboard/agent/utils";
 
 type ChecklistItem = { completedAt?: null | string; completionNote?: null | string; description?: null | string; id?: string | null; isCompleted?: boolean | null; title?: string };
 
@@ -32,16 +33,38 @@ export async function GET(request: NextRequest) {
 
   const result = await payload.find({
     collection: "checklists",
-    depth: 0,
+    depth: 1,
     limit,
     overrideAccess: true,
     sort: "-updatedAt",
     where: { status: { equals: "published" } },
   });
 
+  /* Resolve plan titles for checklists with planId */
+  const planIds = new Set<number>();
+  for (const doc of result.docs) {
+    const resolved = resolveChecklistPlanId((doc as unknown as { planId?: unknown }).planId);
+    if (resolved !== null) planIds.add(resolved);
+  }
+
+  let plansById = new Map<number, { id: number; title: string }>();
+  if (planIds.size > 0) {
+    const planResults = await payload.find({
+      collection: "plans",
+      depth: 0,
+      limit: planIds.size,
+      overrideAccess: true,
+      pagination: false,
+      where: { id: { in: Array.from(planIds) } },
+    });
+    plansById = buildPlansByIdMap(
+      planResults.docs.map((p) => ({ id: p.id, title: (p as { title?: string }).title })),
+    );
+  }
+
   const checklists = result.docs
     .map((doc) => {
-      const checklist = doc as unknown as { groups?: ChecklistGroup[] | null; id: number; status?: string; title: string };
+      const checklist = doc as unknown as { groups?: ChecklistGroup[] | null; id: number; planId?: number | { id: number } | null; status?: string; title: string };
       const items = flattenItems(checklist.groups);
       const completedItems = items.filter((item) => item.isCompleted).length;
 
@@ -51,6 +74,9 @@ export async function GET(request: NextRequest) {
         displayStatus = "done";
       }
 
+      /* Resolve relatedPlan from planId */
+      const rawPlanId = checklist.planId;
+
       return {
         completedItems,
         id: checklist.id,
@@ -59,7 +85,7 @@ export async function GET(request: NextRequest) {
           key: item.id ?? item.title ?? "",
           label: item.title ?? "",
         })),
-        relatedPlan: null,
+        relatedPlan: getChecklistRelatedPlan(rawPlanId, plansById),
         status: displayStatus,
         title: checklist.title,
         totalItems: items.length,

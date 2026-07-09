@@ -1,6 +1,6 @@
 import { isRecord } from "@/lib/shared/is-record";
 
-const SENSITIVE_KEY_PATTERN = /authorization|cookie|password|secret|token|api[-_]?key|apikey|session/i;
+const SENSITIVE_KEY_PATTERN = /authorization|cookie|password|secret|token|api[-_]?key|apikey|session|csrf|bearer/i;
 const MAX_STRING_LENGTH = 320;
 const MAX_ARRAY_ITEMS = 20;
 const MAX_OBJECT_KEYS = 50;
@@ -9,8 +9,12 @@ const redactSensitiveText = (value: string) =>
   value
     .replace(/authorization\s*[:=]\s*[^,\n;]+/gi, "Authorization: [redacted]")
     .replace(/cookie\s*[:=]\s*[^,\n;]+/gi, "Cookie: [redacted]")
+    .replace(/set-cookie\s*[:=]\s*[^,\n;]+/gi, "Set-Cookie: [redacted]")
     .replace(/bearer\s+[a-z0-9._~+/=-]+/gi, "Bearer [redacted]")
-    .replace(/\b(password|secret|token|api[-_]?key|apikey)\s*[:=]\s*[^,\n;]+/gi, "$1: [redacted]");
+    .replace(/\b(?:access_?|refresh_?)?token\s*[:=]\s*[^,\n;]+/gi, "token: [redacted]")
+    .replace(/\bclient_?secret\s*[:=]\s*[^,\n;]+/gi, "client_secret: [redacted]")
+    .replace(/\bcsrf\s*[:=]\s*[^,\n;]+/gi, "csrf: [redacted]")
+    .replace(/\b(password|secret|api[-_]?key|apikey)\s*[:=]\s*[^,\n;]+/gi, "$1: [redacted]");
 
 const truncateString = (value: string) => {
   const redacted = redactSensitiveText(value);

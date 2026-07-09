@@ -1,78 +1,116 @@
-# SunnyPanel Showcase
+# Showcase
 
-## One-line Description
+SunnyPanel is an AI-native personal workspace that combines writing, planning,
+checklist, schedule, and timeline into a single panel, with an Agent workflow
+that prioritizes safety: confirmation before write, receipt after execute,
+and local rollback when supported.
 
-SunnyPanel is an AI-native personal long-term workbench that turns natural-language goals into plans, checklists, schedules, timeline records, and public writing.
+---
 
-## Problem
+## Project Scope
 
-Personal productivity tools often split work across blogs, notes, calendars, task lists, and admin panels. AI chat tools can generate advice, but they usually do not manage real workspace state safely.
+SunnyPanel is a single-user personal workspace, not a team collaboration
+platform or enterprise CMS.
 
-SunnyPanel explores a different shape: an Agent-centered workspace where the assistant can help structure work, but every write is staged, confirmed, traceable, and rollback-aware.
+Three layers:
 
-## Core Features
+- **Public Site** — published blog, notes, timeline, tags/categories browsing.
+  No admin controls, no agent UI, no private content.
+- **Dashboard** — writing studio, agent workbench, planning/schedule/checklist
+  management, inspector, receipts, rollback.
+- **Agent Workflow** — natural language input → intent routing →
+  draft → dry-run → policy guard → pending confirmation → execute →
+  receipt → rollback.
 
-- Public site for Blog, Notes, Updates, Timeline, Checklists, and custom pages.
-- Dashboard Agent workbench for planning, scheduling, and tracking.
-- Planning workflow with readiness checks and PlanDraft.
-- Checklist workflow that turns plan stages into grouped task drafts.
-- Schedule workflow with ScheduleDraft, local conflict checks, and optional suggestions.
-- Safety workflow with dry-run, Policy Guard, pending confirmation, execute, receipt, and rollback.
-- Agent Ops Center for recent runs, receipts, pending actions, failures, and timing.
-- Shared writing/rendering layer for Admin, Dashboard, and public content.
+---
 
-## Highlights
+## Implemented Capabilities
 
-- Drafts never write to the database.
-- Confirmation is required before supported writes execute.
-- AgentActionReceipt protects against duplicate confirmations.
-- Rollback payloads make supported writes reversible or clearly report when compensation is indeterminate.
-- Timeline and public checklists help transform work history into public narrative.
-- Tests and release docs are treated as part of the product.
+### Content
+- Blog and Notes with full editor (TipTap)
+- Content lifecycle: draft / published / archived
+- Visibility: private / public
+- Tags (Post), WritingCategory (Post/Note)
+- Public Site rendering: Home, Blog, Notes, Timeline, About
+- Tags browsing (`/tags/[slug]`), category browsing (`/categories/[slug]`)
 
-## Demo Path
+### Planning Execution Lifecycle
+- Plan → Checklist.planId (bidirectional)
+- Checklist completion → TimelineEvent + Plan.progress auto-sync
+- ScheduleItem → Plan.linkedContent
+- Rollback with linkedContent cleanup
+- Deterministic conflict detection for schedule items
+- Receipt and Rollback for all write operations
 
-1. Open the public homepage and explain the AI-native personal workbench positioning.
-2. Show Blog, Notes, Updates, Timeline, and Checklists.
-3. Enter Dashboard.
-4. Ask the Agent to create a learning plan and break it into checklist and schedule.
-5. Show PlanDraft, ChecklistDraft, and ScheduleDraft.
-6. Prepare creation and show pending confirmation.
-7. Confirm the write and show ActionResultCard with rollback availability.
-8. Open Agent Ops Center to show recent runs and receipts.
+### Agent
+- Read / Write boundary (query never enters write flow)
+- Intent router (LLM + deterministic guards)
+- Readiness gate (context completeness check)
+- Draft generation (deterministic template, optional LLM enhancement)
+- Dry-run preview (no database write)
+- Policy Guard (risk assessment, action blocking)
+- Pending Confirmation (user must explicitly confirm)
+- Execute (writes to Payload / PostgreSQL)
+- Receipt (AgentRun + AgentActionReceipt)
+- Rollback (delete_created_document, restore_plan_links, etc.)
 
-## Tech Stack
+### UI
+- Dashboard shell with sidebar, agent workbench, inspector
+- Agent Activity timeline (structured states, no raw chain-of-thought)
+- Developer Trace panel (sanitized, no secrets)
+- Motion system with reduced-motion support
+- Design tokens for color, spacing, typography
 
-- Next.js 16 App Router
-- React 19
-- TypeScript
-- Payload CMS 3
-- PostgreSQL
-- Tailwind CSS 4
-- LangGraph-based Agent runtime
-- Playwright for browser smoke where a test database is available
+---
 
-## Completed
+## Safety Model
 
-- Agent Workflow v1 frozen.
-- Planning, Checklist, Schedule, Timeline, Progress, Safety, Receipt, Rollback, and Ops flows implemented.
-- Public site writing experience polished.
-- Release engineering and CI baseline documented.
-- Content and Agent test baselines passing.
+### Write Safety
+1. Understanding user intent != execution
+2. Generating draft != writing to database
+3. User accepting draft != final execution
+4. Confirmation required before execute
+5. Query intent never enters write flow
 
-## Current Limits
+### Data Safety
+- Public Site only shows `status=published AND visibility=public`
+- Agent Activity never shows raw chain-of-thought, raw prompt, or raw LLM response
+- Trace panel never exposes secrets, tokens, or cookies
+- Receipt never records secrets
 
-- No external Calendar integration.
-- No recurrence.
-- No automatic conflict rescheduling.
-- No ChecklistDraft revise workflow yet.
-- No high-risk external system writes.
-- Public browser E2E requires a non-production Postgres-backed app environment.
+### Rollback
+- Local Payload-backed writes support rollback
+- Delete strategy: removes created documents
+- Restore strategy: restores Plan.linkedContent to pre-write state
+- Not an enterprise audit or compliance system
+- No external system rollback promise
 
-## Future Direction
+---
 
-- Improve natural-language draft editing.
-- Add ChecklistDraft revision flow.
-- Explore read-only external calendar conflict awareness.
-- Design recurrence with explicit confirmation and rollback semantics.
-- Add more browser E2E coverage for full demo flows.
+## Testing Baseline
+
+### Test Layers
+| Layer | Count | Focus |
+|-------|-------|-------|
+| Planning tests | 270 | Plan ↔ Checklist ↔ Progress full workflow |
+| Schedule tests | 268 | Readiness → Draft → Conflict → Execute → Rollback |
+| Agent core tests | ~580 | Intent routing, Policy Guard, Receipt, Rollback, LangGraph |
+| Content tests | 173 | Public site, prose, tokens, taxonomy matching |
+| E2E smoke | 6 specs | Public routes, Dashboard, Writing, Schedule |
+
+### Protected Tests
+- Policy Guard, action receipts, rollback, tool dry-run
+- execute-and-persist, create-checklist, create-schedule-items
+- planning-full-workflow-e2e, schedule-workflow-e2e
+- schedule-query read-only boundary
+
+---
+
+## Known Limits
+
+- Single-user / admin model. No multi-user permissions or RBAC.
+- No external Calendar integration or rollback.
+- No auto-rescheduling.
+- Checklist items are embedded (not independent collection).
+- No TimelineEvent.relatedPlan (deferred D2-A3b).
+- Legacy data not backfilled with planId.

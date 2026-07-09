@@ -11,9 +11,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
-  description: "A personal panel system for publishing, reflection, and private planning.",
+  description: "Writing, notes, and timeline — a personal panel.",
   openGraph: {
-    description: "A personal panel system for publishing, reflection, and private planning.",
+    description: "Writing, notes, and timeline.",
     title: "SunnyPanel",
     type: "website",
     url: "/",

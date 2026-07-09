@@ -365,6 +365,7 @@ test("confirmed create_schedule_items executes the K6 schedule item writer", asy
       collection: "schedule-items",
       documentIds: [641, 642],
     },
+    planCleanup: [{ planId: 99, scheduleItemIds: [641, 642] }],
   });
   assert.equal(
     createOperations.filter((operation) => (operation.args as { collection?: string }).collection === "schedule-items")

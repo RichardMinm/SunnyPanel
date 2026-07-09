@@ -40,6 +40,10 @@ const AgentTracePanel = dynamic(
   () => import("@/components/dashboard/agent/AgentTracePanel").then((m) => m.AgentTracePanel),
 );
 
+const PersistedPlanListPanel = dynamic(
+  () => import("@/components/dashboard/agent/PersistedPlanListPanel").then((m) => m.PersistedPlanListPanel),
+);
+
 type DashboardRightPanelProps = {
   action: null | ProposedAgentAction;
   activeInspectorTab: AgentInspectorTab;
@@ -395,6 +399,7 @@ export function DashboardRightPanel({
           {activeInspectorTab === "memory" ? <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} /> : null}
           {activeInspectorTab === "ops" ? <AgentOpsPanel /> : null}
           {activeInspectorTab === "inbox" ? <AgentInboxPanel onPrefillComposer={onPrefillComposer} /> : null}
+          {activeInspectorTab === "plans" ? <PersistedPlanListPanel /> : null}
           {activeInspectorTab === "debug" ? (
             <AgentDebugPanel
               contextPreferences={contextPreferences}

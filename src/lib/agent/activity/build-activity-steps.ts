@@ -200,7 +200,15 @@ const titleForBackendUserActivity = (event: AgentTraceEventPayload) => {
   }
 
   if (event.phase === "tool_call") {
-    return isSuccess ? "工具处理完成" : "正在调用工具";
+    return isSuccess ? "数据整理完成" : "正在读取或整理数据";
+  }
+
+  if (event.phase === "tool_planning") {
+    return isSuccess ? "已规划执行步骤" : "正在规划执行步骤";
+  }
+
+  if (event.phase === "slot_extraction") {
+    return isSuccess ? "已识别关键信息" : "正在提取关键信息";
   }
 
   if (event.phase === "error" || event.status === "failed") {
@@ -306,6 +314,14 @@ const isScheduleQueryMessage = (message: string, intent?: null | string) =>
   intent === "query_schedule" ||
   (/日程|安排/u.test(message) && /范围[：:]|没有已安排|已安排的日程|未来\s*7\s*天/u.test(message));
 
+const isPlanQueryMessage = (message: string, intent?: null | string) =>
+  intent === "query_plan" ||
+  intent === "query_plan_progress" ||
+  (/计划/u.test(message) && /进度|状态|查询|查看/u.test(message) && !/创建|起草|新建|生成|删除/u.test(message));
+
+const isPlanComposeOrCreateMessage = (message: string) =>
+  /已创建完整计划|已帮你创建计划|已创建计划/u.test(message);
+
 const isRollbackMessage = (message: string, rollbackResult: unknown) =>
   Boolean(rollbackResult) || (/撤销|回滚/u.test(message) && /完成|已执行|成功/u.test(message));
 
@@ -374,6 +390,30 @@ const buildQueryScheduleSteps = (intent?: null | string): AgentActivityStep[] =>
   }),
 ];
 
+const buildQueryPlanSteps = (intent?: null | string): AgentActivityStep[] => [
+  makeStep("activity:understanding", "understanding", "success", "已理解请求", { intent: intent ?? undefined }),
+  makeStep("activity:classify-query-plan", "classifying_intent", "success", "已识别为计划查询", { intent: "query_plan_progress" }),
+  makeStep("activity:read-plans", "reading_plans", "success", "已读取计划数据"),
+  makeStep("activity:read-only-boundary", "checking_read_write_boundary", "success", "已确认这是只读操作", {
+    summary: "没有创建或修改任何计划。",
+  }),
+  makeStep("activity:query-completed", "completed", "success", "已完成查询", {
+    summary: "本轮没有进入 dry-run、Policy Guard 或执行写入。",
+  }),
+];
+
+const buildPlanComposeOrCreateSteps = (): AgentActivityStep[] => [
+  makeStep("activity:classify-plan", "classifying_intent", "success", "已识别为计划创建", { intent: "compose_plan" }),
+  makeStep("activity:plan-readiness", "checking_readiness", "success", "已检查计划信息"),
+  makeStep("activity:plan-draft", "generating_draft", "success", "已生成计划草案"),
+  makeStep("activity:dry-run", "dry_run", "success", "已完成写入预览"),
+  makeStep("activity:policy-guard", "policy_guard", "success", "已通过安全检查"),
+  makeStep("activity:execute", "executing", "success", "已执行写入"),
+  makeStep("activity:database-written", "writing_database", "success", "已写入数据库"),
+  makeStep("activity:receipt", "recording_receipt", "success", "已记录操作凭证"),
+  makeStep("activity:rollback-available", "rollback", "success", "支持撤销"),
+];
+
 const buildPlanDraftSteps = (): AgentActivityStep[] => [
   makeStep("activity:classify-plan", "classifying_intent", "success", "已识别为计划创建", { intent: "compose_plan" }),
   makeStep("activity:plan-readiness", "checking_readiness", "success", "已检查计划信息是否足够"),
@@ -434,10 +474,14 @@ export const buildAgentActivitySteps = (input: BuildAgentActivityStepsInput): Ag
     userSteps = buildPlanDraftSteps();
   } else if (input.schedulingDraft) {
     userSteps = buildScheduleDraftSteps();
+  } else if (isPlanComposeOrCreateMessage(assistantMessage)) {
+    userSteps = buildPlanComposeOrCreateSteps();
   } else if (isExecuteResultMessage(assistantMessage, input.lastRollbackPayload)) {
     userSteps = buildExecuteResultSteps(input);
   } else if (isScheduleQueryMessage(assistantMessage, input.intent)) {
     userSteps = buildQueryScheduleSteps(input.intent);
+  } else if (isPlanQueryMessage(assistantMessage, input.intent)) {
+    userSteps = buildQueryPlanSteps(input.intent);
   }
 
   const backendTraceSteps = backendTraceEventsToActivitySteps(input.backendTraceEvents);

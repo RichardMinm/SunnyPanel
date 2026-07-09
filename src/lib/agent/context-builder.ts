@@ -14,7 +14,7 @@ export type AgentContextBudget = {
 
 export type AgentContextRelation =
   | {
-      relationTo: "checklists" | "notes" | "pages" | "posts" | "timeline-events" | "updates";
+      relationTo: "checklists" | "notes" | "pages" | "posts" | "schedule-items" | "timeline-events" | "updates";
       value: number | { id?: number; title?: string };
     };
 

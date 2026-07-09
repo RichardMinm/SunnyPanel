@@ -334,8 +334,8 @@ describe("Dashboard layout contracts", () => {
     assert.match(rightPanel, /LinkedObjectsPanel/);
     assert.match(rightPanel, /MemoryInspectorPanel/);
     assert.doesNotMatch(rightPanel, /会话历史/);
-    assert.match(types, /AgentInspectorTab = "approval" \| "context" \| "debug" \| "linked" \| "memory" \| "trace" \| "inbox" \| "ops"/);
-    for (const label of ["上下文", "进度", "详细", "关联", "记忆", "Ops", "建议", "调试"]) {
+    assert.match(types, /AgentInspectorTab = "approval" \| "context" \| "debug" \| "linked" \| "memory" \| "plans" \| "trace" \| "inbox" \| "ops"/);
+    for (const label of ["上下文", "进度", "详细", "关联", "记忆", "Ops", "建议", "计划", "调试"]) {
       assert.match(constants, new RegExp(label));
     }
     assert.doesNotMatch(constants, /label:\s*"确认"/);
@@ -469,7 +469,7 @@ describe("Dashboard layout contracts", () => {
     assert.match(composer, /打开当前上下文/);
     assert.match(composer, /sunny-agent-composer-actions/);
     assert.match(read("src/components/dashboard/agent/ComposerAddMenu.tsx"), /调试模式/);
-    assert.match(read("src/components/dashboard/agent/ComposerModeSelect.tsx"), /Sunny 会自动判断如何处理/);
+    assert.match(read("src/components/dashboard/agent/ComposerModeSelect.tsx"), /输入问题或任务/);
     assert.match(composer, /title=\{sendTitle\}/);
     assert.match(composer, /生成 DryRun/);
     assert.doesNotMatch(composer, /sunny-agent-composer-mode-copy/);

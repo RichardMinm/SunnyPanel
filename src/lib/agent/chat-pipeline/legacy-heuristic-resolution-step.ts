@@ -38,6 +38,7 @@ import type { AgentThread } from "@/payload-types";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
+import { isAgentLLMDisabled } from "@/lib/agent/llm-required";
 import {
   runWritingAssist,
   type WritingAssistRequest,
@@ -195,10 +196,24 @@ export const resolveLegacyHeuristicStep = async (
   if (workbenchMode === "writing") {
     const action = inferWritingAssistAction(message);
     const text = extractWritingAssistText(message);
-    const runner = writingAssistRunner ?? runWritingAssist;
     emitStatus("正在运行写作辅助...");
     stream?.start({ id: "stage-response", phase: "response", title: "运行写作辅助" });
     pushTrace({ detail: `action=${action}`, id: "writing-assist-chat", kind: "analysis", status: "running", title: "写作辅助正在处理" });
+
+    /* LLM disabled → controlled clarify (matches writing-assist API route behavior).
+     * Only gate the default runner — a custom writingAssistRunner (e.g. test mock)
+     * bypasses this check so tests can verify the trace path independently. */
+    if (!writingAssistRunner && isAgentLLMDisabled()) {
+      pushTrace({ detail: "LLM disabled", id: "writing-assist-chat", kind: "analysis", status: "error", title: "写作辅助不可用" });
+      const question = "AI 功能已禁用，无法提供写作辅助。";
+      for (const token of splitIntoWordTokens(question)) { emitToken(token, "response"); }
+      stream?.complete("stage-response", "写作辅助不可用");
+      const outputTokens = estimateTokenCount(question);
+      tokenUsage = { ...tokenUsage, outputTokens, totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens };
+      return { outcome: "continue", data: { confirmedActionId: null, resolution: { engine: "workflow", intent: { args: { missingFields: ["writing_assist"], question }, confidence: 1, intent: "clarify" } }, tokenUsage } };
+    }
+
+    const runner = writingAssistRunner ?? runWritingAssist;
 
     try {
       const writingResult = await runner({ action, text, title: undefined, summary: undefined, collection: undefined });
@@ -206,10 +221,12 @@ export const resolveLegacyHeuristicStep = async (
       if (!assistantMessage) throw new Error("写作辅助没有返回可展示结果。");
       for (const token of splitIntoWordTokens(assistantMessage)) { emitToken(token, "response"); await new Promise((r) => setTimeout(r, 6)); }
       stream?.complete("stage-response", "写作辅助已生成结果");
+      pushTrace({ detail: `action=${action}`, id: "writing-assist-chat", kind: "analysis", status: "done", title: "写作辅助完成" });
       const outputTokens = estimateTokenCount(assistantMessage);
       tokenUsage = { ...tokenUsage, outputTokens, totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens };
       return { outcome: "continue", data: { confirmedActionId: null, resolution: { engine: "workflow", intent: { args: { answer: assistantMessage }, confidence: 0.9, intent: "answer_question", reply: assistantMessage } }, tokenUsage } };
     } catch (error) {
+      pushTrace({ detail: error instanceof Error ? error.message : "AI request failed", id: "writing-assist-chat", kind: "analysis", status: "error", title: "写作辅助失败" });
       const question = `写作辅助暂时不可用：${error instanceof Error ? error.message : "AI 请求失败"}。`;
       const outputTokens = estimateTokenCount(question);
       tokenUsage = { ...tokenUsage, outputTokens, totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens };

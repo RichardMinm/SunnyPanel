@@ -98,7 +98,7 @@ export function ThreadHeader({
   return (
     <div className="sunny-agent-thread-header">
       <div className="sunny-agent-thread-header-top">
-        <p className="sunny-agent-thread-header-subtitle">告诉 Sunny 你想推进什么，它会帮你整理成计划、清单、日程或进度动作。</p>
+        <p className="sunny-agent-thread-header-subtitle">输入任务目标。Sunny 会判断意图、生成草案并等待确认后执行。</p>
         <div className="sunny-agent-thread-header-actions" aria-label="Thread 操作">
           {onArchiveThread && threadId !== null ? (
             <AppIconButton

@@ -1,71 +1,142 @@
-# SunnyPanel Demo Script
+# Demo Script
 
-This document gives two talk tracks for demonstrating SunnyPanel. It is written so the presenter can read it directly, then adapt details to the actual demo data.
+Demo flow for showcasing SunnyPanel's core capabilities.
 
-## 3-Minute Demo
+---
 
-### Audience
+## 1. Public Site
 
-Interviewers, classmates, and people who do not need deep implementation detail.
+Goal: Show the public-facing content layer.
 
-### Script
+Steps:
 
-Hi, this is SunnyPanel. In one sentence, it is an AI-native personal long-term workbench: it helps me turn goals into plans, checklists, schedules, timeline updates, and public writing.
+1. Visit `/` — Home page with latest posts, notes, and timeline highlights.
+2. Visit `/blog` — Blog list. Click a post → Blog detail with reading layout.
+3. Visit `/notes` — Notes stream.
+4. Visit `/timeline` — Timeline with featured milestones and year archive.
+5. Visit `/about` — About / Now page.
+6. Visit `/tags/ai` — Posts filtered by tag. Show that only published + public
+   posts appear.
+7. Visit `/categories/writing` — Posts filtered by WritingCategory.
 
-I will start from the public site. The homepage explains the product position: this is not only a blog and not only an admin dashboard. It is a personal workspace with an AI workflow behind it. From here I can show recent writing, updates, timeline highlights, and public checklists.
+Key points to mention:
 
-The Blog is for longer thinking. Notes are shorter ideas. Updates are closer to a public activity feed. Timeline is the long-term memory layer, so important progress can become a narrative over time. Checklists show active progress instead of looking like a private backend table.
+- Public site only shows status=published AND visibility=public.
+- Drafts and private content never leak.
+- No admin controls or agent UI on public pages.
 
-Now I will enter the Dashboard. This is where the Agent workflow lives. I can ask:
+---
 
-> 帮我制定一个学习计划，并拆成清单和日程。
+## 2. Writing Dashboard
 
-The important thing is that the Agent does not immediately write to the database. It first checks whether the request has enough context. If it needs more information, it asks. If it has enough, it creates a PlanDraft.
+Goal: Show content creation and lifecycle.
 
-Here is the PlanDraft. It is still a draft, so I can continue adjusting it. When I am ready, I can prepare creation. Then SunnyPanel can turn the plan into a ChecklistDraft, which makes the abstract plan into grouped tasks.
+Steps:
 
-Next, I can turn those tasks into a ScheduleDraft. This step also keeps the same rule: draft first, write later. If there are local schedule conflicts, SunnyPanel shows suggestions, but those suggestions only update the draft. They do not write anything automatically.
+1. Navigate to Dashboard → Writing.
+2. Create a new Post draft.
+3. Edit content, set title, summary, cover image.
+4. Set visibility (private → public).
+5. Publish → status changes to "published".
+6. Visit the public page via "View Public Page" link.
+7. Return, unpublish → status returns to "draft".
+8. Archive → status becomes "archived" (not shown in public site).
 
-When I choose to create the real records, SunnyPanel enters pending confirmation. This is the boundary where the system says: here is what will be written, here is the risk, and here is the rollback status. Only after I confirm does it execute.
+Key points to mention:
 
-After execution, I get a result card. It shows what was created, how many items were created, the date range, and whether rollback is available.
+- Content lifecycle: draft → published → archived.
+- Publish/unpublish requires explicit user action.
+- Agent cannot auto-publish.
 
-Finally, the Agent Ops Center shows recent runs, receipts, pending confirmations, failures, and timing information. This makes the workflow observable instead of being a black box.
+---
 
-So the summary is: SunnyPanel is a safe, auditable, rollback-aware Agent workflow system for a personal long-term workspace.
+## 3. Agent Workbench — Planning Flow
 
-## 10-Minute Technical Talk
+Goal: Show the full Agent write workflow with safety stages.
 
-### Audience
+Steps:
 
-Technical interviewers, backend engineers, AI Agent engineers, and security-minded reviewers.
+1. Open Agent Workbench in Dashboard.
+2. Type: "帮我制定SunnyPanel第一版上线计划，包括登录页、Agent对话、部署检查"
+3. Agent shows activity: reading context, classifying intent.
+4. Agent generates a Plan draft with stages and tasks.
+5. User reviews draft.
+6. Agent generates a Checklist draft from the plan.
+7. Agent shows dry-run preview: which checklist items will be created.
+8. Policy Guard passes → Pending Confirmation appears.
+9. User clicks "Confirm" → Execute creates the checklist.
+10. Receipt appears in Agent Artifacts panel.
+11. User types: "把上线任务安排进下周的日程"
+12. Agent creates ScheduleItems (with time conflict check if needed).
+13. Dry-run → Policy Guard → Confirm → Execute → Receipt.
 
-### Script
+Key points to mention:
 
-SunnyPanel started from a simple question: if an AI Agent can understand my goals, how do I let it help with real work without letting it write uncontrolled data into the system?
+- Read intent does NOT enter write flow.
+- Draft does NOT write to database.
+- Dry-run previews the impact before execution.
+- Policy Guard blocks unsafe actions.
+- User must explicitly confirm before execute.
+- Every execute generates a receipt.
+- Rollback is available for supported writes.
 
-The product shape is a personal long-term workbench. The public side has Blog, Notes, Updates, Timeline, Checklists, and regular pages like About or Now. The private side is a Dashboard where the Agent can help plan, schedule, and track work.
+---
 
-The main engineering idea is that a normal chat agent is not enough. If the Agent hears "help me plan this project by June 30", it should not invent a full plan and immediately write it. Understanding intent is not execution. Drafting is not persistence. User approval of a draft is still not final execution.
+## 4. Planning Execution Lifecycle
 
-Agent Workflow v1 uses a staged pipeline. A user message goes through session coordination, routing, readiness gates, draft or clarification, prepare creation, dry-run, Policy Guard, pending confirmation, execute, receipt, rollback payload, and finally a result card.
+Goal: Show data linkage and progress auto-sync.
 
-The Planning Workflow is the clearest example. For large plans, SunnyPanel evaluates whether it has enough slots: goal, deadline, scope, current progress, available time, success criteria, priority, deliverables, and constraints. If the request only has a goal and deadline, it asks follow-up questions. If enough context exists, it creates a PlanDraft. That draft can be revised, then prepared for creation. Only after dry-run and confirmation does the system create the real Plan record.
+Steps:
 
-The Checklist Workflow builds on that. A PlanDraft can produce a ChecklistDraft. This converts high-level stages into grouped tasks. Again, it is not written until the user prepares creation and confirms it. If a checklist comes from an already-created plan, the system links the new checklist back into `Plan.linkedContent`.
+1. Navigate to a Plan that has linked checklists and schedule items.
+2. Show that Checklist.planId points back to the Plan.
+3. Show that ScheduleItems appear in Plan.linkedContent.
+4. Mark a checklist item as completed.
+5. Show that Plan.progress auto-updates (e.g., 25% → 50%).
+6. Complete all items → Plan.progress reaches 100%.
+7. Show that completing an item creates a TimelineEvent.
+8. Demonstrate rollback: undo a checklist/schedule creation.
+9. Show that rollback cleans Plan.linkedContent (no dangling references).
 
-The Schedule Workflow follows the same product model. A ScheduleDraft can be generated from plan or checklist tasks. Before pending confirmation, SunnyPanel checks local schedule conflicts. It can suggest moving an item, allowing overlap, removing an item, or manually adjusting. But suggestions only update the draft. They do not write schedule-items.
+Key points to mention:
 
-The Safety Workflow is the core. Dry-run builds a proposed action and preview. Policy Guard checks whether the tool and risk level are allowed. Pending confirmation is the user boundary. Execute is the only place that writes. AgentActionReceipt makes execution idempotent, so repeated confirmation does not duplicate records.
+- Plan → Checklist → ScheduleItem → Progress forms a complete chain.
+- Progress is computed deterministically from checklist completion rate.
+- Rollback removes the created entities AND cleans cross-references.
 
-Rollback is designed as a practical compensation layer. For created documents, rollback can delete the created documents. For changed documents, it can restore recorded snapshots. Some operations may be indeterminate if compensation fails; SunnyPanel should report that instead of pretending everything is fine.
+---
 
-Observability is also part of the product. Agent Ops Center shows recent AgentRun records, AgentActionReceipts, pending confirmations, failures, action ids, thread ids, model, tokens, and latency. This matters because Agent systems are hard to trust if they cannot be inspected after the fact.
+## 5. Safety & Rollback
 
-On the public side, SunnyPanel is not just a management tool. The Timeline and public checklists let work become a long-term narrative. Blog, Notes, and Updates share a content rendering layer, so the same writing system powers Admin, Dashboard, and the public site.
+Goal: Show safety boundaries.
 
-The test and release baseline is intentionally heavy for a personal project. There are focused Agent tests for planning and scheduling, content contract tests, typecheck, lint, diff checks, release docs, and CI. Public browser E2E is separated because it needs a real non-production Postgres-backed app server.
+Steps:
 
-The current v1 boundary is also explicit. It does not support external Calendar integration, recurrence, automatic rescheduling, or high-risk external writes. I would rather keep the write model safe and observable before adding more automation.
+1. Ask a read-only query: "查看最近的日程安排."
+   → Agent queries schedule without entering write flow.
+2. Ask a write request: "创建一个清单：上线任务."
+   → Must go through draft → dry-run → confirm → execute.
+3. Show rollback in action:
+   - Click rollback on a recently created checklist.
+   - Checklist is deleted, receipt is recorded.
+4. Show schedule rollback:
+   - Rollback created schedule items.
+   - Plan.linkedContent schedule-item links are cleaned up.
 
-The key engineering takeaway is that Agent productization is less about "can the model generate a plan" and more about state boundaries, confirmations, receipts, rollback, and auditability.
+Key points to mention:
+
+- Query intent never writes.
+- Write intent always requires confirmation.
+- Rollback is deterministic and explicit.
+- Not an enterprise audit system — local-only rollback for Payload writes.
+
+---
+
+## Known Limits (honest disclosure)
+
+- Single-user / admin model. No multi-user permissions.
+- No external Calendar integration or rollback.
+- No auto-rescheduling.
+- Checklist items are embedded (not independent collection).
+- TimelineEvent.relatedPlan not yet implemented.
+- Legacy data not backfilled with planId.

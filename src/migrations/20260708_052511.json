@@ -1,0 +1,7136 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.users_sessions": {
+      "name": "users_sessions",
+      "schema": "",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "users_sessions_order_idx": {
+          "name": "users_sessions_order_idx",
+          "columns": [
+            {
+              "expression": "_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "users_sessions_parent_id_idx": {
+          "name": "users_sessions_parent_id_idx",
+          "columns": [
+            {
+              "expression": "_parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "users_sessions_parent_id_fk": {
+          "name": "users_sessions_parent_id_fk",
+          "tableFrom": "users_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reset_password_token": {
+          "name": "reset_password_token",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reset_password_expiration": {
+          "name": "reset_password_expiration",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "salt": {
+          "name": "salt",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hash": {
+          "name": "hash",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "login_attempts": {
+          "name": "login_attempts",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "lock_until": {
+          "name": "lock_until",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "users_updated_at_idx": {
+          "name": "users_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "users_created_at_idx": {
+          "name": "users_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "users_email_idx": {
+          "name": "users_email_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.media": {
+      "name": "media",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "alt": {
+          "name": "alt",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "url": {
+          "name": "url",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thumbnail_u_r_l": {
+          "name": "thumbnail_u_r_l",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "filename": {
+          "name": "filename",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "filesize": {
+          "name": "filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "width": {
+          "name": "width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "height": {
+          "name": "height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "focal_x": {
+          "name": "focal_x",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "focal_y": {
+          "name": "focal_y",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_card_url": {
+          "name": "sizes_card_url",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_card_width": {
+          "name": "sizes_card_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_card_height": {
+          "name": "sizes_card_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_card_mime_type": {
+          "name": "sizes_card_mime_type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_card_filesize": {
+          "name": "sizes_card_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_card_filename": {
+          "name": "sizes_card_filename",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_thumbnail_url": {
+          "name": "sizes_thumbnail_url",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_thumbnail_width": {
+          "name": "sizes_thumbnail_width",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_thumbnail_height": {
+          "name": "sizes_thumbnail_height",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_thumbnail_mime_type": {
+          "name": "sizes_thumbnail_mime_type",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_thumbnail_filesize": {
+          "name": "sizes_thumbnail_filesize",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sizes_thumbnail_filename": {
+          "name": "sizes_thumbnail_filename",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "media_updated_at_idx": {
+          "name": "media_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_created_at_idx": {
+          "name": "media_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_filename_idx": {
+          "name": "media_filename_idx",
+          "columns": [
+            {
+              "expression": "filename",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_sizes_card_sizes_card_filename_idx": {
+          "name": "media_sizes_card_sizes_card_filename_idx",
+          "columns": [
+            {
+              "expression": "sizes_card_filename",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "media_sizes_thumbnail_sizes_thumbnail_filename_idx": {
+          "name": "media_sizes_thumbnail_sizes_thumbnail_filename_idx",
+          "columns": [
+            {
+              "expression": "sizes_thumbnail_filename",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.posts": {
+      "name": "posts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generate_slug": {
+          "name": "generate_slug",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "slug": {
+          "name": "slug",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_rich": {
+          "name": "content_rich",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_text": {
+          "name": "content_text",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_excerpt": {
+          "name": "content_excerpt",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_outline": {
+          "name": "content_outline",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'tiptap-v1'"
+        },
+        "legacy_content_markdown": {
+          "name": "legacy_content_markdown",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cover_image_id": {
+          "name": "cover_image_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_posts_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "enum_posts_visibility",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'public'"
+        },
+        "writing_category_id": {
+          "name": "writing_category_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "posts_slug_idx": {
+          "name": "posts_slug_idx",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "posts_cover_image_idx": {
+          "name": "posts_cover_image_idx",
+          "columns": [
+            {
+              "expression": "cover_image_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "posts_status_idx": {
+          "name": "posts_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "posts_visibility_idx": {
+          "name": "posts_visibility_idx",
+          "columns": [
+            {
+              "expression": "visibility",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "posts_writing_category_idx": {
+          "name": "posts_writing_category_idx",
+          "columns": [
+            {
+              "expression": "writing_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "posts_updated_at_idx": {
+          "name": "posts_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "posts_created_at_idx": {
+          "name": "posts_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "posts_cover_image_id_media_id_fk": {
+          "name": "posts_cover_image_id_media_id_fk",
+          "tableFrom": "posts",
+          "tableTo": "media",
+          "columnsFrom": [
+            "cover_image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "posts_writing_category_id_writing_categories_id_fk": {
+          "name": "posts_writing_category_id_writing_categories_id_fk",
+          "tableFrom": "posts",
+          "tableTo": "writing_categories",
+          "columnsFrom": [
+            "writing_category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.posts_texts": {
+      "name": "posts_texts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "path": {
+          "name": "path",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "posts_texts_order_parent": {
+          "name": "posts_texts_order_parent",
+          "columns": [
+            {
+              "expression": "order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "posts_texts_parent_fk": {
+          "name": "posts_texts_parent_fk",
+          "tableFrom": "posts_texts",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notes": {
+      "name": "notes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "content_rich": {
+          "name": "content_rich",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_text": {
+          "name": "content_text",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_excerpt": {
+          "name": "content_excerpt",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_outline": {
+          "name": "content_outline",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'tiptap-v1'"
+        },
+        "legacy_content_markdown": {
+          "name": "legacy_content_markdown",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mood": {
+          "name": "mood",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'note'"
+        },
+        "pinned": {
+          "name": "pinned",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "cover_image_id": {
+          "name": "cover_image_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_notes_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "enum_notes_visibility",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'public'"
+        },
+        "writing_category_id": {
+          "name": "writing_category_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "notes_cover_image_idx": {
+          "name": "notes_cover_image_idx",
+          "columns": [
+            {
+              "expression": "cover_image_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notes_status_idx": {
+          "name": "notes_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notes_visibility_idx": {
+          "name": "notes_visibility_idx",
+          "columns": [
+            {
+              "expression": "visibility",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notes_writing_category_idx": {
+          "name": "notes_writing_category_idx",
+          "columns": [
+            {
+              "expression": "writing_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notes_updated_at_idx": {
+          "name": "notes_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "notes_created_at_idx": {
+          "name": "notes_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "notes_cover_image_id_media_id_fk": {
+          "name": "notes_cover_image_id_media_id_fk",
+          "tableFrom": "notes",
+          "tableTo": "media",
+          "columnsFrom": [
+            "cover_image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "notes_writing_category_id_writing_categories_id_fk": {
+          "name": "notes_writing_category_id_writing_categories_id_fk",
+          "tableFrom": "notes",
+          "tableTo": "writing_categories",
+          "columnsFrom": [
+            "writing_category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.updates": {
+      "name": "updates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "enum_updates_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'life'"
+        },
+        "content_rich": {
+          "name": "content_rich",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_text": {
+          "name": "content_text",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_excerpt": {
+          "name": "content_excerpt",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_outline": {
+          "name": "content_outline",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'tiptap-v1'"
+        },
+        "legacy_content_markdown": {
+          "name": "legacy_content_markdown",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "link": {
+          "name": "link",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cover_image_id": {
+          "name": "cover_image_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_updates_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "enum_updates_visibility",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'public'"
+        },
+        "writing_category_id": {
+          "name": "writing_category_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "updates_cover_image_idx": {
+          "name": "updates_cover_image_idx",
+          "columns": [
+            {
+              "expression": "cover_image_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "updates_status_idx": {
+          "name": "updates_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "updates_visibility_idx": {
+          "name": "updates_visibility_idx",
+          "columns": [
+            {
+              "expression": "visibility",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "updates_writing_category_idx": {
+          "name": "updates_writing_category_idx",
+          "columns": [
+            {
+              "expression": "writing_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "updates_updated_at_idx": {
+          "name": "updates_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "updates_created_at_idx": {
+          "name": "updates_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "updates_cover_image_id_media_id_fk": {
+          "name": "updates_cover_image_id_media_id_fk",
+          "tableFrom": "updates",
+          "tableTo": "media",
+          "columnsFrom": [
+            "cover_image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "updates_writing_category_id_writing_categories_id_fk": {
+          "name": "updates_writing_category_id_writing_categories_id_fk",
+          "tableFrom": "updates",
+          "tableTo": "writing_categories",
+          "columnsFrom": [
+            "writing_category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.checklists_groups_items": {
+      "name": "checklists_groups_items",
+      "schema": "",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_completed": {
+          "name": "is_completed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completion_note": {
+          "name": "completion_note",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "checklists_groups_items_order_idx": {
+          "name": "checklists_groups_items_order_idx",
+          "columns": [
+            {
+              "expression": "_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "checklists_groups_items_parent_id_idx": {
+          "name": "checklists_groups_items_parent_id_idx",
+          "columns": [
+            {
+              "expression": "_parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "checklists_groups_items_parent_id_fk": {
+          "name": "checklists_groups_items_parent_id_fk",
+          "tableFrom": "checklists_groups_items",
+          "tableTo": "checklists_groups",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.checklists_groups": {
+      "name": "checklists_groups",
+      "schema": "",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "checklists_groups_order_idx": {
+          "name": "checklists_groups_order_idx",
+          "columns": [
+            {
+              "expression": "_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "checklists_groups_parent_id_idx": {
+          "name": "checklists_groups_parent_id_idx",
+          "columns": [
+            {
+              "expression": "_parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "checklists_groups_parent_id_fk": {
+          "name": "checklists_groups_parent_id_fk",
+          "tableFrom": "checklists_groups",
+          "tableTo": "checklists",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.checklists": {
+      "name": "checklists",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generate_slug": {
+          "name": "generate_slug",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "slug": {
+          "name": "slug",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_checklists_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "enum_checklists_visibility",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'public'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "checklists_slug_idx": {
+          "name": "checklists_slug_idx",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "checklists_status_idx": {
+          "name": "checklists_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "checklists_visibility_idx": {
+          "name": "checklists_visibility_idx",
+          "columns": [
+            {
+              "expression": "visibility",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "checklists_updated_at_idx": {
+          "name": "checklists_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "checklists_created_at_idx": {
+          "name": "checklists_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.timeline_events": {
+      "name": "timeline_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event_date": {
+          "name": "event_date",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "enum_timeline_events_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'milestone'"
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "enum_timeline_events_source_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'manual'"
+        },
+        "related_post_id": {
+          "name": "related_post_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "related_update_id": {
+          "name": "related_update_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "related_checklist_id": {
+          "name": "related_checklist_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "related_task_key": {
+          "name": "related_task_key",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_featured": {
+          "name": "is_featured",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_timeline_events_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "enum_timeline_events_visibility",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'public'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "timeline_events_related_post_idx": {
+          "name": "timeline_events_related_post_idx",
+          "columns": [
+            {
+              "expression": "related_post_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timeline_events_related_update_idx": {
+          "name": "timeline_events_related_update_idx",
+          "columns": [
+            {
+              "expression": "related_update_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timeline_events_related_checklist_idx": {
+          "name": "timeline_events_related_checklist_idx",
+          "columns": [
+            {
+              "expression": "related_checklist_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timeline_events_status_idx": {
+          "name": "timeline_events_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timeline_events_visibility_idx": {
+          "name": "timeline_events_visibility_idx",
+          "columns": [
+            {
+              "expression": "visibility",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timeline_events_updated_at_idx": {
+          "name": "timeline_events_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "timeline_events_created_at_idx": {
+          "name": "timeline_events_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "timeline_events_related_post_id_posts_id_fk": {
+          "name": "timeline_events_related_post_id_posts_id_fk",
+          "tableFrom": "timeline_events",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "related_post_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "timeline_events_related_update_id_updates_id_fk": {
+          "name": "timeline_events_related_update_id_updates_id_fk",
+          "tableFrom": "timeline_events",
+          "tableTo": "updates",
+          "columnsFrom": [
+            "related_update_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "timeline_events_related_checklist_id_checklists_id_fk": {
+          "name": "timeline_events_related_checklist_id_checklists_id_fk",
+          "tableFrom": "timeline_events",
+          "tableTo": "checklists",
+          "columnsFrom": [
+            "related_checklist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.plans": {
+      "name": "plans",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "execution_mode": {
+          "name": "execution_mode",
+          "type": "enum_plans_execution_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual'"
+        },
+        "domain": {
+          "name": "domain",
+          "type": "enum_plans_domain",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'other'"
+        },
+        "agent_state": {
+          "name": "agent_state",
+          "type": "enum_plans_agent_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'idle'"
+        },
+        "agent_brief": {
+          "name": "agent_brief",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_agent_run_id": {
+          "name": "last_agent_run_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "enum_plans_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'backlog'"
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_plans_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "priority": {
+          "name": "priority",
+          "type": "enum_plans_priority",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'medium'"
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "enum_plans_visibility",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'private'"
+        },
+        "phases": {
+          "name": "phases",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "weekly_rhythm": {
+          "name": "weekly_rhythm",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_estimated_days": {
+          "name": "total_estimated_days",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "progress": {
+          "name": "progress",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "prerequisites": {
+          "name": "prerequisites",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_context": {
+          "name": "agent_context",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subtasks": {
+          "name": "subtasks",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "plans_last_agent_run_idx": {
+          "name": "plans_last_agent_run_idx",
+          "columns": [
+            {
+              "expression": "last_agent_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_status_idx": {
+          "name": "plans_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_visibility_idx": {
+          "name": "plans_visibility_idx",
+          "columns": [
+            {
+              "expression": "visibility",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_updated_at_idx": {
+          "name": "plans_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_created_at_idx": {
+          "name": "plans_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "plans_last_agent_run_id_agent_runs_id_fk": {
+          "name": "plans_last_agent_run_id_agent_runs_id_fk",
+          "tableFrom": "plans",
+          "tableTo": "agent_runs",
+          "columnsFrom": [
+            "last_agent_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.plans_rels": {
+      "name": "plans_rels",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "path": {
+          "name": "path",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "posts_id": {
+          "name": "posts_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes_id": {
+          "name": "notes_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updates_id": {
+          "name": "updates_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "checklists_id": {
+          "name": "checklists_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timeline_events_id": {
+          "name": "timeline_events_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pages_id": {
+          "name": "pages_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "plans_rels_order_idx": {
+          "name": "plans_rels_order_idx",
+          "columns": [
+            {
+              "expression": "order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_rels_parent_idx": {
+          "name": "plans_rels_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_rels_path_idx": {
+          "name": "plans_rels_path_idx",
+          "columns": [
+            {
+              "expression": "path",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_rels_posts_id_idx": {
+          "name": "plans_rels_posts_id_idx",
+          "columns": [
+            {
+              "expression": "posts_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_rels_notes_id_idx": {
+          "name": "plans_rels_notes_id_idx",
+          "columns": [
+            {
+              "expression": "notes_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_rels_updates_id_idx": {
+          "name": "plans_rels_updates_id_idx",
+          "columns": [
+            {
+              "expression": "updates_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_rels_checklists_id_idx": {
+          "name": "plans_rels_checklists_id_idx",
+          "columns": [
+            {
+              "expression": "checklists_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_rels_timeline_events_id_idx": {
+          "name": "plans_rels_timeline_events_id_idx",
+          "columns": [
+            {
+              "expression": "timeline_events_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plans_rels_pages_id_idx": {
+          "name": "plans_rels_pages_id_idx",
+          "columns": [
+            {
+              "expression": "pages_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "plans_rels_parent_fk": {
+          "name": "plans_rels_parent_fk",
+          "tableFrom": "plans_rels",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "plans_rels_posts_fk": {
+          "name": "plans_rels_posts_fk",
+          "tableFrom": "plans_rels",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "posts_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "plans_rels_notes_fk": {
+          "name": "plans_rels_notes_fk",
+          "tableFrom": "plans_rels",
+          "tableTo": "notes",
+          "columnsFrom": [
+            "notes_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "plans_rels_updates_fk": {
+          "name": "plans_rels_updates_fk",
+          "tableFrom": "plans_rels",
+          "tableTo": "updates",
+          "columnsFrom": [
+            "updates_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "plans_rels_checklists_fk": {
+          "name": "plans_rels_checklists_fk",
+          "tableFrom": "plans_rels",
+          "tableTo": "checklists",
+          "columnsFrom": [
+            "checklists_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "plans_rels_timeline_events_fk": {
+          "name": "plans_rels_timeline_events_fk",
+          "tableFrom": "plans_rels",
+          "tableTo": "timeline_events",
+          "columnsFrom": [
+            "timeline_events_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "plans_rels_pages_fk": {
+          "name": "plans_rels_pages_fk",
+          "tableFrom": "plans_rels",
+          "tableTo": "pages",
+          "columnsFrom": [
+            "pages_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.schedule_items": {
+      "name": "schedule_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date": {
+          "name": "date",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_time": {
+          "name": "start_time",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_time": {
+          "name": "end_time",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_all_day": {
+          "name": "is_all_day",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_schedule_items_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'planned'"
+        },
+        "priority": {
+          "name": "priority",
+          "type": "enum_schedule_items_priority",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'medium'"
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "enum_schedule_items_source_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual'"
+        },
+        "category": {
+          "name": "category",
+          "type": "enum_schedule_items_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'default'"
+        },
+        "related_plan_id": {
+          "name": "related_plan_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "related_checklist_id": {
+          "name": "related_checklist_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "related_checklist_item_key": {
+          "name": "related_checklist_item_key",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_brief": {
+          "name": "agent_brief",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "enum_schedule_items_created_by",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual'"
+        },
+        "conflict_note": {
+          "name": "conflict_note",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "schedule_items_related_plan_idx": {
+          "name": "schedule_items_related_plan_idx",
+          "columns": [
+            {
+              "expression": "related_plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "schedule_items_related_checklist_idx": {
+          "name": "schedule_items_related_checklist_idx",
+          "columns": [
+            {
+              "expression": "related_checklist_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "schedule_items_updated_at_idx": {
+          "name": "schedule_items_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "schedule_items_created_at_idx": {
+          "name": "schedule_items_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "schedule_items_related_plan_id_plans_id_fk": {
+          "name": "schedule_items_related_plan_id_plans_id_fk",
+          "tableFrom": "schedule_items",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "related_plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "schedule_items_related_checklist_id_checklists_id_fk": {
+          "name": "schedule_items_related_checklist_id_checklists_id_fk",
+          "tableFrom": "schedule_items",
+          "tableTo": "checklists",
+          "columnsFrom": [
+            "related_checklist_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.plan_reviews_recommendations": {
+      "name": "plan_reviews_recommendations",
+      "schema": "",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "plan_reviews_recommendations_order_idx": {
+          "name": "plan_reviews_recommendations_order_idx",
+          "columns": [
+            {
+              "expression": "_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plan_reviews_recommendations_parent_id_idx": {
+          "name": "plan_reviews_recommendations_parent_id_idx",
+          "columns": [
+            {
+              "expression": "_parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "plan_reviews_recommendations_parent_id_fk": {
+          "name": "plan_reviews_recommendations_parent_id_fk",
+          "tableFrom": "plan_reviews_recommendations",
+          "tableTo": "plan_reviews",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.plan_reviews": {
+      "name": "plan_reviews",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "enum_plan_reviews_scope",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'overall'"
+        },
+        "health": {
+          "name": "health",
+          "type": "enum_plan_reviews_health",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'attention'"
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metrics": {
+          "name": "metrics",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "enum_plan_reviews_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'agent'"
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "plan_reviews_plan_idx": {
+          "name": "plan_reviews_plan_idx",
+          "columns": [
+            {
+              "expression": "plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plan_reviews_updated_at_idx": {
+          "name": "plan_reviews_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "plan_reviews_created_at_idx": {
+          "name": "plan_reviews_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "plan_reviews_plan_id_plans_id_fk": {
+          "name": "plan_reviews_plan_id_plans_id_fk",
+          "tableFrom": "plan_reviews",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_threads_messages": {
+      "name": "agent_threads_messages",
+      "schema": "",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "enum_agent_threads_messages_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "agent_threads_messages_order_idx": {
+          "name": "agent_threads_messages_order_idx",
+          "columns": [
+            {
+              "expression": "_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_threads_messages_parent_id_idx": {
+          "name": "agent_threads_messages_parent_id_idx",
+          "columns": [
+            {
+              "expression": "_parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_threads_messages_parent_id_fk": {
+          "name": "agent_threads_messages_parent_id_fk",
+          "tableFrom": "agent_threads_messages",
+          "tableTo": "agent_threads",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_threads": {
+      "name": "agent_threads",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Agent Thread'"
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_agent_threads_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pending_action": {
+          "name": "pending_action",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "conversation_state": {
+          "name": "conversation_state",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary_updated_at": {
+          "name": "summary_updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary_message_count": {
+          "name": "summary_message_count",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_intent": {
+          "name": "last_intent",
+          "type": "enum_agent_threads_last_intent",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_engine": {
+          "name": "last_engine",
+          "type": "enum_agent_threads_last_engine",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_confidence": {
+          "name": "last_confidence",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_interaction_at": {
+          "name": "last_interaction_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tags": {
+          "name": "tags",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "archived": {
+          "name": "archived",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "agent_threads_user_idx": {
+          "name": "agent_threads_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_threads_updated_at_idx": {
+          "name": "agent_threads_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_threads_created_at_idx": {
+          "name": "agent_threads_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_threads_user_id_users_id_fk": {
+          "name": "agent_threads_user_id_users_id_fk",
+          "tableFrom": "agent_threads",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_runs_steps": {
+      "name": "agent_runs_steps",
+      "schema": "",
+      "columns": {
+        "_order": {
+          "name": "_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "_parent_id": {
+          "name": "_parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "varchar",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "level": {
+          "name": "level",
+          "type": "enum_agent_runs_steps_level",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'info'"
+        },
+        "message": {
+          "name": "message",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "agent_runs_steps_order_idx": {
+          "name": "agent_runs_steps_order_idx",
+          "columns": [
+            {
+              "expression": "_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_steps_parent_id_idx": {
+          "name": "agent_runs_steps_parent_id_idx",
+          "columns": [
+            {
+              "expression": "_parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_runs_steps_parent_id_fk": {
+          "name": "agent_runs_steps_parent_id_fk",
+          "tableFrom": "agent_runs_steps",
+          "tableTo": "agent_runs",
+          "columnsFrom": [
+            "_parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_runs": {
+      "name": "agent_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "workflow": {
+          "name": "workflow",
+          "type": "enum_agent_runs_workflow",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'readiness-audit'"
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_agent_runs_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'queued'"
+        },
+        "trigger": {
+          "name": "trigger",
+          "type": "enum_agent_runs_trigger",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual'"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "goal": {
+          "name": "goal",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_action": {
+          "name": "next_action",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "related_plan_id": {
+          "name": "related_plan_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duration_ms": {
+          "name": "duration_ms",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "affected_documents": {
+          "name": "affected_documents",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "before_snapshot": {
+          "name": "before_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "after_snapshot": {
+          "name": "after_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rollback_payload": {
+          "name": "rollback_payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rollback_available": {
+          "name": "rollback_available",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "orchestration_id": {
+          "name": "orchestration_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_role": {
+          "name": "agent_role",
+          "type": "enum_agent_runs_agent_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model": {
+          "name": "model",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "token_usage": {
+          "name": "token_usage",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "trace": {
+          "name": "trace",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "agent_runs_user_idx": {
+          "name": "agent_runs_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_related_plan_idx": {
+          "name": "agent_runs_related_plan_idx",
+          "columns": [
+            {
+              "expression": "related_plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_updated_at_idx": {
+          "name": "agent_runs_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_created_at_idx": {
+          "name": "agent_runs_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_runs_user_id_users_id_fk": {
+          "name": "agent_runs_user_id_users_id_fk",
+          "tableFrom": "agent_runs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_runs_related_plan_id_plans_id_fk": {
+          "name": "agent_runs_related_plan_id_plans_id_fk",
+          "tableFrom": "agent_runs",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "related_plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_runs_rels": {
+      "name": "agent_runs_rels",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "path": {
+          "name": "path",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "posts_id": {
+          "name": "posts_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes_id": {
+          "name": "notes_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updates_id": {
+          "name": "updates_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "checklists_id": {
+          "name": "checklists_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timeline_events_id": {
+          "name": "timeline_events_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plan_reviews_id": {
+          "name": "plan_reviews_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_memories_id": {
+          "name": "agent_memories_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pages_id": {
+          "name": "pages_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "agent_runs_rels_order_idx": {
+          "name": "agent_runs_rels_order_idx",
+          "columns": [
+            {
+              "expression": "order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_rels_parent_idx": {
+          "name": "agent_runs_rels_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_rels_path_idx": {
+          "name": "agent_runs_rels_path_idx",
+          "columns": [
+            {
+              "expression": "path",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_rels_posts_id_idx": {
+          "name": "agent_runs_rels_posts_id_idx",
+          "columns": [
+            {
+              "expression": "posts_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_rels_notes_id_idx": {
+          "name": "agent_runs_rels_notes_id_idx",
+          "columns": [
+            {
+              "expression": "notes_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_rels_updates_id_idx": {
+          "name": "agent_runs_rels_updates_id_idx",
+          "columns": [
+            {
+              "expression": "updates_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_rels_checklists_id_idx": {
+          "name": "agent_runs_rels_checklists_id_idx",
+          "columns": [
+            {
+              "expression": "checklists_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_rels_timeline_events_id_idx": {
+          "name": "agent_runs_rels_timeline_events_id_idx",
+          "columns": [
+            {
+              "expression": "timeline_events_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_rels_plan_reviews_id_idx": {
+          "name": "agent_runs_rels_plan_reviews_id_idx",
+          "columns": [
+            {
+              "expression": "plan_reviews_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_rels_agent_memories_id_idx": {
+          "name": "agent_runs_rels_agent_memories_id_idx",
+          "columns": [
+            {
+              "expression": "agent_memories_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_runs_rels_pages_id_idx": {
+          "name": "agent_runs_rels_pages_id_idx",
+          "columns": [
+            {
+              "expression": "pages_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_runs_rels_parent_fk": {
+          "name": "agent_runs_rels_parent_fk",
+          "tableFrom": "agent_runs_rels",
+          "tableTo": "agent_runs",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_runs_rels_posts_fk": {
+          "name": "agent_runs_rels_posts_fk",
+          "tableFrom": "agent_runs_rels",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "posts_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_runs_rels_notes_fk": {
+          "name": "agent_runs_rels_notes_fk",
+          "tableFrom": "agent_runs_rels",
+          "tableTo": "notes",
+          "columnsFrom": [
+            "notes_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_runs_rels_updates_fk": {
+          "name": "agent_runs_rels_updates_fk",
+          "tableFrom": "agent_runs_rels",
+          "tableTo": "updates",
+          "columnsFrom": [
+            "updates_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_runs_rels_checklists_fk": {
+          "name": "agent_runs_rels_checklists_fk",
+          "tableFrom": "agent_runs_rels",
+          "tableTo": "checklists",
+          "columnsFrom": [
+            "checklists_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_runs_rels_timeline_events_fk": {
+          "name": "agent_runs_rels_timeline_events_fk",
+          "tableFrom": "agent_runs_rels",
+          "tableTo": "timeline_events",
+          "columnsFrom": [
+            "timeline_events_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_runs_rels_plan_reviews_fk": {
+          "name": "agent_runs_rels_plan_reviews_fk",
+          "tableFrom": "agent_runs_rels",
+          "tableTo": "plan_reviews",
+          "columnsFrom": [
+            "plan_reviews_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_runs_rels_agent_memories_fk": {
+          "name": "agent_runs_rels_agent_memories_fk",
+          "tableFrom": "agent_runs_rels",
+          "tableTo": "agent_memories",
+          "columnsFrom": [
+            "agent_memories_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_runs_rels_pages_fk": {
+          "name": "agent_runs_rels_pages_fk",
+          "tableFrom": "agent_runs_rels",
+          "tableTo": "pages",
+          "columnsFrom": [
+            "pages_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_action_receipts": {
+      "name": "agent_action_receipts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action_id": {
+          "name": "action_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent": {
+          "name": "intent",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation": {
+          "name": "operation",
+          "type": "enum_agent_action_receipts_operation",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'execute'"
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_agent_action_receipts_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "thread_id": {
+          "name": "thread_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "response": {
+          "name": "response",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rollback_payload": {
+          "name": "rollback_payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "agent_action_receipts_key_idx": {
+          "name": "agent_action_receipts_key_idx",
+          "columns": [
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_action_receipts_action_id_idx": {
+          "name": "agent_action_receipts_action_id_idx",
+          "columns": [
+            {
+              "expression": "action_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_action_receipts_user_idx": {
+          "name": "agent_action_receipts_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_action_receipts_thread_idx": {
+          "name": "agent_action_receipts_thread_idx",
+          "columns": [
+            {
+              "expression": "thread_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_action_receipts_updated_at_idx": {
+          "name": "agent_action_receipts_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_action_receipts_created_at_idx": {
+          "name": "agent_action_receipts_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_action_receipts_user_id_users_id_fk": {
+          "name": "agent_action_receipts_user_id_users_id_fk",
+          "tableFrom": "agent_action_receipts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_action_receipts_thread_id_agent_threads_id_fk": {
+          "name": "agent_action_receipts_thread_id_agent_threads_id_fk",
+          "tableFrom": "agent_action_receipts",
+          "tableTo": "agent_threads",
+          "columnsFrom": [
+            "thread_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_thread_events": {
+      "name": "agent_thread_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "event_key": {
+          "name": "event_key",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "turn_id": {
+          "name": "turn_id",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "enum_agent_thread_events_event_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schema_version": {
+          "name": "schema_version",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "thread_id": {
+          "name": "thread_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "agent_thread_events_event_key_idx": {
+          "name": "agent_thread_events_event_key_idx",
+          "columns": [
+            {
+              "expression": "event_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_thread_events_turn_id_idx": {
+          "name": "agent_thread_events_turn_id_idx",
+          "columns": [
+            {
+              "expression": "turn_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_thread_events_event_type_idx": {
+          "name": "agent_thread_events_event_type_idx",
+          "columns": [
+            {
+              "expression": "event_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_thread_events_thread_idx": {
+          "name": "agent_thread_events_thread_idx",
+          "columns": [
+            {
+              "expression": "thread_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_thread_events_user_idx": {
+          "name": "agent_thread_events_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_thread_events_recorded_at_idx": {
+          "name": "agent_thread_events_recorded_at_idx",
+          "columns": [
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_thread_events_updated_at_idx": {
+          "name": "agent_thread_events_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_thread_events_created_at_idx": {
+          "name": "agent_thread_events_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_thread_events_thread_id_agent_threads_id_fk": {
+          "name": "agent_thread_events_thread_id_agent_threads_id_fk",
+          "tableFrom": "agent_thread_events",
+          "tableTo": "agent_threads",
+          "columnsFrom": [
+            "thread_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_thread_events_user_id_users_id_fk": {
+          "name": "agent_thread_events_user_id_users_id_fk",
+          "tableFrom": "agent_thread_events",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_memories": {
+      "name": "agent_memories",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "enum_agent_memories_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'fact'"
+        },
+        "content": {
+          "name": "content",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0.7
+        },
+        "source_thread_id": {
+          "name": "source_thread_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_run_id": {
+          "name": "source_run_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_agent_memories_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "enum_agent_memories_visibility",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'private'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "agent_memories_source_thread_idx": {
+          "name": "agent_memories_source_thread_idx",
+          "columns": [
+            {
+              "expression": "source_thread_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_memories_source_run_idx": {
+          "name": "agent_memories_source_run_idx",
+          "columns": [
+            {
+              "expression": "source_run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_memories_updated_at_idx": {
+          "name": "agent_memories_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_memories_created_at_idx": {
+          "name": "agent_memories_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_memories_source_thread_id_agent_threads_id_fk": {
+          "name": "agent_memories_source_thread_id_agent_threads_id_fk",
+          "tableFrom": "agent_memories",
+          "tableTo": "agent_threads",
+          "columnsFrom": [
+            "source_thread_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_memories_source_run_id_agent_runs_id_fk": {
+          "name": "agent_memories_source_run_id_agent_runs_id_fk",
+          "tableFrom": "agent_memories",
+          "tableTo": "agent_runs",
+          "columnsFrom": [
+            "source_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_suggestions": {
+      "name": "agent_suggestions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "suggested_prompt": {
+          "name": "suggested_prompt",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unique_key": {
+          "name": "unique_key",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "enum_agent_suggestions_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'dashboard'"
+        },
+        "risk_level": {
+          "name": "risk_level",
+          "type": "enum_agent_suggestions_risk_level",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'low'"
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_agent_suggestions_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "related_plan_id": {
+          "name": "related_plan_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "enum_agent_suggestions_created_by",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'agent'"
+        },
+        "dismissed_at": {
+          "name": "dismissed_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "agent_suggestions_unique_key_idx": {
+          "name": "agent_suggestions_unique_key_idx",
+          "columns": [
+            {
+              "expression": "unique_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_related_plan_idx": {
+          "name": "agent_suggestions_related_plan_idx",
+          "columns": [
+            {
+              "expression": "related_plan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_updated_at_idx": {
+          "name": "agent_suggestions_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_created_at_idx": {
+          "name": "agent_suggestions_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_suggestions_related_plan_id_plans_id_fk": {
+          "name": "agent_suggestions_related_plan_id_plans_id_fk",
+          "tableFrom": "agent_suggestions",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "related_plan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_suggestions_rels": {
+      "name": "agent_suggestions_rels",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "path": {
+          "name": "path",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "posts_id": {
+          "name": "posts_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes_id": {
+          "name": "notes_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updates_id": {
+          "name": "updates_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "checklists_id": {
+          "name": "checklists_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timeline_events_id": {
+          "name": "timeline_events_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pages_id": {
+          "name": "pages_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "agent_suggestions_rels_order_idx": {
+          "name": "agent_suggestions_rels_order_idx",
+          "columns": [
+            {
+              "expression": "order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_rels_parent_idx": {
+          "name": "agent_suggestions_rels_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_rels_path_idx": {
+          "name": "agent_suggestions_rels_path_idx",
+          "columns": [
+            {
+              "expression": "path",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_rels_posts_id_idx": {
+          "name": "agent_suggestions_rels_posts_id_idx",
+          "columns": [
+            {
+              "expression": "posts_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_rels_notes_id_idx": {
+          "name": "agent_suggestions_rels_notes_id_idx",
+          "columns": [
+            {
+              "expression": "notes_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_rels_updates_id_idx": {
+          "name": "agent_suggestions_rels_updates_id_idx",
+          "columns": [
+            {
+              "expression": "updates_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_rels_checklists_id_idx": {
+          "name": "agent_suggestions_rels_checklists_id_idx",
+          "columns": [
+            {
+              "expression": "checklists_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_rels_timeline_events_id_idx": {
+          "name": "agent_suggestions_rels_timeline_events_id_idx",
+          "columns": [
+            {
+              "expression": "timeline_events_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_suggestions_rels_pages_id_idx": {
+          "name": "agent_suggestions_rels_pages_id_idx",
+          "columns": [
+            {
+              "expression": "pages_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_suggestions_rels_parent_fk": {
+          "name": "agent_suggestions_rels_parent_fk",
+          "tableFrom": "agent_suggestions_rels",
+          "tableTo": "agent_suggestions",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_suggestions_rels_posts_fk": {
+          "name": "agent_suggestions_rels_posts_fk",
+          "tableFrom": "agent_suggestions_rels",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "posts_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_suggestions_rels_notes_fk": {
+          "name": "agent_suggestions_rels_notes_fk",
+          "tableFrom": "agent_suggestions_rels",
+          "tableTo": "notes",
+          "columnsFrom": [
+            "notes_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_suggestions_rels_updates_fk": {
+          "name": "agent_suggestions_rels_updates_fk",
+          "tableFrom": "agent_suggestions_rels",
+          "tableTo": "updates",
+          "columnsFrom": [
+            "updates_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_suggestions_rels_checklists_fk": {
+          "name": "agent_suggestions_rels_checklists_fk",
+          "tableFrom": "agent_suggestions_rels",
+          "tableTo": "checklists",
+          "columnsFrom": [
+            "checklists_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_suggestions_rels_timeline_events_fk": {
+          "name": "agent_suggestions_rels_timeline_events_fk",
+          "tableFrom": "agent_suggestions_rels",
+          "tableTo": "timeline_events",
+          "columnsFrom": [
+            "timeline_events_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_suggestions_rels_pages_fk": {
+          "name": "agent_suggestions_rels_pages_fk",
+          "tableFrom": "agent_suggestions_rels",
+          "tableTo": "pages",
+          "columnsFrom": [
+            "pages_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pages": {
+      "name": "pages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generate_slug": {
+          "name": "generate_slug",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "slug": {
+          "name": "slug",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_rich": {
+          "name": "content_rich",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_text": {
+          "name": "content_text",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_excerpt": {
+          "name": "content_excerpt",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_outline": {
+          "name": "content_outline",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "content_version": {
+          "name": "content_version",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'tiptap-v1'"
+        },
+        "legacy_content_markdown": {
+          "name": "legacy_content_markdown",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cover_image_id": {
+          "name": "cover_image_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "enum_pages_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "enum_pages_visibility",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'public'"
+        },
+        "writing_category_id": {
+          "name": "writing_category_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pages_slug_idx": {
+          "name": "pages_slug_idx",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pages_cover_image_idx": {
+          "name": "pages_cover_image_idx",
+          "columns": [
+            {
+              "expression": "cover_image_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pages_status_idx": {
+          "name": "pages_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pages_visibility_idx": {
+          "name": "pages_visibility_idx",
+          "columns": [
+            {
+              "expression": "visibility",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pages_writing_category_idx": {
+          "name": "pages_writing_category_idx",
+          "columns": [
+            {
+              "expression": "writing_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pages_updated_at_idx": {
+          "name": "pages_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pages_created_at_idx": {
+          "name": "pages_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pages_cover_image_id_media_id_fk": {
+          "name": "pages_cover_image_id_media_id_fk",
+          "tableFrom": "pages",
+          "tableTo": "media",
+          "columnsFrom": [
+            "cover_image_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "pages_writing_category_id_writing_categories_id_fk": {
+          "name": "pages_writing_category_id_writing_categories_id_fk",
+          "tableFrom": "pages",
+          "tableTo": "writing_categories",
+          "columnsFrom": [
+            "writing_category_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.writing_categories": {
+      "name": "writing_categories",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "icon": {
+          "name": "icon",
+          "type": "enum_writing_categories_icon",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'layers'"
+        },
+        "tint": {
+          "name": "tint",
+          "type": "enum_writing_categories_tint",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'accent'"
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "archived": {
+          "name": "archived",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "writing_categories_updated_at_idx": {
+          "name": "writing_categories_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "writing_categories_created_at_idx": {
+          "name": "writing_categories_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payload_kv": {
+      "name": "payload_kv",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "payload_kv_key_idx": {
+          "name": "payload_kv_key_idx",
+          "columns": [
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payload_locked_documents": {
+      "name": "payload_locked_documents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "global_slug": {
+          "name": "global_slug",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payload_locked_documents_global_slug_idx": {
+          "name": "payload_locked_documents_global_slug_idx",
+          "columns": [
+            {
+              "expression": "global_slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_updated_at_idx": {
+          "name": "payload_locked_documents_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_created_at_idx": {
+          "name": "payload_locked_documents_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payload_locked_documents_rels": {
+      "name": "payload_locked_documents_rels",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "path": {
+          "name": "path",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "users_id": {
+          "name": "users_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "media_id": {
+          "name": "media_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "posts_id": {
+          "name": "posts_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes_id": {
+          "name": "notes_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updates_id": {
+          "name": "updates_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "checklists_id": {
+          "name": "checklists_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timeline_events_id": {
+          "name": "timeline_events_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plans_id": {
+          "name": "plans_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "schedule_items_id": {
+          "name": "schedule_items_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plan_reviews_id": {
+          "name": "plan_reviews_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_threads_id": {
+          "name": "agent_threads_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_runs_id": {
+          "name": "agent_runs_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_action_receipts_id": {
+          "name": "agent_action_receipts_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_thread_events_id": {
+          "name": "agent_thread_events_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_memories_id": {
+          "name": "agent_memories_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "agent_suggestions_id": {
+          "name": "agent_suggestions_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pages_id": {
+          "name": "pages_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "writing_categories_id": {
+          "name": "writing_categories_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "payload_locked_documents_rels_order_idx": {
+          "name": "payload_locked_documents_rels_order_idx",
+          "columns": [
+            {
+              "expression": "order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_parent_idx": {
+          "name": "payload_locked_documents_rels_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_path_idx": {
+          "name": "payload_locked_documents_rels_path_idx",
+          "columns": [
+            {
+              "expression": "path",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_users_id_idx": {
+          "name": "payload_locked_documents_rels_users_id_idx",
+          "columns": [
+            {
+              "expression": "users_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_media_id_idx": {
+          "name": "payload_locked_documents_rels_media_id_idx",
+          "columns": [
+            {
+              "expression": "media_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_posts_id_idx": {
+          "name": "payload_locked_documents_rels_posts_id_idx",
+          "columns": [
+            {
+              "expression": "posts_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_notes_id_idx": {
+          "name": "payload_locked_documents_rels_notes_id_idx",
+          "columns": [
+            {
+              "expression": "notes_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_updates_id_idx": {
+          "name": "payload_locked_documents_rels_updates_id_idx",
+          "columns": [
+            {
+              "expression": "updates_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_checklists_id_idx": {
+          "name": "payload_locked_documents_rels_checklists_id_idx",
+          "columns": [
+            {
+              "expression": "checklists_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_timeline_events_id_idx": {
+          "name": "payload_locked_documents_rels_timeline_events_id_idx",
+          "columns": [
+            {
+              "expression": "timeline_events_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_plans_id_idx": {
+          "name": "payload_locked_documents_rels_plans_id_idx",
+          "columns": [
+            {
+              "expression": "plans_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_schedule_items_id_idx": {
+          "name": "payload_locked_documents_rels_schedule_items_id_idx",
+          "columns": [
+            {
+              "expression": "schedule_items_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_plan_reviews_id_idx": {
+          "name": "payload_locked_documents_rels_plan_reviews_id_idx",
+          "columns": [
+            {
+              "expression": "plan_reviews_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_agent_threads_id_idx": {
+          "name": "payload_locked_documents_rels_agent_threads_id_idx",
+          "columns": [
+            {
+              "expression": "agent_threads_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_agent_runs_id_idx": {
+          "name": "payload_locked_documents_rels_agent_runs_id_idx",
+          "columns": [
+            {
+              "expression": "agent_runs_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_agent_action_receipts_id_idx": {
+          "name": "payload_locked_documents_rels_agent_action_receipts_id_idx",
+          "columns": [
+            {
+              "expression": "agent_action_receipts_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_agent_thread_events_id_idx": {
+          "name": "payload_locked_documents_rels_agent_thread_events_id_idx",
+          "columns": [
+            {
+              "expression": "agent_thread_events_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_agent_memories_id_idx": {
+          "name": "payload_locked_documents_rels_agent_memories_id_idx",
+          "columns": [
+            {
+              "expression": "agent_memories_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_agent_suggestions_id_idx": {
+          "name": "payload_locked_documents_rels_agent_suggestions_id_idx",
+          "columns": [
+            {
+              "expression": "agent_suggestions_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_pages_id_idx": {
+          "name": "payload_locked_documents_rels_pages_id_idx",
+          "columns": [
+            {
+              "expression": "pages_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_locked_documents_rels_writing_categories_id_idx": {
+          "name": "payload_locked_documents_rels_writing_categories_id_idx",
+          "columns": [
+            {
+              "expression": "writing_categories_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payload_locked_documents_rels_parent_fk": {
+          "name": "payload_locked_documents_rels_parent_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "payload_locked_documents",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_users_fk": {
+          "name": "payload_locked_documents_rels_users_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "users",
+          "columnsFrom": [
+            "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_media_fk": {
+          "name": "payload_locked_documents_rels_media_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "media",
+          "columnsFrom": [
+            "media_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_posts_fk": {
+          "name": "payload_locked_documents_rels_posts_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "posts",
+          "columnsFrom": [
+            "posts_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_notes_fk": {
+          "name": "payload_locked_documents_rels_notes_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "notes",
+          "columnsFrom": [
+            "notes_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_updates_fk": {
+          "name": "payload_locked_documents_rels_updates_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "updates",
+          "columnsFrom": [
+            "updates_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_checklists_fk": {
+          "name": "payload_locked_documents_rels_checklists_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "checklists",
+          "columnsFrom": [
+            "checklists_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_timeline_events_fk": {
+          "name": "payload_locked_documents_rels_timeline_events_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "timeline_events",
+          "columnsFrom": [
+            "timeline_events_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_plans_fk": {
+          "name": "payload_locked_documents_rels_plans_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "plans",
+          "columnsFrom": [
+            "plans_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_schedule_items_fk": {
+          "name": "payload_locked_documents_rels_schedule_items_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "schedule_items",
+          "columnsFrom": [
+            "schedule_items_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_plan_reviews_fk": {
+          "name": "payload_locked_documents_rels_plan_reviews_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "plan_reviews",
+          "columnsFrom": [
+            "plan_reviews_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_agent_threads_fk": {
+          "name": "payload_locked_documents_rels_agent_threads_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "agent_threads",
+          "columnsFrom": [
+            "agent_threads_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_agent_runs_fk": {
+          "name": "payload_locked_documents_rels_agent_runs_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "agent_runs",
+          "columnsFrom": [
+            "agent_runs_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_agent_action_receipts_fk": {
+          "name": "payload_locked_documents_rels_agent_action_receipts_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "agent_action_receipts",
+          "columnsFrom": [
+            "agent_action_receipts_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_agent_thread_events_fk": {
+          "name": "payload_locked_documents_rels_agent_thread_events_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "agent_thread_events",
+          "columnsFrom": [
+            "agent_thread_events_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_agent_memories_fk": {
+          "name": "payload_locked_documents_rels_agent_memories_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "agent_memories",
+          "columnsFrom": [
+            "agent_memories_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_agent_suggestions_fk": {
+          "name": "payload_locked_documents_rels_agent_suggestions_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "agent_suggestions",
+          "columnsFrom": [
+            "agent_suggestions_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_pages_fk": {
+          "name": "payload_locked_documents_rels_pages_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "pages",
+          "columnsFrom": [
+            "pages_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_locked_documents_rels_writing_categories_fk": {
+          "name": "payload_locked_documents_rels_writing_categories_fk",
+          "tableFrom": "payload_locked_documents_rels",
+          "tableTo": "writing_categories",
+          "columnsFrom": [
+            "writing_categories_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payload_preferences": {
+      "name": "payload_preferences",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "value": {
+          "name": "value",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payload_preferences_key_idx": {
+          "name": "payload_preferences_key_idx",
+          "columns": [
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_preferences_updated_at_idx": {
+          "name": "payload_preferences_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_preferences_created_at_idx": {
+          "name": "payload_preferences_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payload_preferences_rels": {
+      "name": "payload_preferences_rels",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "order": {
+          "name": "order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "path": {
+          "name": "path",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "users_id": {
+          "name": "users_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "payload_preferences_rels_order_idx": {
+          "name": "payload_preferences_rels_order_idx",
+          "columns": [
+            {
+              "expression": "order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_preferences_rels_parent_idx": {
+          "name": "payload_preferences_rels_parent_idx",
+          "columns": [
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_preferences_rels_path_idx": {
+          "name": "payload_preferences_rels_path_idx",
+          "columns": [
+            {
+              "expression": "path",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_preferences_rels_users_id_idx": {
+          "name": "payload_preferences_rels_users_id_idx",
+          "columns": [
+            {
+              "expression": "users_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payload_preferences_rels_parent_fk": {
+          "name": "payload_preferences_rels_parent_fk",
+          "tableFrom": "payload_preferences_rels",
+          "tableTo": "payload_preferences",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "payload_preferences_rels_users_fk": {
+          "name": "payload_preferences_rels_users_fk",
+          "tableFrom": "payload_preferences_rels",
+          "tableTo": "users",
+          "columnsFrom": [
+            "users_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payload_migrations": {
+      "name": "payload_migrations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "batch": {
+          "name": "batch",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payload_migrations_updated_at_idx": {
+          "name": "payload_migrations_updated_at_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payload_migrations_created_at_idx": {
+          "name": "payload_migrations_created_at_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agent_settings": {
+      "name": "agent_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "enum_agent_settings_provider",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'openai-compatible'"
+        },
+        "base_url": {
+          "name": "base_url",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model": {
+          "name": "model",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "api_key": {
+          "name": "api_key",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "varchar",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp(3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.enum_posts_status": {
+      "name": "enum_posts_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "archived"
+      ]
+    },
+    "public.enum_posts_visibility": {
+      "name": "enum_posts_visibility",
+      "schema": "public",
+      "values": [
+        "public",
+        "private"
+      ]
+    },
+    "public.enum_notes_status": {
+      "name": "enum_notes_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "archived"
+      ]
+    },
+    "public.enum_notes_visibility": {
+      "name": "enum_notes_visibility",
+      "schema": "public",
+      "values": [
+        "public",
+        "private"
+      ]
+    },
+    "public.enum_updates_type": {
+      "name": "enum_updates_type",
+      "schema": "public",
+      "values": [
+        "life",
+        "work",
+        "project"
+      ]
+    },
+    "public.enum_updates_status": {
+      "name": "enum_updates_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "archived"
+      ]
+    },
+    "public.enum_updates_visibility": {
+      "name": "enum_updates_visibility",
+      "schema": "public",
+      "values": [
+        "public",
+        "private"
+      ]
+    },
+    "public.enum_checklists_status": {
+      "name": "enum_checklists_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "archived"
+      ]
+    },
+    "public.enum_checklists_visibility": {
+      "name": "enum_checklists_visibility",
+      "schema": "public",
+      "values": [
+        "public",
+        "private"
+      ]
+    },
+    "public.enum_timeline_events_type": {
+      "name": "enum_timeline_events_type",
+      "schema": "public",
+      "values": [
+        "milestone",
+        "project",
+        "life",
+        "study",
+        "exam",
+        "agent"
+      ]
+    },
+    "public.enum_timeline_events_source_type": {
+      "name": "enum_timeline_events_source_type",
+      "schema": "public",
+      "values": [
+        "checklist",
+        "schedule",
+        "plan",
+        "manual",
+        "agent"
+      ]
+    },
+    "public.enum_timeline_events_status": {
+      "name": "enum_timeline_events_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "archived"
+      ]
+    },
+    "public.enum_timeline_events_visibility": {
+      "name": "enum_timeline_events_visibility",
+      "schema": "public",
+      "values": [
+        "public",
+        "private"
+      ]
+    },
+    "public.enum_plans_execution_mode": {
+      "name": "enum_plans_execution_mode",
+      "schema": "public",
+      "values": [
+        "manual",
+        "hybrid",
+        "agent"
+      ]
+    },
+    "public.enum_plans_domain": {
+      "name": "enum_plans_domain",
+      "schema": "public",
+      "values": [
+        "study",
+        "work",
+        "travel",
+        "fitness",
+        "creative",
+        "other"
+      ]
+    },
+    "public.enum_plans_agent_state": {
+      "name": "enum_plans_agent_state",
+      "schema": "public",
+      "values": [
+        "idle",
+        "ready",
+        "running",
+        "blocked",
+        "review"
+      ]
+    },
+    "public.enum_plans_state": {
+      "name": "enum_plans_state",
+      "schema": "public",
+      "values": [
+        "backlog",
+        "active",
+        "paused",
+        "done"
+      ]
+    },
+    "public.enum_plans_status": {
+      "name": "enum_plans_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "archived"
+      ]
+    },
+    "public.enum_plans_priority": {
+      "name": "enum_plans_priority",
+      "schema": "public",
+      "values": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "public.enum_plans_visibility": {
+      "name": "enum_plans_visibility",
+      "schema": "public",
+      "values": [
+        "public",
+        "private"
+      ]
+    },
+    "public.enum_schedule_items_status": {
+      "name": "enum_schedule_items_status",
+      "schema": "public",
+      "values": [
+        "planned",
+        "done",
+        "skipped",
+        "canceled"
+      ]
+    },
+    "public.enum_schedule_items_priority": {
+      "name": "enum_schedule_items_priority",
+      "schema": "public",
+      "values": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "public.enum_schedule_items_source_type": {
+      "name": "enum_schedule_items_source_type",
+      "schema": "public",
+      "values": [
+        "plan",
+        "checklist",
+        "manual",
+        "agent"
+      ]
+    },
+    "public.enum_schedule_items_category": {
+      "name": "enum_schedule_items_category",
+      "schema": "public",
+      "values": [
+        "course",
+        "study",
+        "plan_action",
+        "agent",
+        "exam",
+        "default"
+      ]
+    },
+    "public.enum_schedule_items_created_by": {
+      "name": "enum_schedule_items_created_by",
+      "schema": "public",
+      "values": [
+        "manual",
+        "agent"
+      ]
+    },
+    "public.enum_plan_reviews_scope": {
+      "name": "enum_plan_reviews_scope",
+      "schema": "public",
+      "values": [
+        "overall",
+        "plan"
+      ]
+    },
+    "public.enum_plan_reviews_health": {
+      "name": "enum_plan_reviews_health",
+      "schema": "public",
+      "values": [
+        "healthy",
+        "attention",
+        "risk"
+      ]
+    },
+    "public.enum_plan_reviews_source": {
+      "name": "enum_plan_reviews_source",
+      "schema": "public",
+      "values": [
+        "agent",
+        "manual"
+      ]
+    },
+    "public.enum_agent_threads_messages_role": {
+      "name": "enum_agent_threads_messages_role",
+      "schema": "public",
+      "values": [
+        "user",
+        "assistant"
+      ]
+    },
+    "public.enum_agent_threads_status": {
+      "name": "enum_agent_threads_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "closed"
+      ]
+    },
+    "public.enum_agent_threads_last_intent": {
+      "name": "enum_agent_threads_last_intent",
+      "schema": "public",
+      "values": [
+        "answer_question",
+        "create_plan",
+        "append_plan_item",
+        "complete_plan_item",
+        "compose_plan",
+        "compose_schedule_item",
+        "compose_timeline_event",
+        "add_completion_note",
+        "save_memory",
+        "query_progress",
+        "query_plan_progress",
+        "evaluate_plan",
+        "schedule_plan",
+        "weekly_review",
+        "reschedule_item",
+        "cancel_schedule_item",
+        "clarify",
+        "modify_record",
+        "delete_record",
+        "capability_query",
+        "query_checklist_progress",
+        "query_memory",
+        "query_plan",
+        "query_schedule",
+        "query_timeline"
+      ]
+    },
+    "public.enum_agent_threads_last_engine": {
+      "name": "enum_agent_threads_last_engine",
+      "schema": "public",
+      "values": [
+        "glm",
+        "openai",
+        "zai",
+        "heuristic",
+        "workflow",
+        "model",
+        "openai-compatible"
+      ]
+    },
+    "public.enum_agent_runs_steps_level": {
+      "name": "enum_agent_runs_steps_level",
+      "schema": "public",
+      "values": [
+        "info",
+        "warn",
+        "error"
+      ]
+    },
+    "public.enum_agent_runs_workflow": {
+      "name": "enum_agent_runs_workflow",
+      "schema": "public",
+      "values": [
+        "readiness-audit",
+        "planning",
+        "content-draft",
+        "publishing-review",
+        "sync",
+        "weekly-review",
+        "automation"
+      ]
+    },
+    "public.enum_agent_runs_status": {
+      "name": "enum_agent_runs_status",
+      "schema": "public",
+      "values": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "canceled"
+      ]
+    },
+    "public.enum_agent_runs_trigger": {
+      "name": "enum_agent_runs_trigger",
+      "schema": "public",
+      "values": [
+        "manual",
+        "scheduled",
+        "webhook",
+        "agent"
+      ]
+    },
+    "public.enum_agent_runs_agent_role": {
+      "name": "enum_agent_runs_agent_role",
+      "schema": "public",
+      "values": [
+        "plan",
+        "schedule",
+        "review",
+        "memory",
+        "content",
+        "query",
+        "orchestrator"
+      ]
+    },
+    "public.enum_agent_action_receipts_operation": {
+      "name": "enum_agent_action_receipts_operation",
+      "schema": "public",
+      "values": [
+        "execute",
+        "rollback"
+      ]
+    },
+    "public.enum_agent_action_receipts_status": {
+      "name": "enum_agent_action_receipts_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "succeeded",
+        "failed",
+        "indeterminate"
+      ]
+    },
+    "public.enum_agent_thread_events_event_type": {
+      "name": "enum_agent_thread_events_event_type",
+      "schema": "public",
+      "values": [
+        "legacy_bootstrap",
+        "user_received",
+        "assistant_completed",
+        "turn_failed",
+        "projection_failed"
+      ]
+    },
+    "public.enum_agent_memories_type": {
+      "name": "enum_agent_memories_type",
+      "schema": "public",
+      "values": [
+        "preference",
+        "project_context",
+        "writing_style",
+        "workflow_rule",
+        "fact"
+      ]
+    },
+    "public.enum_agent_memories_status": {
+      "name": "enum_agent_memories_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "archived"
+      ]
+    },
+    "public.enum_agent_memories_visibility": {
+      "name": "enum_agent_memories_visibility",
+      "schema": "public",
+      "values": [
+        "private"
+      ]
+    },
+    "public.enum_agent_suggestions_source": {
+      "name": "enum_agent_suggestions_source",
+      "schema": "public",
+      "values": [
+        "dashboard",
+        "plan",
+        "content",
+        "content-lifecycle",
+        "timeline",
+        "agent-run",
+        "review"
+      ]
+    },
+    "public.enum_agent_suggestions_risk_level": {
+      "name": "enum_agent_suggestions_risk_level",
+      "schema": "public",
+      "values": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "public.enum_agent_suggestions_status": {
+      "name": "enum_agent_suggestions_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "accepted",
+        "dismissed",
+        "done"
+      ]
+    },
+    "public.enum_agent_suggestions_created_by": {
+      "name": "enum_agent_suggestions_created_by",
+      "schema": "public",
+      "values": [
+        "agent",
+        "manual"
+      ]
+    },
+    "public.enum_pages_status": {
+      "name": "enum_pages_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "published",
+        "archived"
+      ]
+    },
+    "public.enum_pages_visibility": {
+      "name": "enum_pages_visibility",
+      "schema": "public",
+      "values": [
+        "public",
+        "private"
+      ]
+    },
+    "public.enum_writing_categories_icon": {
+      "name": "enum_writing_categories_icon",
+      "schema": "public",
+      "values": [
+        "post",
+        "note",
+        "sparkle",
+        "document",
+        "pencil",
+        "layers",
+        "archive"
+      ]
+    },
+    "public.enum_writing_categories_tint": {
+      "name": "enum_writing_categories_tint",
+      "schema": "public",
+      "values": [
+        "accent",
+        "info",
+        "warning",
+        "success",
+        "muted"
+      ]
+    },
+    "public.enum_agent_settings_provider": {
+      "name": "enum_agent_settings_provider",
+      "schema": "public",
+      "values": [
+        "openai-compatible",
+        "openai",
+        "zai"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "id": "2d4fe4ab-69f7-4e0a-8622-e5aaa7517277",
+  "prevId": "00000000-0000-0000-0000-000000000000"
+}

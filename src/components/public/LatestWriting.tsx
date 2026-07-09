@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import type { Note, Post, Update } from "@/payload-types";
+import type { Note, Post } from "@/payload-types";
 
 import { EmptyState, SectionHeader, StatusBadge, SurfaceCard } from "@/components/ui/SunnyComponents";
 import { formatShortDate } from "@/lib/formatters";
@@ -11,7 +11,6 @@ type LatestWritingProps = {
   locale: SiteLocale;
   notes: Note[];
   posts: Post[];
-  updates: Update[];
 };
 
 type WritingItem = {
@@ -22,34 +21,32 @@ type WritingItem = {
   label: string;
   sortDate: string;
   title: string;
-  tone: "accent" | "info" | "success";
+  tone: "accent" | "info";
 };
 
 const latestWritingCopy = {
   en: {
     action: "Open Writing",
     description:
-      "Posts carry the long-form thinking; notes and updates keep the smaller signals visible between essays.",
-    emptyBody: "Publish a Post, Note, or Update and this section will become the homepage writing stream.",
+      "Posts carry the long-form thinking; notes keep the smaller signals visible between essays.",
+    emptyBody: "Publish a Post or Note and this section will become the homepage writing stream.",
     emptyTitle: "No writing yet",
     kicker: "Latest Writing",
     noteLabel: "Note",
     noteTitle: "Note",
     postLabel: "Post",
     title: "Recent Signals",
-    updateLabel: "Update",
   },
   zh: {
     action: "打开写作",
-    description: "文章承载长思考，短札和动态把两篇文章之间的小信号也留在首页。",
-    emptyBody: "发布 Post、Note 或 Update 后，这里会自动形成首页的最新写作流。",
+    description: "文章承载长思考，短札把两篇文章之间的小信号也留在首页。",
+    emptyBody: "发布 Post 或 Note 后，这里会自动形成首页的最新写作流。",
     emptyTitle: "还没有写作内容",
     kicker: "Latest Writing",
     noteLabel: "Note",
     noteTitle: "短札",
     postLabel: "Post",
     title: "最近信号",
-    updateLabel: "Update",
   },
 } as const;
 
@@ -67,7 +64,6 @@ const getWritingItems = ({
   locale,
   notes,
   posts,
-  updates,
 }: LatestWritingProps): WritingItem[] => {
   const copy = latestWritingCopy[locale];
   const postItems: WritingItem[] = posts.map((post) => ({
@@ -92,18 +88,7 @@ const getWritingItems = ({
     tone: "info",
   }));
 
-  const updateItems: WritingItem[] = updates.map((update) => ({
-    date: formatShortDate(update.createdAt, locale),
-    description: excerpt(getContentTextFallback(update)),
-    href: "/updates",
-    id: `update-${update.id}`,
-    label: update.type,
-    sortDate: update.createdAt,
-    title: copy.updateLabel,
-    tone: "success",
-  }));
-
-  return [...postItems, ...noteItems, ...updateItems]
+  return [...postItems, ...noteItems]
     .sort((first, second) => new Date(second.sortDate).getTime() - new Date(first.sortDate).getTime())
     .slice(0, 6);
 };

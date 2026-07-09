@@ -76,7 +76,7 @@ type WorkspaceContentSummary = {
   href: string;
   id: number;
   kind: "checklists" | "notes" | "pages" | "posts" | "timeline-events" | "updates";
-  status: "draft" | "published";
+  status: "draft" | "published" | "archived";
   visibility: "private" | "public";
   title: string;
   updatedAt: string;

@@ -247,9 +247,9 @@ export function TimelineView({
             title="本月暂无时间线事件"
             description={
               <>
-                当你完成清单、推进计划、结束日程或记录重要事件时，
+                完成清单、推进计划、结束日程或记录事件时，
                 <br />
-                SunnyPanel 会自动沉淀为你的成长时间线。
+                对应节点会自动进入时间线。
               </>
             }
             action={

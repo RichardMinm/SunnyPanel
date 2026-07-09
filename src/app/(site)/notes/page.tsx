@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/notes",
   },
-  description: "SunnyPanel 的短札流，收纳轻量想法、片段观察和公开记忆信号。",
+  description: "Published notes.",
   openGraph: {
-    description: "短札流：轻量想法、片段观察和公开记忆信号。",
+    description: "Published notes.",
     title: "Notes | SunnyPanel",
     type: "website",
     url: "/notes",

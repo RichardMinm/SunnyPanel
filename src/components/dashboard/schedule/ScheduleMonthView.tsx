@@ -21,6 +21,10 @@ type ScheduleItemSummary = {
   category?: null | string;
   planId: null | number;
   description: null | string;
+  relatedPlan?: { id: number; title: string } | null;
+  relatedChecklist?: { id: number; title: string } | null;
+  relatedChecklistItemKey?: string | null;
+  conflictNote?: string | null;
 };
 
 type ScheduleMonthViewProps = {
@@ -428,6 +432,30 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
                             <div className="sunny-schedule-timeline-expand">
                               <p className="sunny-schedule-timeline-expand-time">{formatTimeRange(item)}</p>
                               {item.description && <p>{item.description}</p>}
+                              {item.relatedPlan && (
+                                <span className="sunny-schedule-timeline-link">
+                                  <DashboardIcon name="layers" />
+                                  所属计划：{item.relatedPlan.title}
+                                </span>
+                              )}
+                              {item.relatedChecklist && (
+                                <span className="sunny-schedule-timeline-link">
+                                  <DashboardIcon name="layers" />
+                                  关联清单：{item.relatedChecklist.title}
+                                </span>
+                              )}
+                              {item.relatedChecklistItemKey && (
+                                <span className="sunny-schedule-timeline-link">
+                                  <DashboardIcon name="layers" />
+                                  清单项：{item.relatedChecklistItemKey}
+                                </span>
+                              )}
+                              {item.conflictNote && (
+                                <span className="sunny-schedule-timeline-link">
+                                  <DashboardIcon name="layers" />
+                                  冲突备注：{item.conflictNote}
+                                </span>
+                              )}
                               {item.sourceType && (
                                 <span className="sunny-schedule-timeline-source">
                                   <DashboardIcon name="layers" />

@@ -131,7 +131,7 @@ export const Plan: CollectionConfig = {
         position: "sidebar",
       },
       hasMany: true,
-      relationTo: ["posts", "notes", "updates", "checklists", "timeline-events", "pages"],
+      relationTo: ["posts", "notes", "updates", "checklists", "timeline-events", "pages", "schedule-items"],
     },
     {
       name: "lastAgentRun",

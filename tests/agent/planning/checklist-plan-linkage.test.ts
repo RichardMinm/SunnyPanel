@@ -120,6 +120,14 @@ test("create checklist without sourcePlanId does not update plans", async () => 
     }),
     false,
   );
+
+  /* planId should be null when no sourcePlanId is given */
+  const checklistCreate = getPayloadStubOperations().find((operation) => {
+    const args = operation.args as { collection?: string };
+    return operation.type === "create" && args.collection === "checklists";
+  });
+  const createData = (checklistCreate?.args as { data?: Record<string, unknown> })?.data;
+  assert.equal(createData?.planId, null, "checklist planId should be null without sourcePlanId");
 });
 
 test("create checklist with sourcePlanId updates Plan linkedContent", async () => {
@@ -168,6 +176,14 @@ test("create checklist with sourcePlanId updates Plan linkedContent", async () =
     checklistId: 502,
     planId: 88,
   }));
+
+  /* checklist planId field should be set when sourcePlanId is provided */
+  const checklistCreate = getPayloadStubOperations().find((operation) => {
+    const args = operation.args as { collection?: string };
+    return operation.type === "create" && args.collection === "checklists";
+  });
+  const createData = (checklistCreate?.args as { data?: Record<string, unknown> })?.data;
+  assert.equal(createData?.planId, 88, "checklist planId should match sourcePlanId");
 
   const planUpdate = getPayloadStubOperations().find((operation) => {
     const args = operation.args as { collection?: string };

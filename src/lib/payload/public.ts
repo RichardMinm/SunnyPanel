@@ -3,18 +3,17 @@ import type { Where } from "payload";
 import type { Config } from "@/payload-types";
 import { publicContentConstraint } from "@/lib/payload/access";
 import { getPayloadClient } from "@/lib/payload/client";
+import { normalizeTag, slugify } from "@/lib/taxonomy-helpers";
 
 type QueryOptions = {
   limit?: number;
 };
 
 type PublicCollectionSlug =
-  | "checklists"
   | "notes"
   | "pages"
   | "posts"
-  | "timeline-events"
-  | "updates";
+  | "timeline-events";
 
 type PublicCollectionDocument<TCollection extends PublicCollectionSlug> =
   Config["collections"][TCollection];
@@ -125,23 +124,6 @@ export const getPublicNotes = async ({ limit = 30 }: QueryOptions = {}) => {
   });
 };
 
-export const getPublicUpdates = async ({ limit = 30 }: QueryOptions = {}) => {
-  return findPublicCollection({
-    collection: "updates",
-    limit,
-    sort: "-createdAt",
-  });
-};
-
-export const getPublicChecklists = async ({ limit = 20 }: QueryOptions = {}) => {
-  return findPublicCollection({
-    collection: "checklists",
-    depth: 0,
-    limit,
-    sort: "-updatedAt",
-  });
-};
-
 type TimelineQueryOptions = QueryOptions & {
   featuredOnly?: boolean;
 };
@@ -163,3 +145,69 @@ export const getPublicTimelineEvents = async ({
       : undefined,
   });
 };
+
+/* ── Tag / Category public queries ── */
+
+export const getPublicPostsByTag = async (tag: string) => {
+  const decoded = decodeURIComponent(tag);
+  const normalized = normalizeTag(decoded);
+
+  /* Fetch a generous batch of public posts, then filter with normalized
+   * exact match in-process so that e.g. /tags/ai does NOT match "daily" */
+  const { docs: allPosts } = await findPublicCollection({
+    collection: "posts",
+    limit: 500,
+    sort: "-publishedAt",
+  });
+
+  const filtered = allPosts.filter((post) =>
+    (post.tags ?? []).some((t) => normalizeTag(t) === normalized),
+  );
+
+  return { docs: filtered.slice(0, 24) };
+};
+
+async function resolveWritingCategoryBySlug(
+  slug: string,
+): Promise<{ id: number; title: string } | null> {
+  const payload = await getPayloadClient();
+  const decoded = decodeURIComponent(slug);
+  const normalized = slugify(decoded);
+
+  const result = await payload.find({
+    collection: "writing-categories",
+    overrideAccess: true,
+    limit: 200,
+  });
+
+  const match = result.docs.find(
+    (cat) => slugify((cat as { title?: string }).title ?? "") === normalized,
+  );
+
+  if (!match) return null;
+  return {
+    id: match.id as number,
+    title: (match as { title?: string }).title ?? "",
+  };
+}
+
+export const getPublicPostsByWritingCategoryId = async (categoryId: number) => {
+  return findPublicCollection({
+    collection: "posts",
+    limit: 24,
+    sort: "-publishedAt",
+    where: {
+      writingCategory: {
+        equals: categoryId,
+      },
+    },
+  });
+};
+
+export const getPublicPostsByCategorySlug = async (slug: string) => {
+  const resolved = await resolveWritingCategoryBySlug(slug);
+  if (resolved === null) return null;
+  return getPublicPostsByWritingCategoryId(resolved.id);
+};
+
+export { resolveWritingCategoryBySlug };

@@ -195,6 +195,270 @@ test("Agent ops snapshot limits returned rows", async () => {
   assert.ok(payload.calls.every((call) => call.limit === 1));
 });
 
+/* ── M6-B1: Receipt collection / documentId / title extraction ── */
+
+type OpsFindResult = { docs: Array<Record<string, unknown>>; totalDocs?: number };
+
+const RICH_RECEIPTS: Record<string, unknown>[] = [
+  {
+    id: 201,
+    actionId: "action-create-checklist",
+    createdAt: "2026-07-04T08:02:00.000Z",
+    error: null,
+    intent: "create_checklist",
+    operation: "execute",
+    response: {
+      affectedDocuments: [
+        { collection: "checklists", documentId: 123, operation: "create", title: "秋招准备清单" },
+      ],
+    },
+    status: "succeeded",
+    thread: 401,
+  },
+  {
+    id: 202,
+    actionId: "action-create-plan",
+    createdAt: "2026-07-04T08:05:00.000Z",
+    operation: "execute",
+    response: {
+      affectedDocuments: [
+        { collection: "plans", documentId: 55, operation: "create", title: "Q3 上线计划" },
+      ],
+    },
+    status: "succeeded",
+    thread: 402,
+  },
+  {
+    id: 203,
+    actionId: "action-no-affected",
+    createdAt: "2026-07-04T08:10:00.000Z",
+    operation: "execute",
+    response: { rawMessage: "no affected documents here" },
+    status: "succeeded",
+    thread: 403,
+  },
+];
+
+const RICH_THREADS: Record<string, unknown>[] = [
+  {
+    id: 401,
+    createdAt: "2026-07-04T08:04:00.000Z",
+    lastInteractionAt: "2026-07-04T08:06:00.000Z",
+    pendingAction: {
+      action: {
+        changes: [{ collection: "checklists", operation: "create", preview: "创建清单「秋招准备」" }],
+        id: "pending-checklist",
+        intent: "create_checklist",
+        riskLevel: "medium",
+        summary: "创建秋招准备清单",
+      },
+      type: "await_confirmation",
+    },
+    title: "Thread with pending checklist",
+  },
+  {
+    id: 402,
+    createdAt: "2026-07-04T08:08:00.000Z",
+    pendingAction: {
+      action: {
+        changes: [{ collection: "schedule-items", operation: "create", preview: "创建 3 条日程" }],
+        id: "pending-schedule",
+        intent: "create_schedule_items",
+        riskLevel: "medium",
+        summary: "创建日程安排",
+      },
+      type: "await_confirmation",
+    },
+    title: "Thread with pending schedule",
+  },
+  {
+    id: 403,
+    createdAt: "2026-07-04T08:12:00.000Z",
+    pendingAction: null,
+    title: "Thread without pending",
+  },
+];
+
+function createRichPayload() {
+  let writeCount = 0;
+  const calls: FindArgs[] = [];
+
+  return {
+    calls,
+    get writeCount() { return writeCount; },
+    create: () => { writeCount += 1; throw new Error("ops snapshot must not create records"); },
+    delete: () => { writeCount += 1; throw new Error("ops snapshot must not delete records"); },
+    update: () => { writeCount += 1; throw new Error("ops snapshot must not update records"); },
+    find: async (args: FindArgs) => {
+      calls.push(args);
+      if (args.collection === "agent-action-receipts") {
+        return { docs: RICH_RECEIPTS, totalDocs: 3 };
+      }
+      if (args.collection === "agent-threads") {
+        return { docs: RICH_THREADS, totalDocs: 3 };
+      }
+      return { docs: [], totalDocs: 0 };
+    },
+  };
+}
+
+test("Receipt mapper extracts collection documentId and title from affectedDocuments", async () => {
+  const payload = createRichPayload();
+  const snapshot = await buildAgentOpsSnapshot({ limit: 20, payload, userId: 7 });
+
+  const receipt1 = snapshot.recentReceipts.find((r) => r.actionId === "action-create-checklist");
+  assert.ok(receipt1, "receipt with affectedDocuments should exist");
+  assert.equal(receipt1.collection, "checklists");
+  assert.equal(receipt1.documentId, 123);
+  assert.equal(receipt1.title, "秋招准备清单");
+
+  const receipt2 = snapshot.recentReceipts.find((r) => r.actionId === "action-create-plan");
+  assert.ok(receipt2, "receipt with plan should exist");
+  assert.equal(receipt2.collection, "plans");
+  assert.equal(receipt2.documentId, 55);
+  assert.equal(receipt2.title, "Q3 上线计划");
+});
+
+test("Receipt mapper returns null for collection documentId title when affectedDocuments absent", async () => {
+  const payload = createRichPayload();
+  const snapshot = await buildAgentOpsSnapshot({ limit: 20, payload, userId: 7 });
+
+  const noAffected = snapshot.recentReceipts.find((r) => r.actionId === "action-no-affected");
+  assert.ok(noAffected, "receipt without affectedDocuments should exist");
+  assert.equal(noAffected.collection, null);
+  assert.equal(noAffected.documentId, null);
+  assert.equal(noAffected.title, null);
+});
+
+test("Pending mapper extracts collection and preview from changes[0]", async () => {
+  const payload = createRichPayload();
+  const snapshot = await buildAgentOpsSnapshot({ limit: 20, payload, userId: 7 });
+
+  const pending1 = snapshot.pendingActions.find((p) => p.actionId === "pending-checklist");
+  assert.ok(pending1, "pending action with checklist should exist");
+  assert.equal(pending1.collection, "checklists");
+  assert.equal(pending1.preview, "创建清单「秋招准备」");
+
+  const pending2 = snapshot.pendingActions.find((p) => p.actionId === "pending-schedule");
+  assert.ok(pending2, "pending action with schedule should exist");
+  assert.equal(pending2.collection, "schedule-items");
+  assert.equal(pending2.preview, "创建 3 条日程");
+});
+
+test("Receipt title is truncated to 80 characters", async () => {
+  const payload = createFakePayload();
+  const longTitle = "A".repeat(120);
+  // @ts-expect-error — test override narrows the discriminated union return; safe in test context
+  payload.find = async (args: FindArgs) => {
+    if (args.collection === "agent-action-receipts") {
+      return {
+        docs: [{
+          id: 301,
+          actionId: "action-long-title",
+          createdAt: "2026-07-04T08:00:00.000Z",
+          operation: "execute",
+          response: {
+            affectedDocuments: [{
+              collection: "checklists",
+              documentId: 1,
+              operation: "create",
+              title: longTitle,
+            }],
+          },
+          status: "succeeded",
+          thread: 501,
+        }],
+        totalDocs: 1,
+      };
+    }
+    if (args.collection === "agent-threads") {
+      return { docs: [], totalDocs: 0 };
+    }
+    return (createFakePayload() as unknown as { find: (args: FindArgs) => ReturnType<AgentOpsPayloadClient["find"]> }).find(args);
+  };
+
+  const snapshot = await buildAgentOpsSnapshot({ limit: 20, payload, userId: 7 });
+  const receipt = snapshot.recentReceipts[0];
+  assert.ok(receipt);
+  assert.ok(receipt.title!.length <= 80, `title should be truncated, got ${receipt.title!.length} chars`);
+});
+
+/* ── M6-B1: No raw payload leakage for new fields ── */
+
+test("Receipt and pending mappers do not expose raw payload or secrets in new fields", async () => {
+  const payload = createFakePayload();
+  // @ts-expect-error — test override narrows the discriminated union return; safe in test context
+  payload.find = async (args: FindArgs) => {
+    if (args.collection === "agent-action-receipts") {
+      return {
+        docs: [{
+          id: 401,
+          actionId: "action-secret",
+          createdAt: "2026-07-04T08:00:00.000Z",
+          operation: "execute",
+          response: {
+            affectedDocuments: [{
+              collection: "checklists",
+              documentId: 1,
+              operation: "create",
+              title: "ok",
+              adminHref: "/admin/secret",
+              publicHref: "/public/secret",
+            }],
+            apiKey: "sk-live-secret",
+            authorization: "Bearer abc",
+            rollbackPayload: { internal: true },
+            rawPrompt: "do not show",
+          },
+          rollbackPayload: { internal: "should not appear" },
+          status: "succeeded",
+          thread: 601,
+        }],
+        totalDocs: 1,
+      };
+    }
+    if (args.collection === "agent-threads") {
+      return {
+        docs: [{
+          id: 601,
+          createdAt: "2026-07-04T08:04:00.000Z",
+          lastInteractionAt: "2026-07-04T08:06:00.000Z",
+          pendingAction: {
+            action: {
+              changes: [{
+                collection: "checklists",
+                operation: "create",
+                preview: "ok preview",
+              }],
+              id: "pending-ok",
+              intent: "create_checklist",
+              args: { apiKey: "secret-key", token: "secret-token" },
+            },
+            type: "await_confirmation",
+          },
+        }],
+        totalDocs: 1,
+      };
+    }
+    return { docs: [], totalDocs: 0 };
+  };
+
+  const snapshot = await buildAgentOpsSnapshot({ limit: 20, payload, userId: 7 });
+  const serialized = JSON.stringify(snapshot);
+
+  assert.doesNotMatch(serialized, /sk-live-secret/);
+  assert.doesNotMatch(serialized, /secret-key/);
+  assert.doesNotMatch(serialized, /secret-token/);
+  assert.doesNotMatch(serialized, /Bearer abc/);
+  assert.doesNotMatch(serialized, /rollbackPayload/);
+  assert.doesNotMatch(serialized, /rawPrompt/);
+  assert.doesNotMatch(serialized, /adminHref/);
+  assert.doesNotMatch(serialized, /publicHref/);
+  assert.doesNotMatch(serialized, /apiKey/);
+  assert.doesNotMatch(serialized, /authorization/);
+  assert.doesNotMatch(serialized, /internal/);
+});
+
 test("Agent ops route is an authenticated read-only GET endpoint", () => {
   const source = read("src/app/api/agent/ops/route.ts");
 

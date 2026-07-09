@@ -159,59 +159,89 @@ export function AgentTracePanel({
   }
 
   return (
-    <div className="sunny-agent-inspector-panel">
-      {hasArtifacts ? (
-        <AgentArtifactsPanel
-          action={action}
-          artifactsRollbackBusy={artifactsRollbackBusy}
-          artifactsRollbackError={artifactsRollbackError}
-          latestAssistantMessage={latestAssistantMessage}
-          lastRollbackPayload={lastRollbackPayload}
-          onRollback={onArtifactsRollback}
-        />
-      ) : null}
-      {selectedRunDetail ? (
-        <AgentRunDetailCard
-          debugMode={debugMode}
-          onRollback={onRollbackSelectedRun}
-          onRunPrompt={onPlanOperatingPrompt}
-          rollbackBusy={selectedRunRollbackBusy}
-          rollbackError={selectedRunRollbackError}
-          run={selectedRunDetail}
-        />
-      ) : null}
-      {lastRollbackResult ? <RollbackResultCard result={lastRollbackResult} /> : null}
+    <div className="sunny-agent-inspector-panel sunny-trace-panel-sections">
+      {/* ── Activity Section ── */}
       {hasActivitySteps ? (
         <AppSection
-          className="sunny-agent-activity-trace-section"
-          description="结构化执行状态，不展示模型内部推理链。details 已做敏感字段脱敏。"
-          title="Activity Trace"
+          className="sunny-trace-section"
+          description="结构化执行状态，不展示模型内部推理链。"
+          title="Activity"
         >
           <div className="sunny-agent-activity-trace-list">
             {activitySteps.map((step) => (
               <AgentActivityStepItem key={step.id} showDetails step={step} />
             ))}
           </div>
+          <p className="sunny-trace-section-hint">details 已做敏感字段脱敏，仅显示摘要。</p>
         </AppSection>
       ) : null}
+
+      {/* ── Receipt Section ── */}
+      {hasArtifacts || selectedRunDetail ? (
+        <AppSection
+          className="sunny-trace-section"
+          description="操作凭证和执行记录摘要，不包含完整文档 payload。"
+          title="Receipt"
+        >
+          {hasArtifacts ? (
+            <AgentArtifactsPanel
+              action={action}
+              artifactsRollbackBusy={artifactsRollbackBusy}
+              artifactsRollbackError={artifactsRollbackError}
+              latestAssistantMessage={latestAssistantMessage}
+              lastRollbackPayload={lastRollbackPayload}
+              onRollback={onArtifactsRollback}
+            />
+          ) : null}
+          {selectedRunDetail ? (
+            <AgentRunDetailCard
+              debugMode={debugMode}
+              onRollback={onRollbackSelectedRun}
+              onRunPrompt={onPlanOperatingPrompt}
+              rollbackBusy={selectedRunRollbackBusy}
+              rollbackError={selectedRunRollbackError}
+              run={selectedRunDetail}
+            />
+          ) : null}
+        </AppSection>
+      ) : null}
+
+      {/* ── Rollback Section ── */}
+      {lastRollbackResult ? (
+        <AppSection
+          className="sunny-trace-section"
+          description="回滚状态摘要，不展示完整 rollback payload 原始数据。"
+          title="Rollback"
+        >
+          <RollbackResultCard result={lastRollbackResult} />
+        </AppSection>
+      ) : null}
+
+      {/* ── Trace Log Section (developer-only) ── */}
       {traceSteps.length > 0 ? (
-        <div className="sunny-agent-trace-panel-list">
-          {traceSteps.map((step) => (
-            <div key={step.id} className={`sunny-agent-run-step-v2 sunny-agent-run-step-v2-${step.status}`}>
-              <span className="sunny-agent-run-step-marker" aria-hidden="true" />
-              <div className="sunny-agent-run-step-content">
-                {showDebugTrace ? (
-                  <div className="sunny-agent-debug-only">
-                    <span className={`sunny-agent-kind-pill sunny-agent-kind-${step.kind}`}>{traceKindLabelMap[step.kind]}</span>
-                    <small>{traceStatusLabelMap[step.status]}</small>
-                  </div>
-                ) : null}
-                <h3>{step.title}</h3>
-                {showDebugTrace && step.detail ? <p className="sunny-agent-debug-only">{step.detail}</p> : null}
+        <AppSection
+          className="sunny-trace-section"
+          description="已脱敏调试信息。仅展示 phase、status、toolName、latency 和错误摘要，不包含原始 prompt 或 LLM 响应。"
+          title="Trace Log"
+        >
+          <div className="sunny-agent-trace-panel-list">
+            {traceSteps.map((step) => (
+              <div key={step.id} className={`sunny-agent-run-step-v2 sunny-agent-run-step-v2-${step.status}`}>
+                <span className="sunny-agent-run-step-marker" aria-hidden="true" />
+                <div className="sunny-agent-run-step-content">
+                  {showDebugTrace ? (
+                    <div className="sunny-agent-debug-only">
+                      <span className={`sunny-agent-kind-pill sunny-agent-kind-${step.kind}`}>{traceKindLabelMap[step.kind]}</span>
+                      <small>{traceStatusLabelMap[step.status]}</small>
+                    </div>
+                  ) : null}
+                  <h3>{step.title}</h3>
+                  {showDebugTrace && step.detail ? <p className="sunny-agent-debug-only">{step.detail}</p> : null}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </AppSection>
       ) : null}
     </div>
   );

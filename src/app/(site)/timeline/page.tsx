@@ -10,9 +10,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/timeline",
   },
-  description: "SunnyPanel 的公开时间线，把写作、动态、项目和长期进展串成可回看的叙事。",
+  description: "Milestones, progress, and memory — a timeline of public events.",
   openGraph: {
-    description: "公开时间线：写作、动态、项目和长期进展的长期叙事骨架。",
+    description: "Milestones, progress, and memory.",
     title: "Timeline | SunnyPanel",
     type: "website",
     url: "/timeline",

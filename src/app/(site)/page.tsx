@@ -10,11 +10,9 @@ import { stripMarkdownForExcerpt } from "@/lib/markdown/plain-text";
 import { getContentMarkdownFallback } from "@/lib/rich-content/compat";
 import { getSiteLocale } from "@/lib/site-locale";
 import {
-  getPublicChecklists,
   getPublicNotes,
   getPublicPostsWithOptions,
   getPublicTimelineEvents,
-  getPublicUpdates,
 } from "@/lib/payload/public";
 
 export const revalidate = 60;
@@ -38,9 +36,9 @@ export const generateMetadata = async (): Promise<Metadata> => ({
   alternates: {
     canonical: "/",
   },
-  description: "SunnyPanel 是一个 AI 原生的个人长期工作台，用来公开呈现写作、时间线、清单和阶段进展。",
+  description: "公开写作、笔记与时间线。",
   openGraph: {
-    description: "AI 原生的个人长期工作台：写作、时间线、清单和阶段进展。",
+    description: "公开写作、笔记与时间线。",
     title: "SunnyPanel",
     type: "website",
     url: "/",
@@ -50,20 +48,18 @@ export const generateMetadata = async (): Promise<Metadata> => ({
 
 export default async function Home() {
   const locale = await getSiteLocale();
-  const [checklists, posts, notes, updates, featuredTimeline] = await Promise.all([
-    getPublicChecklists({ limit: 4 }),
+  const [posts, notes, featuredTimeline] = await Promise.all([
     getPublicPostsWithOptions({ limit: 4 }),
     getPublicNotes({ limit: 4 }),
-    getPublicUpdates({ limit: 4 }),
     getPublicTimelineEvents({ featuredOnly: true, limit: 3 }),
   ]);
   const latestSignals: DatedHomeHeroSignal[] = [
     ...posts.docs.map((post) => ({
       signal: {
         date: formatShortDate(post.publishedAt ?? post.createdAt, locale),
-        description: excerpt(post.summary, locale === "en" ? "New long-form writing is ready to read." : "新的长篇写作已经整理出来。"),
+        description: excerpt(post.summary, locale === "en" ? "Recent post." : "最近文章。"),
         href: `/blog/${post.slug}`,
-        label: locale === "en" ? "Writing" : "写作",
+        label: locale === "en" ? "Post" : "文章",
         title: post.title,
       } satisfies HomeHeroSignal,
       sortDate: post.publishedAt ?? post.createdAt,
@@ -73,31 +69,18 @@ export default async function Home() {
         date: formatShortDate(note.createdAt, locale),
         description: excerpt(
           stripMarkdownForExcerpt(getContentMarkdownFallback(note)),
-          locale === "en" ? "A small note was added to the public memory stream." : "新的短札已经进入公开记忆流。",
+          locale === "en" ? "Recent note." : "最近笔记。",
         ),
         href: "/notes",
-        label: locale === "en" ? "Note" : "短札",
-        title: note.category || note.mood || (locale === "en" ? "Recent Note" : "最近短札"),
+        label: locale === "en" ? "Note" : "笔记",
+        title: note.category || note.mood || (locale === "en" ? "Recent Note" : "最近笔记"),
       } satisfies HomeHeroSignal,
       sortDate: note.createdAt,
-    })),
-    ...updates.docs.map((update) => ({
-      signal: {
-        date: formatShortDate(update.createdAt, locale),
-        description: excerpt(
-          stripMarkdownForExcerpt(getContentMarkdownFallback(update)),
-          locale === "en" ? "A new public update was recorded." : "新的公开动态已经记录。",
-        ),
-        href: "/updates",
-        label: update.type,
-        title: locale === "en" ? "Latest Update" : "最近动态",
-      } satisfies HomeHeroSignal,
-      sortDate: update.createdAt,
     })),
     ...featuredTimeline.docs.map((event) => ({
       signal: {
         date: formatShortDate(event.eventDate, locale),
-        description: excerpt(event.description, locale === "en" ? "A featured milestone anchors the current memory layer." : "一个精选节点正在作为当前记忆锚点。"),
+        description: excerpt(event.description, locale === "en" ? "Featured milestone." : "精选节点。"),
         href: "/timeline?featured=1",
         label: locale === "en" ? "Timeline" : "时间线",
         title: event.title,
@@ -109,32 +92,15 @@ export default async function Home() {
     signal: {
       description:
         locale === "en"
-          ? "The public surface is ready for the next piece of writing, memory, or plan."
-          : "公开表层已经准备好承接下一条写作、记忆或计划线索。",
+          ? "Publish writing or a timeline event to see it appear here."
+          : "发布文章或时间线节点后，这里会自动更新。",
       href: "/now",
       label: locale === "en" ? "Now" : "Now",
-      title: locale === "en" ? "Keep the personal system alive" : "让个人系统继续生长",
+      title: locale === "en" ? "What I'm doing now" : "当前在做的事",
     },
     sortDate: new Date().toISOString(),
   };
-  const focusSignal: DatedHomeHeroSignal =
-    checklists.docs[0]
-      ? {
-          signal: {
-            date: formatShortDate(checklists.docs[0].updatedAt, locale),
-            description: excerpt(
-              checklists.docs[0].summary,
-              locale === "en"
-                ? "A public checklist is currently carrying the clearest thread of ongoing work."
-                : "这份公开清单正在承接眼前最清晰的一条长期线索。",
-            ),
-            href: "/checklists",
-            label: locale === "en" ? "Checklist" : "清单",
-            title: checklists.docs[0].title,
-          },
-          sortDate: checklists.docs[0].updatedAt,
-        }
-      : latestSignals[0] ?? fallbackSignal;
+  const focusSignal: DatedHomeHeroSignal = latestSignals[0] ?? fallbackSignal;
   const recentAction = latestSignals.find((item) => item.signal.href !== focusSignal.signal.href) ?? latestSignals[0] ?? fallbackSignal;
   const currentFocus: HomeHeroFocus = {
     focus: focusSignal.signal,
@@ -151,13 +117,10 @@ export default async function Home() {
           locale={locale}
           notes={notes.docs}
           posts={posts.docs}
-          updates={updates.docs}
         />
         <HomeModuleSwitcher
-          checklists={checklists.docs}
           featuredTimeline={featuredTimeline.docs}
           locale={locale}
-          updates={updates.docs}
         />
       </main>
     </PublicSiteFrame>

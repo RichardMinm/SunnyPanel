@@ -21,6 +21,7 @@ export type CreateScheduleItemsRollbackPayload = {
     collection: "schedule-items";
     documentIds: number[];
   };
+  planCleanup?: Array<{ planId: number; scheduleItemIds: number[] }>;
 };
 
 export type ScheduleItemCreateDataError = {
@@ -110,12 +111,14 @@ const buildAgentBrief = (
 
 export const buildCreateScheduleItemsRollbackPayload = (
   createdScheduleItemIds: number[],
+  planCleanup?: Array<{ planId: number; scheduleItemIds: number[] }>,
 ): CreateScheduleItemsRollbackPayload => ({
   strategy: "delete_created_documents",
   target: {
     collection: "schedule-items",
     documentIds: createdScheduleItemIds,
   },
+  ...(planCleanup && planCleanup.length > 0 ? { planCleanup } : {}),
 });
 
 export const calculateCreateScheduleItemsDateRange = (
@@ -354,7 +357,67 @@ export const createScheduleItemsFromIntent = async (
   }
 
   const createdScheduleItemIds = createdItems.map((item) => item.id);
-  const rollbackPayload = buildCreateScheduleItemsRollbackPayload(createdScheduleItemIds);
+
+  /* Update Plan.linkedContent for items with relatedPlan */
+  const linkedPlanIds = new Map<number, number[]>();
+  for (let i = 0; i < dataItems.length; i++) {
+    const rp = dataItems[i]?.relatedPlan;
+    if (typeof rp === "number" && Number.isFinite(rp) && rp > 0) {
+      const ids = linkedPlanIds.get(rp) ?? [];
+      ids.push(createdItems[i]!.id);
+      linkedPlanIds.set(rp, ids);
+    }
+  }
+
+  for (const [planId, scheduleItemIds] of linkedPlanIds) {
+    try {
+      const plan = await (payload as unknown as { findByID: (args: { collection: string; id: number; overrideAccess: boolean; depth: number }) => Promise<{ linkedContent?: unknown } | null> }).findByID({
+        collection: "plans",
+        id: planId,
+        overrideAccess: true,
+        depth: 0,
+      });
+      if (!plan) continue; /* plan not found — skip */
+      const beforeContent = (plan as { linkedContent?: unknown }).linkedContent ?? [];
+      const existingIds = new Set(
+        (Array.isArray(beforeContent) ? beforeContent : [])
+          .filter((l: unknown) => (l as { relationTo?: string }).relationTo === "schedule-items")
+          .map((l: unknown) => (l as { value?: number }).value),
+      );
+      const newLinks = scheduleItemIds
+        .filter((id) => !existingIds.has(id))
+        .map((id) => ({ relationTo: "schedule-items" as const, value: id }));
+
+      if (newLinks.length > 0) {
+        await (payload as unknown as { update: (args: { collection: string; data: Record<string, unknown>; id: number; overrideAccess: boolean; depth: number }) => Promise<unknown> }).update({
+          collection: "plans",
+          data: { linkedContent: [...(Array.isArray(beforeContent) ? beforeContent : []), ...newLinks] },
+          id: planId,
+          overrideAccess: true,
+          depth: 0,
+        });
+      }
+    } catch (error) {
+      return buildCompensatedFailure({
+        createdItems,
+        dateRange,
+        failedMessage: `创建日程后关联计划 #${planId} 失败：${errorMessageOf(error)}。`,
+        itemsCount: args.items.length,
+        payload,
+      });
+    }
+  }
+
+  /* Build rollback payload with plan linkedContent cleanup info */
+  const planCleanup = Array.from(linkedPlanIds.entries()).map(([planId, scheduleItemIds]) => ({
+    planId,
+    scheduleItemIds,
+  }));
+  const rollbackPayload = buildCreateScheduleItemsRollbackPayload(
+    createdScheduleItemIds,
+    planCleanup.length > 0 ? planCleanup : undefined,
+  );
+
   const sourceSummary = cleanOptional(args.sourceText) ?? `从日程草案「${normalizeText(args.title) || "未命名"}」创建正式日程。`;
 
   try {

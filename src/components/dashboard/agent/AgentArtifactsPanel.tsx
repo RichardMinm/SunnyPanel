@@ -32,7 +32,7 @@ export function AgentArtifactsPanel({
     return (
       <div className="sunny-agent-inspector-empty">
         <h3>暂无产物</h3>
-        <p>Agent 的总结、Timeline 提案和写入结果会在完成后沉淀到这里。</p>
+        <p>写入结果、Timeline 提案和执行摘要会显示在这里。</p>
       </div>
     );
   }

@@ -169,6 +169,7 @@ export type PlanOverviewData = {
   title: string;
   phaseCount?: number;
   estimatedDays?: number;
+  progress?: number;
 };
 
 export type ChecklistCompletionData = {
@@ -311,18 +312,58 @@ export function parseActionResultMessage(content: string): ActionResultData | nu
   return null;
 }
 
+/* ── Checklist API relatedPlan helpers ── */
+
+/**
+ * Resolve a checklist's planId field to a numeric plan ID.
+ *
+ * Payload may populate `planId` as:
+ * - `number` (depth=1, populated with just the id)
+ * - `{ id: number }` (depth=1 with partial population)
+ * - `null | undefined` (no plan linked)
+ */
+export function resolveChecklistPlanId(rawPlanId: unknown): number | null {
+  if (typeof rawPlanId === "number" && Number.isFinite(rawPlanId)) {
+    return rawPlanId;
+  }
+  if (rawPlanId && typeof rawPlanId === "object" && typeof (rawPlanId as { id?: number }).id === "number") {
+    return (rawPlanId as { id: number }).id;
+  }
+  return null;
+}
+
+/** Build a lookup map from plan documents: id → { id, title }. */
+export function buildPlansByIdMap(planDocs: Array<{ id: number; title?: string }>): Map<number, { id: number; title: string }> {
+  const map = new Map<number, { id: number; title: string }>();
+  for (const plan of planDocs) {
+    map.set(plan.id, { id: plan.id, title: plan.title ?? "" });
+  }
+  return map;
+}
+
+/** Resolve relatedPlan for one checklist from the plansById lookup map. */
+export function getChecklistRelatedPlan(
+  rawPlanId: unknown,
+  plansById: Map<number, { id: number; title: string }>,
+): { id: number; title: string } | null {
+  const planId = resolveChecklistPlanId(rawPlanId);
+  if (planId === null) return null;
+  return plansById.get(planId) ?? null;
+}
+
 export function parsePlanOverview(content: string): PlanOverviewData | null {
   const trimmed = content.trim();
 
-  // Pattern 1a: "已创建计划「...」" (Chinese)
-  const cnCreated = trimmed.match(/已创建计划「(.+?)」/u);
+  // Pattern 1a: "已创建计划「...」" / "已创建完整计划「...」" / "已帮你创建计划「...」" (Chinese)
+  const cnCreated = trimmed.match(/已(?:帮你)?创建(?:完整)?计划「([^」]+)」/u);
   // Pattern 1b: "Created plan "..." " (English)
   const enCreated = trimmed.match(/Created plan ["「](.+?)["」]/i);
   const createdMatch = cnCreated || enCreated;
   if (createdMatch) {
     const title = createdMatch[1];
     const phaseMatch = trimmed.match(/(\d+)\s*个?(阶段|Phase|phase|phases)/i);
-    const daysMatch = trimmed.match(/预计\s*(\d+)\s*天/);
+    const daysMatch = trimmed.match(/预计\s*(\d+)\s*天/)
+      ?? trimmed.match(/[（(]\d+\s*个?阶段[，,]\s*(\d+)\s*天[）)]/);
     return {
       title,
       phaseCount: phaseMatch ? Number(phaseMatch[1]) : undefined,
