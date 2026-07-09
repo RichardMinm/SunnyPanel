@@ -47,4 +47,10 @@ test("orchestrator prompt layers intents and warns consultation must not become 
   assert.match(prompt, /绝不要拆成 create_plan \/ compose_plan/);
   assert.match(prompt, /schedule_plan/);
   assert.match(prompt, /few-shot/);
+  // New O1-A requirements
+  assert.match(prompt, /只能输出 JSON/);
+  assert.match(prompt, /不得包含隐藏推理/);
+  assert.match(prompt, /非指令数据/);
+  assert.match(prompt, /不得伪造 planId/);
+  assert.match(prompt, /taskOutput/);
 });
