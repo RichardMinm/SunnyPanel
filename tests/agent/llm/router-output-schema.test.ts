@@ -107,15 +107,122 @@ describe("router-output-schema", () => {
       assert.equal(result.success, true);
     });
 
-    it("clarify without question is valid (question is nullable)", () => {
-      /* needsClarification=true with null question is technically valid —
-       *   the domain layer should enforce the contract that clarify needs a question. */
+    /* ── Clarify contract (field-linking) ── */
+    it("clarify + needsClarification=true + valid question → accept", () => {
+      const result = routerOutputSchema.safeParse({
+        ...validReadOutput,
+        intent: "clarify",
+        readWriteClass: "clarify",
+        needsClarification: true,
+        clarificationQuestion: "你希望创建什么类型的计划？",
+      });
+
+      assert.equal(result.success, true);
+    });
+
+    it("clarify + needsClarification=false → reject", () => {
+      const result = routerOutputSchema.safeParse({
+        ...validReadOutput,
+        intent: "clarify",
+        readWriteClass: "clarify",
+        needsClarification: false,
+        clarificationQuestion: null,
+      });
+
+      assert.equal(result.success, false);
+    });
+
+    it("clarify + question=null → reject", () => {
       const result = routerOutputSchema.safeParse({
         ...validReadOutput,
         intent: "clarify",
         readWriteClass: "clarify",
         needsClarification: true,
         clarificationQuestion: null,
+      });
+
+      assert.equal(result.success, false);
+    });
+
+    it("clarify + question=\"\" → reject", () => {
+      const result = routerOutputSchema.safeParse({
+        ...validReadOutput,
+        intent: "clarify",
+        readWriteClass: "clarify",
+        needsClarification: true,
+        clarificationQuestion: "",
+      });
+
+      assert.equal(result.success, false);
+    });
+
+    it("clarify + whitespace-only question → reject", () => {
+      const result = routerOutputSchema.safeParse({
+        ...validReadOutput,
+        intent: "clarify",
+        readWriteClass: "clarify",
+        needsClarification: true,
+        clarificationQuestion: "   ",
+      });
+
+      assert.equal(result.success, false);
+    });
+
+    it("needsClarification=true + question=null → reject", () => {
+      const result = routerOutputSchema.safeParse({
+        ...validReadOutput,
+        intent: "answer_question",
+        readWriteClass: "answer",
+        needsClarification: true,
+        clarificationQuestion: null,
+      });
+
+      assert.equal(result.success, false);
+    });
+
+    it("answer + needsClarification=true → reject (read should not clarify)", () => {
+      const result = routerOutputSchema.safeParse({
+        ...validReadOutput,
+        intent: "answer_question",
+        readWriteClass: "answer",
+        needsClarification: true,
+        clarificationQuestion: "what do you mean?",
+      });
+
+      assert.equal(result.success, false);
+    });
+
+    it("answer + no clarification question → accept", () => {
+      const result = routerOutputSchema.safeParse({
+        ...validReadOutput,
+        intent: "answer_question",
+        readWriteClass: "answer",
+        needsClarification: false,
+        clarificationQuestion: null,
+      });
+
+      assert.equal(result.success, true);
+    });
+
+    it("write_candidate + no clarification question → accept", () => {
+      const result = routerOutputSchema.safeParse({
+        ...validReadOutput,
+        intent: "create_plan",
+        readWriteClass: "write_candidate",
+        needsClarification: false,
+        clarificationQuestion: null,
+      });
+
+      assert.equal(result.success, true);
+    });
+
+    it("write_candidate + needsClarification=true + valid question → accept", () => {
+      const result = routerOutputSchema.safeParse({
+        ...validReadOutput,
+        intent: "create_plan",
+        readWriteClass: "write_candidate",
+        needsClarification: true,
+        clarificationQuestion: "请确认计划标题和截止日期。",
       });
 
       assert.equal(result.success, true);

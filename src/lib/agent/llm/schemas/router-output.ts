@@ -110,7 +110,7 @@ const riskFlagSchema = z.enum([
 
 export const ROUTER_OUTPUT_SCHEMA_VERSION = 1;
 
-export const routerOutputSchema = z.object({
+const routerOutputBaseSchema = z.object({
   /** Schema version for future migration. */
   version: z.literal(ROUTER_OUTPUT_SCHEMA_VERSION),
 
@@ -146,7 +146,77 @@ export const routerOutputSchema = z.object({
 
   /** Structured risk flags for downstream safety evaluation. */
   riskFlags: z.array(riskFlagSchema).default([]),
-}).strict();
+});
+
+/** Router output schema with field-linking validation.
+ *
+ *  Clarify contract:
+ *    readWriteClass === "clarify" → needsClarification=true AND
+ *      clarificationQuestion must be a non-empty string.
+ *    needsClarification === true → clarificationQuestion must be
+ *      a non-empty string (regardless of readWriteClass).
+ *
+ *  answer contract:
+ *    readWriteClass === "answer" → read-only path. No execute, receipt,
+ *      or rollback allowed. The schema (.strict()) rejects extra fields
+ *      that could carry execution instructions.
+ *
+ *  write_candidate contract:
+ *    readWriteClass === "write_candidate" → only a write candidate.
+ *      Still requires the deterministic read/write validator, Policy
+ *      Guard, and user confirmation before any execution. */
+export const routerOutputSchema = routerOutputBaseSchema
+  .strict()
+  .superRefine((val, ctx) => {
+    /* ---- clarify contract ---- */
+    if (val.readWriteClass === "clarify") {
+      if (val.needsClarification !== true) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "readWriteClass='clarify' requires needsClarification=true",
+          path: ["needsClarification"],
+        });
+      }
+    }
+
+    /* When needsClarification is true, a question MUST be provided. */
+    if (val.needsClarification === true) {
+      if (
+        typeof val.clarificationQuestion !== "string"
+        || val.clarificationQuestion.trim().length === 0
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "needsClarification=true requires a non-empty clarificationQuestion",
+          path: ["clarificationQuestion"],
+        });
+      }
+    }
+
+    /* ---- answer contract ---- */
+    if (val.readWriteClass === "answer") {
+      /* answer is read-only. The .strict() on the object already rejects
+       *   extra fields like `executeImmediately`. This refinement provides
+       *   a clear error message if clarification is incorrectly set. */
+      if (val.needsClarification === true) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "readWriteClass='answer' must not require clarification " +
+            "(reads should be answered directly)",
+          path: ["needsClarification"],
+        });
+      }
+    }
+
+    /* ---- write_candidate contract ---- */
+    /* write_candidate only marks the intent as a write candidate.
+     *   The deterministic read/write validator, Policy Guard, and user
+     *   confirmation are enforced by the domain layer — NOT by this schema.
+     *   Nothing to reject at schema level for write_candidate alone. */
+  });
 
 export type RouterOutput = z.infer<typeof routerOutputSchema>;
 
