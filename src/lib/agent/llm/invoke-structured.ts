@@ -7,6 +7,25 @@
  * service NEVER uses JSON substring extraction (no `extractJSONObject`,
  * no `{`/`}` scanning). The entire model response must be valid JSON that
  * parses against the supplied Zod schema.
+ *
+ * ## Retry Contract
+ *
+ * ChatOpenAI is created with `maxRetries=0` — all retry logic lives here.
+ *
+ * Two independent retry counters:
+ *   maxTransportRetries (default 1) — network, HTTP 5xx, rate-limit, provider errors.
+ *     Exhausted → returns MODEL_UNAVAILABLE.
+ *     Each transport retry resets the schema retry counter.
+ *   maxSchemaRetries (default 1) — OutputParserException, Zod validation failure.
+ *     Exhausted → returns STRUCTURED_OUTPUT_RETRY_EXHAUSTED.
+ *
+ * NEVER retried: config errors (MODEL_NOT_CONFIGURED), abort (AbortError),
+ *   timeout (TimeoutError), auth failures (401).
+ *
+ * Maximum provider calls per invocation:
+ *   schema-only failures: (1 + maxSchemaRetries).
+ *   transport-only failures: (1 + maxTransportRetries).
+ *   mixed (worst case): (1 + maxTransportRetries) × (1 + maxSchemaRetries).
  */
 
 import type { z } from "zod";
@@ -44,7 +63,12 @@ export type InvokeStructuredOptions<TSchema extends z.ZodType> = {
   signal?: AbortSignal;
   /** LangChain tags for tracing. */
   tags?: string[];
-  /** Maximum schema repair retries (default 1). */
+  /** Maximum transport (network/HTTP) retries. Default 1.
+   *  Config errors, abort, timeout, and auth failures are NEVER retried. */
+  maxTransportRetries?: number;
+  /** Maximum schema repair (parse/validation) retries. Default 1.
+   *  Each schema retry causes an additional provider call.
+   *  Config errors, abort, timeout are NEVER retried. */
   maxSchemaRetries?: number;
 };
 
@@ -65,10 +89,12 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     modelFactory = createChatModel,
     signal,
     tags = [],
+    maxTransportRetries = 1,
     maxSchemaRetries = 1,
   } = options;
 
-  /* 1. Build the LangChain chat model */
+  /* 1. Build the LangChain chat model.
+   *    ChatOpenAI is created with maxRetries=0 — we own all retry. */
   let model: BaseChatModel;
 
   try {
@@ -115,69 +141,68 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     };
   }
 
-  /* 5. Invoke with timeout + cancellation protection */
-  for (let attempt = 0; attempt <= maxSchemaRetries; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(new DOMException("Timeout", "TimeoutError")),
-      modelConfig.timeoutMs,
-    );
+  /* 5. Transport retry loop (outer) — network/HTTP/provider errors */
+  for (let transportAttempt = 0; transportAttempt <= maxTransportRetries; transportAttempt++) {
+    /* 5a. Schema retry loop (inner) — parse/validation errors */
+    for (let schemaAttempt = 0; schemaAttempt <= maxSchemaRetries; schemaAttempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(new DOMException("Timeout", "TimeoutError")),
+        modelConfig.timeoutMs,
+      );
 
-    const onCallerAbort = () => controller.abort();
-    signal?.addEventListener("abort", onCallerAbort, { once: true });
+      const onCallerAbort = () => controller.abort();
+      signal?.addEventListener("abort", onCallerAbort, { once: true });
 
-    try {
-      /* On success, LangChain returns the validated structured output directly. */
-      const result = await structuredRunnable.invoke(lcMessages, {
-        signal: controller.signal,
-        tags,
-      });
+      try {
+        const result = await structuredRunnable.invoke(lcMessages, {
+          signal: controller.signal,
+          tags,
+        });
 
-      clearTimeout(timeoutId);
-      signal?.removeEventListener("abort", onCallerAbort);
+        clearTimeout(timeoutId);
+        signal?.removeEventListener("abort", onCallerAbort);
 
-      /* Double-validate with Zod for defense in depth */
-      const validated = schema.safeParse(result);
+        /* Double-validate with Zod for defense in depth */
+        const validated = schema.safeParse(result);
 
-      if (validated.success) {
-        return {
-          ok: true,
-          data: validated.data as z.infer<TSchema>,
-          provider: modelConfig.provider,
-          model: modelConfig.model,
-        };
-      }
-
-      /* Validation failed — retry if we have attempts left */
-      if (attempt < maxSchemaRetries) {
-        continue;
-      }
-
-      return {
-        ok: false,
-        error: structuredOutputRetryExhausted(
-          maxSchemaRetries,
-          modelConfig.provider,
-          modelConfig.model,
-        ),
-      };
-    } catch (err) {
-      clearTimeout(timeoutId);
-      signal?.removeEventListener("abort", onCallerAbort);
-
-      /* Don't retry on cancellation or timeout */
-      if (err instanceof DOMException) {
-        if (err.name === "TimeoutError") {
+        if (validated.success) {
           return {
-            ok: false,
-            error: modelTimeout(
-              modelConfig.timeoutMs,
-              modelConfig.provider,
-            ),
+            ok: true,
+            data: validated.data as z.infer<TSchema>,
+            provider: modelConfig.provider,
+            model: modelConfig.model,
           };
         }
 
-        if (err.name === "AbortError") {
+        /* Schema validation failed — retry if we have schema attempts left */
+        if (schemaAttempt < maxSchemaRetries) {
+          continue; /* inner loop: schema retry */
+        }
+
+        /* Schema retries exhausted */
+        return {
+          ok: false,
+          error: structuredOutputRetryExhausted(
+            maxSchemaRetries,
+            modelConfig.provider,
+            modelConfig.model,
+          ),
+        };
+      } catch (err) {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener("abort", onCallerAbort);
+
+        /* NEVER retry: timeout */
+        if (err instanceof DOMException && err.name === "TimeoutError") {
+          return {
+            ok: false,
+            error: modelTimeout(modelConfig.timeoutMs, modelConfig.provider),
+          };
+        }
+
+        /* NEVER retry: caller abort */
+        if (err instanceof DOMException && err.name === "AbortError") {
           return {
             ok: false,
             error: {
@@ -188,47 +213,43 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             },
           };
         }
-      }
 
-      /* Check if it's a structured output parse error from LangChain */
-      if (err instanceof Error && err.name === "OutputParserException") {
-        if (attempt < maxSchemaRetries) {
-          await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
-          continue;
+        /* Schema retry: OutputParserException from LangChain */
+        if (err instanceof Error && err.name === "OutputParserException") {
+          if (schemaAttempt < maxSchemaRetries) {
+            continue; /* inner loop: schema retry */
+          }
+
+          return {
+            ok: false,
+            error: structuredOutputRetryExhausted(
+              maxSchemaRetries,
+              modelConfig.provider,
+              modelConfig.model,
+            ),
+          };
         }
 
-        return {
-          ok: false,
-          error: structuredOutputRetryExhausted(
-            maxSchemaRetries,
-            modelConfig.provider,
-            modelConfig.model,
-          ),
-        };
-      }
+        /* Transport retry: network/HTTP/provider errors.
+         *   Break out of inner loop to retry at the transport level. */
+        if (transportAttempt < maxTransportRetries) {
+          await new Promise((r) => setTimeout(r, 500 * (transportAttempt + 1)));
+          break; /* exit inner loop → retry at transport level */
+        }
 
-      /* Network/HTTP errors from LangChain — last attempt? */
-      if (attempt >= maxSchemaRetries) {
+        /* Transport retries exhausted */
         return {
           ok: false,
           error: modelUnavailable(modelConfig.provider, err),
         };
       }
-
-      /* Wait briefly before retry */
-      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
-      continue;
     }
   }
 
   /* Should not reach here, but safety net */
   return {
     ok: false,
-    error: structuredOutputRetryExhausted(
-      maxSchemaRetries,
-      modelConfig.provider,
-      modelConfig.model,
-    ),
+    error: modelUnavailable(modelConfig.provider),
   };
 };
 
