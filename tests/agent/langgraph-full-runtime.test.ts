@@ -892,7 +892,7 @@ test("full graph routes ordinary node failures through controlled finalize", asy
   assert.deepEqual(order, ["build_context", "finalize"]);
   assert.equal(result.response?.intent, "clarify");
   assert.equal(result.response?.pendingAction?.type, "await_clarification");
-  assert.match(result.response?.assistantMessage ?? "", /LangGraph.*失败/);
+  assert.match(result.response?.assistantMessage ?? "", /处理请求时遇到问题/);
   assert.match(
     result.response?.trace?.[0]?.detail ?? "",
     /context unavailable/,

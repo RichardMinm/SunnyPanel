@@ -325,7 +325,7 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
         runtimeConfig.mode === "legacy"
           ? {
               assistantMessage:
-                "Agent 运行失败，本轮没有自动重试写操作。原待处理状态已保留，请检查最近的 AgentRun 后再决定是否重试。",
+                "处理请求时遇到问题，你的会话状态已保留，请稍后重试。",
               confidence: 0,
               engine: "workflow" as const,
               intent: "clarify" as const,

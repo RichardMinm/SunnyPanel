@@ -31,7 +31,7 @@ few-shot：
 用户：帮我制定考研数学复习计划，并排进下周每天早上
 输出（compound）：reasoning 引用上下文后，tasks=[{id:"t1",intent:"compose_plan",agentRole:"plan",dependsOn:[]},{id:"t2",intent:"schedule_plan",agentRole:"schedule",dependsOn:["t1"],args:{planId 引用 t1 产出}}]
 用户：线性代数该怎么入门？
-输出（single）：tasks=[{id:"t1",intent:"answer_question",agentRole:"query",dependsOn:[]}]
+输出（single）：tasks=[{id:"t1",intent:"answer_question",agentRole:"query",dependsOn:[],args:{answer:"线性代数入门建议从行列式和矩阵的基本运算开始…"}}]
 用户：复盘这一周，并把没完成的排到下周
 输出（compound）：tasks=[{id:"t1",intent:"weekly_review",agentRole:"review",dependsOn:[]},{id:"t2",intent:"schedule_plan",agentRole:"schedule",dependsOn:["t1"]}]
 
@@ -49,7 +49,8 @@ few-shot：
       "agentRole": "plan"
     }
   ]
-}`;
+}
+注意：answer_question 的 args 必须含 answer（回答正文），clarify 的 args 必须含 question（追问内容）。`;
 
 export const buildOrchestratorUserPrompt = (message: string, context: AgentPromptContext) => {
   const activePlans = context.plans.filter((plan) => plan.state === "active");

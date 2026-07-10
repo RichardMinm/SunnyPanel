@@ -278,7 +278,7 @@ test("full adapter finalizes an ordinary graph failure exactly once", async () =
   assert.equal(learningCount, 1);
   assert.equal(response.intent, "clarify");
   assert.equal(response.pendingAction?.type, "await_clarification");
-  assert.match(response.assistantMessage, /LangGraph.*失败/);
+  assert.match(response.assistantMessage, /处理请求时遇到问题/);
   assert.match(response.trace?.[0]?.detail ?? "", /context unavailable/);
 });
 

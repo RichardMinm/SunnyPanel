@@ -182,9 +182,10 @@ const appendTrace = (
 const routeResponse = (state: FullSunnyAgentGraphState) =>
   state.response?.pendingAction ? "await_user" : "finalize";
 
-const toFailureUpdate = (error: unknown) => ({
-  failureMessage: error instanceof Error ? error.message : String(error),
-});
+const toFailureUpdate = (error: unknown) => {
+  const msg = error instanceof Error ? error.message : String(error);
+  return { failureMessage: msg };
+};
 
 export const compileFullSunnyAgentGraph = (
   dependencies: FullSunnyAgentGraphDependencies,

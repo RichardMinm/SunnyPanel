@@ -5,6 +5,10 @@ import type {
 import { estimateTokenCount } from "@/lib/agent/token-usage";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
+/** User-safe controlled failure message — no internal architecture details. */
+const USER_FAILURE_MESSAGE =
+  "处理请求时遇到问题，你的会话状态已保留，请稍后重试。";
+
 export const buildLangGraphFailureResponse = ({
   baseTokenUsage,
   error,
@@ -18,8 +22,7 @@ export const buildLangGraphFailureResponse = ({
   threadId: number;
   workbenchMode?: AgentWorkbenchMode | null;
 }): AgentChatResponse => {
-  const assistantMessage =
-    "LangGraph 运行失败，本轮没有回退旧管线，也没有自动重试写操作。原待处理状态已保留；如果失败发生在写入期间，执行状态可能不确定，请先检查最近的 AgentRun，再决定是否重试。也可以临时将 AGENT_GRAPH_RUNTIME 设置为 legacy。";
+  const assistantMessage = USER_FAILURE_MESSAGE;
   const outputTokens = estimateTokenCount(assistantMessage);
 
   return {
@@ -43,7 +46,7 @@ export const buildLangGraphFailureResponse = ({
         id: "langgraph-runtime-failure",
         kind: "error",
         status: "error",
-        title: "LangGraph 已受控终止",
+        title: "运行时错误（已脱敏记录）",
       },
     ],
     workbenchMode: workbenchMode ?? undefined,

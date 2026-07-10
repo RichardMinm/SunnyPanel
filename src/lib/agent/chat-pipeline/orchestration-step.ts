@@ -34,6 +34,7 @@ import type {
 import type { AutoApprovalContext } from "@/lib/agent/safety";
 import type { AgentToolDryRunContext } from "@/lib/agent/tool-registry";
 import type { StreamTokenCallback } from "@/lib/agent/client";
+import { isAgentLLMDisabled } from "@/lib/agent/llm-required";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 import { detectScheduleConflicts, getScheduleItemById } from "@/lib/schedule/items";
@@ -558,6 +559,62 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         tokenUsage,
       },
     };
+  }
+
+  /* LLM unavailable (disabled or not configured) + no pending action → controlled clarify.
+   * Only gate the DEFAULT LLM path — a custom runOrchestratorFn (e.g. test mock)
+   * bypasses this check so tests can verify orchestration logic independently.
+   * Pending confirmation flows (confirm/cancel) are deterministic and still proceed. */
+  if (runOrchestratorFn === runOrchestrator && !pendingAction) {
+    /* Check both: env-var disable + actual model config presence */
+    let llmUnavailable = isAgentLLMDisabled();
+    if (!llmUnavailable) {
+      try {
+        const { getAgentModelConfig } = await import("../client");
+        const config = await getAgentModelConfig();
+        llmUnavailable = !config;
+      } catch {
+        // Config check failed — assume unavailable to avoid crashing later
+        llmUnavailable = true;
+      }
+    }
+
+    if (llmUnavailable) {
+      const clarifyMessage =
+        "当前 AI 服务暂时不可用，无法完成这次回答。你的会话状态已保留，请稍后重试。";
+      const outputTokens = estimateTokenCount(clarifyMessage);
+      for (const t of splitIntoWordTokens(clarifyMessage)) {
+        emitToken(t, "response");
+      }
+      stream?.complete("stage-orchestration", "LLM 不可用");
+      return {
+        outcome: "early_exit",
+        response: {
+          assistantMessage: clarifyMessage,
+          confidence: 0,
+          engine: "workflow",
+          intent: "clarify",
+          pendingAction: null,
+          threadId: 0,
+          tokenUsage: {
+            ...tokenUsage,
+            outputTokens,
+            totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens,
+          },
+          trace: [
+            {
+              detail: isAgentLLMDisabled()
+                ? "LLM disabled via AGENT_DISABLE_LLM=1"
+                : "LLM model config not available (no API key / model configured)",
+              id: "orchestration-llm-unavailable-guard",
+              kind: "analysis",
+              status: "error",
+              title: "LLM 不可用（已受控拦截）",
+            },
+          ],
+        },
+      };
+    }
   }
 
   emitStatus("编排器正在理解你的请求...");
