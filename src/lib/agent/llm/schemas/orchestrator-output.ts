@@ -55,7 +55,7 @@ export type OrchestratorTask = z.infer<typeof orchestratorTaskSchema>;
 
 /* ---- Full orchestrator plan ---- */
 
-export const orchestratorOutputSchema = z.object({
+export const orchestratorOutputBaseSchema = z.object({
   /** Schema version for future migration. */
   version: z.literal(ORCHESTRATOR_OUTPUT_SCHEMA_VERSION),
 
@@ -70,7 +70,13 @@ export const orchestratorOutputSchema = z.object({
   /** The decomposed tasks in execution order.
    *  single mode → exactly 1 task. compound mode → ≥ 2 tasks. */
   tasks: z.array(orchestratorTaskSchema).min(1).max(MAX_TASKS),
-}).strict();
+});
+
+/** Full schema with .strict() for post-hoc validation.
+ *  Use orchestratorOutputBaseSchema for LangChain model construction
+ *  (LangChain's withStructuredOutput cannot convert .strict() to JSON Schema).
+ *  Use orchestratorOutputSchema for post-invoke validation of the result. */
+export const orchestratorOutputSchema = orchestratorOutputBaseSchema.strict();
 
 export type OrchestratorOutput = z.infer<typeof orchestratorOutputSchema>;
 
