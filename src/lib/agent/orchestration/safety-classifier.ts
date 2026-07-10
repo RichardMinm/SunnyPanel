@@ -141,6 +141,56 @@ export interface OrchestratorParityMetrics {
   resourceReferenceMatchRate: number;
 }
 
+/* ---- Resource reference classification ---- */
+
+export type ResourceReferenceKind =
+  | "existing_resource"
+  | "task_output"
+  | "missing_resource"
+  | "none"
+  | "invalid_or_invented"
+  | "unresolved_resource";
+
+/** Detect if a plan has unresolved resource write candidates.
+ *  Checks whether write intents that need resources (schedule_plan etc.)
+ *  have a valid resource reference. */
+export const detectUnresolvedResourceWrite = (params: {
+  intents: string[];
+  /** All task args serialized — checked for known fixture IDs. */
+  argsJson: string;
+  /** Resource IDs extracted from task args (numeric or numeric strings). */
+  resourceIds: string[];
+  /** Known/valid resource IDs from the fixture context. */
+  knownFixtureIds: string[];
+}): { hasUnresolved: boolean; kind: ResourceReferenceKind } => {
+  const writeIntents = params.intents.filter((i) =>
+    classifyIntent(i) === "write_candidate"
+    && i !== "compose_plan"
+    && i !== "create_plan",
+  );
+
+  if (writeIntents.length === 0) {
+    return { hasUnresolved: false, kind: params.resourceIds.length > 0 ? "existing_resource" : "none" };
+  }
+
+  /* Check for known fixture IDs in args (even non-numeric like test-plan-001) */
+  const hasKnownId = params.knownFixtureIds.some((fid) => params.argsJson.includes(fid));
+
+  if (hasKnownId) {
+    return { hasUnresolved: false, kind: "existing_resource" };
+  }
+
+  /* Check for taskOutput refs */
+  const hasTaskOutput = params.argsJson.includes('"type":"taskOutput"');
+
+  if (hasTaskOutput) {
+    return { hasUnresolved: false, kind: "task_output" };
+  }
+
+  /* Write intent without any valid resource reference */
+  return { hasUnresolved: true, kind: "missing_resource" };
+};
+
 /* ---- Unified comparison input — the sanitized view of an orchestrator result. */
 export interface SafetyComparisonInput {
   mode: string;
