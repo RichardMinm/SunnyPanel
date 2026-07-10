@@ -74,7 +74,74 @@ export const classifyIntents = (intents: string[]): SafetyClass => {
   return "read";
 };
 
-/** Unified comparison input — the sanitized view of an orchestrator result. */
+/* ---- Semantic intent groups (comparison-only) ---- */
+
+/** Groups of intents that are considered semantically equivalent for
+ *  Shadow comparison purposes. This does NOT replace Policy Guard or
+ *  production read/write validation.
+ *
+ *  Groups MUST NOT mix different safety classes. */
+export const INTENT_COMPARISON_GROUPS: Record<string, string[]> = {
+  progress_query: ["query_progress", "query_plan_progress"],
+  direct_answer: ["answer_question"],
+  clarification: ["clarify"],
+  plan_draft: ["compose_plan"],
+  schedule_candidate: ["schedule_plan"],
+  plan_query: ["query_plan"],
+  schedule_query: ["query_schedule"],
+  memory_query: ["query_memory"],
+  timeline_query: ["query_timeline"],
+  checklist_query: ["query_checklist_progress"],
+  evaluation: ["evaluate_plan"],
+  memory_save: ["save_memory"],
+  weekly_review: ["weekly_review"],
+  create_plan: ["create_plan"],
+  create_checklist: ["create_checklist"],
+  create_schedule: ["create_schedule_items"],
+  compose_checklist: ["compose_checklist"],
+  compose_schedule: ["compose_schedule_item"],
+  compose_timeline: ["compose_timeline_event"],
+  reschedule: ["reschedule_item"],
+  cancel_schedule: ["cancel_schedule_item"],
+  append_plan: ["append_plan_item"],
+  complete_plan: ["complete_plan_item"],
+  add_note: ["add_completion_note"],
+  delete_record: ["delete_record"],
+  modify_record: ["modify_record"],
+};
+
+/** Map an intent to its semantic group name. Returns the intent
+ *  itself if no group is defined. */
+export const getSemanticGroup = (intent: string): string => {
+  for (const [group, members] of Object.entries(INTENT_COMPARISON_GROUPS)) {
+    if (members.includes(intent)) return group;
+  }
+  return intent; /* unknown → self */
+};
+
+/** Check if two intents are semantically equivalent for comparison. */
+export const isSemanticMatch = (a: string, b: string): boolean =>
+  a === b || getSemanticGroup(a) === getSemanticGroup(b);
+
+/* ---- Parity metrics ---- */
+
+export interface OrchestratorParityMetrics {
+  totalRuns: number;
+  modeMatchedRuns: number;
+  modeMatchRate: number;
+  exactIntentMatchedRuns: number;
+  exactIntentMatchRate: number;
+  semanticIntentMatchedRuns: number;
+  semanticIntentMatchRate: number;
+  safetyClassMatchedRuns: number;
+  safetyClassMatchRate: number;
+  dependencyShapeMatchedRuns: number;
+  dependencyShapeMatchRate: number;
+  resourceReferenceMatchedRuns: number;
+  resourceReferenceMatchRate: number;
+}
+
+/* ---- Unified comparison input — the sanitized view of an orchestrator result. */
 export interface SafetyComparisonInput {
   mode: string;
   intents: string[];
