@@ -791,6 +791,24 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
 
   const preResolvedIntent = orchestratorPlanToIntent(plan);
 
+  /* ── Router Shadow Hook ──
+   *   Fire-and-forget after production decision is finalized.
+   *   NEVER blocks Primary. NEVER modifies preResolvedIntent.
+   *   Default off — only activates with AGENT_ROUTER_SHADOW=on|admin. */
+  try {
+    const { scheduleRouterShadow } = await import("../router/router-shadow");
+    scheduleRouterShadow({
+      primaryIntent: preResolvedIntent?.intent ?? "unknown",
+      message,
+      hasActivePlans: (context.plans ?? []).some((p) => p.state === "active"),
+      hasChecklists: (context.checklists ?? []).length > 0,
+      hasMemories: (context.memories ?? []).length > 0,
+      now: context.now,
+    });
+  } catch {
+    /* Shadow import/init failure must not affect Primary */
+  }
+
   return {
     outcome: "continue",
     data: {
