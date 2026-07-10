@@ -10,7 +10,9 @@ import {
   buildStrategyResumeOrchestratorPlan,
 } from "@/lib/agent/execution-graph";
 import { runOrchestrationSubgraph } from "@/lib/agent/langgraph/orchestration-subgraph";
-import { orchestratorPlanToIntent, runOrchestrator } from "@/lib/agent/orchestrator";
+import { orchestratorPlanToIntent } from "@/lib/agent/orchestrator";
+import type { runOrchestrator } from "@/lib/agent/orchestration/orchestrator";
+import { dispatchOrchestrator } from "@/lib/agent/orchestration/orchestrator-dispatcher";
 import { replanAfterTaskFailure, type ReplanInput } from "@/lib/agent/orchestration/replan";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
 import { projectCompletedOrchestrationToPlan } from "@/lib/agent/orchestration/projection";
@@ -162,7 +164,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     replanTaskFailure,
     conversationState = null,
     resolvedHistory = [],
-    runOrchestratorFn = runOrchestrator,
+    runOrchestratorFn = dispatchOrchestrator,
     stream,
     terminalizeCompoundExecution = false,
     tokenUsage: tokenUsageIn,
@@ -565,7 +567,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
    * Only gate the DEFAULT LLM path — a custom runOrchestratorFn (e.g. test mock)
    * bypasses this check so tests can verify orchestration logic independently.
    * Pending confirmation flows (confirm/cancel) are deterministic and still proceed. */
-  if (runOrchestratorFn === runOrchestrator && !pendingAction) {
+  if (runOrchestratorFn === dispatchOrchestrator && !pendingAction) {
     /* Check both: env-var disable + actual model config presence */
     let llmUnavailable = isAgentLLMDisabled();
     if (!llmUnavailable) {
