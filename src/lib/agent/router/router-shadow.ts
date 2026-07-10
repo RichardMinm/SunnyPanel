@@ -279,19 +279,43 @@ export const runRouterShadow = async (
   try {
     const { invokeStructured } = await import("../llm/invoke-structured");
     const { createChatModel } = await import("../llm/model-factory");
-    const { routerOutputSchema } = await import("../llm/schemas/router-output");
+    const { routerOutputSchema, routerOutputBaseSchema } = await import("../llm/schemas/router-output");
     const { buildMessages } = await import("../llm/message-builder");
-    const { getAgentModelConfig } = await import("../client");
     const { createModelConfig } = await import("../llm/model-config");
 
-    const rawConfig = await getAgentModelConfig();
-    if (!rawConfig) return { attempted: true, errorCode: "no_config" };
+    /* Resolve config from env vars directly — skip Payload to avoid
+     *   Postgres dependency in shadow path. Production config is
+     *   still resolved through the full chain in the Primary path. */
+    const envApiKey =
+      process.env.DEEPSEEK_API_KEY?.trim() ||
+      process.env.OPENAI_API_KEY?.trim() ||
+      process.env.ZAI_API_KEY?.trim();
+
+    if (!envApiKey) {
+      return { attempted: true, errorCode: "no_config" };
+    }
+
+    const provider = process.env.DEEPSEEK_API_KEY ? "deepseek"
+      : process.env.OPENAI_API_KEY ? "openai"
+      : "zai";
+
+    const baseURL =
+      process.env.DEEPSEEK_BASE_URL?.trim() ||
+      process.env.OPENAI_BASE_URL?.trim() ||
+      process.env.ZAI_BASE_URL?.trim() ||
+      "https://api.deepseek.com";
+
+    const model =
+      process.env.DEEPSEEK_MODEL?.trim() ||
+      process.env.OPENAI_MODEL?.trim() ||
+      process.env.ZAI_MODEL?.trim() ||
+      "deepseek-v4-pro";
 
     const configResult = createModelConfig({
-      apiKey: rawConfig.apiKey,
-      baseURL: rawConfig.baseUrl,
-      model: rawConfig.model,
-      provider: rawConfig.provider ?? "unknown",
+      apiKey: envApiKey,
+      baseURL,
+      model,
+      provider,
     });
 
     if (typeof configResult === "object" && "code" in configResult) {
@@ -314,6 +338,7 @@ export const runRouterShadow = async (
     const start = Date.now();
     const result = await invokeStructured({
       schema: routerOutputSchema,
+      modelSchema: routerOutputBaseSchema,
       schemaName: "RouterOutput",
       messages,
       modelConfig: configResult,

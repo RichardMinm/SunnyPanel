@@ -110,7 +110,7 @@ const riskFlagSchema = z.enum([
 
 export const ROUTER_OUTPUT_SCHEMA_VERSION = 1;
 
-const routerOutputBaseSchema = z.object({
+export const routerOutputBaseSchema = z.object({
   /** Schema version for future migration. */
   version: z.literal(ROUTER_OUTPUT_SCHEMA_VERSION),
 
