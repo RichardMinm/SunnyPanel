@@ -191,6 +191,14 @@ export const detectUnresolvedResourceWrite = (params: {
   return { hasUnresolved: true, kind: "missing_resource" };
 };
 
+/* ---- Valid resource ID validator ---- */
+
+const INVALID_IDS = new Set(["", "?", "unknown", "n/a", "none", "null", "undefined"]);
+
+/** Returns true if a value is a usable resource ID (not a placeholder). */
+export const isUsableResourceId = (value: unknown): value is string =>
+  typeof value === "string" && value.trim().length > 0 && !INVALID_IDS.has(value.trim().toLowerCase());
+
 /* ---- Unified comparison input — the sanitized view of an orchestrator result. */
 export interface SafetyComparisonInput {
   mode: string;
