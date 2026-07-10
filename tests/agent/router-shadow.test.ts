@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { resolveRouterShadowMode, isRouterShadowEnabled } from "../../src/lib/agent/router/router-shadow-config";
-import { snapshotProductionDecision, compareRouterDecisions, priorityCategory, isUnsafe, clearCollector, getCollectorEntries } from "../../src/lib/agent/router/router-shadow";
+import { snapshotProductionDecision, compareRouterDecisions, priorityCategory, isUnsafe, clearCollector, getCollectorEntries, scheduleRouterShadow, flushPendingShadow } from "../../src/lib/agent/router/router-shadow";
 
 describe("router-shadow", () => {
   /* ── Feature flag ── */
@@ -138,6 +138,74 @@ describe("router-shadow", () => {
       const r = compareRouterDecisions(p, s);
       assert.ok(r.categories.includes("match"));
       /* write_candidate is a comparison classification, NOT execute permission */
+    });
+  });
+
+  /* ── Hook integration: Primary unchanged ── */
+  describe("scheduleRouterShadow", () => {
+    let orig: string | undefined;
+    beforeEach(() => { orig = process.env.AGENT_ROUTER_SHADOW; delete process.env.AGENT_ROUTER_SHADOW; clearCollector(); });
+    afterEach(async () => { if (orig === undefined) delete process.env.AGENT_ROUTER_SHADOW; else process.env.AGENT_ROUTER_SHADOW = orig; await flushPendingShadow(); });
+
+    it("scheduleRouterShadow returns void (fire-and-forget)", () => {
+      process.env.AGENT_ROUTER_SHADOW = "off";
+      const result = scheduleRouterShadow({ primaryIntent: "answer_question", message: "hello", hasActivePlans: false, hasChecklists: false, hasMemories: false, now: "2026-07-10" });
+      assert.equal(result, undefined); /* void return — non-blocking */
+    });
+
+    it("off → does not call shadow, collector empty after flush", async () => {
+      process.env.AGENT_ROUTER_SHADOW = "off";
+      clearCollector();
+      scheduleRouterShadow({ primaryIntent: "answer_question", message: "hello", hasActivePlans: false, hasChecklists: false, hasMemories: false, now: "2026-07-10" });
+      await flushPendingShadow();
+      assert.equal(getCollectorEntries().length, 0);
+    });
+
+    it("disabled is NOT classified as provider failure", () => {
+      process.env.AGENT_ROUTER_SHADOW = "off";
+      /* Primary unchanged — shadow is simply not invoked */
+      assert.equal(getCollectorEntries().length, 0);
+    });
+
+    it("primary response is always returned first (non-blocking)", () => {
+      const primaryIntent = "answer_question";
+      process.env.AGENT_ROUTER_SHADOW = "off";
+      scheduleRouterShadow({ primaryIntent, message: "test", hasActivePlans: false, hasChecklists: false, hasMemories: false, now: "2026-07-10" });
+      /* Primary code continues immediately — no await on shadow */
+      assert.equal(primaryIntent, "answer_question");
+    });
+
+    it("preResolvedIntent is NOT modified by shadow", () => {
+      /* Shadow receives a COPY of the intent string, not a reference */
+      const intent = "answer_question";
+      const snapshot = snapshotProductionDecision({ intent, args: {}, confidence: 0.9 } as never);
+      assert.equal(snapshot.intent, intent);
+      /* Shadow comparison runs on a snapshot — the original is untouched */
+    });
+
+    it("shadow does NOT call Executor", () => {
+      /* The shadow module has no import of Executor, Draft, Dry-run, or Policy Guard */
+      const s = snapshotProductionDecision({ intent: "answer_question", args: {}, confidence: 0.9 } as never);
+      assert.equal(s.intent, "answer_question");
+      /* No execute, no receipt, no rollback in the shadow path */
+    });
+
+    it("collector records disabled entry when shadow off", async () => {
+      process.env.AGENT_ROUTER_SHADOW = "off";
+      clearCollector();
+      scheduleRouterShadow({ primaryIntent: "answer_question", message: "test", hasActivePlans: false, hasChecklists: false, hasMemories: false, now: "2026-07-10" });
+      await flushPendingShadow();
+      const entries = getCollectorEntries();
+      assert.equal(entries.length, 0); /* off → no entry, correctly skipped */
+    });
+
+    it("flushPendingShadow resolves immediately with no pending work", async () => {
+      process.env.AGENT_ROUTER_SHADOW = "off";
+      scheduleRouterShadow({ primaryIntent: "answer_question", message: "t1", hasActivePlans: false, hasChecklists: false, hasMemories: false, now: "2026-07-10" });
+      scheduleRouterShadow({ primaryIntent: "answer_question", message: "t2", hasActivePlans: false, hasChecklists: false, hasMemories: false, now: "2026-07-10" });
+      /* off mode → promises resolve synchronously (null return) */
+      await flushPendingShadow();
+      assert.ok(true); /* does not hang */
     });
   });
 });

@@ -170,6 +170,10 @@ export interface CollectorEntry {
 const collector: CollectorEntry[] = [];
 const MAX_COLLECTOR_SIZE = 100;
 
+/** Track pending shadow promises for test/observation use.
+ *  Each pending promise settles independently; Primary never awaits them. */
+const pendingPromises: Set<Promise<unknown>> = new Set();
+
 export const getCollectorEntries = (): readonly CollectorEntry[] => collector;
 
 export const clearCollector = (): void => { collector.length = 0; };
@@ -177,6 +181,16 @@ export const clearCollector = (): void => { collector.length = 0; };
 const addToCollector = (entry: CollectorEntry): void => {
   if (collector.length >= MAX_COLLECTOR_SIZE) collector.shift();
   collector.push(entry);
+};
+
+/** Resolves when all pending shadow promises have settled.
+ *  For test/observation use ONLY — Primary code must never call this. */
+export const flushPendingShadow = async (): Promise<void> => {
+  while (pendingPromises.size > 0) {
+    const batch = Array.from(pendingPromises);
+    pendingPromises.clear();
+    await Promise.allSettled(batch);
+  }
 };
 
 /* ---- Safe shadow wrapper ---- */
@@ -191,9 +205,19 @@ export type SafeShadowOptions = {
   actor?: "admin" | "user";
 };
 
+/** Fire-and-forget shadow invocation. Schedules the shadow in background,
+ *  tracking the promise for test/observation via flushPendingShadow().
+ *  Primary code calls this and immediately continues — it NEVER awaits. */
+export const scheduleRouterShadow = (options: SafeShadowOptions): void => {
+  const promise = runRouterShadowSafely(options);
+  pendingPromises.add(promise);
+  promise.finally(() => pendingPromises.delete(promise));
+};
+
 /** Run Router Shadow safely — never throws, never blocks primary.
- *  Returns comparison or null if shadow is disabled/skipped. */
-export const runRouterShadowSafely = async (
+ *  Returns comparison or null if shadow is disabled/skipped.
+ *  Internal; callers use scheduleRouterShadow() for production. */
+const runRouterShadowSafely = async (
   options: SafeShadowOptions,
 ): Promise<RouterComparison | null> => {
   const mode = (await import("./router-shadow-config")).resolveRouterShadowMode();

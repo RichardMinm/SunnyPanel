@@ -70,7 +70,9 @@ Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, a
 | **R6-C2 Boundary Doc** | `docs/phase-r6-c2-schedule-planning-tool-planner-boundary.md` | Final R6-C2 schedule/planning Tool Planner boundary, gated/kept/deferred summary, replacement coverage. Phase R6-C2-Docs. | reference |
 | **R6 Final Audit** | `docs/r6-final-heuristic-and-test-coverage-audit.md` | R6 post-mortem: heuristic residue, test validity, coverage matrix, protected tests status, risk register. Verdict: Pass with follow-up. | reference |
 | Root workflow contracts | `tests/agent/root-workflow-contract.test.ts`, `tests/agent/root-router-contract.test.ts` | Root weekly/timeline workflow contracts and router/tool-plan handoff boundaries. | normal |
-| **LangChain Foundation (L1-A)** | `tests/agent/llm/*.test.ts` (6 files) | Model config, factory, errors, structured output, Router/Orchestrator Zod schemas, message builder with untrusted context boundary. Pure unit tests — no API keys, no DB, no network. New contract, does not replace any existing coverage. | normal |
+| **LangChain Foundation (L1-A)** | `tests/agent/llm/*.test.ts` (8 files) | Model config, factory, errors, structured output, Router/Orchestrator Zod schemas, message builder with untrusted context boundary. Pure unit tests — no API, no DB, no network. | normal |
+| **Orchestrator Shadow (L1-B-S2)** | `tests/agent/orchestration/safety-classifier.test.ts`, `tests/agent/orchestration/orchestrator-shadow.test.ts`, `tests/agent/orchestration/resource-readiness-guard.test.ts` | Safety classification, comparison, resource guard. Pure unit — no API, no DB. | normal |
+| **Router Shadow (L2-A)** | `tests/agent/router-shadow.test.ts` | Feature flag, comparison, prioritization, collector, Primary-unchanged. Pure unit — no API, no DB. Default off. | normal |
 
 ## Planning
 
