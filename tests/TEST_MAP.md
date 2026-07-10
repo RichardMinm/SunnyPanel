@@ -70,6 +70,7 @@ Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, a
 | **R6-C2 Boundary Doc** | `docs/phase-r6-c2-schedule-planning-tool-planner-boundary.md` | Final R6-C2 schedule/planning Tool Planner boundary, gated/kept/deferred summary, replacement coverage. Phase R6-C2-Docs. | reference |
 | **R6 Final Audit** | `docs/r6-final-heuristic-and-test-coverage-audit.md` | R6 post-mortem: heuristic residue, test validity, coverage matrix, protected tests status, risk register. Verdict: Pass with follow-up. | reference |
 | Root workflow contracts | `tests/agent/root-workflow-contract.test.ts`, `tests/agent/root-router-contract.test.ts` | Root weekly/timeline workflow contracts and router/tool-plan handoff boundaries. | normal |
+| **LangChain Foundation (L1-A)** | `tests/agent/llm/*.test.ts` (6 files) | Model config, factory, errors, structured output, Router/Orchestrator Zod schemas, message builder with untrusted context boundary. Pure unit tests — no API keys, no DB, no network. New contract, does not replace any existing coverage. | normal |
 
 ## Planning
 
