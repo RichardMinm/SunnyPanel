@@ -20,6 +20,17 @@ export type ModelErrorCode =
   | "STRUCTURED_OUTPUT_INVALID"
   | "STRUCTURED_OUTPUT_RETRY_EXHAUSTED";
 
+export type SanitizedStructuredOutputIssue = Readonly<{
+  code: string;
+  path: readonly (string | number)[];
+  missing: boolean;
+}>;
+
+export type StructuredOutputDiagnostics = Readonly<{
+  stage: "provider_protocol" | "zod_validation";
+  issues: readonly SanitizedStructuredOutputIssue[];
+}>;
+
 export type ModelError = Readonly<{
   code: ModelErrorCode;
   retryable: boolean;
@@ -27,6 +38,8 @@ export type ModelError = Readonly<{
   model?: string;
   safeMessage: string;
   cause?: unknown;
+  /** Schema-only diagnostics. Never includes model values or raw responses. */
+  structuredOutput?: StructuredOutputDiagnostics;
 }>;
 
 /* ---- Constructors ---- */
@@ -131,12 +144,14 @@ export const structuredOutputRetryExhausted = (
   maxRetries: number,
   provider?: string,
   model?: string,
+  structuredOutput?: StructuredOutputDiagnostics,
 ): ModelError => ({
   code: "STRUCTURED_OUTPUT_RETRY_EXHAUSTED",
   retryable: false,
   provider,
   model,
   safeMessage: `结构化输出重试已达上限（${maxRetries} 次）。`,
+  structuredOutput,
 });
 
 /* ---- Type guard ---- */

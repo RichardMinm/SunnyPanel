@@ -155,6 +155,41 @@ describe("invokeStructured (L1-A contract)", () => {
       assert.equal(callCount.value, 2);
     });
 
+    it("returns sanitized Zod diagnostics without model values", async () => {
+      const factory = fakeModelFactory({
+        onSuccess: {
+          name: "sensitive-model-value",
+          unexpectedSecret: "do-not-retain",
+        },
+      });
+
+      const result = await invokeStructured({
+        schema: testSchema.strict(),
+        schemaName,
+        messages: testMessages,
+        modelConfig: makeConfig(),
+        modelFactory: factory,
+        maxSchemaRetries: 0,
+        maxTransportRetries: 0,
+      });
+
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.deepEqual(result.error.structuredOutput, {
+          stage: "zod_validation",
+          issues: [
+            { code: "invalid_type", path: ["count"], missing: true },
+            { code: "unrecognized_keys", path: [], missing: false },
+          ],
+        });
+
+        const serialized = JSON.stringify(result.error.structuredOutput);
+        assert.equal(serialized.includes("sensitive-model-value"), false);
+        assert.equal(serialized.includes("do-not-retain"), false);
+        assert.equal(serialized.includes("unexpectedSecret"), false);
+      }
+    });
+
     it("schema repair succeeds on second attempt", async () => {
       const callCount = { value: 0 };
       let firstCall = true;
@@ -645,6 +680,10 @@ describe("invokeStructured (L1-A contract)", () => {
       assert.equal(result.ok, false);
       if (!result.ok) {
         assert.equal(result.error.code, "STRUCTURED_OUTPUT_RETRY_EXHAUSTED");
+        assert.deepEqual(result.error.structuredOutput, {
+          stage: "provider_protocol",
+          issues: [],
+        });
       }
       /* Called initial + 1 schema retry = 2 */
       assert.equal(callCount.value, 2);

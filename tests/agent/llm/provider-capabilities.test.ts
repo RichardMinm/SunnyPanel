@@ -18,14 +18,14 @@ describe("provider-capabilities", () => {
       assert.equal(caps.structuredOutputMode, "native_json_schema");
     });
 
-    it("returns deepseek profile with function_calling mode", () => {
+    it("returns DeepSeek V4-Pro profile with prompt_json mode", () => {
       const caps = getProviderCapabilities("deepseek");
 
       assert.equal(caps.provider, "deepseek");
       assert.equal(caps.supportsStreaming, true);
-      assert.equal(caps.supportsToolCalling, true);
+      assert.equal(caps.supportsToolCalling, false);
       assert.equal(caps.supportsNativeJsonSchema, false);
-      assert.equal(caps.structuredOutputMode, "function_calling");
+      assert.equal(caps.structuredOutputMode, "prompt_json");
     });
 
     it("returns zai profile with function_calling mode", () => {
@@ -77,8 +77,8 @@ describe("provider-capabilities", () => {
       assert.equal(getStructuredOutputMode("openai"), "native_json_schema");
     });
 
-    it("returns function_calling for deepseek", () => {
-      assert.equal(getStructuredOutputMode("deepseek"), "function_calling");
+    it("returns prompt_json for deepseek", () => {
+      assert.equal(getStructuredOutputMode("deepseek"), "prompt_json");
     });
 
     it("returns prompt_json for unknown", () => {

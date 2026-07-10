@@ -34,6 +34,7 @@ import type { Runnable } from "@langchain/core/runnables";
 import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
 import type { ModelConfig } from "./model-config";
 import type { ModelError } from "./model-errors";
+import type { StructuredOutputDiagnostics } from "./model-errors";
 import {
   modelNotConfigured,
   modelTimeout,
@@ -133,6 +134,8 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     }
   });
 
+  let lastStructuredOutputDiagnostics: StructuredOutputDiagnostics | undefined;
+
   /* 4. Build the structured runnable */
   let structuredRunnable: Runnable<typeof lcMessages, z.infer<TSchema>>;
 
@@ -184,6 +187,19 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
           };
         }
 
+        lastStructuredOutputDiagnostics = {
+          stage: "zod_validation",
+          issues: validated.error.issues.map((issue) => ({
+            code: issue.code,
+            path: issue.path.map((segment) =>
+              typeof segment === "symbol"
+                ? segment.description ?? "symbol"
+                : segment,
+            ),
+            missing: getValueAtPath(result, issue.path) === undefined,
+          })),
+        };
+
         /* Schema validation failed — retry if we have schema attempts left */
         if (schemaAttempt < maxSchemaRetries) {
           continue; /* inner loop: schema retry */
@@ -196,6 +212,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             maxSchemaRetries,
             modelConfig.provider,
             modelConfig.model,
+            lastStructuredOutputDiagnostics,
           ),
         };
       } catch (err) {
@@ -231,6 +248,11 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             || err.constructor?.name === "OutputParserException"
             || (err as unknown as Record<string, unknown>).lc_error_code === "OUTPUT_PARSING_FAILURE")
         ) {
+          lastStructuredOutputDiagnostics = {
+            stage: "provider_protocol",
+            issues: [],
+          };
+
           if (schemaAttempt < maxSchemaRetries) {
             continue; /* inner loop: schema retry */
           }
@@ -241,6 +263,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
               maxSchemaRetries,
               modelConfig.provider,
               modelConfig.model,
+              lastStructuredOutputDiagnostics,
             ),
           };
         }
@@ -266,6 +289,20 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     ok: false,
     error: modelUnavailable(modelConfig.provider),
   };
+};
+
+const getValueAtPath = (
+  value: unknown,
+  path: readonly PropertyKey[],
+): unknown => {
+  let current = value;
+
+  for (const segment of path) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Record<PropertyKey, unknown>)[segment];
+  }
+
+  return current;
 };
 
 /* ---- Internal helpers ---- */

@@ -73,6 +73,7 @@ Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, a
 | **LangChain Foundation (L1-A)** | `tests/agent/llm/*.test.ts` (8 files) | Model config, factory, errors, structured output, Router/Orchestrator Zod schemas, message builder with untrusted context boundary. Pure unit tests — no API, no DB, no network. | normal |
 | **Orchestrator Shadow (L1-B-S2)** | `tests/agent/orchestration/safety-classifier.test.ts`, `tests/agent/orchestration/orchestrator-shadow.test.ts`, `tests/agent/orchestration/resource-readiness-guard.test.ts` | Safety classification, comparison, resource guard. Pure unit — no API, no DB. | normal |
 | **Router Shadow (L2-A)** | `tests/agent/router-shadow.test.ts` | Feature flag, comparison, prioritization, collector, Primary-unchanged. Pure unit — no API, no DB. Default off. | normal |
+| **Router Structured Protocol (L2-B)** | `tests/agent/router-protocol.test.ts`, `tests/agent/router-shadow.test.ts`, `tests/agent/llm/invoke-structured.test.ts`, `tests/agent/llm/provider-capabilities.test.ts` | Schema-sourced prompt allowlists, strict structured output, clarify/resource safeguards, one Provider call per Shadow evaluation, typed failure isolation, sanitized collector, and Primary unchanged. Fake models only; no API or DB. Default off. | protected |
 
 ## Planning
 

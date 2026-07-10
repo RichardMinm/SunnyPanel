@@ -9,6 +9,14 @@
 import { isRouterShadowEnabled } from "./router-shadow-config";
 import { classifyIntent, type SafetyClass } from "../orchestration/safety-classifier";
 import type { AgentIntent } from "../schemas";
+import type {
+  SanitizedStructuredOutputIssue,
+  StructuredOutputDiagnostics,
+} from "../llm/model-errors";
+import type { ModelConfig } from "../llm/model-config";
+import type { ModelFactory } from "../llm/model-factory";
+import type { ChatMessage } from "../llm/message-builder";
+import type { RouterProtocolContext } from "./router-protocol";
 
 /* ---- Production decision snapshot ---- */
 
@@ -41,10 +49,56 @@ export interface RouterShadowResult {
   mode?: string;
   readWriteClass?: string;
   confidence?: number;
+  needsClarification?: boolean;
+  contextReferences?: Array<{
+    type: string;
+    id?: number;
+    name?: string;
+  }>;
   schemaValid?: boolean;
   latencyMs?: number;
   errorCode?: string;
+  failureKind?: "provider" | "schema";
+  schemaErrors?: RouterSchemaErrorCategory[];
+  schemaIssues?: SanitizedStructuredOutputIssue[];
 }
+
+export type RouterSchemaErrorCategory =
+  | "args_shape_invalid"
+  | "context_reference_invalid"
+  | "extra_fields_rejected"
+  | "invalid_clarify_fields"
+  | "invalid_intent"
+  | "invalid_read_write_class"
+  | "missing_required_field"
+  | "other_zod_issue"
+  | "provider_structured_output_protocol_failure";
+
+export const classifyRouterSchemaDiagnostics = (
+  diagnostics: StructuredOutputDiagnostics,
+): RouterSchemaErrorCategory[] => {
+  if (diagnostics.stage === "provider_protocol") {
+    return ["provider_structured_output_protocol_failure"];
+  }
+
+  const categories = new Set<RouterSchemaErrorCategory>();
+
+  for (const issue of diagnostics.issues) {
+    const field = issue.path[0];
+
+    if (issue.missing) categories.add("missing_required_field");
+    else if (field === "intent") categories.add("invalid_intent");
+    else if (field === "readWriteClass") categories.add("invalid_read_write_class");
+    else if (field === "needsClarification" || field === "clarificationQuestion") {
+      categories.add("invalid_clarify_fields");
+    } else if (issue.code === "unrecognized_keys") categories.add("extra_fields_rejected");
+    else if (field === "args") categories.add("args_shape_invalid");
+    else if (field === "contextReferences") categories.add("context_reference_invalid");
+    else categories.add("other_zod_issue");
+  }
+
+  return [...categories];
+};
 
 /* ---- Comparison ---- */
 
@@ -76,7 +130,9 @@ export const compareRouterDecisions = (
     return { primary, shadow, categories: ["shadow_provider_failure"] };
   }
 
-  if (!shadow.schemaValid) {
+  if (shadow.failureKind === "provider") {
+    categories.push("shadow_provider_failure");
+  } else if (shadow.schemaValid === false) {
     categories.push("shadow_schema_failure");
   }
 
@@ -92,13 +148,15 @@ export const compareRouterDecisions = (
 
       /* Safety-critical: read → write */
       const primarySC = primary.readWriteClass;
-      const shadowSC = shadow.readWriteClass
-        ? classifyIntent(shadow.readWriteClass as string)
-        : "read";
+      const shadowSC: SafetyClass = shadow.readWriteClass === "answer"
+        ? "read"
+        : shadow.readWriteClass === "clarify"
+          ? "clarify"
+          : "write_candidate";
 
       if (
         (primarySC === "read" || primarySC === "clarify")
-        && (shadowSC === "write_candidate" || shadowSC === "mixed")
+        && shadowSC === "write_candidate"
       ) {
         categories.push("read_write_mismatch");
       }
@@ -121,13 +179,17 @@ export const compareRouterDecisions = (
 export type RouterShadowInput = {
   message: string;
   /** Sanitized context for Router — no raw workspace dump */
-  context: {
-    hasActivePlans: boolean;
-    hasChecklists: boolean;
-    hasMemories: boolean;
-    now: string;
-  };
+  context: RouterProtocolContext;
   signal?: AbortSignal;
+};
+
+export type RouterShadowDependencies = {
+  modelConfig?: ModelConfig;
+  modelFactory?: ModelFactory;
+  /** Evaluation-only override for replaying an earlier prompt contract. */
+  messagesBuilder?: (input: RouterShadowInput) => ChatMessage[];
+  /** Observation-only counter hook. Never receives prompts, responses, or secrets. */
+  onProviderCall?: () => void;
 };
 
 /* ---- Safety-first mismatch prioritization ---- */
@@ -211,7 +273,10 @@ export type SafeShadowOptions = {
 export const scheduleRouterShadow = (options: SafeShadowOptions): void => {
   const promise = runRouterShadowSafely(options);
   pendingPromises.add(promise);
-  promise.finally(() => pendingPromises.delete(promise));
+  void promise.then(
+    () => pendingPromises.delete(promise),
+    () => pendingPromises.delete(promise),
+  );
 };
 
 /** Run Router Shadow safely — never throws, never blocks primary.
@@ -273,6 +338,7 @@ const runRouterShadowSafely = async (
 /** Run Router Shadow. Returns null when disabled. Catches ALL errors. */
 export const runRouterShadow = async (
   input: RouterShadowInput,
+  dependencies: RouterShadowDependencies = {},
 ): Promise<RouterShadowResult | null> => {
   if (!isRouterShadowEnabled()) return null;
 
@@ -280,79 +346,97 @@ export const runRouterShadow = async (
     const { invokeStructured } = await import("../llm/invoke-structured");
     const { createChatModel } = await import("../llm/model-factory");
     const { routerOutputSchema, routerOutputBaseSchema } = await import("../llm/schemas/router-output");
-    const { buildMessages } = await import("../llm/message-builder");
     const { createModelConfig } = await import("../llm/model-config");
+    const { buildRouterProtocolMessages } = await import("./router-protocol");
 
     /* Resolve config from env vars directly — skip Payload to avoid
      *   Postgres dependency in shadow path. Production config is
      *   still resolved through the full chain in the Primary path. */
-    const envApiKey =
-      process.env.DEEPSEEK_API_KEY?.trim() ||
-      process.env.OPENAI_API_KEY?.trim() ||
-      process.env.ZAI_API_KEY?.trim();
+    const configResult = dependencies.modelConfig ?? (() => {
+      const envApiKey =
+        process.env.DEEPSEEK_API_KEY?.trim() ||
+        process.env.OPENAI_API_KEY?.trim() ||
+        process.env.ZAI_API_KEY?.trim();
 
-    if (!envApiKey) {
-      return { attempted: true, errorCode: "no_config" };
+      if (!envApiKey) return null;
+
+      const provider = process.env.DEEPSEEK_API_KEY ? "deepseek"
+        : process.env.OPENAI_API_KEY ? "openai"
+        : "zai";
+
+      const baseURL =
+        process.env.DEEPSEEK_BASE_URL?.trim() ||
+        process.env.OPENAI_BASE_URL?.trim() ||
+        process.env.ZAI_BASE_URL?.trim() ||
+        "https://api.deepseek.com";
+
+      const model =
+        process.env.DEEPSEEK_MODEL?.trim() ||
+        process.env.OPENAI_MODEL?.trim() ||
+        process.env.ZAI_MODEL?.trim() ||
+        "deepseek-v4-pro";
+
+      return createModelConfig({ apiKey: envApiKey, baseURL, model, provider });
+    })();
+
+    if (!configResult) {
+      return { attempted: true, errorCode: "no_config", failureKind: "provider" };
     }
-
-    const provider = process.env.DEEPSEEK_API_KEY ? "deepseek"
-      : process.env.OPENAI_API_KEY ? "openai"
-      : "zai";
-
-    const baseURL =
-      process.env.DEEPSEEK_BASE_URL?.trim() ||
-      process.env.OPENAI_BASE_URL?.trim() ||
-      process.env.ZAI_BASE_URL?.trim() ||
-      "https://api.deepseek.com";
-
-    const model =
-      process.env.DEEPSEEK_MODEL?.trim() ||
-      process.env.OPENAI_MODEL?.trim() ||
-      process.env.ZAI_MODEL?.trim() ||
-      "deepseek-v4-pro";
-
-    const configResult = createModelConfig({
-      apiKey: envApiKey,
-      baseURL,
-      model,
-      provider,
-    });
 
     if (typeof configResult === "object" && "code" in configResult) {
-      return { attempted: true, errorCode: configResult.code };
+      return { attempted: true, errorCode: configResult.code, failureKind: "provider" };
     }
 
-    const systemRules = "你是SunnyPanel的Router。判断用户请求的意图、读写分类和置信度。只输出JSON。";
-    const workspaceContext = [
-      input.context.hasActivePlans ? "用户有活跃计划" : "",
-      input.context.hasChecklists ? "用户有清单" : "",
-      input.context.hasMemories ? "用户有记忆" : "",
-    ].filter(Boolean).join("; ") || "(empty workspace)";
-
-    const messages = buildMessages({
-      systemRules,
-      workspaceContext,
-      userMessage: input.message,
-    });
+    const messages = dependencies.messagesBuilder?.(input)
+      ?? buildRouterProtocolMessages(input);
 
     const start = Date.now();
+    dependencies.onProviderCall?.();
     const result = await invokeStructured({
       schema: routerOutputSchema,
       modelSchema: routerOutputBaseSchema,
       schemaName: "RouterOutput",
       messages,
       modelConfig: configResult,
-      modelFactory: createChatModel,
+      modelFactory: dependencies.modelFactory ?? createChatModel,
       signal: input.signal,
       maxTransportRetries: 0,
       maxSchemaRetries: 0,
     });
 
     if (!result.ok) {
+      const diagnostics = result.error.structuredOutput;
+
+      return {
+        attempted: true,
+        schemaValid: diagnostics ? false : undefined,
+        failureKind: diagnostics ? "schema" : "provider",
+        schemaErrors: diagnostics
+          ? classifyRouterSchemaDiagnostics(diagnostics)
+          : undefined,
+        schemaIssues: diagnostics ? [...diagnostics.issues] : undefined,
+        errorCode: result.error.code,
+        latencyMs: Date.now() - start,
+      };
+    }
+
+    const allowedResourceIds = new Set(input.context.resourceIds ?? []);
+    const inventedResourceId = result.data.contextReferences.some(
+      (reference) => reference.id !== undefined && !allowedResourceIds.has(reference.id),
+    );
+
+    if (inventedResourceId) {
       return {
         attempted: true,
         schemaValid: false,
-        errorCode: result.error.code,
+        failureKind: "schema",
+        schemaErrors: ["context_reference_invalid"],
+        schemaIssues: [{
+          code: "custom",
+          path: ["contextReferences"],
+          missing: false,
+        }],
+        errorCode: "ROUTER_CONTEXT_REFERENCE_INVALID",
         latencyMs: Date.now() - start,
       };
     }
@@ -363,10 +447,16 @@ export const runRouterShadow = async (
       mode: result.data.mode,
       readWriteClass: result.data.readWriteClass,
       confidence: result.data.confidence,
+      needsClarification: result.data.needsClarification,
+      contextReferences: result.data.contextReferences,
       schemaValid: true,
       latencyMs: Date.now() - start,
     };
   } catch {
-    return { attempted: true, errorCode: "shadow_exception" };
+    return {
+      attempted: true,
+      errorCode: "shadow_exception",
+      failureKind: "provider",
+    };
   }
 };

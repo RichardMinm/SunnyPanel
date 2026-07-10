@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { resolveRouterShadowMode, isRouterShadowEnabled } from "../../src/lib/agent/router/router-shadow-config";
-import { snapshotProductionDecision, compareRouterDecisions, priorityCategory, isUnsafe, clearCollector, getCollectorEntries, scheduleRouterShadow, flushPendingShadow } from "../../src/lib/agent/router/router-shadow";
+import { snapshotProductionDecision, compareRouterDecisions, priorityCategory, isUnsafe, clearCollector, getCollectorEntries, scheduleRouterShadow, flushPendingShadow, classifyRouterSchemaDiagnostics } from "../../src/lib/agent/router/router-shadow";
 
 describe("router-shadow", () => {
   /* ── Feature flag ── */
@@ -61,6 +61,18 @@ describe("router-shadow", () => {
       assert.ok(r.categories.includes("intent_mismatch"));
     });
 
+    it("different read intents do not become a read→write mismatch", () => {
+      const r = compareRouterDecisions(primary("answer_question"), {
+        attempted: true,
+        intent: "query_progress",
+        readWriteClass: "answer",
+        schemaValid: true,
+      });
+
+      assert.ok(r.categories.includes("intent_mismatch"));
+      assert.equal(r.categories.includes("read_write_mismatch"), false);
+    });
+
     it("read → write_candidate mismatch → unsafe", () => {
       const r = compareRouterDecisions(primary("answer_question"), { attempted: true, intent: "compose_plan", readWriteClass: "write_candidate", schemaValid: true });
       assert.ok(r.categories.includes("read_write_mismatch"));
@@ -99,6 +111,42 @@ describe("router-shadow", () => {
       assert.ok(!json.includes("apiKey"));
       assert.ok(!json.includes("Bearer"));
       assert.ok(!json.includes("secret"));
+    });
+  });
+
+  describe("schema failure diagnostics", () => {
+    it("maps sanitized Zod issues to the required audit categories", () => {
+      const categories = classifyRouterSchemaDiagnostics({
+        stage: "zod_validation",
+        issues: [
+          { code: "invalid_type", path: ["version"], missing: true },
+          { code: "invalid_value", path: ["intent"], missing: false },
+          { code: "invalid_value", path: ["readWriteClass"], missing: false },
+          { code: "custom", path: ["clarificationQuestion"], missing: false },
+          { code: "unrecognized_keys", path: [], missing: false },
+          { code: "invalid_type", path: ["args"], missing: false },
+          { code: "invalid_type", path: ["contextReferences", 0, "id"], missing: false },
+          { code: "too_big", path: ["normalizedRequest"], missing: false },
+        ],
+      });
+
+      assert.deepEqual(categories, [
+        "missing_required_field",
+        "invalid_intent",
+        "invalid_read_write_class",
+        "invalid_clarify_fields",
+        "extra_fields_rejected",
+        "args_shape_invalid",
+        "context_reference_invalid",
+        "other_zod_issue",
+      ]);
+    });
+
+    it("classifies parser rejection before Zod as provider protocol failure", () => {
+      assert.deepEqual(classifyRouterSchemaDiagnostics({
+        stage: "provider_protocol",
+        issues: [],
+      }), ["provider_structured_output_protocol_failure"]);
     });
   });
 
@@ -206,6 +254,49 @@ describe("router-shadow", () => {
       /* off mode → promises resolve synchronously (null return) */
       await flushPendingShadow();
       assert.ok(true); /* does not hang */
+    });
+
+    it("collector persists only sanitized comparison metadata", async () => {
+      const providerKeys = ["DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ZAI_API_KEY"] as const;
+      const saved = providerKeys.map((key) => [key, process.env[key]] as const);
+
+      try {
+        for (const key of providerKeys) delete process.env[key];
+        process.env.AGENT_ROUTER_SHADOW = "on";
+        clearCollector();
+
+        scheduleRouterShadow({
+          primaryIntent: "answer_question",
+          message: "raw prompt sk-secret Bearer hidden reasoning",
+          hasActivePlans: false,
+          hasChecklists: false,
+          hasMemories: false,
+          now: "2026-07-10",
+        });
+        await flushPendingShadow();
+
+        const entry = getCollectorEntries()[0];
+        assert.ok(entry);
+        assert.deepEqual(Object.keys(entry).sort(), [
+          "allCategories",
+          "latencyMs",
+          "primaryCategory",
+          "primaryIntent",
+          "shadowIntent",
+          "timestamp",
+          "unsafe",
+        ]);
+        const serialized = JSON.stringify(entry);
+        assert.equal(serialized.includes("raw prompt"), false);
+        assert.equal(serialized.includes("sk-secret"), false);
+        assert.equal(serialized.includes("Bearer"), false);
+        assert.equal(serialized.includes("hidden reasoning"), false);
+      } finally {
+        for (const [key, value] of saved) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      }
     });
   });
 });

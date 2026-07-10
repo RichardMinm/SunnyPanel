@@ -14,7 +14,7 @@ import { z } from "zod";
 /* ---- readWriteClass ---- */
 
 /** The three top-level routing classifications the Router LLM produces.
- *  - "answer": query / conversation / clarify (read-only path)
+ *  - "answer": query / conversation (read-only path)
  *  - "write_candidate": the user wants to create/modify/delete (enters write path)
  *  - "clarify": not enough information — ask follow-up questions */
 export const readWriteClassSchema = z.enum([
@@ -193,6 +193,7 @@ export const routerOutputSchema = routerOutputBaseSchema
           path: ["clarificationQuestion"],
         });
       }
+
     }
 
     /* ---- answer contract ---- */
