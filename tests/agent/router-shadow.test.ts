@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { resolveRouterShadowMode, isRouterShadowEnabled } from "../../src/lib/agent/router/router-shadow-config";
-import { snapshotProductionDecision, compareRouterDecisions } from "../../src/lib/agent/router/router-shadow";
+import { snapshotProductionDecision, compareRouterDecisions, priorityCategory, isUnsafe, clearCollector, getCollectorEntries } from "../../src/lib/agent/router/router-shadow";
 
 describe("router-shadow", () => {
   /* ── Feature flag ── */
@@ -100,6 +100,22 @@ describe("router-shadow", () => {
       assert.ok(!json.includes("Bearer"));
       assert.ok(!json.includes("secret"));
     });
+  });
+
+  /* ── Prioritization ── */
+  describe("priorityCategory", () => {
+    it("read_write_mismatch is top priority", () => assert.equal(priorityCategory(["match", "read_write_mismatch", "intent_mismatch"]), "read_write_mismatch"));
+    it("clarify_mismatch over intent", () => assert.equal(priorityCategory(["intent_mismatch", "clarify_mismatch"]), "clarify_mismatch"));
+    it("match is lowest", () => assert.equal(priorityCategory(["match"]), "match"));
+    it("unsafe: read→write", () => assert.equal(isUnsafe(["read_write_mismatch"]), true));
+    it("unsafe: clarify→write", () => assert.equal(isUnsafe(["clarify_mismatch"]), true));
+    it("safe: match only", () => assert.equal(isUnsafe(["match"]), false));
+    it("safe: intent mismatch without read/write", () => assert.equal(isUnsafe(["intent_mismatch"]), false));
+  });
+
+  /* ── Collector ── */
+  describe("in-memory collector", () => {
+    it("starts empty", () => { clearCollector(); assert.equal(getCollectorEntries().length, 0); });
   });
 
   /* ── Isolation contracts ── */

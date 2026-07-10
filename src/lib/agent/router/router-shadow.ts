@@ -130,6 +130,122 @@ export type RouterShadowInput = {
   signal?: AbortSignal;
 };
 
+/* ---- Safety-first mismatch prioritization ---- */
+
+/** Priority order: highest-risk category first. */
+export const priorityCategory = (categories: RouterMismatchCategory[]): RouterMismatchCategory => {
+  const order: RouterMismatchCategory[] = [
+    "read_write_mismatch",
+    "clarify_mismatch",
+    "resource_reference_mismatch",
+    "intent_mismatch",
+    "mode_mismatch",
+    "shadow_schema_failure",
+    "shadow_provider_failure",
+    "primary_unknown",
+    "match",
+  ];
+  for (const cat of order) {
+    if (categories.includes(cat)) return cat;
+  }
+  return "match";
+};
+
+/** Returns true if ANY category is safety-critical. */
+export const isUnsafe = (categories: RouterMismatchCategory[]): boolean =>
+  categories.includes("read_write_mismatch") || categories.includes("clarify_mismatch");
+
+/* ---- In-memory collector (no DB, no schema) ---- */
+
+export interface CollectorEntry {
+  primaryIntent: string;
+  shadowIntent?: string;
+  primaryCategory: RouterMismatchCategory;
+  allCategories: RouterMismatchCategory[];
+  unsafe: boolean;
+  latencyMs?: number;
+  timestamp: string;
+}
+
+const collector: CollectorEntry[] = [];
+const MAX_COLLECTOR_SIZE = 100;
+
+export const getCollectorEntries = (): readonly CollectorEntry[] => collector;
+
+export const clearCollector = (): void => { collector.length = 0; };
+
+const addToCollector = (entry: CollectorEntry): void => {
+  if (collector.length >= MAX_COLLECTOR_SIZE) collector.shift();
+  collector.push(entry);
+};
+
+/* ---- Safe shadow wrapper ---- */
+
+export type SafeShadowOptions = {
+  primaryIntent: string;
+  message: string;
+  hasActivePlans: boolean;
+  hasChecklists: boolean;
+  hasMemories: boolean;
+  now: string;
+  actor?: "admin" | "user";
+};
+
+/** Run Router Shadow safely — never throws, never blocks primary.
+ *  Returns comparison or null if shadow is disabled/skipped. */
+export const runRouterShadowSafely = async (
+  options: SafeShadowOptions,
+): Promise<RouterComparison | null> => {
+  const mode = (await import("./router-shadow-config")).resolveRouterShadowMode();
+
+  /* off → skip */
+  if (mode === "off") return null;
+
+  /* admin → only allowlist */
+  if (mode === "admin" && options.actor !== "admin") return null;
+
+  const primary = snapshotProductionDecision(
+    { intent: options.primaryIntent, args: {}, confidence: 0.9 } as never,
+  );
+
+  const shadow = await runRouterShadow({
+    message: options.message,
+    context: {
+      hasActivePlans: options.hasActivePlans,
+      hasChecklists: options.hasChecklists,
+      hasMemories: options.hasMemories,
+      now: options.now,
+    },
+  });
+
+  if (!shadow) {
+    addToCollector({
+      primaryIntent: options.primaryIntent,
+      primaryCategory: "shadow_disabled" as RouterMismatchCategory,
+      allCategories: ["shadow_disabled" as RouterMismatchCategory],
+      unsafe: false,
+      latencyMs: 0,
+      timestamp: new Date().toISOString(),
+    });
+    return null;
+  }
+
+  const comparison = compareRouterDecisions(primary, shadow);
+  const pc = priorityCategory(comparison.categories);
+
+  addToCollector({
+    primaryIntent: options.primaryIntent,
+    shadowIntent: shadow.intent,
+    primaryCategory: pc,
+    allCategories: comparison.categories,
+    unsafe: isUnsafe(comparison.categories),
+    latencyMs: shadow.latencyMs,
+    timestamp: new Date().toISOString(),
+  });
+
+  return comparison;
+};
+
 /** Run Router Shadow. Returns null when disabled. Catches ALL errors. */
 export const runRouterShadow = async (
   input: RouterShadowInput,
