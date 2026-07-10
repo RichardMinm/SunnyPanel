@@ -78,6 +78,7 @@ export type {
 export {
   agentRoleSchema,
   ORCHESTRATOR_OUTPUT_SCHEMA_VERSION,
+  orchestratorOutputBaseSchema,
   orchestratorOutputSchema,
   orchestratorTaskSchema,
   validateTaskDAG,

@@ -70,6 +70,12 @@ export type InvokeStructuredOptions<TSchema extends z.ZodType> = {
    *  Each schema retry causes an additional provider call.
    *  Config errors, abort, timeout are NEVER retried. */
   maxSchemaRetries?: number;
+  /** Optional simplified schema for LangChain model construction.
+   *  Use when the main schema has .strict() or .superRefine() that
+   *  LangChain's withStructuredOutput cannot convert to JSON Schema.
+   *  The main `schema` is still used for post-invoke validation.
+   *  If omitted, `schema` is used for both. */
+  modelSchema?: z.ZodType;
 };
 
 export type StructuredModelResult<T> =
@@ -91,6 +97,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     tags = [],
     maxTransportRetries = 1,
     maxSchemaRetries = 1,
+    modelSchema,
   } = options;
 
   /* 1. Build the LangChain chat model.
@@ -130,7 +137,9 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
   let structuredRunnable: Runnable<typeof lcMessages, z.infer<TSchema>>;
 
   try {
-    structuredRunnable = buildStructuredRunnable(model, schema, schemaName, strategy);
+    /* Use modelSchema for LangChain if provided (avoids .strict()/.superRefine() issues).
+     *   The main `schema` is always used for post-invoke validation. */
+    structuredRunnable = buildStructuredRunnable(model, modelSchema ?? schema, schemaName, strategy);
   } catch {
     return {
       ok: false,
@@ -214,8 +223,14 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
           };
         }
 
-        /* Schema retry: OutputParserException from LangChain */
-        if (err instanceof Error && err.name === "OutputParserException") {
+        /* Schema retry: OutputParserException or Zod validation failure.
+         *   Check both err.name and constructor.name for cross-version compat. */
+        if (
+          err instanceof Error
+          && (err.name === "OutputParserException"
+            || err.constructor?.name === "OutputParserException"
+            || (err as unknown as Record<string, unknown>).lc_error_code === "OUTPUT_PARSING_FAILURE")
+        ) {
           if (schemaAttempt < maxSchemaRetries) {
             continue; /* inner loop: schema retry */
           }
@@ -268,20 +283,20 @@ const buildStructuredRunnable = <TSchema extends z.ZodType>(
     case "native_json_schema":
       return model.withStructuredOutput(schema, {
         name: schemaName,
-        method: "json_schema",
+        method: "jsonSchema",
       });
 
     case "function_calling":
       return model.withStructuredOutput(schema, {
         name: schemaName,
-        method: "function_calling",
+        method: "functionCalling",
       });
 
     case "prompt_json":
     default:
       return model.withStructuredOutput(schema, {
         name: schemaName,
-        method: "function_calling",
+        method: "jsonMode",
       });
   }
 };

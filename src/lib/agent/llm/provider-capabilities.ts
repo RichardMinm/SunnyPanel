@@ -41,15 +41,15 @@ const OPENAI_PROFILE: ProviderCapabilityProfile = {
   },
 };
 
-/** DeepSeek API is OpenAI-compatible. It supports tool calling but native
- *  json_schema (response_format with strict mode) may not be fully available
- *  on all models. We use function_calling mode for reliability. */
+/** DeepSeek v4-pro (reasoning model) does NOT support tool_choice or
+ *  native json_schema. Use jsonMode (response_format json_object)
+ *  which works when the user/system prompt mentions "json". */
 const DEEPSEEK_PROFILE: ProviderCapabilityProfile = {
   provider: "deepseek",
   supportsStreaming: true,
-  supportsToolCalling: true,
+  supportsToolCalling: false,
   supportsNativeJsonSchema: false,
-  structuredOutputMode: "function_calling",
+  structuredOutputMode: "prompt_json",
   knownErrorCodeMappings: {
     "401": "MODEL_AUTH_FAILED",
     "429": "MODEL_RATE_LIMITED",
