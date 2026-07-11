@@ -20,6 +20,11 @@ export type RouterProtocolContext = {
   now: string;
   /** Exact IDs present in sanitized context. Any other output ID is invented. */
   resourceIds?: readonly number[];
+  /** Exact typed resources. When present, both type and ID must match. */
+  resourceReferences?: readonly {
+    id: number;
+    type: "checklist" | "memory" | "plan" | "schedule" | "timeline" | "writing";
+  }[];
   /** Synthetic or sanitized workspace text. Always emitted as untrusted data. */
   untrustedWorkspaceText?: string;
 };
@@ -108,6 +113,7 @@ const buildWorkspaceContext = (context: RouterProtocolContext): string => {
     `hasMemories=${context.hasMemories}`,
     `now=${context.now}`,
     `availableResourceIds=${JSON.stringify(context.resourceIds ?? [])}`,
+    `availableResourceReferences=${JSON.stringify(context.resourceReferences ?? [])}`,
   ];
 
   if (context.untrustedWorkspaceText?.trim()) {

@@ -6,7 +6,7 @@
  * Shadow results are NEVER authoritative. Failures are ALWAYS isolated.
  */
 
-import { isRouterShadowEnabled } from "./router-shadow-config";
+import { isRouterShadowEnabled, resolveRouterShadowMode } from "./router-shadow-config";
 import { classifyIntent, type SafetyClass } from "../orchestration/safety-classifier";
 import type { AgentIntent } from "../schemas";
 import type {
@@ -45,11 +45,14 @@ export const snapshotProductionDecision = (intent: AgentIntent | null): Producti
 
 export interface RouterShadowResult {
   attempted: boolean;
+  clarificationQuestion?: null | string;
   intent?: string;
   mode?: string;
   readWriteClass?: string;
   confidence?: number;
   needsClarification?: boolean;
+  missingFields?: string[];
+  riskFlags?: string[];
   contextReferences?: Array<{
     type: string;
     id?: number;
@@ -293,10 +296,6 @@ const runRouterShadowSafely = async (
   /* admin → only allowlist */
   if (mode === "admin" && options.actor !== "admin") return null;
 
-  const primary = snapshotProductionDecision(
-    { intent: options.primaryIntent, args: {}, confidence: 0.9 } as never,
-  );
-
   const shadow = await runRouterShadow({
     message: options.message,
     context: {
@@ -307,6 +306,13 @@ const runRouterShadowSafely = async (
     },
   });
 
+  return observeRouterShadowCandidate(options, shadow);
+};
+
+export const observeRouterShadowCandidate = (
+  options: SafeShadowOptions,
+  shadow: RouterShadowResult | null,
+): RouterComparison | null => {
   if (!shadow) {
     addToCollector({
       primaryIntent: options.primaryIntent,
@@ -319,6 +325,9 @@ const runRouterShadowSafely = async (
     return null;
   }
 
+  const primary = snapshotProductionDecision(
+    { intent: options.primaryIntent, args: {}, confidence: 0.9 } as never,
+  );
   const comparison = compareRouterDecisions(primary, shadow);
   const pc = priorityCategory(comparison.categories);
 
@@ -335,13 +344,16 @@ const runRouterShadowSafely = async (
   return comparison;
 };
 
-/** Run Router Shadow. Returns null when disabled. Catches ALL errors. */
-export const runRouterShadow = async (
+export const isRouterShadowEnabledForActor = (actor: "admin" | "user"): boolean => {
+  const mode = resolveRouterShadowMode();
+  return mode === "on" || (mode === "admin" && actor === "admin");
+};
+
+/** Invoke the Structured Router once without consulting Shadow/Canary flags. */
+export const invokeRouterCandidate = async (
   input: RouterShadowInput,
   dependencies: RouterShadowDependencies = {},
 ): Promise<RouterShadowResult | null> => {
-  if (!isRouterShadowEnabled()) return null;
-
   try {
     const { invokeStructured } = await import("../llm/invoke-structured");
     const { createChatModel } = await import("../llm/model-factory");
@@ -421,8 +433,17 @@ export const runRouterShadow = async (
     }
 
     const allowedResourceIds = new Set(input.context.resourceIds ?? []);
+    const allowedResourceReferences = input.context.resourceReferences === undefined
+      ? null
+      : new Set(input.context.resourceReferences.map(
+        (reference) => `${reference.type}:${reference.id}`,
+      ));
     const inventedResourceId = result.data.contextReferences.some(
-      (reference) => reference.id !== undefined && !allowedResourceIds.has(reference.id),
+      (reference) => reference.id !== undefined && (
+        allowedResourceReferences
+          ? !allowedResourceReferences.has(`${reference.type}:${reference.id}`)
+          : !allowedResourceIds.has(reference.id)
+      ),
     );
 
     if (inventedResourceId) {
@@ -447,7 +468,10 @@ export const runRouterShadow = async (
       mode: result.data.mode,
       readWriteClass: result.data.readWriteClass,
       confidence: result.data.confidence,
+      clarificationQuestion: result.data.clarificationQuestion,
       needsClarification: result.data.needsClarification,
+      missingFields: result.data.missingFields,
+      riskFlags: result.data.riskFlags,
       contextReferences: result.data.contextReferences,
       schemaValid: true,
       latencyMs: Date.now() - start,
@@ -459,4 +483,13 @@ export const runRouterShadow = async (
       failureKind: "provider",
     };
   }
+};
+
+/** Run Router Shadow. Returns null when disabled. Catches ALL errors. */
+export const runRouterShadow = async (
+  input: RouterShadowInput,
+  dependencies: RouterShadowDependencies = {},
+): Promise<RouterShadowResult | null> => {
+  if (!isRouterShadowEnabled()) return null;
+  return invokeRouterCandidate(input, dependencies);
 };

@@ -37,6 +37,7 @@ import type { AutoApprovalContext } from "@/lib/agent/safety";
 import type { AgentToolDryRunContext } from "@/lib/agent/tool-registry";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import { isAgentLLMDisabled } from "@/lib/agent/llm-required";
+import { resolveRouterCanaryRouting } from "@/lib/agent/router/router-canary";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 import { detectScheduleConflicts, getScheduleItemById } from "@/lib/schedule/items";
@@ -50,6 +51,42 @@ import {
 import { resolveDeleteRecordTarget } from "../tools/delete-record";
 
 const ORCHESTRATION_MAX_TASKS_PER_RUN = 10;
+
+const collectRouterCanaryResources = (
+  context: BuildContextStepResult["context"],
+): {
+  ids: number[];
+  references: Array<{
+    id: number;
+    type: "checklist" | "memory" | "plan" | "schedule" | "timeline" | "writing";
+  }>;
+} => {
+  const references: Array<{
+    id: number;
+    type: "checklist" | "memory" | "plan" | "schedule" | "timeline" | "writing";
+  }> = [];
+  const add = (
+    type: typeof references[number]["type"],
+    resources: readonly { id?: null | number }[],
+  ) => {
+    for (const resource of resources) {
+      if (typeof resource.id === "number") references.push({ id: resource.id, type });
+    }
+  };
+
+  add("plan", context.plans);
+  add("checklist", context.checklists);
+  add("memory", context.memories ?? []);
+  add("writing", context.contentItems ?? []);
+  add("writing", context.timelineCandidates ?? []);
+  add("schedule", context.schedules ?? []);
+  add("timeline", context.timelineEvents ?? []);
+
+  return {
+    ids: Array.from(new Set(references.map((reference) => reference.id))),
+    references,
+  };
+};
 
 export type OrchestrationStepParams = {
   autoApproval?: AutoApprovalContext;
@@ -84,6 +121,7 @@ export type OrchestrationStepParams = {
   replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
   conversationState?: import("@/lib/agent/conversation/types").AgentConversationState | null;
   resolvedHistory?: import("@/lib/agent/schemas").AgentChatMessage[];
+  resolveRouterCanaryRoutingFn?: typeof resolveRouterCanaryRouting;
   runOrchestratorFn?: typeof runOrchestrator;
   stream?: AgentStreamController;
   terminalizeCompoundExecution?: boolean;
@@ -164,6 +202,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     replanTaskFailure,
     conversationState = null,
     resolvedHistory = [],
+    resolveRouterCanaryRoutingFn = resolveRouterCanaryRouting,
     runOrchestratorFn = dispatchOrchestrator,
     stream,
     terminalizeCompoundExecution = false,
@@ -177,6 +216,27 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     overrides: dryRunContextOverrides,
     payload,
   });
+  const applyRouterCanary = async (primary: AgentIntent): Promise<AgentIntent> => {
+    const resources = collectRouterCanaryResources(context);
+    try {
+      const canaryDecision = await resolveRouterCanaryRoutingFn({
+        actor: "admin",
+        context: {
+          hasActivePlans: (context.plans ?? []).some((plan) => plan.state === "active"),
+          hasChecklists: (context.checklists ?? []).length > 0,
+          hasMemories: (context.memories ?? []).length > 0,
+          now: context.now,
+          resourceIds: resources.ids,
+          resourceReferences: resources.references,
+        },
+        message,
+        primary,
+      });
+      return canaryDecision.decision;
+    } catch {
+      return primary;
+    }
+  };
   const pushGraphTraceSteps = (graphResult: Awaited<ReturnType<typeof runOrchestrationSubgraph>>) => {
     const observationTraceStep = buildObservationTraceStep(graphResult.observations);
 
@@ -553,11 +613,12 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       title: "已确认这轮先按咨询处理",
     });
 
+    const canaryIntent = await applyRouterCanary(preflightIntent);
     return {
       outcome: "continue",
       data: {
         orchestratorPlanSource: "llm",
-        preResolvedIntent: preflightIntent,
+        preResolvedIntent: canaryIntent,
         tokenUsage,
       },
     };
@@ -789,24 +850,29 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     }
   }
 
-  const preResolvedIntent = orchestratorPlanToIntent(plan);
+  let preResolvedIntent = orchestratorPlanToIntent(plan);
 
-  /* ── Router Shadow Hook ──
-   *   Fire-and-forget after production decision is finalized.
-   *   NEVER blocks Primary. NEVER modifies preResolvedIntent.
-   *   Default off — only activates with AGENT_ROUTER_SHADOW=on|admin. */
+  /* ── Router Canary / Shadow Hook ──
+   * Primary is finalized first. The Canary coordinator may only return a
+   * schema-valid read/clarify adoption; every failure preserves Primary.
+   * When Canary is off, the coordinator retains the independent Shadow path. */
   try {
-    const { scheduleRouterShadow } = await import("../router/router-shadow");
-    scheduleRouterShadow({
-      primaryIntent: preResolvedIntent?.intent ?? "unknown",
-      message,
-      hasActivePlans: (context.plans ?? []).some((p) => p.state === "active"),
-      hasChecklists: (context.checklists ?? []).length > 0,
-      hasMemories: (context.memories ?? []).length > 0,
-      now: context.now,
-    });
+    if (preResolvedIntent) {
+      preResolvedIntent = await applyRouterCanary(preResolvedIntent);
+    } else {
+      const { scheduleRouterShadow } = await import("../router/router-shadow");
+      scheduleRouterShadow({
+        actor: "admin",
+        primaryIntent: "unknown",
+        message,
+        hasActivePlans: (context.plans ?? []).some((p) => p.state === "active"),
+        hasChecklists: (context.checklists ?? []).length > 0,
+        hasMemories: (context.memories ?? []).length > 0,
+        now: context.now,
+      });
+    }
   } catch {
-    /* Shadow import/init failure must not affect Primary */
+    /* Canary/Shadow failure must not affect Primary */
   }
 
   return {

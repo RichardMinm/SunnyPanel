@@ -229,6 +229,21 @@ describe("Router Structured Protocol", () => {
     assert.deepEqual(result?.schemaErrors, ["context_reference_invalid"]);
   });
 
+  it("rejects a resource ID that exists under a different resource type", async () => {
+    const result = await runFake("查看计划 7", {
+      ...baseOutput,
+      intent: "query_plan",
+      normalizedRequest: "查看计划 7",
+      contextReferences: [{ type: "plan", id: 7 }],
+    }, {
+      resourceIds: [7],
+      resourceReferences: [{ id: 7, type: "checklist" }],
+    });
+
+    assert.equal(result?.schemaValid, false);
+    assert.deepEqual(result?.schemaErrors, ["context_reference_invalid"]);
+  });
+
   it("strict output rejects execute, receipt, and rollback fields", async () => {
     for (const forbiddenField of ["execute", "receipt", "rollback"]) {
       const result = await runFake("解释线性代数", {

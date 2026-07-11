@@ -74,6 +74,7 @@ Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, a
 | **Orchestrator Shadow (L1-B-S2)** | `tests/agent/orchestration/safety-classifier.test.ts`, `tests/agent/orchestration/orchestrator-shadow.test.ts`, `tests/agent/orchestration/resource-readiness-guard.test.ts` | Safety classification, comparison, resource guard. Pure unit — no API, no DB. | normal |
 | **Router Shadow (L2-A)** | `tests/agent/router-shadow.test.ts` | Feature flag, comparison, prioritization, collector, Primary-unchanged. Pure unit — no API, no DB. Default off. | normal |
 | **Router Structured Protocol (L2-B)** | `tests/agent/router-protocol.test.ts`, `tests/agent/router-shadow.test.ts`, `tests/agent/llm/invoke-structured.test.ts`, `tests/agent/llm/provider-capabilities.test.ts` | Schema-sourced prompt allowlists, strict structured output, clarify/resource safeguards, one Provider call per Shadow evaluation, typed failure isolation, sanitized collector, and Primary unchanged. Fake models only; no API or DB. Default off. | protected |
+| **Read/Clarify Router Canary (L2-C0)** | `tests/agent/router-canary.test.ts`, `tests/agent/router-canary-hook.test.ts` | Admin-only clarify adoption plus agreement-only read adoption, exact Primary fallback for writes/compound/failures, bounded timeout and cancellation, typed-resource and injection safety, sanitized metadata, one shared Canary/Shadow model call, preflight coverage, and production-hook isolation. Fake models only; no API or DB. Default off. | protected |
 
 ## Planning
 
