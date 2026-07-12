@@ -74,6 +74,8 @@ export const buildRouterProtocolPrompt = (): string => `你是 SunnyPanel Struct
 - explicit create / update / save / schedule / cancel / delete：选择最具体的写入候选 intent，readWriteClass=write_candidate。write_candidate 只表示候选，不表示执行许可。
 - compose_plan 和 compose_checklist 可以接受部分细节。用户明确要求制定计划或创建清单时，使用 normalizedRequest 与现有 args 生成写入候选，不得因为缺少后续细节而改成 clarify。
 - ambiguous mutation 或缺少目标、时间、资源等必要信息：intent=clarify，readWriteClass=clarify，needsClarification=true，clarificationQuestion 必须是非空问题。
+- confidence 表示对路由分类判断的确定程度，不表示用户请求的信息完整度。
+- 当确定请求必须追问时，信息不完整本身不等于 low_confidence；输出合法 clarify，并保持 clarificationQuestion 非空。
 - 非 clarify 输出：needsClarification=false，clarificationQuestion=null。
 - 一个动作使用 mode=single；多个串联动作使用 mode=compound，但仍只做分类和抽取，不生成执行 DAG。
 - mode=compound 时仍只输出一个 dominant intent：全部为只读动作时选择最具体的只读 intent；同时包含读和写时选择写入候选 intent；多个写入动作时选择用户请求中的第一个创建/草拟动作。

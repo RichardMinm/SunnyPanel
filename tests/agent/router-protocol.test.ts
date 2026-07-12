@@ -125,6 +125,14 @@ describe("Router Structured Protocol", () => {
     assert.ok(prompt.includes("这些情况统一输出 clarify"));
   });
 
+  it("defines clarify confidence as classification certainty", () => {
+    const prompt = buildRouterProtocolPrompt();
+
+    assert.match(prompt, /confidence.*路由分类.*确定/);
+    assert.match(prompt, /信息不完整.*不等于.*low_confidence/);
+    assert.match(prompt, /clarificationQuestion.*非空/);
+  });
+
   it("consultation routes to answer", async () => {
     const result = await runFake("线性代数应该怎么入门？", baseOutput);
 
