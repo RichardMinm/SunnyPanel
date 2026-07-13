@@ -339,17 +339,23 @@ configured cap, eligibility returns `legacy` rather than truncating facts.
 
 ## 6. Fact projection and trust boundary
 
-The LangChain model receives only the user question and the bounded serialized
-`QueryFacts` produced by `loadQueryFacts()`. It does not receive the broader
-`AgentPromptContext`, memories, thread summary, or unrelated workspace records.
-This avoids giving the formatter a second, potentially stale fact source.
+`loadQueryFacts()` returns the authoritative in-process fact object used by the
+locked Legacy formatter and the local canonical fact-block renderer. It is
+never logged or stored as evaluation output. Before the provider call,
+`projectQueryFactsForModel()` creates a bounded, credential-scrubbed
+`ModelQueryFactsProjection` from that same object.
+
+The LangChain model receives only the user question and this safe projection.
+It does not receive the broader `AgentPromptContext`, memories, thread summary,
+or unrelated workspace records. This avoids giving the formatter a second,
+potentially stale fact source.
 
 The projection has fixed record/text caps and removes credential-shaped values
-from all textual fact fields. It reports only safe metadata such as fact kind,
+from all textual fields. It reports only safe metadata such as fact kind,
 character counts, and typed reference kinds. It never logs raw prompts, raw
 responses, secrets, tokens, workspace text, or hidden reasoning.
 
-The serialized facts are placed in a separate data message and labelled
+The serialized safe projection is placed in a separate data message and labelled
 untrusted. Plan titles, phase titles, and goals may contain prompt injection and
 must remain data. Instructions embedded in them cannot override the system
 protocol.
