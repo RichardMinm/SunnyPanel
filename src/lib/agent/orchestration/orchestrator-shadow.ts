@@ -19,7 +19,7 @@
 import type { OrchestratorPlan } from "./types";
 import type { OrchestratorOutput } from "../llm/schemas/orchestrator-output";
 import { orchestratorOutputSchema, validateTaskDAG } from "../llm/schemas/orchestrator-output";
-import { classifyIntents, type SafetyClass, type SafetyComparisonInput } from "./safety-classifier";
+import { classifyIntents, type SafetyClass } from "./safety-classifier";
 
 /* ---- Feature flag ---- */
 
@@ -119,12 +119,6 @@ const buildPrimarySide = (plan: OrchestratorPlan) => {
   };
 };
 
-/** Build an empty shadow side for when shadow is skipped or fails. */
-const EMPTY_SHADOW = {
-  attempted: false,
-  schemaValid: false,
-} as const;
-
 /** Validate a plan through strict schema + DAG. */
 const validateStrict = (plan: OrchestratorPlan): { valid: boolean; errors: string[] } => {
   /* Convert to OrchestratorOutput shape for Zod validation */
@@ -171,8 +165,6 @@ export const runOrchestratorShadow = async (
   const start = Date.now();
 
   let shadowResult: ShadowComparison["shadow"];
-  let strictValid = false;
-
   try {
     /* Dynamic import to avoid loading LangChain when shadow is disabled */
     const { runLangChainOrchestrator } = await import("./langchain-orchestrator");
@@ -185,8 +177,6 @@ export const runOrchestratorShadow = async (
 
     const shadowIntents = extractIntents(shadowPlan);
     const strict = validateStrict(shadowPlan);
-
-    strictValid = strict.valid;
 
     shadowResult = {
       attempted: true,

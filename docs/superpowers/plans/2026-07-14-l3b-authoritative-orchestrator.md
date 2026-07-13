@@ -171,7 +171,7 @@ export type ConversationalAnswerTerminalState =
 - [x] **Step 2: Run RED:** missing report builder failed; retry-budget and numeric resource-ID classification received separate RED coverage.
 - [x] **Step 3: Implement the pure report builder and update the explicit DB-free harness** to reuse the unchanged fixture matrix, fixed retry/timeout budgets, one authoritative attempt per observation, and role-call counters.
 - [x] **Step 4: Run GREEN**, including 70 focused tests, typecheck, affected-file ESLint, disabled-by-default script check, and `git diff --check`.
-- [ ] **Step 5: Commit:** `git commit -m "test(agent): add L3-B orchestrator evaluation"`.
+- [x] **Step 5: Commit:** `03152d5 test(agent): add L3-B orchestrator evaluation`.
 
 ### Task 6: Run deterministic baseline and explicit Live Provider evaluation
 
@@ -180,7 +180,7 @@ export type ConversationalAnswerTerminalState =
 - No production file changes unless a failed gate is traced to a scoped L3-B defect through systematic debugging and a new RED/GREEN cycle.
 - Sanitized reports remain outside Git (for example under `/tmp`).
 
-- [ ] **Step 1: Run deterministic validation:** typecheck, `test:agent`, planning, schedule, content, lint with nested worktree exclusion, and `git diff --check`.
+- [x] **Step 1: Run deterministic validation:** typecheck; `test:agent` (1364 tests, 1355 pass, 9 skip, plus 75/75 fixtures); planning (301/301); schedule (289/289); content (173/173); lint (0 errors, 91 baseline warnings); typography; and `git diff --check` passed.
 - [ ] **Step 2: Run three consecutive fixed Live rounds** with at least 99 total authoritative observations, fixed timeouts/retries, no database connection, and no default switch.
 - [ ] **Step 3: Run the single-round all-fixture acceptance matrix.**
 - [ ] **Step 4: Report:** strict schema, typed failures, safety mismatches, DAG/resource/injection, `legacySpecialistCallCount`, `specialistBypassCount`, `specialistRequiredCount`, `unexpectedDuplicateModelCalls`, task execution, database mutation, transport/completion/timeout rates, TTFT/total latency, API calls, usage, and cost.

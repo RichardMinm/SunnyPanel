@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { test } from "node:test";
 
 import {
@@ -273,7 +274,7 @@ test("keeps the original 33-fixture matrix and all high-risk segments", () => {
 
 test("live harness is explicit, database-free, fixed-budget, and uses typed results", () => {
   const source = readFileSync(
-    new URL("../../../scripts/agent-orchestrator-canary-eval.mjs", import.meta.url),
+    resolve(process.cwd(), "scripts/agent-orchestrator-canary-eval.mjs"),
     "utf8",
   );
 
