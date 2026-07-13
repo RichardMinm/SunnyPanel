@@ -29,6 +29,7 @@ export type AgentTurnFinalizerInput = {
   conversationStateOverride?: unknown;
   existingMemories: LearningInput["existingMemories"];
   failure?: unknown;
+  projectFailureAssistantMessage?: boolean;
   pushTrace: (step: AgentTraceStep) => void;
   response: AgentChatResponse;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -131,6 +132,7 @@ export const createAgentTurnFinalizer = ({
     existingMemories,
     conversationStateOverride,
     failure,
+    projectFailureAssistantMessage,
     pushTrace,
     response,
     tokenUsage,
@@ -183,8 +185,9 @@ export const createAgentTurnFinalizer = ({
       pushTrace(step);
     };
 
-    try {
-      await runLearningLoop({
+    if (!(failure && projectFailureAssistantMessage === false)) {
+      try {
+        await runLearningLoop({
         assistantMessage: completedResponse.assistantMessage,
         existingMemories,
         intent: completedResponse.intent,
@@ -195,15 +198,16 @@ export const createAgentTurnFinalizer = ({
         sourceThread: thread.id,
         tokenUsage: completedResponse.tokenUsage ?? tokenUsage,
         user,
-      });
-    } catch (error) {
-      pushLearningTrace({
+        });
+      } catch (error) {
+        pushLearningTrace({
         detail: error instanceof Error ? error.message : String(error),
         id: "turn-learning-failure",
         kind: "error",
         status: "error",
         title: "学习循环未完成",
-      });
+        });
+      }
     }
 
     completedResponse.trace = mergeTrace(
@@ -222,6 +226,9 @@ export const createAgentTurnFinalizer = ({
                   ? failure.message
                   : String(failure),
               pendingAfter: completedResponse.pendingAction,
+              ...(projectFailureAssistantMessage === false
+                ? { projectAssistantMessage: false }
+                : {}),
               response: completedResponse,
             }
           : {

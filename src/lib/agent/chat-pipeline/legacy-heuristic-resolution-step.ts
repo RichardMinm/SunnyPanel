@@ -48,6 +48,8 @@ import type {
   WritingAssistResult,
 } from "@/lib/agent/prompts/writing-assist";
 import type { IntentResolution } from "./resolve-intent-step";
+import { dispatchPreResolvedQuery } from "@/lib/agent/query/dispatcher";
+import { resolveQueryRuntime } from "@/lib/agent/query/runtime-config";
 
 /* ──── Types ──── */
 
@@ -151,7 +153,7 @@ export const resolveLegacyHeuristicStep = async (
     orchestratorPlanSource,
     pendingAction: _pendingAction,
     preResolvedIntent,
-    persistAgentTurn: _persistAgentTurn,
+    persistAgentTurn,
     pushTrace,
     resolvedHistory: _resolvedHistory,
     stream,
@@ -170,6 +172,29 @@ export const resolveLegacyHeuristicStep = async (
     preResolvedIntent &&
     shouldTrustOrchestratorPreResolve(preResolvedIntent, orchestratorPlanSource)
   ) {
+    const queryDispatch = await dispatchPreResolvedQuery({
+      emitToken,
+      intent: preResolvedIntent,
+      message,
+      runtime: resolveQueryRuntime(),
+      stream,
+    });
+
+    if (queryDispatch.outcome === "complete" || queryDispatch.outcome === "clarify" || queryDispatch.outcome === "legacy_facts") {
+      if (queryDispatch.outcome === "clarify") emitToken(queryDispatch.assistantMessage, "response");
+      const updatedThread = await persistAgentTurn({
+        assistantMessage: queryDispatch.assistantMessage,
+        confidence: preResolvedIntent.confidence,
+        engine: "workflow",
+        intent: queryDispatch.outcome === "clarify" ? "clarify" : preResolvedIntent.intent,
+        nextPendingAction: null,
+      });
+      return {
+        outcome: "early_exit",
+        response: queryDispatch.toResponse(updatedThread.id, tokenUsage),
+      };
+    }
+
     stream?.progress({
       detail: `编排器已给出 ${preResolvedIntent.intent}（source=${orchestratorPlanSource ?? "llm"}），跳过重复 LLM 仲裁。`,
       message: "使用编排预解析意图",

@@ -17,6 +17,7 @@ import type {
   PendingAction,
 } from "../../src/lib/agent/schemas";
 import type { AgentTraceEventPayload } from "../../src/lib/agent/trace";
+import { QueryStreamFailure } from "../../src/lib/agent/query/errors";
 
 const encodeBlock = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
@@ -331,4 +332,14 @@ test("createAgentChatStream includes turnId in meta and done", async () => {
     body,
     /event: done\ndata: .*"turnId":"turn-stream-1"/,
   );
+});
+
+test("QueryStreamFailure emits only a safe error terminal event", async () => {
+  const response = createAgentChatStream(async () => {
+    throw new QueryStreamFailure({ status: "partial", persist: false, partialOutputEmitted: true, errorCode: "provider_error", modelCalls: 1 });
+  });
+  const body = await response.text();
+  assert.match(body, /event: error/);
+  assert.match(body, /Read-only query unavailable/);
+  assert.doesNotMatch(body, /event: meta|event: done/);
 });

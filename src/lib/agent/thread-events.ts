@@ -49,6 +49,7 @@ export type AgentThreadEventPayload =
       error: string;
       eventType: "turn_failed";
       pendingAfter: null | PendingAction;
+      projectAssistantMessage?: boolean;
       response: AgentChatResponse;
     }
   | {
@@ -357,6 +358,12 @@ export const hydrateAgentThreadState = async ({
 
     const response = responseFromTerminalEvent(event);
     if (response) {
+      if (
+        event.eventType === "turn_failed" &&
+        (event.payload as PayloadFor<"turn_failed">).projectAssistantMessage === false
+      ) {
+        continue;
+      }
       state.messages.push({
         content: response.assistantMessage,
         role: "assistant",

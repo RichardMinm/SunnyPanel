@@ -16,6 +16,7 @@ import type {
   AgentStreamProgressEvent,
   AgentStreamStageEvent,
 } from "@/lib/agent/stream-events";
+import { isQueryStreamFailure } from "@/lib/agent/query/errors";
 
 const intentToSuggestedMode: Partial<Record<AgentChatResponse["intent"], AgentWorkbenchMode>> = {
   answer_question: "ask",
@@ -283,6 +284,13 @@ export const createAgentChatStream = (
         }
         // #endregion
       } catch (error) {
+        if (isQueryStreamFailure(error)) {
+          enqueue("error", {
+            assistantMessage: error.safeAssistantMessage,
+            message: error.safeMessage,
+          });
+          return;
+        }
         enqueue("error", {
           assistantMessage: "Agent 执行失败，我已经把失败记录写入审计日志。",
           message: error instanceof Error ? error.message : "Unknown Agent failure",

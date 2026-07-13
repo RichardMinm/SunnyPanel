@@ -40,6 +40,7 @@ import {
 import { getUserPreferences } from "@/lib/agent/user-preferences";
 import { createPerformanceTimer, isPerfTraceEnabled } from "@/lib/agent/trace/perf-trace";
 import { isSessionCoordinatorEnabled } from "@/lib/agent/session/coordinator-feature-flag";
+import { isQueryStreamFailure } from "@/lib/agent/query/errors";
 import { getPayloadClient } from "@/lib/payload/client";
 import { isRecord } from "@/lib/shared/is-record";
 
@@ -298,6 +299,28 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
       }
       return result;
     } catch (error) {
+      if (isQueryStreamFailure(error)) {
+        const finalized = await finalizeTurn({
+          existingMemories: [],
+          failure: error,
+          projectFailureAssistantMessage: false,
+          pushTrace: () => undefined,
+          response: {
+            assistantMessage: error.safeAssistantMessage,
+            confidence: 0,
+            engine: "workflow",
+            intent: "clarify",
+            pendingAction: null,
+            threadId: thread.id,
+            tokenUsage: baseTokenUsage,
+            turnId,
+            workbenchMode: workbenchMode ?? undefined,
+          },
+          tokenUsage: baseTokenUsage,
+        });
+        if (shouldStream) throw error;
+        return finalized;
+      }
       if (perfTimer) {
         const perfTrace = perfTimer.snapshotForSSE({
           phases: {},
