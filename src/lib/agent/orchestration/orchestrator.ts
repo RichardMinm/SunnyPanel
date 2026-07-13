@@ -156,10 +156,33 @@ export const orchestratorPlanToIntent = (plan: OrchestratorPlan): AgentIntent | 
   }
 
   const task = plan.tasks[0];
-
-  return parseAgentIntentResult({
+  const parsed = parseAgentIntentResult({
     args: task.args,
     confidence: 0.9,
     intent: task.intent,
   });
+
+  if (parsed) return parsed;
+
+  if (task.intent === "answer_question") {
+    const question =
+      typeof task.args.question === "string"
+        ? task.args.question.trim()
+        : "";
+
+    if (question) {
+      return {
+        args: {
+          answer: "",
+          learningContext: null,
+          openDomainTopic: question,
+          suggestAction: null,
+        },
+        confidence: 0.9,
+        intent: "answer_question",
+      };
+    }
+  }
+
+  return null;
 };

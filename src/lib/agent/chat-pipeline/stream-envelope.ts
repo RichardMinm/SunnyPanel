@@ -17,6 +17,7 @@ import type {
   AgentStreamStageEvent,
 } from "@/lib/agent/stream-events";
 import { isQueryStreamFailure } from "@/lib/agent/query/errors";
+import { isConversationalAnswerStreamFailure } from "@/lib/agent/answer/errors";
 
 const intentToSuggestedMode: Partial<Record<AgentChatResponse["intent"], AgentWorkbenchMode>> = {
   answer_question: "ask",
@@ -284,7 +285,10 @@ export const createAgentChatStream = (
         }
         // #endregion
       } catch (error) {
-        if (isQueryStreamFailure(error)) {
+        if (
+          isQueryStreamFailure(error) ||
+          isConversationalAnswerStreamFailure(error)
+        ) {
           enqueue("error", {
             assistantMessage: error.safeAssistantMessage,
             message: error.safeMessage,

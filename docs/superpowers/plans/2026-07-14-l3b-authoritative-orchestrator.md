@@ -122,7 +122,7 @@ export type SpecialistCallDisposition = "bypassed_complete" | "required_incomple
 - [x] **Step 2: Run RED:** missing budget module failed both target suites before implementation.
 - [x] **Step 3: Implement a deterministic task-completeness predicate** using only schema-valid task args and intent requirements. Thread an optional per-turn recorder through both native and compatibility execution graphs; do not change specialist prompt/schema/fallback logic.
 - [x] **Step 4: Run GREEN:** 9 target tests, 36 orchestration-focused tests, and typecheck passed.
-- [ ] **Step 5: Commit:** `git commit -m "feat(agent): account for orchestrator model calls by role"`.
+- [x] **Step 5: Commit:** `git commit -m "feat(agent): account for orchestrator model calls by role"` (`a10a8b8`).
 
 ### Task 4: Establish the LangChain conversational-answer stream
 
@@ -147,11 +147,11 @@ export type ConversationalAnswerTerminalState =
   | { status: "incomplete"; persist: false; partialOutputEmitted: true; errorCode: SafeAnswerErrorCode };
 ```
 
-- [ ] **Step 1: Write failing fake-model tests** for answer reuse with zero calls; one missing-answer call; reasoning ignored; tool call/chunk before text → unavailable; after text → incomplete; Provider error, first/total timeout, overflow, cancellation, empty final stream, and invalid blocks before/after text; complete persists, other states do not; no `done` after safe SSE error; no Query Commentary partial contract.
-- [ ] **Step 2: Run RED:** `node --import tsx --test tests/agent/conversational-answer-runtime.test.ts tests/agent/chat-pipeline/legacy-heuristic-retired.test.ts`; expect missing runtime/terminal behavior.
-- [ ] **Step 3: Implement the minimum text-only LangChain runtime** with `createChatModel()`, `buildMessages()`, an injectable fake model, one Provider call, bounded first/total timeout, and text/tool/reasoning block validation. Reuse complete `reply`/`args.answer`; do not call Query commentary; remove no Legacy code.
-- [ ] **Step 4: Integrate terminal behavior** so only complete answers reach the existing `persistAgentTurn()` success path. Unavailable/incomplete throw the existing safe stream failure before finalization; already-emitted partial text is never projected as a completed assistant message.
-- [ ] **Step 5: Run GREEN**, then full chat-pipeline/LangGraph focused tests and typecheck.
+- [x] **Step 1: Write failing fake-model tests** for answer reuse with zero calls; one missing-answer call; reasoning ignored; tool call/chunk before text → unavailable; after text → incomplete; Provider error, first/total timeout, overflow, cancellation, empty final stream, and invalid blocks before/after text; complete persists, other states do not; no `done` after safe SSE error; no Query Commentary partial contract.
+- [x] **Step 2: Run RED:** missing answer runtime and old direct token loop failed before implementation; a separate RED proved question-only Orchestrator tasks could not reach the answer runtime.
+- [x] **Step 3: Implement the minimum text-only LangChain runtime** with `createChatModel()`, `buildMessages()`, an injectable fake model, one Provider call, bounded first/total timeout, and text/tool/reasoning block validation. Reuse complete `reply`/`args.answer`; do not call Query commentary; remove no Legacy code.
+- [x] **Step 4: Integrate terminal behavior** so only complete answers reach the existing `persistAgentTurn()` success path. Unavailable/incomplete throw a typed safe stream failure before finalization; already-emitted partial text is never projected as a completed assistant message.
+- [x] **Step 5: Run GREEN:** 36 answer/terminal tests, 60 combined chat-pipeline/LangGraph focused tests, Agent-test TypeScript compilation, production typecheck, and affected-file lint passed.
 - [ ] **Step 6: Commit:** `git commit -m "feat(agent): add LangChain conversational answer stream"`.
 
 ### Task 5: Build deterministic L3-B evaluation and safety gates

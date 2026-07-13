@@ -18,6 +18,7 @@ import type {
 } from "../../src/lib/agent/schemas";
 import type { AgentTraceEventPayload } from "../../src/lib/agent/trace";
 import { QueryStreamFailure } from "../../src/lib/agent/query/errors";
+import { ConversationalAnswerStreamFailure } from "../../src/lib/agent/answer/errors";
 
 const encodeBlock = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
@@ -341,5 +342,21 @@ test("QueryStreamFailure emits only a safe error terminal event", async () => {
   const body = await response.text();
   assert.match(body, /event: error/);
   assert.match(body, /Read-only query unavailable/);
+  assert.doesNotMatch(body, /event: meta|event: done/);
+});
+
+test("ConversationalAnswerStreamFailure emits no meta or done after partial text", async () => {
+  const response = createAgentChatStream(async () => {
+    throw new ConversationalAnswerStreamFailure({
+      errorCode: "tool_call",
+      partialOutputEmitted: true,
+      persist: false,
+      status: "incomplete",
+    });
+  });
+  const body = await response.text();
+
+  assert.match(body, /event: error/);
+  assert.match(body, /Conversational answer unavailable/);
   assert.doesNotMatch(body, /event: meta|event: done/);
 });

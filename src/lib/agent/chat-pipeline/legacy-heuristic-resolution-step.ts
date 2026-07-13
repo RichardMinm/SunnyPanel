@@ -15,8 +15,6 @@
  */
 
 import {
-  type GenerateStreamingReplyArgs,
-  type GenerateStreamingReplyResult,
   type StreamTokenCallback,
 } from "@/lib/agent/client";
 import type { ConfirmationSignals } from "@/lib/agent/chat-pipeline/confirmation-step";
@@ -50,6 +48,8 @@ import type {
 import type { IntentResolution } from "./resolve-intent-step";
 import { dispatchPreResolvedQuery } from "@/lib/agent/query/dispatcher";
 import { resolveQueryAdoption, resolveQueryRuntime } from "@/lib/agent/query/runtime-config";
+import { ConversationalAnswerStreamFailure } from "@/lib/agent/answer/errors";
+import { runConversationalAnswer } from "@/lib/agent/answer/runtime";
 
 /* ──── Types ──── */
 
@@ -57,10 +57,10 @@ export type LegacyResolutionParams = {
   confirmationSignals: ConfirmationSignals;
   context: BuildContextStepResult["context"];
   conversationState?: import("@/lib/agent/conversation/types").AgentConversationState | null;
+  conversationalAnswerRunner?: typeof runConversationalAnswer;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void;
-  generateStreamingReplyFn?: (args: GenerateStreamingReplyArgs) => Promise<GenerateStreamingReplyResult | null>;
   intentModelEngine: AgentEngine;
   message: string;
   modelResolver: AgentModelIntentResolver;
@@ -141,12 +141,12 @@ export const resolveLegacyHeuristicStep = async (
 > => {
   const {
     confirmationSignals: _confirmationSignals,
-    context: _context,
+    context,
+    conversationalAnswerRunner = runConversationalAnswer,
     conversationState: _conversationState,
     emitStatus,
     emitToken,
     emitUsage: _emitUsage,
-    generateStreamingReplyFn: _generateStreamingReplyFn = async () => null,
     intentModelEngine: _intentModelEngine,
     message,
     modelResolver: _modelResolver,
@@ -155,7 +155,7 @@ export const resolveLegacyHeuristicStep = async (
     preResolvedIntent,
     persistAgentTurn,
     pushTrace,
-    resolvedHistory: _resolvedHistory,
+    resolvedHistory,
     stream,
     tokenUsage: tokenUsageIn,
     trace: _trace,
@@ -204,19 +204,36 @@ export const resolveLegacyHeuristicStep = async (
     });
     pushTrace({ detail: `编排器已解析为 ${preResolvedIntent.intent}`, id: "analysis-intent", kind: "analysis", status: "done", title: `编排意图：${preResolvedIntent.intent}` });
 
-    const isConversational = preResolvedIntent.intent === "answer_question" || preResolvedIntent.intent === "clarify";
-    if (isConversational) {
+    let resolvedPreIntent = preResolvedIntent;
+    if (preResolvedIntent.intent === "answer_question") {
       emitStatus("正在生成回复...");
       stream?.start({ id: "stage-response", phase: "response", title: "组织回复" });
-      const preResolvedText = ('reply' in preResolvedIntent ? (preResolvedIntent as { reply?: string }).reply : undefined)
-        ?? (preResolvedIntent.intent === "answer_question" ? (preResolvedIntent.args as { answer?: string }).answer : undefined);
-      if (preResolvedText) {
-        for (const token of splitIntoWordTokens(preResolvedText)) { emitToken(token, 'response'); await new Promise((r) => setTimeout(r, 6)); }
+      const terminal = await conversationalAnswerRunner({
+        history: resolvedHistory,
+        intent: preResolvedIntent,
+        message,
+        workspaceContext: JSON.stringify(context),
+        emitToken,
+      });
+      if (terminal.status !== "complete") {
+        throw new ConversationalAnswerStreamFailure(terminal);
+      }
+      resolvedPreIntent = {
+        ...preResolvedIntent,
+        args: { ...preResolvedIntent.args, answer: terminal.answer },
+        reply: terminal.answer,
+      };
+      stream?.complete("stage-response", "回复已生成");
+    } else if (preResolvedIntent.intent === "clarify") {
+      emitStatus("正在生成回复...");
+      stream?.start({ id: "stage-response", phase: "response", title: "组织回复" });
+      for (const token of splitIntoWordTokens(preResolvedIntent.args.question)) {
+        emitToken(token, "response");
       }
       stream?.complete("stage-response", "回复已生成");
     }
 
-    return { outcome: "continue", data: { confirmedActionId: null, resolution: { engine: "workflow", intent: preResolvedIntent }, tokenUsage } };
+    return { outcome: "continue", data: { confirmedActionId: null, resolution: { engine: "workflow", intent: resolvedPreIntent }, tokenUsage } };
   }
 
   /* ── Writing mode ── */

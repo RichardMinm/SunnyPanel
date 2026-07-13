@@ -33,13 +33,12 @@ import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { WritingAssistRequest } from "@/lib/agent/writing-assist-core";
 import type { WritingAssistResult } from "@/lib/agent/prompts/writing-assist";
 import type {
-  GenerateStreamingReplyArgs,
-  GenerateStreamingReplyResult,
   StreamTokenCallback,
 } from "@/lib/agent/client";
 import type { OrchestratorPlanSource } from "@/lib/agent/orchestration/plan-source";
 import { resolveConfirmationStep } from "./confirmation-resolution-step";
 import { resolveLegacyHeuristicStep } from "./legacy-heuristic-resolution-step";
+import type { runConversationalAnswer } from "@/lib/agent/answer/runtime";
 
 /* ──── Types ──── */
 
@@ -57,10 +56,10 @@ export type ResolveIntentStepParams = {
   confirmationSignals: ConfirmationSignals;
   context: BuildContextStepResult["context"];
   conversationState?: import("@/lib/agent/conversation/types").AgentConversationState | null;
+  conversationalAnswerRunner?: typeof runConversationalAnswer;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void;
-  generateStreamingReplyFn?: (args: GenerateStreamingReplyArgs) => Promise<GenerateStreamingReplyResult | null>;
   intentModelEngine: AgentEngine;
   message: string;
   modelResolver: AgentModelIntentResolver;
@@ -112,12 +111,12 @@ export type ResolveIntentStepResult =
 export const runResolveIntentStep = async (params: ResolveIntentStepParams): Promise<ResolveIntentStepResult> => {
   const {
     confirmationSignals,
+    conversationalAnswerRunner,
     context,
     conversationState = null,
     emitStatus,
     emitToken,
     emitUsage,
-    generateStreamingReplyFn,
     intentModelEngine,
     message,
     modelResolver,
@@ -162,11 +161,11 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
   return resolveLegacyHeuristicStep({
     confirmationSignals,
     context,
+    conversationalAnswerRunner,
     conversationState,
     emitStatus,
     emitToken,
     emitUsage,
-    generateStreamingReplyFn,
     intentModelEngine,
     message,
     modelResolver,

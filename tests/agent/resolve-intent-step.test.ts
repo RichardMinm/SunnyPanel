@@ -163,36 +163,17 @@ test("batch confirmations derive a unique receipt action id from their actions",
   assert.notEqual(sharedOrchestrationFirst, sharedOrchestrationSecond);
 });
 
-test("runResolveIntentStep grounds streaming replies with the pre-resolved contextual answer", async () => {
+test("runResolveIntentStep reuses the pre-resolved answer without a second model call", async () => {
   const trace: AgentTraceStep[] = [];
+  const emitted: string[] = [];
   const contextualAnswer = "结合你已有的线性代数计划，建议先补矩阵运算，再进入向量空间。";
-  let capturedGroundedAnswer: undefined | string;
-  let capturedContext: AgentPromptContext | undefined;
 
   const result = await runResolveIntentStep({
     confirmationSignals: { cancel: false, confirm: false },
     context: promptContext,
     emitStatus: () => undefined,
-    emitToken: () => undefined,
+    emitToken: (value) => emitted.push(value),
     emitUsage: () => undefined,
-    generateStreamingReplyFn: async (args) => {
-      capturedGroundedAnswer = args.groundedAnswer;
-      capturedContext = args.context;
-      args.onToken("模型润色后的回答");
-
-      return {
-        text: "模型润色后的回答",
-        tokenUsage: {
-          contextTokens: 10,
-          inputTokens: 2,
-          outputTokens: 6,
-          providerInputTokens: 12,
-          providerOutputTokens: 6,
-          source: "provider",
-          totalTokens: 18,
-        },
-      };
-    },
     intentModelEngine: "workflow",
     message: "给我参谋一下线性代数的学习",
     modelResolver: async () => null,
@@ -217,6 +198,7 @@ test("runResolveIntentStep grounds streaming replies with the pre-resolved conte
 
   // R6-C1-D-B: heuristic consultation path retired.
   assert.equal(result.outcome, "continue");
+  assert.deepEqual(emitted, [contextualAnswer]);
 });
 
 test("runResolveIntentStep emits an arbitration trace before the final intent trace", async () => {
@@ -228,22 +210,6 @@ test("runResolveIntentStep emits an arbitration trace before the final intent tr
     emitStatus: () => undefined,
     emitToken: () => undefined,
     emitUsage: () => undefined,
-    generateStreamingReplyFn: async (args) => {
-      args.onToken("路径回答");
-
-      return {
-        text: "路径回答",
-        tokenUsage: {
-          contextTokens: 10,
-          inputTokens: 2,
-          outputTokens: 4,
-          providerInputTokens: 12,
-          providerOutputTokens: 4,
-          source: "provider",
-          totalTokens: 16,
-        },
-      };
-    },
     intentModelEngine: "workflow",
     message: "请为我规划一个信息安全学习路径，偏蓝队",
     modelResolver: async () => ({
@@ -273,7 +239,6 @@ test("runResolveIntentStep emits an arbitration trace before the final intent tr
 
 test("runResolveIntentStep enriches conversational answers with cognitive advisory trace", async () => {
   const trace: AgentTraceStep[] = [];
-  let capturedGroundedAnswer = "";
   const context: AgentPromptContext = {
     checklists: [
       {
@@ -329,23 +294,6 @@ test("runResolveIntentStep enriches conversational answers with cognitive adviso
     emitStatus: () => undefined,
     emitToken: () => undefined,
     emitUsage: () => undefined,
-    generateStreamingReplyFn: async (args) => {
-      capturedGroundedAnswer = args.groundedAnswer ?? "";
-      args.onToken(capturedGroundedAnswer);
-
-      return {
-        text: capturedGroundedAnswer,
-        tokenUsage: {
-          contextTokens: 10,
-          inputTokens: 2,
-          outputTokens: 20,
-          providerInputTokens: 12,
-          providerOutputTokens: 20,
-          source: "provider",
-          totalTokens: 32,
-        },
-      };
-    },
     intentModelEngine: "workflow",
     message: "SunnyPanel Agent 泛化问题怎么推进？",
     modelResolver: async () => null,

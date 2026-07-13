@@ -41,6 +41,7 @@ import { getUserPreferences } from "@/lib/agent/user-preferences";
 import { createPerformanceTimer, isPerfTraceEnabled } from "@/lib/agent/trace/perf-trace";
 import { isSessionCoordinatorEnabled } from "@/lib/agent/session/coordinator-feature-flag";
 import { isQueryStreamFailure } from "@/lib/agent/query/errors";
+import { isConversationalAnswerStreamFailure } from "@/lib/agent/answer/errors";
 import { getPayloadClient } from "@/lib/payload/client";
 import { isRecord } from "@/lib/shared/is-record";
 
@@ -299,7 +300,10 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
       }
       return result;
     } catch (error) {
-      if (isQueryStreamFailure(error)) {
+      if (
+        isQueryStreamFailure(error) ||
+        isConversationalAnswerStreamFailure(error)
+      ) {
         const finalized = await finalizeTurn({
           existingMemories: [],
           failure: error,

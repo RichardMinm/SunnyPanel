@@ -9,6 +9,7 @@
  */
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   confirmationMatchesPending,
@@ -20,6 +21,94 @@ import {
   type PendingAction,
 } from "../../../src/lib/agent/schemas";
 import { buildLegacyHeuristicRetiredResponse } from "../../../src/lib/agent/tool-planner/unavailable-response";
+import { ConversationalAnswerStreamFailure } from "../../../src/lib/agent/answer/errors";
+import { resolveLegacyHeuristicStep } from "../../../src/lib/agent/chat-pipeline/legacy-heuristic-resolution-step";
+
+const legacyResolutionSource = readFileSync(
+  "src/lib/agent/chat-pipeline/legacy-heuristic-resolution-step.ts",
+  "utf8",
+);
+
+test("pre-resolved conversational answers delegate to the bounded LangChain answer runtime", () => {
+  assert.match(legacyResolutionSource, /runConversationalAnswer/);
+  assert.doesNotMatch(
+    legacyResolutionSource,
+    /for \(const token of splitIntoWordTokens\(preResolvedText\)\)/,
+  );
+});
+
+const answerStepInput = () => ({
+  confirmationSignals: { cancel: false, confirm: false },
+  context: {
+    checklists: [],
+    now: "2026-07-14T00:00:00.000Z",
+    pendingAction: null,
+    plans: [],
+  },
+  emitStatus: () => undefined,
+  emitToken: () => undefined,
+  emitUsage: () => undefined,
+  intentModelEngine: "workflow" as const,
+  message: "解释零信任",
+  modelResolver: async () => null,
+  orchestratorPlanSource: "llm" as const,
+  pendingAction: null,
+  persistAgentTurn: async () => {
+    throw new Error("answer step must not persist directly");
+  },
+  preResolvedIntent: {
+    args: { answer: "" },
+    confidence: 0.9,
+    intent: "answer_question" as const,
+  },
+  pushTrace: () => undefined,
+  resolvedHistory: [],
+  tokenUsage: {
+    contextTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+  },
+  trace: [],
+  user: { id: 1 },
+});
+
+test("complete answer terminal continues with a persistable final intent", async () => {
+  const result = await resolveLegacyHeuristicStep({
+    ...answerStepInput(),
+    conversationalAnswerRunner: async () => ({
+      answer: "零信任要求持续验证。",
+      persist: true,
+      status: "complete" as const,
+    }),
+  } as never);
+
+  assert.equal(result.outcome, "continue");
+  if (result.outcome === "continue") {
+    assert.equal(result.data.resolution.intent.intent, "answer_question");
+    assert.equal(
+      result.data.resolution.intent.intent === "answer_question"
+        ? result.data.resolution.intent.args.answer
+        : null,
+      "零信任要求持续验证。",
+    );
+  }
+});
+
+test("unavailable and incomplete answer terminals never reach persistence", async () => {
+  for (const terminal of [
+    { errorCode: "provider_error" as const, persist: false as const, status: "unavailable" as const },
+    { errorCode: "tool_call" as const, partialOutputEmitted: true as const, persist: false as const, status: "incomplete" as const },
+  ]) {
+    await assert.rejects(
+      resolveLegacyHeuristicStep({
+        ...answerStepInput(),
+        conversationalAnswerRunner: async () => terminal,
+      } as never),
+      ConversationalAnswerStreamFailure,
+    );
+  }
+});
 
 /* ═══════════════════════════════════════════════════════════════
    1. Legacy retired response is importable
