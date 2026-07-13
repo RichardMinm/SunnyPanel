@@ -32,7 +32,7 @@ const [
   import("../src/lib/agent/answer/runtime.ts"),
   import("../src/lib/agent/agents/run-specialized-agent.ts"),
   import("../src/lib/agent/llm/model-config.ts"),
-  import("../src/lib/agent/orchestrator.ts"),
+  import("../src/lib/agent/orchestration/orchestrator-plan-to-intent.ts"),
   import("../src/lib/agent/orchestration/langchain-orchestrator.ts"),
   import("../src/lib/agent/orchestration/model-call-budget.ts"),
   import("../src/lib/agent/orchestration/l3b-evaluation-fixtures.ts"),

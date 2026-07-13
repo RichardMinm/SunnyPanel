@@ -5,6 +5,8 @@ import { buildOrchestratorSystemPrompt, buildOrchestratorUserPrompt } from "../p
 import { parseAgentIntentResult, type AgentIntent } from "../schemas";
 import type { AgentRole, OrchestratorPlan, TaskNode } from "./types";
 
+export { orchestratorPlanToIntent } from "./orchestrator-plan-to-intent";
+
 const agentRoles = new Set<AgentRole>(["plan", "schedule", "review", "memory", "content", "query"]);
 
 const parseTaskNode = (value: unknown): TaskNode | null => {
@@ -148,41 +150,4 @@ export const runOrchestrator = async (
     ...result.data,
     source: result.data.source ?? "llm",
   };
-};
-
-export const orchestratorPlanToIntent = (plan: OrchestratorPlan): AgentIntent | null => {
-  if (plan.tasks.length !== 1) {
-    return null;
-  }
-
-  const task = plan.tasks[0];
-  const parsed = parseAgentIntentResult({
-    args: task.args,
-    confidence: 0.9,
-    intent: task.intent,
-  });
-
-  if (parsed) return parsed;
-
-  if (task.intent === "answer_question") {
-    const question =
-      typeof task.args.question === "string"
-        ? task.args.question.trim()
-        : "";
-
-    if (question) {
-      return {
-        args: {
-          answer: "",
-          learningContext: null,
-          openDomainTopic: question,
-          suggestAction: null,
-        },
-        confidence: 0.9,
-        intent: "answer_question",
-      };
-    }
-  }
-
-  return null;
 };

@@ -11,7 +11,7 @@ import {
   runConversationalAnswer,
 } from "../../src/lib/agent/answer/runtime";
 import type { ModelConfig } from "../../src/lib/agent/llm/model-config";
-import { orchestratorPlanToIntent } from "../../src/lib/agent/orchestration/orchestrator";
+import { orchestratorPlanToIntent } from "../../src/lib/agent/orchestration/orchestrator-plan-to-intent";
 import type { AgentIntent } from "../../src/lib/agent/schemas";
 
 const answerIntent = (answer: string): AgentIntent => ({
