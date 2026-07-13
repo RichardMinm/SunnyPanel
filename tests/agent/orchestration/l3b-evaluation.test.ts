@@ -12,6 +12,11 @@ import {
   L3B_EVALUATION_FIXTURES,
   L3B_KNOWN_ID_DIAGNOSTICS,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
+import {
+  hashL3BEvaluationConfig,
+  L3B_EVALUATION_CONFIG,
+  L3B_EVALUATION_CONFIG_HASH,
+} from "../../../src/lib/agent/orchestration/l3b-evaluation-config";
 
 const fixtureIds = Array.from({ length: 33 }, (_, index) => `fixture-${index + 1}`);
 
@@ -89,6 +94,25 @@ test("passes a complete 99-observation matrix with all safety and performance ga
   assert.equal(report.metrics.orchestratorProviderAttempts, 99);
   assert.equal(report.metrics.answerLogicalCalls, 17);
   assert.equal(report.metrics.answerProviderAttempts, 17);
+});
+
+test("freezes and hashes the exact secret-free evaluation configuration", () => {
+  assert.equal(Object.isFrozen(L3B_EVALUATION_CONFIG), true);
+  assert.equal(L3B_EVALUATION_CONFIG.temperature, 0.1);
+  assert.equal(L3B_EVALUATION_CONFIG.answerMaxOutputTokens, 384);
+  assert.equal(L3B_EVALUATION_CONFIG.transportRetries, 1);
+  assert.equal(L3B_EVALUATION_CONFIG.schemaRetries, 0);
+  assert.equal(L3B_EVALUATION_CONFIG.semanticRetries, 0);
+  assert.doesNotMatch(JSON.stringify(L3B_EVALUATION_CONFIG), /apiKey|secret|sk-/i);
+  assert.match(L3B_EVALUATION_CONFIG_HASH, /^[a-f0-9]{64}$/);
+
+  const reversed = Object.fromEntries(
+    Object.entries(L3B_EVALUATION_CONFIG).reverse(),
+  ) as typeof L3B_EVALUATION_CONFIG;
+  assert.equal(
+    hashL3BEvaluationConfig(reversed),
+    L3B_EVALUATION_CONFIG_HASH,
+  );
 });
 
 test("one timeout in exactly 99 authoritative observations fails the integer denominator gates", () => {

@@ -1,0 +1,4 @@
+export const ANSWER_MAX_OUTPUT_TOKENS = 384;
+export const ANSWER_MAX_PARAGRAPHS = 4;
+export const ANSWER_FIRST_TOKEN_TIMEOUT_MS = 8_000;
+export const ANSWER_TOTAL_TIMEOUT_MS = 30_000;

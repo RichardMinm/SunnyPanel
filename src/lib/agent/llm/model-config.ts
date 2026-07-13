@@ -20,6 +20,7 @@ export type ModelConfig = Readonly<{
   temperature: number;
   timeoutMs: number;
   maxRetries: number;
+  maxOutputTokens?: number;
   structuredOutputMode: "function_calling" | "json_schema" | "prompt_json" | "provider_default";
 }>;
 
@@ -39,6 +40,7 @@ export const createModelConfig = (params: {
   temperature?: number;
   timeoutMs?: number;
   maxRetries?: number;
+  maxOutputTokens?: number;
   structuredOutputMode?: ModelConfig["structuredOutputMode"];
 }): ModelConfig | ModelError => {
   const apiKey = params.apiKey?.trim();
@@ -58,6 +60,15 @@ export const createModelConfig = (params: {
     return modelNotConfigured("Missing model name — cannot configure model.");
   }
 
+  if (
+    params.maxOutputTokens !== undefined
+    && (!Number.isInteger(params.maxOutputTokens) || params.maxOutputTokens <= 0)
+  ) {
+    return modelNotConfigured(
+      "maxOutputTokens must be a positive integer when configured.",
+    );
+  }
+
   return Object.freeze({
     provider,
     apiKey,
@@ -66,6 +77,9 @@ export const createModelConfig = (params: {
     temperature: params.temperature ?? DEFAULT_TEMPERATURE,
     timeoutMs: params.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     maxRetries: params.maxRetries ?? DEFAULT_MAX_RETRIES,
+    ...(params.maxOutputTokens === undefined
+      ? {}
+      : { maxOutputTokens: params.maxOutputTokens }),
     structuredOutputMode: params.structuredOutputMode ?? "provider_default",
   }) as ModelConfig;
 };

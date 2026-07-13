@@ -28,6 +28,7 @@ export const createChatModel: ModelFactory = (config: ModelConfig) =>
       baseURL: config.baseURL,
     },
     temperature: config.temperature,
+    maxTokens: config.maxOutputTokens,
     timeout: config.timeoutMs,
     maxRetries: 0, // retry is owned by the structured invocation layer
   });

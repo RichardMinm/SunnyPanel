@@ -4,7 +4,13 @@ import { test } from "node:test";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AIMessageChunk } from "@langchain/core/messages";
 
-import { runConversationalAnswer } from "../../src/lib/agent/answer/runtime";
+import {
+  ANSWER_MAX_OUTPUT_TOKENS,
+  ANSWER_MAX_PARAGRAPHS,
+  buildConversationalAnswerMessages,
+  runConversationalAnswer,
+} from "../../src/lib/agent/answer/runtime";
+import type { ModelConfig } from "../../src/lib/agent/llm/model-config";
 import { orchestratorPlanToIntent } from "../../src/lib/agent/orchestration/orchestrator";
 import type { AgentIntent } from "../../src/lib/agent/schemas";
 
@@ -102,6 +108,41 @@ test("uses one model call when the orchestrator answer is missing", async () => 
     persist: true,
     status: "complete",
   });
+});
+
+test("applies the fixed output budget only when constructing the answer model", async () => {
+  const receivedConfig = { value: null as ModelConfig | null };
+  const modelConfig: ModelConfig = {
+    apiKey: "test-only",
+    baseURL: "https://example.invalid",
+    maxRetries: 0,
+    model: "fake",
+    provider: "deepseek",
+    structuredOutputMode: "provider_default",
+    temperature: 0.1,
+    timeoutMs: 30_000,
+  };
+
+  const result = await runConversationalAnswer({
+    intent: missingAnswerIntent,
+    message: "解释零信任",
+    modelConfig,
+    modelFactory: (config) => {
+      receivedConfig.value = config;
+      return fakeModel([new AIMessageChunk({ content: "简短回答" })]);
+    },
+    timeouts: { firstTokenMs: 100, totalMs: 200 },
+  });
+
+  assert.equal(result.status, "complete");
+  assert.equal(ANSWER_MAX_OUTPUT_TOKENS, 384);
+  assert.equal(ANSWER_MAX_PARAGRAPHS, 4);
+  assert.equal(receivedConfig.value?.maxOutputTokens, 384);
+  assert.equal(modelConfig.maxOutputTokens, undefined);
+  assert.match(
+    buildConversationalAnswerMessages({ message: "解释零信任" })[0]?.content ?? "",
+    /no more than four short paragraphs/i,
+  );
 });
 
 test("ignores reasoning blocks and continues with text", async () => {

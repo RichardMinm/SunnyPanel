@@ -49,6 +49,21 @@ describe("model-factory", () => {
        *   ChatOpenAI stores baseURL in its client configuration. */
       assert.ok(model);
     });
+
+    it("passes an explicit output-token budget to ChatOpenAI", () => {
+      const config = createModelConfig({
+        apiKey: "sk-test-key",
+        baseURL: "https://api.openai.com/v1",
+        maxOutputTokens: 384,
+        model: "gpt-4",
+        provider: "openai",
+      });
+
+      if (isModelError(config)) throw new Error("expected valid config");
+      const model = createChatModel(config);
+
+      assert.equal((model as unknown as { maxTokens?: number }).maxTokens, 384);
+    });
   });
 
   describe("factory injection pattern", () => {

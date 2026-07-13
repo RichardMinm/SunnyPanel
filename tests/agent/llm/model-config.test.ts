@@ -96,6 +96,23 @@ describe("model-config", () => {
       assert.equal(config.temperature, 0.7);
     });
 
+    it("accepts only a positive integer output-token budget", () => {
+      const config = createModelConfig({
+        ...validParams,
+        maxOutputTokens: 384,
+      });
+
+      if (isModelError(config)) throw new Error("expected config not error");
+      assert.equal(config.maxOutputTokens, 384);
+
+      for (const maxOutputTokens of [0, -1, 1.5, Number.NaN]) {
+        assert.equal(
+          isModelError(createModelConfig({ ...validParams, maxOutputTokens })),
+          true,
+        );
+      }
+    });
+
     it("normalizes trailing slashes in baseURL", () => {
       const config = createModelConfig({
         ...validParams,
