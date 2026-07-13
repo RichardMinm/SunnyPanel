@@ -11,7 +11,7 @@
 import { logAgentEvent } from "../logger";
 import type { AgentPromptContext } from "../prompts";
 import { invokeStructured } from "../llm/invoke-structured";
-import { createChatModel } from "../llm/model-factory";
+import { createChatModel, type ModelFactory } from "../llm/model-factory";
 import { buildMessages, type ChatMessage } from "../llm/message-builder";
 import {
   ORCHESTRATOR_AGENT_ROLES,
@@ -23,6 +23,7 @@ import {
 } from "../llm/schemas/orchestrator-output";
 import { ROUTER_INTENT_NAMES } from "../llm/schemas/router-output";
 import type { ModelConfig } from "../llm/model-config";
+import type { ModelError } from "../llm/model-errors";
 import type { OrchestratorPlan } from "./types";
 import { mapStructuredOutputToPlan } from "./orchestrator-mapper";
 
@@ -46,6 +47,43 @@ const SAFE_CLARIFY_PLAN: OrchestratorPlan = {
     },
   ],
 };
+
+export type OrchestratorFailureReason =
+  | "invalid_dag"
+  | "invalid_resource_reference"
+  | "provider_error"
+  | "schema_failure"
+  | "timeout";
+
+export type OrchestratorInvocationResult =
+  | { status: "success"; plan: OrchestratorPlan }
+  | {
+      status: "unavailable";
+      reason: OrchestratorFailureReason;
+      safeMessage: string;
+    };
+
+const unavailable = (
+  reason: OrchestratorFailureReason,
+  safeMessage: string,
+): OrchestratorInvocationResult => ({ reason, safeMessage, status: "unavailable" });
+
+const modelErrorReason = (error: ModelError): OrchestratorFailureReason => {
+  if (error.code === "MODEL_TIMEOUT") return "timeout";
+  if (
+    error.code === "MODEL_INVALID_RESPONSE"
+    || error.code === "MODEL_SCHEMA_VIOLATION"
+    || error.code === "STRUCTURED_OUTPUT_INVALID"
+    || error.code === "STRUCTURED_OUTPUT_RETRY_EXHAUSTED"
+    || error.code === "STRUCTURED_OUTPUT_UNSUPPORTED"
+  ) return "schema_failure";
+  return "provider_error";
+};
+
+export const projectOrchestratorFailureToSafePlan = (): OrchestratorPlan => ({
+  ...SAFE_CLARIFY_PLAN,
+  tasks: SAFE_CLARIFY_PLAN.tasks.map((task) => ({ ...task, args: { ...task.args } })),
+});
 
 /* ---- Protocol-only system prompt ---- */
 
@@ -187,12 +225,14 @@ export type LangChainOrchestratorOptions = {
   signal?: AbortSignal;
   /** Injectable model config for testing. */
   modelConfig?: ModelConfig;
+  /** Injectable model factory for deterministic tests. */
+  modelFactory?: ModelFactory;
 };
 
-export const runLangChainOrchestrator = async (
+export const runLangChainOrchestratorResult = async (
   options: LangChainOrchestratorOptions,
-): Promise<OrchestratorPlan> => {
-  const { message, context, signal, modelConfig } = options;
+): Promise<OrchestratorInvocationResult> => {
+  const { message, context, signal, modelConfig, modelFactory = createChatModel } = options;
 
   /* 1. Build protocol-only system prompt.
    *    jsonMode requires pure JSON output. This prompt treats the model
@@ -215,7 +255,7 @@ export const runLangChainOrchestrator = async (
       if (!rawConfig) {
         logAgentEvent("warn", "orchestrator.langchain.no_config", {});
 
-        return SAFE_CLARIFY_PLAN;
+        return unavailable("provider_error", "AI 服务尚未配置，暂时无法可靠编排请求。");
       }
 
       const { createModelConfig } = await import("../llm/model-config");
@@ -231,7 +271,7 @@ export const runLangChainOrchestrator = async (
           error: resolved.code,
         });
 
-        return SAFE_CLARIFY_PLAN;
+        return unavailable("provider_error", resolved.safeMessage);
       }
 
       config = resolved;
@@ -240,7 +280,7 @@ export const runLangChainOrchestrator = async (
         error: err instanceof Error ? err.message : String(err),
       });
 
-      return SAFE_CLARIFY_PLAN;
+      return unavailable("provider_error", "AI 服务配置暂时不可用，请稍后重试。");
     }
   }
 
@@ -251,7 +291,7 @@ export const runLangChainOrchestrator = async (
     schemaName: "OrchestratorOutput",
     messages,
     modelConfig: config,
-    modelFactory: createChatModel,
+    modelFactory,
     signal,
     maxTransportRetries: 1,
     maxSchemaRetries: 1,
@@ -264,7 +304,7 @@ export const runLangChainOrchestrator = async (
       safeMessage: result.error.safeMessage,
     });
 
-    return SAFE_CLARIFY_PLAN;
+    return unavailable(modelErrorReason(result.error), result.error.safeMessage);
   }
 
   /* 7. Validate DAG */
@@ -275,7 +315,7 @@ export const runLangChainOrchestrator = async (
       errors: dagResult.errors,
     });
 
-    return SAFE_CLARIFY_PLAN;
+    return unavailable("invalid_dag", "模型返回的任务依赖关系无效，暂时无法安全重规划。");
   }
 
   /* 8. Resource Readiness Guard — validate resource references
@@ -298,24 +338,11 @@ export const runLangChainOrchestrator = async (
       issues: guardResult.issues.map((i) => i.code),
     });
 
-    return {
-      mode: "single" as const,
-      reasoning: "缺少可引用的资源，需要先确认。",
-      source: "llm" as const,
-      tasks: [
-        {
-          id: "t1",
-          label: "确认资源",
-          intent: "clarify" as const,
-          args: {
-            question: guardResult.issues[0]?.safeMessage
-              ?? "没有找到可引用的资源。需要先创建，还是选择其他已有资源？",
-          },
-          dependsOn: [],
-          agentRole: "query" as const,
-        },
-      ],
-    };
+    return unavailable(
+      "invalid_resource_reference",
+      guardResult.issues[0]?.safeMessage
+        ?? "没有找到可引用的资源。需要先创建，还是选择其他已有资源？",
+    );
   }
 
   /* 9. Map to existing OrchestrationPlan */
@@ -326,5 +353,14 @@ export const runLangChainOrchestrator = async (
     taskCount: plan.tasks.length,
   });
 
-  return plan;
+  return { plan, status: "success" };
+};
+
+export const runLangChainOrchestrator = async (
+  options: LangChainOrchestratorOptions,
+): Promise<OrchestratorPlan> => {
+  const result = await runLangChainOrchestratorResult(options);
+  return result.status === "success"
+    ? result.plan
+    : projectOrchestratorFailureToSafePlan();
 };

@@ -36,7 +36,7 @@ import {
 } from "./observations";
 import { groupTasksIntoParallelLayers } from "./parallel-layers";
 import { replanAfterTaskFailure } from "./replan";
-import type { ReplanInput } from "./replan";
+import type { ReplanInput, ReplanResult } from "./replan";
 import {
   autoArchiveStrategyFeedbackMemory,
   type StrategyFeedbackMemoryInput,
@@ -310,7 +310,7 @@ export const executeOrchestrationGraph = async (
     maxTasksPerRun?: number;
     recordAutoApproval?: typeof defaultRecordAutoApproval;
     recordStrategyFeedbackMemory?: (input: StrategyFeedbackMemoryInput) => Promise<unknown>;
-    replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
+    replanTaskFailure?: (input: ReplanInput) => Promise<ReplanResult>;
     replanAttempts?: number;
     toolRepairAttempts?: number;
   } = {},
@@ -776,7 +776,7 @@ export const executeOrchestrationGraph = async (
       strategy: args.failureType,
     });
 
-    const replanned = await replanTaskFailure({
+    const replanResult = await replanTaskFailure({
       failedTask: args.failedTask,
       failedTaskIndex: failedIndex >= 0 ? failedIndex : plan.tasks.length - 1,
       failureReason: args.failureReason,
@@ -788,6 +788,22 @@ export const executeOrchestrationGraph = async (
       promptContext,
       queueState: buildQueueState(),
     });
+
+    if (replanResult.status === "unavailable") {
+      logAgentEvent("warn", "orchestrator.replan_unavailable", {
+        reason: replanResult.reason,
+      });
+      return finalizeResult({
+        assistantMessage: replanResult.safeMessage,
+        executedCount: readOnlyMessages.length + autoExecutedMessages.length,
+        observations,
+        pendingAction: null,
+        proposals: [],
+        queueState: buildQueueState(),
+      });
+    }
+
+    const replanned = replanResult.plan;
 
     if (replanned.tasks.length === 0) {
       return null;

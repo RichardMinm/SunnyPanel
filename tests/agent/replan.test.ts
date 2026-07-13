@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
   buildIncrementalReplanMessage,
   buildReplanExecutionSnapshot,
+  replanAfterTaskFailure,
+  type OrchestratorService,
   type ReplanInput,
 } from "../../src/lib/agent/orchestration/replan";
 
@@ -129,4 +132,68 @@ test("buildIncrementalReplanMessage asks the orchestrator to preserve observed f
   assert.match(message, /schedule-items#21 create/);
   assert.match(message, /不要重复创建或覆盖已经观察到成功的对象/);
   assert.match(message, /保留已完成任务的结果/);
+});
+
+test("replan module has no direct Legacy Orchestrator import", () => {
+  const source = readFileSync("src/lib/agent/orchestration/replan.ts", "utf8");
+
+  assert.doesNotMatch(source, /from ["']\.\/orchestrator["']/);
+});
+
+test("incremental replan uses the injected authoritative service and preserves completed tasks", async () => {
+  let calls = 0;
+  const service: OrchestratorService = async () => {
+    calls += 1;
+    return {
+      plan: {
+        mode: "single",
+        reasoning: "改为解释缺失项",
+        tasks: [{
+          agentRole: "query",
+          args: { answer: "需要先补充矩阵习题。" },
+          dependsOn: [],
+          id: "t1",
+          intent: "answer_question",
+          label: "解释缺失项",
+        }],
+      },
+      status: "success",
+    };
+  };
+
+  const result = await replanAfterTaskFailure(
+    baseInput({ strategyOverride: "incremental" }),
+    service,
+  );
+
+  assert.equal(calls, 1);
+  assert.equal(result.status, "success");
+  if (result.status !== "success") return;
+  assert.equal(result.plan.tasks[0]?.id, "task-schedule-plan");
+  assert.equal(result.plan.tasks[1]?.id, "t1");
+  assert.deepEqual(result.plan.tasks[1]?.dependsOn, ["task-schedule-plan"]);
+});
+
+test("failed authoritative replan returns typed unavailable and preserves accepted state", async () => {
+  const input = baseInput({ strategyOverride: "global" });
+  const acceptedBefore = structuredClone(input.originalPlan);
+  let calls = 0;
+  const service: OrchestratorService = async () => {
+    calls += 1;
+    return {
+      reason: "schema_failure",
+      safeMessage: "暂时无法可靠重规划。",
+      status: "unavailable",
+    };
+  };
+
+  const result = await replanAfterTaskFailure(input, service);
+
+  assert.deepEqual(result, {
+    reason: "schema_failure",
+    safeMessage: "暂时无法可靠重规划。",
+    status: "unavailable",
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(input.originalPlan, acceptedBefore);
 });

@@ -550,7 +550,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
           (task) => task.id === failedTask.id,
         );
 
-        return replanAfterTaskFailure({
+        const result = await replanAfterTaskFailure({
           failedTask,
           failedTaskIndex:
             failedTaskIndex >= 0
@@ -576,6 +576,8 @@ export const createRunFullLangGraphAgentChatPipeline = (
             ),
           ),
         });
+
+        return result.status === "success" ? result.plan : null;
       },
     };
     const compoundSubgraph =

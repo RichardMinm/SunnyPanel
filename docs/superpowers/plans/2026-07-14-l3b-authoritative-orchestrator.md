@@ -42,7 +42,7 @@
 - [x] **Step 2: Run RED:** `node --import tsx --test tests/agent/orchestration/langchain-orchestrator.test.ts tests/agent/orchestration/orchestrator-runtime-config.test.ts`; failed because the schema-shared constants/API did not exist.
 - [x] **Step 3: Implement the minimum schema/prompt refactor:** export readonly values before constructing Zod enums; render the protocol from those values; move `now`, plans, checklists, memories, content, and thread summary exclusively into the bounded workspace projection passed to `buildMessages()`.
 - [x] **Step 4: Run GREEN** with the same focused command (33/33) and `env -u DATABASE_URL -u AGENT_DEBUG_LOG npm run typecheck` (exit 0).
-- [ ] **Step 5: Commit:** `git commit -m "fix(agent): derive orchestrator protocol from schema"`.
+- [x] **Step 5: Commit:** `31097ea fix(agent): derive orchestrator protocol from schema`.
 
 ### Task 2: Route replan through a typed authoritative service
 
@@ -85,10 +85,10 @@ export type OrchestratorInvocationResult =
 
 - Changes: `replanAfterTaskFailure(input, orchestratorService?): Promise<ReplanResult>`.
 
-- [ ] **Step 1: Write failing tests** proving incremental/global replan use an injected service, preserve completed observations/state, return typed unavailable without a fabricated plan, and never import/call the Legacy Orchestrator directly.
-- [ ] **Step 2: Run RED:** `node --import tsx --test tests/agent/replan.test.ts tests/agent/orchestration-step.test.ts tests/agent/langgraph-full-adapter.test.ts`; expect direct Legacy bypass or old return-shape failures.
-- [ ] **Step 3: Implement the minimum service injection and typed result.** Add an authoritative result-returning entry point used by replan; keep the existing plan-returning dispatcher wrapper for current callers by deterministically mapping unavailable to the existing safe clarify plan. Local deterministic retry returns `success`; incremental/global provider/validation failures return `unavailable`; call sites preserve the accepted plan/state and map unavailable through the existing safe pipeline terminal.
-- [ ] **Step 4: Run GREEN** with the same focused tests and typecheck.
+- [x] **Step 1: Write failing tests** proving incremental/global replan use an injected service, preserve completed observations/state, return typed unavailable without a fabricated plan, and never import/call the Legacy Orchestrator directly.
+- [x] **Step 2: Run RED:** direct Legacy import failed first; a separate execution-graph RED proved typed failure otherwise exposed a stale confirmation proposal.
+- [x] **Step 3: Implement the minimum service injection and typed result.** Added a result-returning authoritative entry point; retained the plan-returning dispatcher wrapper solely for deterministic safe-clarify projection; unavailable replan preserves observations and returns no replacement proposal.
+- [x] **Step 4: Run GREEN:** 60 focused tests passed and typecheck exited 0.
 - [ ] **Step 5: Commit:** `git commit -m "fix(agent): route replans through orchestrator service"`.
 
 ### Task 3: Add role-based call budgets and specialist completeness bypass

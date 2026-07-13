@@ -1,8 +1,22 @@
 import type { AgentPromptContext } from "../prompts";
-import { runOrchestrator } from "./orchestrator";
 import type { ProposedAgentAction } from "../schemas";
 import { formatTaskObservations } from "./observations";
+import {
+  dispatchOrchestratorResult,
+  type OrchestratorService,
+} from "./orchestrator-dispatcher";
+import type { OrchestratorFailureReason } from "./langchain-orchestrator";
 import type { AgentTaskObservation, ExecutionQueueState, OrchestratorPlan, TaskNode } from "./types";
+
+export type { OrchestratorService } from "./orchestrator-dispatcher";
+
+export type ReplanResult =
+  | { status: "success"; plan: OrchestratorPlan }
+  | {
+      status: "unavailable";
+      reason: OrchestratorFailureReason;
+      safeMessage: string;
+    };
 
 export type ReplanStrategy = "local" | "incremental" | "global";
 
@@ -155,17 +169,22 @@ export const buildIncrementalReplanMessage = (input: ReplanInput) => {
   ].filter(Boolean).join("\n");
 };
 
-const replanIncremental = async (input: ReplanInput): Promise<OrchestratorPlan> => {
+const replanIncremental = async (
+  input: ReplanInput,
+  orchestratorService: OrchestratorService,
+): Promise<ReplanResult> => {
   const failureLabel = FAILURE_TYPE_LABELS[input.failureType];
   const replanMessage = buildIncrementalReplanMessage(input);
 
-  const nextPlan = await runOrchestrator(replanMessage, input.promptContext);
+  const invocation = await orchestratorService(replanMessage, input.promptContext);
+  if (invocation.status === "unavailable") return invocation;
+  const nextPlan = invocation.plan;
 
   const failedId = input.failedTask.id;
   const failedIndex = input.originalPlan.tasks.findIndex((t) => t.id === failedId);
 
   if (failedIndex === -1) {
-    return nextPlan;
+    return { plan: nextPlan, status: "success" };
   }
 
   const before = input.originalPlan.tasks.slice(0, failedIndex);
@@ -193,13 +212,19 @@ const replanIncremental = async (input: ReplanInput): Promise<OrchestratorPlan> 
   }));
 
   return {
-    mode: before.length + linkedNewTasks.length + fixedAfter.length > 1 ? "compound" : "single",
-    reasoning: `增量重规划：${failureLabel}。${nextPlan.reasoning}`,
-    tasks: [...before, ...linkedNewTasks, ...fixedAfter],
+    plan: {
+      mode: before.length + linkedNewTasks.length + fixedAfter.length > 1 ? "compound" : "single",
+      reasoning: `增量重规划：${failureLabel}。${nextPlan.reasoning}`,
+      tasks: [...before, ...linkedNewTasks, ...fixedAfter],
+    },
+    status: "success",
   };
 };
 
-const replanGlobal = async (input: ReplanInput): Promise<OrchestratorPlan> => {
+const replanGlobal = async (
+  input: ReplanInput,
+  orchestratorService: OrchestratorService,
+): Promise<ReplanResult> => {
   const completedLabels = input.originalPlan.tasks
     .slice(0, input.failedTaskIndex)
     .map((t) => t.label);
@@ -221,26 +246,34 @@ const replanGlobal = async (input: ReplanInput): Promise<OrchestratorPlan> => {
     "请基于当前状态重新规划剩余所有工作，给出新的可执行子任务 DAG。",
   ].join("\n");
 
-  const nextPlan = await runOrchestrator(replanMessage, input.promptContext);
+  const invocation = await orchestratorService(replanMessage, input.promptContext);
+  if (invocation.status === "unavailable") return invocation;
+  const nextPlan = invocation.plan;
 
   const remaining = nextPlan.tasks.filter((t) => !completedIds.has(t.id));
 
   return {
-    mode: remaining.length > 1 ? "compound" : "single",
-    reasoning: `全局重规划：${failureLabel}。${nextPlan.reasoning}`,
-    tasks: remaining,
+    plan: {
+      mode: remaining.length > 1 ? "compound" : "single",
+      reasoning: `全局重规划：${failureLabel}。${nextPlan.reasoning}`,
+      tasks: remaining,
+    },
+    status: "success",
   };
 };
 
-export const replanAfterTaskFailure = async (input: ReplanInput): Promise<OrchestratorPlan> => {
+export const replanAfterTaskFailure = async (
+  input: ReplanInput,
+  orchestratorService: OrchestratorService = dispatchOrchestratorResult,
+): Promise<ReplanResult> => {
   const strategy = input.strategyOverride ?? decideReplanStrategy(input);
 
   switch (strategy) {
     case "local":
-      return replanLocal(input);
+      return { plan: replanLocal(input), status: "success" };
     case "incremental":
-      return replanIncremental(input);
+      return replanIncremental(input, orchestratorService);
     case "global":
-      return replanGlobal(input);
+      return replanGlobal(input, orchestratorService);
   }
 };

@@ -14,7 +14,42 @@ import type { AgentPromptContext } from "../prompts";
 import type { OrchestratorPlan } from "./types";
 import { resolveOrchestratorRuntimeMode } from "./runtime-config";
 import { runOrchestrator as runLegacyOrchestrator } from "./orchestrator";
-import { runLangChainOrchestrator } from "./langchain-orchestrator";
+import {
+  projectOrchestratorFailureToSafePlan,
+  runLangChainOrchestratorResult,
+  type OrchestratorInvocationResult,
+} from "./langchain-orchestrator";
+
+export type OrchestratorService = (
+  message: string,
+  context: AgentPromptContext,
+  signal?: AbortSignal,
+) => Promise<OrchestratorInvocationResult>;
+
+export const dispatchOrchestratorResult: OrchestratorService = async (
+  message,
+  context,
+  signal,
+) => {
+  const mode = resolveOrchestratorRuntimeMode();
+
+  if (mode === "langchain") {
+    return runLangChainOrchestratorResult({ context, message, signal });
+  }
+
+  try {
+    return {
+      plan: await runLegacyOrchestrator(message, context, signal),
+      status: "success",
+    };
+  } catch {
+    return {
+      reason: "provider_error",
+      safeMessage: "AI 服务暂时不可用，请稍后重试。",
+      status: "unavailable",
+    };
+  }
+};
 
 /** Dispatch to the active orchestrator based on AGENT_ORCHESTRATOR_RUNTIME.
  *  Signature matches legacy runOrchestrator for drop-in compatibility. */
@@ -23,18 +58,10 @@ export const dispatchOrchestrator = async (
   context: AgentPromptContext,
   signal?: AbortSignal,
 ): Promise<OrchestratorPlan> => {
-  const mode = resolveOrchestratorRuntimeMode();
-
-  if (mode === "langchain") {
-    return runLangChainOrchestrator({
-      message,
-      context,
-      signal,
-    });
-  }
-
-  /* Default: legacy */
-  return runLegacyOrchestrator(message, context, signal);
+  const result = await dispatchOrchestratorResult(message, context, signal);
+  return result.status === "success"
+    ? result.plan
+    : projectOrchestratorFailureToSafePlan();
 };
 
 /** Re-export for convenience — the mode that was actually used. */

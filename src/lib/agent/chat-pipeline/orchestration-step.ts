@@ -13,7 +13,7 @@ import { runOrchestrationSubgraph } from "@/lib/agent/langgraph/orchestration-su
 import { orchestratorPlanToIntent } from "@/lib/agent/orchestrator";
 import type { runOrchestrator } from "@/lib/agent/orchestration/orchestrator";
 import { dispatchOrchestrator } from "@/lib/agent/orchestration/orchestrator-dispatcher";
-import { replanAfterTaskFailure, type ReplanInput } from "@/lib/agent/orchestration/replan";
+import { replanAfterTaskFailure, type ReplanInput, type ReplanResult } from "@/lib/agent/orchestration/replan";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
 import { projectCompletedOrchestrationToPlan } from "@/lib/agent/orchestration/projection";
 import { logAgentEvent } from "@/lib/agent/logger";
@@ -118,7 +118,7 @@ export type OrchestrationStepParams = {
     nextPendingAction: null | PendingAction;
   }) => Promise<AgentThread>;
   pushTrace: (step: AgentTraceStep) => void;
-  replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
+  replanTaskFailure?: (input: ReplanInput) => Promise<ReplanResult>;
   conversationState?: import("@/lib/agent/conversation/types").AgentConversationState | null;
   resolvedHistory?: import("@/lib/agent/schemas").AgentChatMessage[];
   resolveRouterCanaryRoutingFn?: typeof resolveRouterCanaryRouting;

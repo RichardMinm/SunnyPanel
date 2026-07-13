@@ -459,19 +459,22 @@ test("executeOrchestrationGraph replans failed compound work before returning st
         observedBeforeReplan = input.observations;
 
         return {
-          mode: "single",
-          reasoning: "清单项定位失败，先向用户说明并暂停后续写入。",
-          tasks: [
-            sampleTask({
-              agentRole: "query",
-              args: {
-                answer: "清单项定位失败，已暂停后续计划创建。",
-              },
-              id: "task-replanned-answer",
-              intent: "answer_question",
-              label: "说明失败原因",
-            }),
-          ],
+          plan: {
+            mode: "single",
+            reasoning: "清单项定位失败，先向用户说明并暂停后续写入。",
+            tasks: [
+              sampleTask({
+                agentRole: "query",
+                args: {
+                  answer: "清单项定位失败，已暂停后续计划创建。",
+                },
+                id: "task-replanned-answer",
+                intent: "answer_question",
+                label: "说明失败原因",
+              }),
+            ],
+          },
+          status: "success",
         };
       },
     },
@@ -485,6 +488,52 @@ test("executeOrchestrationGraph replans failed compound work before returning st
   assert.equal(result.observations.some((item) => item.status === "failed"), true);
   assert.equal(result.observations.some((item) => item.actionId === "stale-create-plan-action"), true);
   assert.equal(result.observations.at(-1)?.status, "answered");
+});
+
+test("typed replan failure preserves observations and returns no replacement proposal", async () => {
+  const plan: OrchestratorPlan = {
+    mode: "compound",
+    reasoning: "先完成清单项，再创建后续计划。",
+    tasks: [
+      sampleTask({
+        args: { checklistTitle: "高等数学", itemTitle: "反函数习题" },
+        id: "task-failed",
+        intent: "complete_plan_item",
+        label: "完成清单项",
+      }),
+      sampleTask({ id: "task-proposed", label: "创建后续计划" }),
+    ],
+  };
+  let replanCalls = 0;
+
+  const result = await executeOrchestrationGraph(
+    plan,
+    {
+      createActionId: () => "stale-create-plan-action",
+      resolveChecklistItem: async () => {
+        throw new Error("resolver offline");
+      },
+    },
+    {
+      message: "完成反函数习题后创建复盘计划",
+      promptContext,
+      replanTaskFailure: async () => {
+        replanCalls += 1;
+        return {
+          reason: "schema_failure",
+          safeMessage: "暂时无法可靠重规划，当前状态已保留。",
+          status: "unavailable",
+        };
+      },
+    },
+  );
+
+  assert.equal(replanCalls, 1);
+  assert.equal(result.pendingAction, null);
+  assert.deepEqual(result.proposals, []);
+  assert.match(result.assistantMessage, /当前状态已保留/);
+  assert.equal(result.observations.some((item) => item.status === "failed"), true);
+  assert.equal(result.observations.some((item) => item.status === "answered"), false);
 });
 
 test("executeOrchestrationGraph prefers semantic repair over generic replan for missing checklist items", async () => {
@@ -546,9 +595,12 @@ test("executeOrchestrationGraph prefers semantic repair over generic replan for 
         genericReplanCalled = true;
 
         return {
-          mode: "single",
-          reasoning: "不应该进入普通重规划。",
-          tasks: [],
+          plan: {
+            mode: "single",
+            reasoning: "不应该进入普通重规划。",
+            tasks: [],
+          },
+          status: "success",
         };
       },
     },

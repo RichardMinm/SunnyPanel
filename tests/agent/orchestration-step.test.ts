@@ -312,20 +312,23 @@ test("runOrchestrationStep resumes a strategy pause with alternate replan on con
       replanCalled = true;
 
       return {
-        mode: "single",
-        reasoning: "改为先核对清单项。",
-        tasks: [
-          {
-            agentRole: "query",
-            args: {
-              answer: "我会先核对清单项，再继续完成。",
+        plan: {
+          mode: "single",
+          reasoning: "改为先核对清单项。",
+          tasks: [
+            {
+              agentRole: "query",
+              args: {
+                answer: "我会先核对清单项，再继续完成。",
+              },
+              dependsOn: [],
+              id: "task-check-first",
+              intent: "answer_question",
+              label: "先核对清单项",
             },
-            dependsOn: [],
-            id: "task-check-first",
-            intent: "answer_question",
-            label: "先核对清单项",
-          },
-        ],
+          ],
+        },
+        status: "success",
       };
     },
     tokenUsage,

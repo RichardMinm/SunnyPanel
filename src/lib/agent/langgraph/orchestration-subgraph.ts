@@ -53,6 +53,7 @@ import {
 import {
   replanAfterTaskFailure,
   type ReplanInput,
+  type ReplanResult,
 } from "@/lib/agent/orchestration/replan";
 import { buildToolFailureRepairPlan } from "@/lib/agent/orchestration/tool-failure-repair";
 import type { SunnyAgentGraphInput } from "@/lib/agent/langgraph/state";
@@ -81,7 +82,7 @@ type ExecuteOrchestrationGraphOptions = {
   promptContext?: AgentPromptContext;
   runnableConfig?: RunnableConfig;
   replanAttempts?: number;
-  replanTaskFailure?: (input: ReplanInput) => Promise<OrchestratorPlan>;
+  replanTaskFailure?: (input: ReplanInput) => Promise<ReplanResult>;
   toolRepairAttempts?: number;
 };
 
@@ -1354,7 +1355,7 @@ export const runOrchestrationSubgraph = async (
               (task) => task.id === failedTask.id,
             );
 
-            return replanTaskFailure({
+            const result = await replanTaskFailure({
               failedTask,
               failedTaskIndex:
                 failedTaskIndex >= 0
@@ -1381,6 +1382,8 @@ export const runOrchestrationSubgraph = async (
                 ),
               ),
             });
+
+            return result.status === "success" ? result.plan : null;
           }
         : undefined),
   }, {

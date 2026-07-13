@@ -1,5 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import {
   ORCHESTRATOR_AGENT_ROLES,
   ORCHESTRATOR_MODES,
@@ -10,6 +11,7 @@ import { ROUTER_INTENT_NAMES } from "../../../src/lib/agent/llm/schemas/router-o
 import {
   buildLangChainOrchestratorMessages,
   buildLangChainSystemPrompt,
+  runLangChainOrchestratorResult,
 } from "../../../src/lib/agent/orchestration/langchain-orchestrator";
 import { mapStructuredOutputToPlan } from "../../../src/lib/agent/orchestration/orchestrator-mapper";
 
@@ -51,6 +53,43 @@ describe("langchain-orchestrator protocol", () => {
     assert.match(prompt, /execute/);
     assert.match(prompt, /receipt/);
     assert.match(prompt, /rollback/);
+  });
+
+  it("returns a typed schema failure without projecting a successful plan", async () => {
+    let calls = 0;
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-14T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [],
+      },
+      message: "制定一个计划",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: () => ({
+        withStructuredOutput: () => ({
+          invoke: async () => {
+            calls += 1;
+            return { version: 1 };
+          },
+        }),
+      }) as unknown as BaseChatModel,
+    });
+
+    assert.equal(result.status, "unavailable");
+    if (result.status !== "unavailable") return;
+    assert.equal(result.reason, "schema_failure");
+    assert.equal("plan" in result, false);
+    assert.equal(calls, 2);
   });
 });
 

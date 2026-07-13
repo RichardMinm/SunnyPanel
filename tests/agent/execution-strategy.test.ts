@@ -329,9 +329,12 @@ test("executeOrchestrationGraph pauses replan when repeated history predicts the
         replanCalled = true;
 
         return {
-          mode: "single",
-          reasoning: "不应该进入重规划。",
-          tasks: [],
+          plan: {
+            mode: "single",
+            reasoning: "不应该进入重规划。",
+            tasks: [],
+          },
+          status: "success",
         };
       },
       recordStrategyFeedbackMemory: async (input) => {
