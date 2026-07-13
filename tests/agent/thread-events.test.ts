@@ -299,3 +299,17 @@ test("projection failure preserves events and appends a projection_failed event"
   });
   assert.equal(state.messages.at(-1)?.content, "完成");
 });
+
+test("a non-projecting failed event remains replayable without hydrating failed assistant output", async () => {
+  const { store } = createMemoryStore();
+  await store.append({ eventKey: "turn:failed:user", eventType: "user_received", payload: { message: "查询进展" }, recordedAt: "2026-07-13T08:00:00.000Z", schemaVersion: 1, threadId: 42, turnId: "failed", userId: 7 });
+  await store.append({
+    eventKey: "turn:failed:terminal", eventType: "turn_failed",
+    payload: { error: "safe", pendingAfter: null, projectAssistantMessage: false, response: response({ assistantMessage: "不应进入消息", turnId: "failed" }) },
+    recordedAt: "2026-07-13T08:00:01.000Z", schemaVersion: 1, threadId: 42, turnId: "failed", userId: 7,
+  });
+  const replay = await claimAgentTurn({ message: "查询进展", store, threadId: 42, turnId: "failed", userId: 7 });
+  assert.equal(replay.status, "replay");
+  const state = await hydrateAgentThreadState({ store, threadId: 42 });
+  assert.deepEqual(state.messages, [{ content: "查询进展", role: "user" }]);
+});

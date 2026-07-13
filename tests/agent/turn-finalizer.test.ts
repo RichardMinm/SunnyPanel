@@ -277,3 +277,26 @@ test("turn finalizer marks accepted inbox suggestion done only after successful 
 
   assert.deepEqual(doneIds, [301]);
 });
+
+test("non-projecting failure appends one failed event, skips learning, and projects no assistant", async () => {
+  const { events, store } = createMemoryStore();
+  let learningRuns = 0;
+  let projectedMessages: unknown[] = [];
+  const finalize = createAgentTurnFinalizer({
+    eventStore: store, message: "查询进展", pendingBefore: null,
+    project: async (projection) => { projectedMessages = projection.messages; },
+    runLearningLoop: async () => { learningRuns += 1; return { candidates: [], decisions: [], savedMemories: [], source: "fallback", suggestedMemories: [] }; },
+    thread: { id: 45, messages: [], pendingAction: null } as unknown as AgentThread,
+    turnId: "turn-query-failed", user: { id: 7 },
+  });
+  await store.append({ eventKey: "turn:query:user", eventType: "user_received", payload: { message: "查询进展" }, recordedAt: "2026-07-13T08:00:00.000Z", schemaVersion: 1, threadId: 45, turnId: "turn-query-failed", userId: 7 });
+  await finalize({
+    existingMemories: [], failure: new Error("safe"), projectFailureAssistantMessage: false,
+    pushTrace: () => undefined,
+    response: { assistantMessage: "只读查询暂时不可用，请稍后重试。", engine: "workflow", intent: "clarify", pendingAction: null, tokenUsage }, tokenUsage,
+  });
+  assert.equal(learningRuns, 0);
+  assert.equal(events.filter((event) => event.eventType === "turn_failed").length, 1);
+  assert.equal((events.find((event) => event.eventType === "turn_failed")?.payload as { projectAssistantMessage?: boolean }).projectAssistantMessage, false);
+  assert.deepEqual(projectedMessages, [{ content: "查询进展", role: "user" }]);
+});
