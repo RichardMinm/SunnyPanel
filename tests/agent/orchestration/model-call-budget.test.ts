@@ -1,0 +1,55 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import { createModelCallBudgetRecorder } from "../../../src/lib/agent/orchestration/model-call-budget";
+
+test("records legitimate model calls by role and scope", () => {
+  const recorder = createModelCallBudgetRecorder();
+
+  recorder.record("orchestrator", "attempt-1");
+  recorder.record("replan", "event-1");
+  recorder.record("conversational_answer", "answer-1");
+  recorder.record("query_commentary", "query-1");
+  recorder.record("specialist", "task-1");
+  recorder.record("specialist", "task-2");
+
+  assert.deepEqual(recorder.snapshot(), {
+    conversationalAnswerCalls: 1,
+    orchestratorCalls: 1,
+    queryCommentaryCalls: 1,
+    replanCalls: 1,
+    specialistCalls: 2,
+    unexpectedDuplicateCalls: 0,
+  });
+});
+
+test("counts a repeated role and scope as an unexpected duplicate", () => {
+  const recorder = createModelCallBudgetRecorder();
+
+  assert.equal(recorder.record("orchestrator", "attempt-1"), true);
+  assert.equal(recorder.record("orchestrator", "attempt-1"), false);
+  assert.equal(recorder.record("replan", "event-1"), true);
+  assert.equal(recorder.record("replan", "event-1"), false);
+  assert.equal(recorder.record("conversational_answer", "answer-1"), true);
+  assert.equal(recorder.record("conversational_answer", "answer-1"), false);
+  assert.equal(recorder.record("query_commentary", "query-1"), true);
+  assert.equal(recorder.record("query_commentary", "query-1"), false);
+  assert.equal(recorder.record("specialist", "task-1"), true);
+  assert.equal(recorder.record("specialist", "task-1"), false);
+
+  assert.deepEqual(recorder.snapshot(), {
+    conversationalAnswerCalls: 1,
+    orchestratorCalls: 1,
+    queryCommentaryCalls: 1,
+    replanCalls: 1,
+    specialistCalls: 1,
+    unexpectedDuplicateCalls: 5,
+  });
+});
+
+test("snapshot exposes counts without retaining scope identifiers", () => {
+  const recorder = createModelCallBudgetRecorder();
+  recorder.record("specialist", "sensitive-task-id");
+
+  assert.equal(JSON.stringify(recorder.snapshot()).includes("sensitive-task-id"), false);
+});

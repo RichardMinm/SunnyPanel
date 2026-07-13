@@ -10,6 +10,14 @@ export {
 } from "./bus";
 export type { AgentBusMessage, AgentBusState } from "./bus";
 export { groupTasksByAgent, routeTaskToAgent } from "./router";
-export { runSpecializedAgentForTask } from "./run-specialized-agent";
+export {
+  evaluateSpecialistTaskCompleteness,
+  runSpecializedAgentForTask,
+} from "./run-specialized-agent";
 export { specializedAgentRegistry } from "./registry";
-export type { SpecializedAgentDefinition, SpecializedAgentId, SpecializedAgentRunResult } from "./types";
+export type {
+  SpecialistCallDisposition,
+  SpecializedAgentDefinition,
+  SpecializedAgentId,
+  SpecializedAgentRunResult,
+} from "./types";

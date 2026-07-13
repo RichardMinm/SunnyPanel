@@ -50,6 +50,7 @@ import type {
   OrchestratorPlan,
   TaskNode,
 } from "./types";
+import type { ModelCallBudgetRecorder } from "./model-call-budget";
 
 const MAX_REPLAN_ATTEMPTS = 2;
 const MAX_TOOL_REPAIR_ATTEMPTS = 1;
@@ -305,6 +306,7 @@ export const executeOrchestrationGraph = async (
     ) => ReturnType<AgentIntentExecutor>;
     executeIntent?: AgentIntentExecutor;
     message?: string;
+    modelCallRecorder?: ModelCallBudgetRecorder;
     orchestrationId?: string;
     promptContext?: AgentPromptContext;
     maxTasksPerRun?: number;
@@ -466,6 +468,7 @@ export const executeOrchestrationGraph = async (
           dryRunContext,
           intent: baseIntent,
           message,
+          modelCallRecorder: options.modelCallRecorder,
           promptContext,
           upstreamContext: upstreamContext || undefined,
         });

@@ -63,6 +63,7 @@ import {
   confirmationMatchesPending,
 } from "@/lib/agent/chat-pipeline/confirmation-step";
 import type { AgentChatResponse, AgentTraceStep } from "@/lib/agent/schemas";
+import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 
 type ExecuteOrchestrationGraphOptions = {
   autoApproval?: AutoApprovalContext;
@@ -78,6 +79,7 @@ type ExecuteOrchestrationGraphOptions = {
   }) => Promise<unknown>;
   maxTasksPerRun?: number;
   message?: string;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   orchestrationId?: string;
   promptContext?: AgentPromptContext;
   runnableConfig?: RunnableConfig;
@@ -1255,6 +1257,7 @@ export const runOrchestrationSubgraph = async (
         executeAction: executionOptions.executeAction,
         executeIntent: executionOptions.executeIntent,
         message: executionOptions.message,
+        modelCallRecorder: executionOptions.modelCallRecorder,
         plan,
         promptContext: executionOptions.promptContext,
       });

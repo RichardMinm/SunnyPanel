@@ -2,6 +2,7 @@ import type { AgentPromptContext } from "../prompts";
 import type { AgentIntent } from "../schemas";
 import type { AgentRole } from "../orchestration/types";
 import type { AgentToolDryRunContext } from "../tool-registry";
+import type { ModelCallBudgetRecorder } from "../orchestration/model-call-budget";
 
 export type PlanAgentArtifact = {
   checklistId?: number;
@@ -67,15 +68,21 @@ export type SpecializedAgentRunInput = {
   dryRunContext: AgentToolDryRunContext;
   intent: AgentIntent;
   message: string;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   promptContext: AgentPromptContext;
   taskLabel: string;
   /** 上游闭包的产物/推理/意图摘要，回灌给本 Agent 的 LLM 上下文。 */
   upstreamContext?: string;
 };
 
+export type SpecialistCallDisposition =
+  | "bypassed_complete"
+  | "required_incomplete";
+
 export type SpecializedAgentRunResult = {
   agentId: SpecializedAgentId;
   agentRole: AgentRole;
   intent: AgentIntent;
   note: string;
+  disposition: SpecialistCallDisposition;
 };

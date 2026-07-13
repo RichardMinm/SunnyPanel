@@ -89,7 +89,7 @@ export type OrchestratorInvocationResult =
 - [x] **Step 2: Run RED:** direct Legacy import failed first; a separate execution-graph RED proved typed failure otherwise exposed a stale confirmation proposal.
 - [x] **Step 3: Implement the minimum service injection and typed result.** Added a result-returning authoritative entry point; retained the plan-returning dispatcher wrapper solely for deterministic safe-clarify projection; unavailable replan preserves observations and returns no replacement proposal.
 - [x] **Step 4: Run GREEN:** 60 focused tests passed and typecheck exited 0.
-- [ ] **Step 5: Commit:** `git commit -m "fix(agent): route replans through orchestrator service"`.
+- [x] **Step 5: Commit:** `git commit -m "fix(agent): route replans through orchestrator service"` (`ea3ddf3`).
 
 ### Task 3: Add role-based call budgets and specialist completeness bypass
 
@@ -118,10 +118,10 @@ export type TurnModelCallBudget = {
 export type SpecialistCallDisposition = "bypassed_complete" | "required_incomplete";
 ```
 
-- [ ] **Step 1: Write failing tests** for every role limit, zero unexpected duplicates, complete-task specialist bypass, exactly one specialist call for incomplete tasks, and unchanged intent when bypassed.
-- [ ] **Step 2: Run RED:** `node --import tsx --test tests/agent/orchestration/model-call-budget.test.ts tests/agent/run-specialized-agent.test.ts`; expect missing budget/completeness APIs.
-- [ ] **Step 3: Implement a deterministic task-completeness predicate** using only schema-valid task args and intent requirements. Thread an optional per-turn recorder through both native and compatibility execution graphs; do not change specialist prompt/schema/fallback logic.
-- [ ] **Step 4: Run GREEN**, then run orchestration subgraph/execution graph focused suites and typecheck.
+- [x] **Step 1: Write failing tests** for every role limit, zero unexpected duplicates, complete-task specialist bypass, exactly one specialist call for incomplete tasks, and unchanged intent when bypassed.
+- [x] **Step 2: Run RED:** missing budget module failed both target suites before implementation.
+- [x] **Step 3: Implement a deterministic task-completeness predicate** using only schema-valid task args and intent requirements. Thread an optional per-turn recorder through both native and compatibility execution graphs; do not change specialist prompt/schema/fallback logic.
+- [x] **Step 4: Run GREEN:** 9 target tests, 36 orchestration-focused tests, and typecheck passed.
 - [ ] **Step 5: Commit:** `git commit -m "feat(agent): account for orchestrator model calls by role"`.
 
 ### Task 4: Establish the LangChain conversational-answer stream

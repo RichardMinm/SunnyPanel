@@ -40,6 +40,7 @@ import type {
   OrchestratorPlan,
   TaskNode,
 } from "@/lib/agent/orchestration/types";
+import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 
 type NativePreparedPayload =
   | {
@@ -92,6 +93,7 @@ export type NativeOrchestrationTaskExecutorOptions = {
   ) => ReturnType<AgentIntentExecutor>;
   executeIntent?: AgentIntentExecutor;
   message?: string;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   plan?: OrchestratorPlan;
   promptContext?: AgentPromptContext;
   recordAutoApproval?: typeof defaultRecordAutoApproval;
@@ -321,6 +323,7 @@ export const createNativeOrchestrationTaskExecutor = (
               dryRunContext: options.dryRunContext,
               intent: baseIntent,
               message: options.message,
+              modelCallRecorder: options.modelCallRecorder,
               promptContext: options.promptContext,
               upstreamContext:
                 formatUpstreamContext(
