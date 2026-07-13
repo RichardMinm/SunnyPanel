@@ -460,6 +460,8 @@ export const executeQueryEvaluation = async (dependencies: QueryEvaluationDepend
     };
 
     const result = await dispatchPreResolvedQuery({
+      actor: { isAdmin: true },
+      adoption: "admin",
       emitToken: (token) => emitted.push(token),
       intent: evaluationFixture.intent,
       loadFacts: async () => { factsLoaderInvocations += 1; return evaluationFixture.facts; },

@@ -128,6 +128,8 @@ test("eligible query reads facts once, calls commentary once, never calls Legacy
   const before = structuredClone(primary);
   const counts = { facts: 0, legacy: 0, model: 0 };
   const result = await dispatchPreResolvedQuery({
+    actor: { isAdmin: true },
+    adoption: "admin",
     intent: primary,
     loadFacts: async () => { counts.facts += 1; return planFacts(); },
     runCommentary: async () => { counts.model += 1; return { latencyMs: 1, modelCalls: 1, status: "accepted", text: "进展保持稳定。", ttftMs: 1 }; },
@@ -143,6 +145,8 @@ test("oversized canonical facts reuse loaded facts before Provider start", async
   const facts = planFacts({ title: `password=${"x".repeat(QUERY_CONTENT_CHAR_CAP)}` });
   let modelCalls = 0;
   const result = await dispatchPreResolvedQuery({
+    actor: { isAdmin: true },
+    adoption: "admin",
     intent: intent("query_plan_progress", { planId: 7 }),
     loadFacts: async () => facts,
     runCommentary: async () => { modelCalls += 1; return assert.fail("commentary must not start"); },
