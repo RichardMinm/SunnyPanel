@@ -13,7 +13,8 @@
  * ChatOpenAI is created with `maxRetries=0` — all retry logic lives here.
  *
  * Two independent retry counters:
- *   maxTransportRetries (default 1) — network, HTTP 5xx, rate-limit, provider errors.
+ *   maxTransportRetries (default 1) — explicit no-payload network, retryable
+ *     HTTP 5xx, and shared-policy rate-limit errors only.
  *     Exhausted → returns MODEL_UNAVAILABLE.
  *     Each transport retry resets the schema retry counter.
  *   maxSchemaRetries (default 1) — OutputParserException, Zod validation failure.
@@ -64,8 +65,9 @@ export type InvokeStructuredOptions<TSchema extends z.ZodType> = {
   signal?: AbortSignal;
   /** LangChain tags for tracing. */
   tags?: string[];
-  /** Maximum transport (network/HTTP) retries. Default 1.
-   *  Config errors, abort, timeout, and auth failures are NEVER retried. */
+  /** Maximum whitelisted no-payload transport retries. Default 1.
+   *  Unknown errors, config errors, abort, timeout, auth, and completed
+   *  Provider payloads are NEVER transport-retried. */
   maxTransportRetries?: number;
   /** Maximum schema repair (parse/validation) retries. Default 1.
    *  Each schema retry causes an additional provider call.
@@ -77,7 +79,36 @@ export type InvokeStructuredOptions<TSchema extends z.ZodType> = {
    *  The main `schema` is still used for post-invoke validation.
    *  If omitted, `schema` is used for both. */
   modelSchema?: z.ZodType;
+  /** Sanitized lifecycle observer for each real Provider attempt. */
+  providerAttemptObserver?: StructuredProviderAttemptObserver;
 };
+
+export type StructuredRetryReason =
+  | "connection_reset"
+  | "network_transport"
+  | "provider_5xx"
+  | "rate_limit";
+
+export type StructuredAttemptFailureReason =
+  | StructuredRetryReason
+  | "cancelled"
+  | "non_retryable_transport"
+  | "provider_protocol"
+  | "timeout";
+
+export type StructuredProviderAttemptEvent =
+  | { attempt: number; phase: "started" }
+  | { attempt: number; phase: "succeeded" }
+  | {
+      attempt: number;
+      phase: "failed";
+      reason: StructuredAttemptFailureReason;
+      retryScheduled: boolean;
+    };
+
+export type StructuredProviderAttemptObserver = (
+  event: StructuredProviderAttemptEvent,
+) => void;
 
 export type StructuredModelResult<T> =
   | { ok: true; data: T; provider: string; model: string }
@@ -99,6 +130,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     maxTransportRetries = 1,
     maxSchemaRetries = 1,
     modelSchema,
+    providerAttemptObserver,
   } = options;
 
   /* 1. Build the LangChain chat model.
@@ -135,6 +167,14 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
   });
 
   let lastStructuredOutputDiagnostics: StructuredOutputDiagnostics | undefined;
+  let providerAttempt = 0;
+  const observeAttempt = (event: StructuredProviderAttemptEvent) => {
+    try {
+      providerAttemptObserver?.(event);
+    } catch {
+      // Evaluation instrumentation must never change Provider behavior.
+    }
+  };
 
   /* 4. Build the structured runnable */
   let structuredRunnable: Runnable<typeof lcMessages, z.infer<TSchema>>;
@@ -167,10 +207,14 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
       signal?.addEventListener("abort", onCallerAbort, { once: true });
 
       try {
+        providerAttempt += 1;
+        const currentProviderAttempt = providerAttempt;
+        observeAttempt({ attempt: currentProviderAttempt, phase: "started" });
         const result = await structuredRunnable.invoke(lcMessages, {
           signal: controller.signal,
           tags,
         });
+        observeAttempt({ attempt: currentProviderAttempt, phase: "succeeded" });
 
         clearTimeout(timeoutId);
         signal?.removeEventListener("abort", onCallerAbort);
@@ -221,6 +265,12 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
 
         /* NEVER retry: timeout */
         if (err instanceof DOMException && err.name === "TimeoutError") {
+          observeAttempt({
+            attempt: providerAttempt,
+            phase: "failed",
+            reason: "timeout",
+            retryScheduled: false,
+          });
           return {
             ok: false,
             error: modelTimeout(modelConfig.timeoutMs, modelConfig.provider),
@@ -229,6 +279,12 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
 
         /* NEVER retry: caller abort */
         if (err instanceof DOMException && err.name === "AbortError") {
+          observeAttempt({
+            attempt: providerAttempt,
+            phase: "failed",
+            reason: "cancelled",
+            retryScheduled: false,
+          });
           return {
             ok: false,
             error: {
@@ -248,12 +304,19 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             || err.constructor?.name === "OutputParserException"
             || (err as unknown as Record<string, unknown>).lc_error_code === "OUTPUT_PARSING_FAILURE")
         ) {
+          const retryScheduled = schemaAttempt < maxSchemaRetries;
+          observeAttempt({
+            attempt: providerAttempt,
+            phase: "failed",
+            reason: "provider_protocol",
+            retryScheduled,
+          });
           lastStructuredOutputDiagnostics = {
             stage: "provider_protocol",
             issues: [],
           };
 
-          if (schemaAttempt < maxSchemaRetries) {
+          if (retryScheduled) {
             continue; /* inner loop: schema retry */
           }
 
@@ -268,9 +331,18 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
           };
         }
 
-        /* Transport retry: network/HTTP/provider errors.
-         *   Break out of inner loop to retry at the transport level. */
-        if (transportAttempt < maxTransportRetries) {
+        const retryReason = classifyStructuredTransportRetry(err);
+        const retryScheduled =
+          retryReason !== null && transportAttempt < maxTransportRetries;
+        observeAttempt({
+          attempt: providerAttempt,
+          phase: "failed",
+          reason: retryReason ?? "non_retryable_transport",
+          retryScheduled,
+        });
+
+        /* Transport retry: explicit no-payload network/HTTP whitelist only. */
+        if (retryScheduled) {
           await new Promise((r) => setTimeout(r, 500 * (transportAttempt + 1)));
           break; /* exit inner loop → retry at transport level */
         }
@@ -289,6 +361,34 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     ok: false,
     error: modelUnavailable(modelConfig.provider),
   };
+};
+
+export const classifyStructuredTransportRetry = (
+  error: unknown,
+): StructuredRetryReason | null => {
+  if (!(error instanceof Error)) return null;
+
+  const item = error as Error & {
+    code?: unknown;
+    providerPayloadReceived?: unknown;
+    response?: { status?: unknown };
+    status?: unknown;
+    statusCode?: unknown;
+  };
+
+  if (item.providerPayloadReceived === true) return null;
+
+  const code = typeof item.code === "string" ? item.code : "";
+  if (code === "ECONNRESET") return "connection_reset";
+  if (["ECONNREFUSED", "ENETUNREACH", "EAI_AGAIN"].includes(code)) {
+    return "network_transport";
+  }
+
+  const status = Number(item.status ?? item.statusCode ?? item.response?.status);
+  if (status === 429) return "rate_limit";
+  if ([500, 502, 503, 504].includes(status)) return "provider_5xx";
+
+  return null;
 };
 
 const getValueAtPath = (

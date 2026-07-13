@@ -10,7 +10,10 @@
 
 import { logAgentEvent } from "../logger";
 import type { AgentPromptContext } from "../prompts";
-import { invokeStructured } from "../llm/invoke-structured";
+import {
+  invokeStructured,
+  type StructuredProviderAttemptObserver,
+} from "../llm/invoke-structured";
 import { createChatModel, type ModelFactory } from "../llm/model-factory";
 import { buildMessages, type ChatMessage } from "../llm/message-builder";
 import {
@@ -248,6 +251,7 @@ export type LangChainOrchestratorOptions = {
     schema: number;
     transport: number;
   };
+  providerAttemptObserver?: StructuredProviderAttemptObserver;
 };
 
 export const runLangChainOrchestratorResult = async (
@@ -260,6 +264,7 @@ export const runLangChainOrchestratorResult = async (
     modelConfig,
     modelFactory = createChatModel,
     structuredRetryBudget,
+    providerAttemptObserver,
   } = options;
 
   /* 1. Build protocol-only system prompt.
@@ -323,6 +328,7 @@ export const runLangChainOrchestratorResult = async (
     signal,
     maxTransportRetries: structuredRetryBudget?.transport ?? 1,
     maxSchemaRetries: structuredRetryBudget?.schema ?? 1,
+    providerAttemptObserver,
   });
 
   /* 6. Handle failure — safe clarify, no legacy fallback */

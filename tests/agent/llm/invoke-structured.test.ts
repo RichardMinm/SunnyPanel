@@ -8,7 +8,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { invokeStructured } from "../../../src/lib/agent/llm/invoke-structured";
+import {
+  classifyStructuredTransportRetry,
+  invokeStructured,
+  type StructuredProviderAttemptEvent,
+} from "../../../src/lib/agent/llm/invoke-structured";
 import { createModelConfig, type ModelConfig } from "../../../src/lib/agent/llm/model-config";
 import { isModelError } from "../../../src/lib/agent/llm/model-errors";
 import type { ModelFactory } from "../../../src/lib/agent/llm/model-factory";
@@ -276,6 +280,90 @@ describe("invokeStructured (L1-A contract)", () => {
 
   /* ─── 3. Transport retry ─── */
   describe("transport retry", () => {
+    it("classifies only the explicit no-payload transport whitelist", () => {
+      const error = (properties: Record<string, unknown>) =>
+        Object.assign(new Error("provider failure"), properties);
+
+      assert.equal(classifyStructuredTransportRetry(error({ code: "ECONNRESET" })), "connection_reset");
+      assert.equal(classifyStructuredTransportRetry(error({ code: "ECONNREFUSED" })), "network_transport");
+      assert.equal(classifyStructuredTransportRetry(error({ status: 429 })), "rate_limit");
+      for (const status of [500, 502, 503, 504]) {
+        assert.equal(classifyStructuredTransportRetry(error({ status })), "provider_5xx");
+      }
+      for (const status of [400, 401, 403]) {
+        assert.equal(classifyStructuredTransportRetry(error({ status })), null);
+      }
+      assert.equal(classifyStructuredTransportRetry(error({ code: "ETIMEDOUT" })), null);
+      assert.equal(classifyStructuredTransportRetry(new Error("unknown")), null);
+      assert.equal(
+        classifyStructuredTransportRetry(error({
+          code: "ECONNRESET",
+          providerPayloadReceived: true,
+        })),
+        null,
+      );
+    });
+
+    it("emits sanitized lifecycle events for a recovered connection reset", async () => {
+      const events: StructuredProviderAttemptEvent[] = [];
+      let call = 0;
+      const factory: ModelFactory = () => ({
+        withStructuredOutput: () => ({
+          invoke: async () => {
+            call += 1;
+            if (call === 1) {
+              throw Object.assign(new Error("socket closed"), { code: "ECONNRESET" });
+            }
+            return { count: 1, name: "recovered" };
+          },
+        }),
+      }) as unknown as BaseChatModel;
+
+      const result = await invokeStructured({
+        maxSchemaRetries: 0,
+        maxTransportRetries: 1,
+        messages: testMessages,
+        modelConfig: makeConfig(),
+        modelFactory: factory,
+        providerAttemptObserver: (event) => events.push(event),
+        schema: testSchema,
+        schemaName,
+      });
+
+      assert.equal(result.ok, true);
+      assert.deepEqual(events, [
+        { attempt: 1, phase: "started" },
+        { attempt: 1, phase: "failed", reason: "connection_reset", retryScheduled: true },
+        { attempt: 2, phase: "started" },
+        { attempt: 2, phase: "succeeded" },
+      ]);
+      assert.doesNotMatch(JSON.stringify(events), /socket closed|ECONNRESET/);
+    });
+
+    it("does not retry unknown or payload-bearing failures", async () => {
+      for (const providerError of [
+        new Error("unknown provider error"),
+        Object.assign(new Error("socket closed after payload"), {
+          code: "ECONNRESET",
+          providerPayloadReceived: true,
+        }),
+      ]) {
+        const callCount = { value: 0 };
+        const result = await invokeStructured({
+          maxSchemaRetries: 0,
+          maxTransportRetries: 1,
+          messages: testMessages,
+          modelConfig: makeConfig(),
+          modelFactory: fakeModelFactory({ onError: providerError, callCount }),
+          schema: testSchema,
+          schemaName,
+        });
+
+        assert.equal(result.ok, false);
+        assert.equal(callCount.value, 1);
+      }
+    });
+
     it("retries on network error and succeeds on second transport attempt", async () => {
       const callCount = { value: 0 };
       let firstCall = true;
@@ -287,7 +375,7 @@ describe("invokeStructured (L1-A contract)", () => {
 
               if (firstCall) {
                 firstCall = false;
-                throw new Error("ECONNREFUSED");
+                throw Object.assign(new Error("connection refused"), { code: "ECONNREFUSED" });
               }
 
               return { name: "recovered", count: 1 };
@@ -317,7 +405,7 @@ describe("invokeStructured (L1-A contract)", () => {
     it("returns MODEL_UNAVAILABLE after transport retries exhausted", async () => {
       const callCount = { value: 0 };
       const factory = fakeModelFactory({
-        onError: new Error("500 Internal Server Error"),
+        onError: Object.assign(new Error("Internal Server Error"), { status: 500 }),
         callCount,
       });
       const result = await invokeStructured({
@@ -342,7 +430,7 @@ describe("invokeStructured (L1-A contract)", () => {
     it("transport retry has bounded upper limit (maxTransportRetries=2)", async () => {
       const callCount = { value: 0 };
       const factory = fakeModelFactory({
-        onError: new Error("500"),
+        onError: Object.assign(new Error("Internal Server Error"), { status: 500 }),
         callCount,
       });
       await invokeStructured({
@@ -532,7 +620,7 @@ describe("invokeStructured (L1-A contract)", () => {
 
               /* First call: network error (transport retry) */
               if (invokeCount === 1) {
-                throw new Error("ECONNREFUSED");
+                throw Object.assign(new Error("connection refused"), { code: "ECONNREFUSED" });
               }
 
               /* Second call: success */
@@ -561,7 +649,7 @@ describe("invokeStructured (L1-A contract)", () => {
     it("transport retry is bounded independently from schema retry", async () => {
       const callCount = { value: 0 };
       const factory = fakeModelFactory({
-        onError: new Error("500"),
+        onError: Object.assign(new Error("Internal Server Error"), { status: 500 }),
         callCount,
       });
       await invokeStructured({
@@ -639,7 +727,7 @@ describe("invokeStructured (L1-A contract)", () => {
     it("transport-only failures: max calls = (1 + maxTransport)", async () => {
       const callCount = { value: 0 };
       const factory = fakeModelFactory({
-        onError: new Error("500"),
+        onError: Object.assign(new Error("Internal Server Error"), { status: 500 }),
         callCount,
       });
       await invokeStructured({

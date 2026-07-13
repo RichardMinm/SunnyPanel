@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import type { StructuredProviderAttemptEvent } from "../../../src/lib/agent/llm/invoke-structured";
 import {
   ORCHESTRATOR_AGENT_ROLES,
   ORCHESTRATOR_MODES,
@@ -147,6 +148,54 @@ describe("langchain-orchestrator protocol", () => {
 
     assert.equal(result.status, "unavailable");
     assert.equal(calls, 1);
+  });
+
+  it("forwards the sanitized Provider attempt observer", async () => {
+    const events: StructuredProviderAttemptEvent[] = [];
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-14T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [],
+      },
+      message: "解释零信任",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: () => ({
+        withStructuredOutput: () => ({
+          invoke: async () => ({
+            mode: "single",
+            routingSummary: "回答问题",
+            tasks: [{
+              agentRole: "query",
+              args: { question: "解释零信任" },
+              dependsOn: [],
+              id: "t1",
+              intent: "answer_question",
+              label: "回答问题",
+            }],
+            version: 1,
+          }),
+        }),
+      }) as unknown as BaseChatModel,
+      providerAttemptObserver: (event) => events.push(event),
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.equal(result.status, "success");
+    assert.deepEqual(events, [
+      { attempt: 1, phase: "started" },
+      { attempt: 1, phase: "succeeded" },
+    ]);
   });
 
   it("returns sanitized resource issue codes for evaluation without retaining model output", async () => {
