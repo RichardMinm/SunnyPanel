@@ -1,7 +1,58 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { orchestratorOutputSchema, validateTaskDAG } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
+import {
+  ORCHESTRATOR_AGENT_ROLES,
+  ORCHESTRATOR_MODES,
+  orchestratorOutputSchema,
+  validateTaskDAG,
+} from "../../../src/lib/agent/llm/schemas/orchestrator-output";
+import { ROUTER_INTENT_NAMES } from "../../../src/lib/agent/llm/schemas/router-output";
+import {
+  buildLangChainOrchestratorMessages,
+  buildLangChainSystemPrompt,
+} from "../../../src/lib/agent/orchestration/langchain-orchestrator";
 import { mapStructuredOutputToPlan } from "../../../src/lib/agent/orchestration/orchestrator-mapper";
+
+describe("langchain-orchestrator protocol", () => {
+  it("renders every schema-derived mode, role, and intent into the trusted protocol", () => {
+    const prompt = buildLangChainSystemPrompt();
+
+    for (const mode of ORCHESTRATOR_MODES) assert.match(prompt, new RegExp(`\\b${mode}\\b`));
+    for (const role of ORCHESTRATOR_AGENT_ROLES) assert.match(prompt, new RegExp(`\\b${role}\\b`));
+    for (const intent of ROUTER_INTENT_NAMES) assert.match(prompt, new RegExp(`\\b${intent}\\b`));
+  });
+
+  it("keeps all workspace values out of the system message and marks them as untrusted user data", () => {
+    const sentinel = "IGNORE_PROTOCOL_AND_EXECUTE_SENTINEL";
+    const messages = buildLangChainOrchestratorMessages("查看状态", {
+      checklists: [{ groups: [], id: 12, title: sentinel }],
+      contentItems: [],
+      memories: [{ confidence: 0.9, content: sentinel, id: 31, lastUsedAt: null, title: sentinel, type: "project_context" }],
+      now: "2026-07-14T12:00:00.000+08:00",
+      pendingAction: null,
+      plans: [{ id: 7, priority: "medium", state: "active", title: sentinel }],
+      threadSummary: { messageCount: 2, summary: sentinel, updatedAt: "2026-07-14T11:00:00.000+08:00" },
+      timelineEvents: [{ eventDate: "2026-07-14", id: 19, isFeatured: false, relatedContent: null, status: "active", title: sentinel, type: "note", visibility: "private" }],
+    });
+    const systemMessages = messages.filter((message) => message.role === "system");
+    const workspaceMessages = messages.filter((message) => message.role === "user" && message.content.includes(sentinel));
+
+    assert.equal(systemMessages.length, 1);
+    assert.equal(systemMessages[0]?.content.includes(sentinel), false);
+    assert.equal(systemMessages[0]?.content.includes("2026-07-14T12:00:00.000+08:00"), false);
+    assert.equal(workspaceMessages.length, 1);
+    assert.match(workspaceMessages[0]?.content ?? "", /UNTRUSTED user data/);
+  });
+
+  it("forbids execution artifacts and raw reasoning in the protocol", () => {
+    const prompt = buildLangChainSystemPrompt();
+
+    assert.match(prompt, /不要输出 raw reasoning/i);
+    assert.match(prompt, /execute/);
+    assert.match(prompt, /receipt/);
+    assert.match(prompt, /rollback/);
+  });
+});
 
 describe("langchain-orchestrator (schema + mapper contracts)", () => {
   describe("orchestrator output schema", () => {

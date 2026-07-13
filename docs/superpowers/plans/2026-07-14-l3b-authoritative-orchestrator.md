@@ -38,10 +38,10 @@
 - Produces: exported `ROUTER_INTENT_NAMES`, `ORCHESTRATOR_AGENT_ROLES`, and `ORCHESTRATOR_MODES` used by both Zod and prompt rendering.
 - Preserves: `runLangChainOrchestrator(options): Promise<OrchestratorPlan>` and pre-adoption runtime resolution.
 
-- [ ] **Step 1: Write failing tests** proving prompt allowlists/modes/roles come from the schema constants, the system message contains no workspace value, workspace injection is user-role data, no raw reasoning/execute/receipt/rollback field is accepted, and current unset/unknown/empty runtime remains Legacy.
-- [ ] **Step 2: Run RED:** `node --import tsx --test tests/agent/orchestration/langchain-orchestrator.test.ts tests/agent/orchestration/orchestrator-runtime-config.test.ts`; expect failures for hard-coded/unexported protocol sources and system-message context leakage.
-- [ ] **Step 3: Implement the minimum schema/prompt refactor:** export readonly values before constructing Zod enums; render the protocol from those values; move `now`, plans, checklists, memories, content, and thread summary exclusively into the bounded workspace projection passed to `buildMessages()`.
-- [ ] **Step 4: Run GREEN** with the same focused command, then run `env -u DATABASE_URL -u AGENT_DEBUG_LOG npm run typecheck`.
+- [x] **Step 1: Write failing tests** proving prompt allowlists/modes/roles come from the schema constants, the system message contains no workspace value, workspace injection is user-role data, no raw reasoning/execute/receipt/rollback field is accepted, and current unset/unknown/empty runtime remains Legacy.
+- [x] **Step 2: Run RED:** `node --import tsx --test tests/agent/orchestration/langchain-orchestrator.test.ts tests/agent/orchestration/orchestrator-runtime-config.test.ts`; failed because the schema-shared constants/API did not exist.
+- [x] **Step 3: Implement the minimum schema/prompt refactor:** export readonly values before constructing Zod enums; render the protocol from those values; move `now`, plans, checklists, memories, content, and thread summary exclusively into the bounded workspace projection passed to `buildMessages()`.
+- [x] **Step 4: Run GREEN** with the same focused command (33/33) and `env -u DATABASE_URL -u AGENT_DEBUG_LOG npm run typecheck` (exit 0).
 - [ ] **Step 5: Commit:** `git commit -m "fix(agent): derive orchestrator protocol from schema"`.
 
 ### Task 2: Route replan through a typed authoritative service

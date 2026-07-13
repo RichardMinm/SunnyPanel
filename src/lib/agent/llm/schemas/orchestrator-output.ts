@@ -18,14 +18,16 @@ export const ORCHESTRATOR_OUTPUT_SCHEMA_VERSION = 1;
 
 /** The specialised agent that will execute this task.
  *  Aligned with the existing `AgentRole` type in orchestration/types.ts. */
-export const agentRoleSchema = z.enum([
+export const ORCHESTRATOR_AGENT_ROLES = [
   "content",
   "memory",
   "plan",
   "query",
   "review",
   "schedule",
-]);
+] as const;
+
+export const agentRoleSchema = z.enum(ORCHESTRATOR_AGENT_ROLES);
 
 export type AgentRole = z.infer<typeof agentRoleSchema>;
 
@@ -55,12 +57,14 @@ export type OrchestratorTask = z.infer<typeof orchestratorTaskSchema>;
 
 /* ---- Full orchestrator plan ---- */
 
+export const ORCHESTRATOR_MODES = ["compound", "single"] as const;
+
 export const orchestratorOutputBaseSchema = z.object({
   /** Schema version for future migration. */
   version: z.literal(ORCHESTRATOR_OUTPUT_SCHEMA_VERSION),
 
   /** Whether this is a single or compound (multi-task) plan. */
-  mode: z.enum(["compound", "single"]),
+  mode: z.enum(ORCHESTRATOR_MODES),
 
   /** User-visible summary of the task decomposition.
    *  This is NOT raw Chain-of-Thought — it should be suitable for

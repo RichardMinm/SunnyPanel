@@ -29,7 +29,7 @@ export type ReadWriteClass = z.infer<typeof readWriteClassSchema>;
 
 /** All recognized intent names — synchronized with agentIntentValues +
  *  CONVERSATIONAL_INTENT_NAMES from the existing codebase. */
-export const routerIntentNameSchema = z.enum([
+export const ROUTER_INTENT_NAMES = [
   /* Core agent intents */
   "add_completion_note",
   "answer_question",
@@ -67,7 +67,9 @@ export const routerIntentNameSchema = z.enum([
   "give_learning_path",
   "summarize_answer",
   "rewrite_answer",
-] as const);
+] as const;
+
+export const routerIntentNameSchema = z.enum(ROUTER_INTENT_NAMES);
 
 export type RouterIntentName = z.infer<typeof routerIntentNameSchema>;
 
