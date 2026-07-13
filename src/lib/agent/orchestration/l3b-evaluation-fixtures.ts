@@ -113,7 +113,7 @@ export const L3B_EVALUATION_FIXTURES: readonly L3BEvaluationFixture[] = [
   fixture("wrt-3", "write-cand", "记录一条重要记忆：每周五复盘", {}, { intents: ["save_memory"], mode: "single", safetyClass: "write_candidate" }),
   fixture("wrt-4", "write-cand", "把明天的会议取消掉", {}, { intents: ["clarify"], mode: "single", safetyClass: "clarify" }),
   fixture("wrt-5", "write-cand", "把高数复习添加到考研数学计划里", { plan: "title_only" }, { intents: ["clarify"], mode: "single", safetyClass: "clarify" }),
-  fixture("cmp-1", "compound", "帮我制定考研数学计划，并排进下周每天早上", {}, { intents: ["compose_plan"], mode: "compound", safetyClass: "write_candidate" }),
+  fixture("cmp-1", "compound", "帮我制定考研数学计划，并排进下周每天早上", {}, { intents: ["clarify"], mode: "single", safetyClass: "clarify" }),
   fixture("cmp-2", "compound", "复盘这一周，把没完成的排到下周", { checklist: true, plan: "title_only" }, { intents: ["clarify"], mode: "single", safetyClass: "clarify" }),
   fixture("cmp-3", "compound", "创建学习计划，并分解成每日任务清单", {}, { intents: ["compose_plan", "compose_checklist"], mode: "compound", safetyClass: "write_candidate" }),
   fixture("cmp-4", "compound", "检查项目进度，记录未完成的作为新任务", { plan: true }, { intents: ["query_progress", "compose_checklist"], mode: "compound", safetyClass: "write_candidate" }),

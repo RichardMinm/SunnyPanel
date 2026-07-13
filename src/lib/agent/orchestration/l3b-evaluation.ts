@@ -1,7 +1,261 @@
 import {
+  closeSync,
+  constants as fsConstants,
+  lstatSync,
+  openSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
+
+import {
   L3B_EVALUATION_CONFIG,
   L3B_EVALUATION_CONFIG_HASH,
 } from "./l3b-evaluation-config";
+import {
+  summarizeSemanticDisagreements,
+  type OrchestratorDisagreementEvidence,
+  type SanitizedSemanticDecisionProjection,
+} from "./l3b-semantic-evidence";
+
+type L3BFixtureIdentity = Readonly<{ id: string }>;
+
+export const selectL3BEvaluationFixtures = <T extends L3BFixtureIdentity>(
+  fixtures: readonly T[],
+  fixtureIdsEnv: string | undefined,
+): readonly T[] => {
+  if (fixtureIdsEnv === undefined) return fixtures;
+
+  const requestedFixtureIds = fixtureIdsEnv
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (requestedFixtureIds.length === 0) {
+    throw new Error("L3B_EVAL_FIXTURE_IDS must contain at least one fixture ID");
+  }
+
+  const knownFixtureIds = new Set(fixtures.map(({ id }) => id));
+  const unknownFixtureIds = [...new Set(requestedFixtureIds)].filter(
+    (id) => !knownFixtureIds.has(id),
+  );
+  if (unknownFixtureIds.length > 0) {
+    throw new Error(`Unknown L3B fixture IDs: ${unknownFixtureIds.join(",")}`);
+  }
+
+  const requestedFixtureIdSet = new Set(requestedFixtureIds);
+  return fixtures.filter(({ id }) => requestedFixtureIdSet.has(id));
+};
+
+const ALLOWED_NORMALIZED_AGGREGATE_KEYS = new Set([
+  "outsideallowedresourceids",
+  "promptinjectionsuccess",
+  "providercompletedresponses",
+]);
+
+const FORBIDDEN_NORMALIZED_KEYS = new Set([
+  "apikey",
+  "context",
+  "contexts",
+  "message",
+  "messages",
+  "prompt",
+  "prompts",
+  "reasoning",
+  "response",
+  "responses",
+  "secret",
+  "secrets",
+  "title",
+  "titles",
+]);
+
+const FORBIDDEN_NORMALIZED_PREFIXES = [
+  "rawcontext",
+  "rawmessage",
+  "rawprompt",
+  "rawreasoning",
+  "rawresponse",
+  "rawsecret",
+  "rawtitle",
+] as const;
+
+const SENSITIVE_NORMALIZED_TOKENS = [
+  "apikey",
+  "context",
+  "message",
+  "prompt",
+  "reasoning",
+  "response",
+  "secret",
+  "title",
+] as const;
+
+const RESOURCE_ID_NORMALIZED_TOKENS = [
+  "checklistid",
+  "checklistids",
+  "planid",
+  "planids",
+  "referencedid",
+  "referencedids",
+  "referencedresourceid",
+  "referencedresourceids",
+  "resourceid",
+  "resourceids",
+  "scheduleitemid",
+  "scheduleitemids",
+  "taskid",
+  "taskids",
+] as const;
+
+const FORBIDDEN_NORMALIZED_SUFFIXES = [
+  "apikey",
+  "apikeys",
+  "checklistid",
+  "checklistids",
+  "context",
+  "contexts",
+  "message",
+  "messages",
+  "planid",
+  "planids",
+  "prompt",
+  "prompts",
+  "reasoning",
+  "reasonings",
+  "referencedid",
+  "referencedids",
+  "referencedresourceid",
+  "referencedresourceids",
+  "resourceid",
+  "resourceids",
+  "response",
+  "responses",
+  "scheduleitemid",
+  "scheduleitemids",
+  "secret",
+  "secrets",
+  "taskid",
+  "taskids",
+  "title",
+  "titles",
+] as const;
+
+const normalizeReportKey = (key: string): string =>
+  key.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const isAllowedAggregateKey = (key: string): boolean =>
+  ALLOWED_NORMALIZED_AGGREGATE_KEYS.has(normalizeReportKey(key));
+
+const isForbiddenReportKey = (key: string): boolean => {
+  const normalized = normalizeReportKey(key);
+  return FORBIDDEN_NORMALIZED_KEYS.has(normalized)
+    || SENSITIVE_NORMALIZED_TOKENS.some((token) => normalized.includes(token))
+    || RESOURCE_ID_NORMALIZED_TOKENS.some((token) => normalized.includes(token))
+    || FORBIDDEN_NORMALIZED_PREFIXES.some((prefix) =>
+      normalized.startsWith(prefix))
+    || FORBIDDEN_NORMALIZED_SUFFIXES.some((suffix) =>
+      normalized.endsWith(suffix));
+};
+
+export const assertSanitizedL3BReport = (
+  value: unknown,
+  path = "report",
+): void => {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      assertSanitizedL3BReport(item, `${path}[${index}]`));
+    return;
+  }
+  if (value === null || typeof value !== "object") return;
+
+  for (const [key, child] of Object.entries(value)) {
+    if (isAllowedAggregateKey(key)) {
+      if (typeof child !== "number" || !Number.isFinite(child) || child < 0) {
+        throw new Error(
+          `Forbidden sanitized report key value at ${path}.${key}; expected a non-negative count`,
+        );
+      }
+      continue;
+    }
+    if (isForbiddenReportKey(key)) {
+      throw new Error(`Forbidden sanitized report key at ${path}.${key}`);
+    }
+    assertSanitizedL3BReport(child, `${path}.${key}`);
+  }
+};
+
+const isWithinDirectory = (parent: string, candidate: string): boolean => {
+  const relativePath = relative(parent, candidate);
+  return relativePath === ""
+    || (!isAbsolute(relativePath)
+      && relativePath !== ".."
+      && !relativePath.startsWith(`..${sep}`));
+};
+
+export const writeSanitizedL3BReport = (
+  reportPath: string,
+  report: unknown,
+): void => {
+  assertSanitizedL3BReport(report);
+
+  const resolvedReportPath = resolve(reportPath);
+  if (!isAbsolute(reportPath) || !resolvedReportPath.startsWith(`/tmp${sep}`)) {
+    throw new Error("L3B_EVAL_REPORT_PATH must be an absolute file path under /tmp/");
+  }
+
+  const parentPath = dirname(resolvedReportPath);
+  let realParentPath: string;
+  try {
+    realParentPath = realpathSync.native(parentPath);
+  } catch {
+    throw new Error("L3B_EVAL_REPORT_PATH parent directory must already exist");
+  }
+  const realTmpPath = realpathSync.native("/tmp");
+  if (!isWithinDirectory(realTmpPath, realParentPath)) {
+    throw new Error("L3B_EVAL_REPORT_PATH must be an absolute file path under /tmp/");
+  }
+  const safeTargetPath = resolve(realParentPath, basename(resolvedReportPath));
+
+  try {
+    if (lstatSync(safeTargetPath).isSymbolicLink()) {
+      throw new Error("L3B_EVAL_REPORT_PATH final target cannot be a symbolic link");
+    }
+  } catch (error) {
+    if (
+      error instanceof Error
+      && "code" in error
+      && error.code === "ENOENT"
+    ) {
+      // New report file is allowed; its real parent was validated above.
+    } else {
+      throw error;
+    }
+  }
+
+  if (typeof fsConstants.O_NOFOLLOW !== "number") {
+    throw new Error("L3B_EVAL_REPORT_PATH no-follow file opening is unavailable");
+  }
+  const descriptor = openSync(
+    safeTargetPath,
+    fsConstants.O_WRONLY
+      | fsConstants.O_CREAT
+      | fsConstants.O_TRUNC
+      | fsConstants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    writeFileSync(descriptor, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  } finally {
+    closeSync(descriptor);
+  }
+};
 
 export type L3BMismatchCategory =
   | "clarify_mismatch"
@@ -83,6 +337,8 @@ export type L3BEvaluationRun = {
   round: number;
   schemaCompletedResponses: number;
   schemaValidResponses: number;
+  semanticDisagreement?: OrchestratorDisagreementEvidence;
+  semanticProjection?: SanitizedSemanticDecisionProjection;
   specialistBypassCount: number;
   specialistLogicalCalls: number;
   specialistProviderAttempts: number;
@@ -180,6 +436,8 @@ export type L3BEvaluationReport = {
   failureReasons: string[];
   metrics: L3BEvaluationMetrics;
   pass: boolean;
+  semanticDisagreements: readonly OrchestratorDisagreementEvidence[];
+  semanticDisagreementSummary: ReturnType<typeof summarizeSemanticDisagreements>;
 };
 
 export type L3BEvaluationOptions = {
@@ -403,6 +661,8 @@ export const buildL3BEvaluationReport = (
     ),
     writeWithoutDraft: countTrue(runs, "writeWithoutDraft"),
   };
+  const semanticDisagreements = runs.flatMap((run) =>
+    run.semanticDisagreement ? [run.semanticDisagreement] : []);
 
   const failureReasons: string[] = [];
   const minimumObservations = options.minimumObservations ?? 99;
@@ -481,5 +741,9 @@ export const buildL3BEvaluationReport = (
     failureReasons,
     metrics,
     pass: failureReasons.length === 0,
+    semanticDisagreements,
+    semanticDisagreementSummary: summarizeSemanticDisagreements(
+      semanticDisagreements,
+    ),
   };
 };

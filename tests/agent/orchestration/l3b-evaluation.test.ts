@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { createHash } from "node:crypto";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { join, resolve } from "node:path";
 import { test } from "node:test";
 
 import {
   buildL3BEvaluationReport,
   compareL3BSafetyClass,
+  assertSanitizedL3BReport,
+  selectL3BEvaluationFixtures,
   type L3BEvaluationRun,
+  writeSanitizedL3BReport,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation";
 import {
   L3B_EVALUATION_FIXTURES,
@@ -370,6 +381,24 @@ test("keeps the original 33-fixture matrix and all high-risk segments", () => {
   );
 });
 
+test("freezes the complete pre-R1 fixture matrix with only cmp-1 expectation revised", () => {
+  const snapshot = L3B_EVALUATION_FIXTURES.map((fixture) => ({
+    context: fixture.context,
+    expected: fixture.expected,
+    id: fixture.id,
+    injection: fixture.injection,
+    message: fixture.message,
+    tag: fixture.tag,
+  }));
+  const hash = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+
+  assert.equal(hash, "ec7005b80810d9b95b374a3abe6d39573ba3802e06e0addca8d485c6ed94e7b0");
+  assert.deepEqual(
+    L3B_EVALUATION_FIXTURES.find(({ id }) => id === "cmp-1")?.expected,
+    { intents: ["clarify"], mode: "single", safetyClass: "clarify" },
+  );
+});
+
 test("restores title-only resource fixtures without usable IDs", () => {
   for (const fixtureId of ["wrt-5", "cmp-2", "exr-1", "exr-2", "exr-3"]) {
     const fixture = L3B_EVALUATION_FIXTURES.find(({ id }) => id === fixtureId);
@@ -411,6 +440,10 @@ test("live harness is explicit, database-free, fixed-budget, and uses typed resu
   assert.match(source, /L3B_EVALUATION_FIXTURES/);
   assert.match(source, /L3B_KNOWN_ID_DIAGNOSTICS/);
   assert.match(source, /knownIdDiagnostics/);
+  assert.match(source, /L3B_EVAL_FIXTURE_IDS/);
+  assert.match(source, /L3B_EVAL_REPORT_PATH/);
+  assert.match(source, /assertSanitizedL3BReport\(report\)/);
+  assert.match(source, /writeSanitizedL3BReport/);
   assert.match(source, /const pass = gating\.pass;/);
   assert.doesNotMatch(source, /diagnosticsPass/);
   assert.match(source, /orchestrator-plan-to-intent/);
@@ -418,6 +451,169 @@ test("live harness is explicit, database-free, fixed-budget, and uses typed resu
   assert.doesNotMatch(source, /src\/lib\/agent\/orchestrator\.ts/);
   assert.doesNotMatch(source, /agents\/run-specialized-agent\.ts/);
   assert.doesNotMatch(source, /getAgentModelConfig|DATABASE_URL|payload\.config/);
+});
+
+test("fixture selection rejects empty and unknown IDs, deduplicates, and preserves matrix order", () => {
+  assert.equal(
+    selectL3BEvaluationFixtures(L3B_EVALUATION_FIXTURES, undefined),
+    L3B_EVALUATION_FIXTURES,
+  );
+  assert.deepEqual(
+    selectL3BEvaluationFixtures(
+      L3B_EVALUATION_FIXTURES,
+      "cmp-4, qry-1, cmp-4, qry-2",
+    ).map(({ id }) => id),
+    ["qry-1", "qry-2", "cmp-4"],
+  );
+  assert.throws(
+    () => selectL3BEvaluationFixtures(L3B_EVALUATION_FIXTURES, " , "),
+    /at least one fixture ID/,
+  );
+  assert.throws(
+    () => selectL3BEvaluationFixtures(L3B_EVALUATION_FIXTURES, "qry-1,nope"),
+    /Unknown L3B fixture IDs: nope/,
+  );
+});
+
+test("sanitized report validation rejects forbidden keys at any nested depth", () => {
+  assert.doesNotThrow(() => assertSanitizedL3BReport({
+    metrics: {
+      outsideAllowedResourceIds: 0,
+      promptInjectionSuccess: 0,
+      providerCompletedResponses: 99,
+    },
+    knownIdDiagnostics: [{
+      id: "diag-plan-existing-id",
+      observed: "exact_reference",
+      pass: true,
+      resourceKind: "plan",
+    }],
+    observations: [{
+      fixtureId: "qry-1",
+      round: 1,
+      semanticProjection: {
+        decisionCode: "not_available_pre_r1",
+        intents: ["query_plan"],
+        mode: "single",
+        safetyClass: "read",
+        taskCount: 1,
+      },
+    }],
+  }));
+  assert.throws(
+    () => assertSanitizedL3BReport({ safe: [{ deeper: { apiKey: "never-write" } }] }),
+    /Forbidden sanitized report key at report\.safe\[0\]\.deeper\.apiKey/,
+  );
+
+  const forbiddenCases = [
+    ["raw prompt", { rawPrompt: "never-write" }],
+    ["prompt", { prompt: "never-write" }],
+    ["raw response", { rawResponse: "never-write" }],
+    ["provider response", { nested: { provider_response: "never-write" } }],
+    ["message", { nested: [{ userMessage: "never-write" }] }],
+    ["context", { workspace_context: { private: true } }],
+    ["title", { nested: { planTitle: "never-write" } }],
+    ["reasoning", { hiddenReasoning: "never-write" }],
+    ["secret", { payload_secret: "never-write" }],
+    ["normalized API key", { nested: { api_key: "never-write" } }],
+    ["plan ID", { nested: { planId: 101 } }],
+    ["resource IDs", { nested: { resource_ids: [101] } }],
+    ["resource IDs hidden under aggregate key", { outsideAllowedResourceIds: [101] }],
+    ["task output ID", { nested: { taskId: "t1" } }],
+    ["plural Provider responses", { nested: { providerResponses: ["never-write"] } }],
+    ["plural user messages", { nested: { userMessages: ["never-write"] } }],
+    ["plural workspace contexts", { nested: { workspaceContexts: [{}] } }],
+    ["plural plan titles", { nested: { planTitles: ["never-write"] } }],
+    ["plural hidden reasonings", { nested: { hiddenReasonings: ["never-write"] } }],
+    ["plural payload secrets", { nested: { payloadSecrets: ["never-write"] } }],
+    ["plural API keys", { nested: { apiKeys: ["never-write"] } }],
+    ["plural system prompts", { nested: { systemPrompts: ["never-write"] } }],
+    ["raw responses under safe aggregate", { providerCompletedResponses: ["never-write"] }],
+    ["prompt token prefix", { nested: { promptText: "never-write" } }],
+    ["response token prefix", { nested: { responsePayload: "never-write" } }],
+    ["message token prefix", { nested: { messageContent: "never-write" } }],
+    ["context token prefix", { nested: { contextSnapshot: "never-write" } }],
+    ["title token prefix", { nested: { titleValue: "never-write" } }],
+    ["reasoning token prefix", { nested: { reasoningTrace: "never-write" } }],
+    ["secret token prefix", { nested: { secretToken: "never-write" } }],
+    ["API key token prefix", { nested: { apiKeyValue: "never-write" } }],
+    ["plan ID token prefix", { nested: { planIdValue: 101 } }],
+    ["checklist ID token prefix", { nested: { checklistIdMap: { current: 201 } } }],
+    ["schedule item ID token prefix", { nested: { scheduleItemIdList: [401] } }],
+    ["resource ID token prefix", { nested: { resourceIdValue: 101 } }],
+    ["resource IDs token prefix", { nested: { resourceIdsPayload: [101] } }],
+    ["task ID token prefix", { nested: { taskIdMap: { current: "t1" } } }],
+    ["referenced ID token prefix", { nested: { referencedIdList: [101] } }],
+    ["referenced resource ID token prefix", { nested: { referencedResourceIdValue: 101 } }],
+  ] as const;
+  for (const [label, value] of forbiddenCases) {
+    assert.throws(
+      () => assertSanitizedL3BReport(value),
+      /Forbidden sanitized report key/,
+      label,
+    );
+  }
+});
+
+test("sanitized report writer proves real /tmp containment and rejects symlink escapes", () => {
+  const tmpRoot = mkdtempSync("/tmp/l3b-report-test-");
+  const outsideRoot = mkdtempSync(
+    resolve(process.cwd(), ".superpowers/sdd/l3b-report-outside-"),
+  );
+  try {
+    const safePath = join(tmpRoot, "safe.json");
+    writeSanitizedL3BReport(safePath, { pass: true });
+    assert.deepEqual(JSON.parse(readFileSync(safePath, "utf8")), { pass: true });
+
+    const traversalPath = `/tmp/../${outsideRoot.slice(1)}/traversal.json`;
+    assert.throws(
+      () => writeSanitizedL3BReport(traversalPath, { pass: true }),
+      /absolute file path under \/tmp\//,
+    );
+
+    const victim = join(outsideRoot, "victim.json");
+    writeFileSync(victim, "unchanged", "utf8");
+    const finalLink = join(tmpRoot, "final-link.json");
+    symlinkSync(victim, finalLink);
+    assert.throws(
+      () => writeSanitizedL3BReport(finalLink, { pass: true }),
+      /symbolic link|no-follow/i,
+    );
+    assert.equal(readFileSync(victim, "utf8"), "unchanged");
+
+    const parentLink = join(tmpRoot, "parent-link");
+    symlinkSync(outsideRoot, parentLink, "dir");
+    assert.throws(
+      () => writeSanitizedL3BReport(join(parentLink, "escaped.json"), { pass: true }),
+      /absolute file path under \/tmp\//,
+    );
+    assert.throws(() => readFileSync(join(outsideRoot, "escaped.json"), "utf8"));
+
+    const missingParent = join(tmpRoot, "missing", "report.json");
+    assert.throws(
+      () => writeSanitizedL3BReport(missingParent, { pass: true }),
+      /parent directory/i,
+    );
+    mkdirSync(join(tmpRoot, "nested"));
+    assert.doesNotThrow(() =>
+      writeSanitizedL3BReport(join(tmpRoot, "nested", "report.json"), { ok: true }));
+  } finally {
+    rmSync(tmpRoot, { force: true, recursive: true });
+    rmSync(outsideRoot, { force: true, recursive: true });
+  }
+});
+
+test("emits sanitized disagreement projections and empty five-way summaries", () => {
+  const report = buildL3BEvaluationReport(passingRuns(), { expectedFixtureIds: fixtureIds });
+
+  assert.deepEqual(report.semanticDisagreements, []);
+  assert.deepEqual(report.semanticDisagreementSummary, {
+    disagreementsByActualClass: {},
+    disagreementsByDirection: {},
+    disagreementsByExpectedClass: {},
+    disagreementsByFixture: {},
+    disagreementsByRound: {},
+  });
 });
 
 test("a guarded resource write still counts as clarify-to-write before adoption", () => {

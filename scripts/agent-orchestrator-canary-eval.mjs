@@ -25,7 +25,14 @@ const [
   { buildWorkspaceContext, runLangChainOrchestratorResult },
   { createModelCallBudgetRecorder },
   { L3B_EVALUATION_FIXTURES, L3B_KNOWN_ID_DIAGNOSTICS },
-  { buildL3BEvaluationReport, compareL3BSafetyClass },
+  {
+    assertSanitizedL3BReport,
+    buildL3BEvaluationReport,
+    compareL3BSafetyClass,
+    selectL3BEvaluationFixtures,
+    writeSanitizedL3BReport,
+  },
+  { classifySemanticDisagreement, summarizeSemanticDisagreements },
   { L3B_EVALUATION_CONFIG, L3B_EVALUATION_CONFIG_HASH },
   { classifyIntents },
 ] = await Promise.all([
@@ -37,9 +44,15 @@ const [
   import("../src/lib/agent/orchestration/model-call-budget.ts"),
   import("../src/lib/agent/orchestration/l3b-evaluation-fixtures.ts"),
   import("../src/lib/agent/orchestration/l3b-evaluation.ts"),
+  import("../src/lib/agent/orchestration/l3b-semantic-evidence.ts"),
   import("../src/lib/agent/orchestration/l3b-evaluation-config.ts"),
   import("../src/lib/agent/orchestration/safety-classifier.ts"),
 ]);
+
+const selectedFixtures = selectL3BEvaluationFixtures(
+  L3B_EVALUATION_FIXTURES,
+  process.env.L3B_EVAL_FIXTURE_IDS,
+);
 
 if (
   rounds === 3
@@ -154,6 +167,7 @@ const emptyRun = (fixture, round) => ({
   round,
   schemaCompletedResponses: 0,
   schemaValidResponses: 0,
+  semanticProjection: null,
   specialistBypassCount: 0,
   specialistLogicalCalls: 0,
   specialistProviderAttempts: 0,
@@ -200,6 +214,13 @@ const observeOrchestratorAttempt = (run, recorder) => {
 
 const applySemanticDecision = (run, fixture, decision) => {
   const actualSafetyClass = classifyIntents(decision.intents);
+  run.semanticProjection = Object.freeze({
+    decisionCode: decision.decisionCode ?? "not_available_pre_r1",
+    intents: Object.freeze([...decision.intents]),
+    mode: decision.mode,
+    safetyClass: actualSafetyClass,
+    taskCount: decision.taskCount ?? decision.intents.length,
+  });
   const expected = fixture.expected;
   run.modeMismatch = decision.mode !== expected.mode;
   run.intentMismatch = !expected.intents.includes(decision.intents[0] ?? "");
@@ -214,6 +235,69 @@ const applySemanticDecision = (run, fixture, decision) => {
   run.unexpectedWriteCandidate =
     expected.safetyClass !== "write_candidate"
     && (actualSafetyClass === "write_candidate" || actualSafetyClass === "mixed");
+};
+
+const consultationIntents = new Set([
+  "answer_question",
+  "compare_concepts",
+  "explain_concept",
+  "give_examples",
+  "give_learning_path",
+]);
+
+const expectedRequestClass = (fixture) => {
+  if (fixture.expected.mode === "compound") return "compound";
+  if (fixture.tag === "consultation") return "consultation";
+  if (fixture.tag === "query" || fixture.tag === "injection") return "read";
+  if (fixture.tag === "clarify") return "clarify";
+  return "write";
+};
+
+const actualRequestClass = (projection) => {
+  if (projection.mode === "compound") return "compound";
+  if (projection.safetyClass === "clarify") return "clarify";
+  if (projection.safetyClass === "write_candidate" || projection.safetyClass === "mixed") {
+    return "write";
+  }
+  return projection.intents.every((intent) => consultationIntents.has(intent))
+    ? "consultation"
+    : "read";
+};
+
+const intentCategory = (projection) => {
+  if (projection.safetyClass === "clarify") return "clarify";
+  if (projection.safetyClass === "write_candidate" || projection.safetyClass === "mixed") {
+    return "write_candidate";
+  }
+  return projection.intents.every((intent) => consultationIntents.has(intent))
+    ? "consultation"
+    : "read_query";
+};
+
+const captureSemanticDisagreement = (run, fixture) => {
+  if (!run.semanticProjection || run.mismatchCategory === "match" || run.mismatchCategory === "not_comparable") {
+    return;
+  }
+  const projection = run.semanticProjection;
+  run.semanticDisagreement = classifySemanticDisagreement({
+    actualIntentCategory: intentCategory(projection),
+    actualMode: projection.mode,
+    actualRequestClass: actualRequestClass(projection),
+    actualTaskCount: projection.taskCount,
+    expectedIntentCategory: fixture.expected.safetyClass === "read"
+      ? (fixture.tag === "consultation" ? "consultation" : "read_query")
+      : fixture.expected.safetyClass,
+    expectedMode: fixture.expected.mode,
+    expectedRequestClass: expectedRequestClass(fixture),
+    expectedTaskCount: fixture.expected.mode === "compound" ? 2 : 1,
+    fixtureId: fixture.id,
+    resourceGuardResult: run.resourceMismatch ? "rejected" : "accepted",
+    resourceState: run.resourceMismatch
+      ? (run.missingRequiredResource ? "missing" : "conflicting")
+      : "not_required",
+    round: run.round,
+    usablePlan: run.orchestratorUsable,
+  });
 };
 
 const classifyMismatch = (run) => {
@@ -245,7 +329,7 @@ const runs = [];
 
 console.log(`Provider: ${summarizeModelConfig(modelConfig)}`);
 console.log(`evaluationConfigHash: ${L3B_EVALUATION_CONFIG_HASH}`);
-console.log(`Fixtures: ${L3B_EVALUATION_FIXTURES.length} × ${rounds} rounds`);
+console.log(`Fixtures: ${selectedFixtures.length} × ${rounds} rounds`);
 console.log(
   `Retry budget: transport=${L3B_EVALUATION_CONFIG.transportRetries}`
   + ` schema=${L3B_EVALUATION_CONFIG.schemaRetries}`
@@ -253,7 +337,7 @@ console.log(
 );
 
 for (let round = 1; round <= rounds; round += 1) {
-  for (const fixture of L3B_EVALUATION_FIXTURES) {
+  for (const fixture of selectedFixtures) {
     const run = emptyRun(fixture, round);
     const recorder = createModelCallBudgetRecorder();
     const scopeId = `${fixture.id}:${round}`;
@@ -381,6 +465,7 @@ for (let round = 1; round <= rounds; round += 1) {
     }
 
     run.mismatchCategory = classifyMismatch(run);
+    captureSemanticDisagreement(run, fixture);
     const budget = recorder.snapshot();
     run.answerLogicalCalls = budget.answerLogicalCalls;
     run.answerProviderAttempts = budget.answerProviderAttempts;
@@ -466,16 +551,45 @@ const knownIdDiagnostics = rounds === 1
   : [];
 
 const gating = buildL3BEvaluationReport(runs, {
-  expectedFixtureIds: L3B_EVALUATION_FIXTURES.map((fixture) => fixture.id),
-  minimumObservations: L3B_EVALUATION_FIXTURES.length * rounds,
+  expectedFixtureIds: selectedFixtures.map((fixture) => fixture.id),
+  minimumObservations: selectedFixtures.length * rounds,
   minimumRounds: rounds,
 });
 const pass = gating.pass;
-const report = {
-  gating,
-  knownIdDiagnostics,
-  pass,
+const safeGating = {
+  evaluationConfig: {
+    answerOutputBudget: gating.evaluationConfig.answerOutputBudget,
+    evaluationConfigHash: gating.evaluationConfig.evaluationConfigHash,
+    protocolVersion: gating.evaluationConfig.promptProtocolVersion,
+    resourceProtocolVersion: gating.evaluationConfig.resourceProtocolVersion,
+    schemaVersion: gating.evaluationConfig.schemaVersion,
+  },
+  failureReasons: gating.failureReasons,
+  metrics: gating.metrics,
+  pass: gating.pass,
+  semanticDisagreements: gating.semanticDisagreements,
+  semanticDisagreementSummary: gating.semanticDisagreementSummary,
 };
+const report = {
+  gating: safeGating,
+  knownIdDiagnostics,
+  observations: runs.map(({ fixtureId, round, semanticProjection }) => ({
+    fixtureId,
+    round,
+    semanticProjection,
+  })),
+  pass,
+  semanticDisagreements: gating.semanticDisagreements,
+  semanticDisagreementSummary: summarizeSemanticDisagreements(
+    gating.semanticDisagreements,
+  ),
+};
+
+assertSanitizedL3BReport(report);
+const reportPath = process.env.L3B_EVAL_REPORT_PATH;
+if (reportPath !== undefined) {
+  writeSanitizedL3BReport(reportPath, report);
+}
 
 console.log("\n═══ L3-B Authoritative Orchestrator Evaluation ═══");
 console.log(JSON.stringify(report, null, 2));
