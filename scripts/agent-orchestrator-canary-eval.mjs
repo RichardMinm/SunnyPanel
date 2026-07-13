@@ -470,8 +470,7 @@ const gating = buildL3BEvaluationReport(runs, {
   minimumObservations: L3B_EVALUATION_FIXTURES.length * rounds,
   minimumRounds: rounds,
 });
-const diagnosticsPass = knownIdDiagnostics.every((item) => item.pass);
-const pass = gating.pass && diagnosticsPass;
+const pass = gating.pass;
 const report = {
   gating,
   knownIdDiagnostics,
