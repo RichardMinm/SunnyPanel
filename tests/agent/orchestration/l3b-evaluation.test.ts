@@ -412,7 +412,9 @@ test("live harness is explicit, database-free, fixed-budget, and uses typed resu
   assert.match(source, /L3B_KNOWN_ID_DIAGNOSTICS/);
   assert.match(source, /knownIdDiagnostics/);
   assert.match(source, /orchestrator-plan-to-intent/);
+  assert.match(source, /specialist-task-completeness/);
   assert.doesNotMatch(source, /src\/lib\/agent\/orchestrator\.ts/);
+  assert.doesNotMatch(source, /agents\/run-specialized-agent\.ts/);
   assert.doesNotMatch(source, /getAgentModelConfig|DATABASE_URL|payload\.config/);
 });
 

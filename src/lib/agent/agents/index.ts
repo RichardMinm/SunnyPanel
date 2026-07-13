@@ -11,9 +11,9 @@ export {
 export type { AgentBusMessage, AgentBusState } from "./bus";
 export { groupTasksByAgent, routeTaskToAgent } from "./router";
 export {
-  evaluateSpecialistTaskCompleteness,
   runSpecializedAgentForTask,
 } from "./run-specialized-agent";
+export { evaluateSpecialistTaskCompleteness } from "./specialist-task-completeness";
 export { specializedAgentRegistry } from "./registry";
 export type {
   SpecialistCallDisposition,

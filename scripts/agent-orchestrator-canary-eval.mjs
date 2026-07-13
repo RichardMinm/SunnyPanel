@@ -30,7 +30,7 @@ const [
   { classifyIntents },
 ] = await Promise.all([
   import("../src/lib/agent/answer/runtime.ts"),
-  import("../src/lib/agent/agents/run-specialized-agent.ts"),
+  import("../src/lib/agent/agents/specialist-task-completeness.ts"),
   import("../src/lib/agent/llm/model-config.ts"),
   import("../src/lib/agent/orchestration/orchestrator-plan-to-intent.ts"),
   import("../src/lib/agent/orchestration/langchain-orchestrator.ts"),

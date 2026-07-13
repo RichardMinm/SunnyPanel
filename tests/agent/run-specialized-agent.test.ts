@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  evaluateSpecialistTaskCompleteness,
   reconcileEnrichedIntent,
   runSpecializedAgentForTask,
 } from "../../src/lib/agent/agents/run-specialized-agent";
+import { evaluateSpecialistTaskCompleteness } from "../../src/lib/agent/agents/specialist-task-completeness";
 import type { SpecializedAgentDefinition } from "../../src/lib/agent/agents/types";
 import { createModelCallBudgetRecorder } from "../../src/lib/agent/orchestration/model-call-budget";
 import type { TaskNode } from "../../src/lib/agent/orchestration/types";

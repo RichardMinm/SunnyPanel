@@ -1,44 +1,15 @@
 import { routeTaskToAgent } from "./router";
 import { getSpecializedAgent } from "./registry";
 import type {
-  SpecialistCallDisposition,
   SpecializedAgentRunInput,
   SpecializedAgentRunResult,
 } from "./types";
 import type { TaskNode } from "../orchestration/types";
 import { logAgentEvent } from "../logger";
-import { parseAgentIntentResult, type AgentIntent } from "../schemas";
+import type { AgentIntent } from "../schemas";
+import { evaluateSpecialistTaskCompleteness } from "./specialist-task-completeness";
 
-const deterministicallyCompleteIntents = new Set<AgentIntent["intent"]>([
-  "add_completion_note",
-  "answer_question",
-  "append_plan_item",
-  "cancel_schedule_item",
-  "complete_plan_item",
-  "create_plan",
-  "create_schedule_items",
-  "reschedule_item",
-  "save_memory",
-  "schedule_plan",
-]);
-
-export const evaluateSpecialistTaskCompleteness = (
-  task: TaskNode,
-): { disposition: SpecialistCallDisposition; intent: AgentIntent | null } => {
-  const intent = parseAgentIntentResult({
-    args: task.args,
-    confidence: 0.9,
-    intent: task.intent,
-  });
-
-  return {
-    disposition:
-      intent && deterministicallyCompleteIntents.has(intent.intent)
-        ? "bypassed_complete"
-        : "required_incomplete",
-    intent,
-  };
-};
+export { evaluateSpecialistTaskCompleteness } from "./specialist-task-completeness";
 
 /**
  * 自纠偏安全门：专业 Agent 可在自己 supportedIntents 范围内改写 intent（纠正编排器分错），
