@@ -14,7 +14,7 @@ import {
 import { formatProgressAssistantMessage } from "../../src/lib/agent/progress";
 import type { AgentIntent } from "../../src/lib/agent/schemas";
 import type { PlanProgressFacts } from "../../src/lib/agent/query/types";
-import { LANGCHAIN_QUERY_INTENTS } from "../../src/lib/agent/query/types";
+import { LANGCHAIN_QUERY_INTENTS, QUERY_CONTENT_CHAR_CAP } from "../../src/lib/agent/query/types";
 import { classifyQueryEligibility } from "../../src/lib/agent/query/intent-scope";
 import { resolveQueryRuntime } from "../../src/lib/agent/query/runtime-config";
 import { buildQueryMessages } from "../../src/lib/agent/query/prompt";
@@ -415,6 +415,33 @@ test("oversized facts use the loaded object with Legacy formatter before model s
   assert.equal(result.outcome, "legacy_facts");
   assert.equal(result.modelCalls, 0);
   assert.equal(result.repositoryCalls, 1);
+});
+
+test("oversized canonical facts use loaded authoritative facts even when credential scrubbing shrinks projection", async () => {
+  const facts = makePlanFacts({ title: `password=${"x".repeat(QUERY_CONTENT_CHAR_CAP)}` });
+  const legacyOutput = formatPlanProgressAssistantMessage(facts);
+  const calls = { facts: 0, legacy: 0, model: 0 };
+
+  assert.ok(JSON.stringify(projectQueryFactsForModel(facts)).length < QUERY_CONTENT_CHAR_CAP);
+  assert.ok(renderCanonicalFactBlock(facts).length > QUERY_CONTENT_CHAR_CAP);
+
+  const result = await dispatchPreResolvedQuery({
+    intent: makeIntent("query_plan_progress", { planId: 7 }),
+    loadFacts: async () => { calls.facts += 1; return facts; },
+    runLegacy: async (loaded) => {
+      calls.legacy += 1;
+      assert.equal(loaded, facts);
+      return { assistantMessage: legacyOutput, pendingAction: null };
+    },
+    runModel: async () => { calls.model += 1; return assert.fail("model runner must not start"); },
+    runtime: "langchain",
+  });
+
+  assert.equal(result.outcome, "legacy_facts");
+  assert.equal(result.assistantMessage, legacyOutput);
+  assert.equal(result.repositoryCalls, 1);
+  assert.equal(result.modelCalls, 0);
+  assert.deepEqual(calls, { facts: 1, legacy: 1, model: 0 });
 });
 
 test("answer_question and unsupported variants preserve Primary and only call Legacy", async () => {
