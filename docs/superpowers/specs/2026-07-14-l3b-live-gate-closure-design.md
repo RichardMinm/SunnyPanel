@@ -42,10 +42,26 @@ The current L3-B harness-generated `planId=101` is therefore removed from these
 gating fixture contexts. This is a correction to the harness, not a change to
 the evaluated data or expectations.
 
-Known-ID behavior is verified separately by deterministic tests and explicit
-diagnostic Provider probes. These probes provide `planId=101`, expect a
-write-candidate with that exact ID, and are reported outside the 99-observation
-gating denominator. They cannot improve or dilute the gating result.
+Known-ID behavior is verified separately by deterministic tests and a fixed
+diagnostic Provider matrix. The matrix is deliberately limited to the `plan`
+resource kind currently supported by the Orchestrator fixture matrix:
+
+1. an existing `planId=101` write;
+2. a declared task-output reference that produces a plan;
+3. a plan ID outside `allowedResourceIds`;
+4. a placeholder plan ID;
+5. a plan title paired with its valid ID;
+6. a plan title paired with a conflicting ID.
+
+The first, second, and fifth cases must copy the permitted reference exactly.
+The other cases must be rejected by deterministic readiness validation and
+must never become usable writes. Checklist and schedule-item resource coverage
+is not claimed by these diagnostics because the current fixture matrix does
+not provide an equivalent supported contract for them.
+
+All diagnostic probes are reported outside the 99-observation gating
+denominator. They cannot improve or dilute schema, semantic, availability, or
+latency results for the inherited fixture matrix.
 
 ## Shared resource protocol
 
@@ -108,15 +124,66 @@ reasoning, strict fields, and no fabricated resource IDs.
 Task labels and routing summaries are explicitly required to be concise, and
 args must include only fields needed by the selected intent.
 
-Conversational answers use an answer-only output budget. The answer model is
-asked for a direct response of at most four short paragraphs and receives a
-bounded maximum output-token setting. The limit applies only to the answer
-renderer; it does not silently truncate Orchestrator structured output or
-specialist calls. A Provider stream that violates existing terminal contracts
-still returns typed `unavailable` or `incomplete` and is not persisted as a
-complete answer.
+Conversational answers use the following exact answer-only budget:
 
-## Provider retry and accounting
+```text
+ANSWER_MAX_OUTPUT_TOKENS = 384
+ANSWER_MAX_PARAGRAPHS = 4
+ANSWER_FIRST_TOKEN_TIMEOUT_MS = 8000
+ANSWER_TOTAL_TIMEOUT_MS = 30000
+```
+
+The 384-token limit covers the existing direct-consultation fixtures while
+bounding the currently observed verbose tail. The answer model is instructed
+to answer directly in no more than four short paragraphs. The token limit
+applies only to the answer renderer; it does not truncate Orchestrator
+structured output or specialist calls. A Provider stream that violates the
+existing terminal contract still returns typed `unavailable` or `incomplete`
+and is not persisted as a complete answer.
+
+The acceptance and stability runs must use exactly the same model, base URL,
+temperature, answer token limit, timeouts, retry policy, Prompt protocol
+version, schema version, and resource protocol version. The report records:
+
+- `evaluationConfigHash` from a canonical secret-free configuration object;
+- `promptProtocolVersion`;
+- `schemaVersion`;
+- `resourceProtocolVersion`;
+- `answerOutputBudget`.
+
+The frozen configuration for this closure is:
+
+```text
+L3B_EVALUATION_CONFIG_VERSION = "l3b-live-gate-v2"
+PROVIDER = "deepseek"
+MODEL = "deepseek-v4-pro"
+BASE_URL = "https://api.deepseek.com"
+TEMPERATURE = 0.3
+STRUCTURED_OUTPUT_MODE = "provider_default"
+ORCHESTRATOR_MAX_OUTPUT_TOKENS = "provider_default"
+ORCHESTRATOR_PROMPT_PROTOCOL_VERSION = "l3b-orchestrator-v2"
+ORCHESTRATOR_SCHEMA_VERSION = 1
+RESOURCE_PROTOCOL_VERSION = 1
+ANSWER_MAX_OUTPUT_TOKENS = 384
+ANSWER_MAX_PARAGRAPHS = 4
+ORCHESTRATOR_TIMEOUT_MS = 30000
+ANSWER_FIRST_TOKEN_TIMEOUT_MS = 8000
+ANSWER_TOTAL_TIMEOUT_MS = 30000
+TRANSPORT_RETRIES = 1
+SCHEMA_RETRIES = 0
+SEMANTIC_RETRIES = 0
+```
+
+`ORCHESTRATOR_MAX_OUTPUT_TOKENS="provider_default"` is itself a frozen value;
+the closure does not introduce a new structured-output truncation limit. The
+canonical hash includes that literal value. The API key and all other secrets
+are excluded from both the canonical object and report.
+
+The configuration object is frozen when the single-round acceptance run
+starts. A later change to any listed value invalidates all results and requires
+a fresh single-round acceptance run before the 99-observation stability run.
+
+## Provider retry policy
 
 Live evaluation uses the production-representative fixed retry contract:
 
@@ -131,23 +198,127 @@ immediately before each real Provider invocation. The observer is threaded
 through `runLangChainOrchestratorResult()` for evaluation only and does not
 change retry decisions or returned plans.
 
-The harness reports every actual Provider attempt. A recovered retry therefore
-increases `providerRequests` and `apiCalls`; it is not hidden as one call. One
+The single transport retry is allowed only when all of the following are true:
+
+- the first attempt produced no Provider payload;
+- the failure is a connection reset, network transport error, explicitly
+  retryable Provider 5xx, or rate limit already allowed by the shared retry
+  policy;
+- no text, structured payload, tool call, or other Provider content was
+  received.
+
+Timeouts are not retried. Schema-invalid output, invalid DAG, invalid resource,
+semantic mismatch, prompt injection, tool-call output, and completed-but-unsafe
+output are never retried. Schema retries and semantic retries are both zero.
+The implementation uses an explicit shared retry classifier rather than
+treating every non-parser exception as transport-retryable.
+
+The harness reports every actual Provider attempt and a sanitized
+`retryReasonDistribution`. A recovered transport retry increases
+`providerAttempts` and `apiCalls`; it is not hidden as one call. One
 authoritative observation still means one Orchestrator service invocation.
+
+## Observation availability and attempt reliability
+
+Availability adoption gates use authoritative observations, never Provider
+attempts, as their denominator:
+
+```text
+providerTransportSuccessRate =
+  observations that completed without any transport failure
+  / authoritative observations
+
+providerTimeoutObservationRate =
+  observations in which any attempt timed out
+  / authoritative observations
+```
+
+The existing report field `providerTimeoutRate` remains as a compatibility
+alias for `providerTimeoutObservationRate`; it must not be computed from
+attempts.
+
+An observation that encounters a transport failure remains a failed
+observation for `providerTransportSuccessRate` even if a permitted retry later
+recovers it. An observation that encounters a timeout sets
+`hadTransportTimeout=true`; because timeout is not retryable, it also terminates
+that observation. At the 99-observation minimum, one timeout is therefore
+`1/99`, approximately `1.01%`, and fails a `<=1%` timeout gate.
+
+Attempt-level metrics are diagnostic only and cannot replace or dilute the
+adoption gates:
+
+- `providerAttempts`;
+- `providerAttemptSuccesses`;
+- `providerAttemptTimeouts`;
+- `providerAttemptFailures`;
+- `providerAttemptTransportSuccessRate`;
+- `recoveredRetryObservations`;
+- `retryReasonDistribution`.
+
+`providerAttemptTransportSuccessRate` uses Provider attempts as its denominator.
+All observation-level availability rates use authoritative observations.
+
+## Role-based call accounting
+
+Logical model calls and Provider attempts are distinct:
+
+```ts
+type L3BTurnCallAccounting = {
+  orchestratorLogicalCalls: number;
+  orchestratorProviderAttempts: number;
+  replanLogicalCalls: number;
+  answerLogicalCalls: number;
+  answerProviderAttempts: number;
+  specialistLogicalCalls: number;
+  specialistProviderAttempts: number;
+  unexpectedDuplicateModelCalls: number;
+};
+```
+
+The logical budgets are:
+
+- at most one Orchestrator logical call per authoritative orchestration
+  decision;
+- at most one replan logical call per explicit replan event;
+- at most one answer logical call, and only when no complete authoritative
+  answer already exists;
+- at most one specialist logical call per task, and only when the deterministic
+  completeness predicate requires specialist enrichment.
+
+A permitted transport retry increments the matching Provider-attempt counter,
+not the logical-role counter. L3-B continues to report
+`legacySpecialistCallCount`, `specialistBypassCount`,
+`specialistRequiredCount`, and `unexpectedDuplicateModelCalls`.
+`legacySpecialistCallCount > 0` is diagnostic in L3-B because specialist
+migration remains in L3-D. `unexpectedDuplicateModelCalls > 0` is an immediate
+L3-B failure.
 
 ## Evaluation data flow
 
-For each gating observation:
+For each gating observation, evaluation proceeds through four explicit layers:
 
 1. Build the restored sanitized fixture context.
 2. Record one authoritative Orchestrator service scope.
 3. Invoke structured output with fixed retry and timeout budgets.
-4. Validate strict Zod schema, DAG, and deterministic resource readiness.
-5. Compare only schema-valid usable candidates for semantic mismatch rates.
-6. Count independent unsafe transitions even when the resource guard blocks the
-   candidate.
-7. Invoke the answer renderer only for `answer_question`.
-8. Aggregate sanitized counters and latency distributions only.
+4. **Schema Gate:** classify every completed payload as strict-schema valid or
+   invalid.
+5. **Semantic Decision Gate:** compare every schema-valid Provider decision
+   with the fixture's expected mode and intent before DAG or resource-readiness
+   filtering.
+6. **Resource Gate:** independently classify invalid references, invented
+   resources, missing required resources, and IDs outside
+   `allowedResourceIds`.
+7. **Usable Plan Gate:** require schema-valid, semantically correct, DAG-valid,
+   and resource-valid output.
+8. Invoke the answer renderer only for `answer_question`.
+9. Aggregate sanitized counters and latency distributions only.
+
+Semantic mismatch rates use all schema-valid Provider decisions as their
+denominator. A resource-invalid write still counts independently toward
+`clarifyToWriteMismatch`, `readToWriteMismatch`, and
+`unexpectedWriteCandidate`. Resource readiness can prevent adoption, but it
+cannot erase an unsafe semantic transition. Usable-plan rates are calculated
+separately after semantic, DAG, and resource validation.
 
 No raw prompt, response, reasoning, workspace context, credential, resource
 payload, or partial answer is retained in the report.
@@ -165,12 +336,24 @@ Tests are written RED before implementation and cover:
 7. known IDs are copied exactly without fabrication;
 8. `cmp-2` clarifies and asks a non-empty question;
 9. no post-validation rewrite converts an invalid candidate into success;
-10. every real structured Provider attempt is counted, including retry;
-11. schema retry remains zero in Live evaluation;
-12. answer-only output budget does not affect Orchestrator model construction;
-13. complete/unavailable/incomplete persistence contracts remain unchanged;
-14. default runtime remains Legacy;
-15. task execution and database mutation remain unreachable from the harness.
+10. semantic mismatches include every schema-valid decision, including
+    resource-invalid writes;
+11. observation-level timeout and transport rates cannot use the attempt
+    denominator;
+12. a recovered retry still marks the observation as having a transport
+    failure;
+13. every real structured Provider attempt is counted, including retry;
+14. retry is allowed only for the no-payload transport whitelist;
+15. schema, semantic, timeout, and completed-unsafe failures are not retried;
+16. schema retry remains zero in Live evaluation;
+17. retries increment Provider attempts but not logical role calls;
+18. all logical role budgets and four specialist metrics are reported;
+19. exact answer output limits apply only to answer model construction;
+20. evaluation configuration is hashed, frozen, and identical across the
+    acceptance and stability runs;
+21. complete/unavailable/incomplete persistence contracts remain unchanged;
+22. default runtime remains Legacy;
+23. task execution and database mutation remain unreachable from the harness.
 
 The full deterministic baseline remains typecheck, Agent tests, planning,
 schedule, content, lint, typography, and `git diff --check`.
@@ -184,8 +367,8 @@ Live validation is staged to minimize cost without weakening evidence:
 3. Stop immediately if an unsafe gate fails.
 4. If acceptance is safe, run three fresh consecutive rounds for 99 gating
    observations.
-5. Apply the existing L3-B safety, availability, fixture coverage, and latency
-   thresholds without modification.
+5. Apply the existing L3-B safety, observation-level availability, fixture
+   coverage, logical-call, and latency thresholds without modification.
 
 The extra diagnostic probes never enter strict schema rate, mismatch
 denominators, availability rates, latency percentiles, or the 99-observation
