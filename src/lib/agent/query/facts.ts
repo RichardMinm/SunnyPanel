@@ -1,7 +1,7 @@
 import type { Checklist, Plan } from "@/payload-types";
 import { scoreTextMatch } from "../tool-shared";
 import type { AgentProgressSnapshot, ChecklistProgress } from "../progress";
-import type { PlanProgressFacts, QueryFacts } from "./types";
+import type { PlanProgressFacts } from "./types";
 
 type ChecklistGroup = NonNullable<Checklist["groups"]>[number];
 type ChecklistItem = NonNullable<ChecklistGroup["items"]>[number];
@@ -102,23 +102,4 @@ export const formatPlanProgressAssistantMessage = (facts: PlanProgressFacts) => 
     facts.dueDate ? `截止日期: ${facts.dueDate}` : null,
     facts.phases.length > 0 ? `\n阶段拆解（${facts.phases.length} 个阶段，共 ${totalTasks} 个任务）:\n${phaseInfo}` : `\n${phaseInfo}`,
   ].filter(Boolean).join("\n");
-};
-
-const credentialAssignment = /\b((?:[A-Z0-9]+[_-])*(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passphrase|passwd|secret|token)|providerSecret)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
-const scrub = (value: string) => value
-  .replace(/Bearer\s+\S+|sk-[A-Za-z0-9_-]+/gi, "[REDACTED]")
-  .replace(credentialAssignment, "$1=[REDACTED]");
-export const projectQueryFactsForModel = (facts: QueryFacts): unknown => {
-  const projected = JSON.parse(JSON.stringify(facts)) as QueryFacts;
-  const walk = (value: unknown): unknown => {
-    if (typeof value === "string") return scrub(value);
-    if (Array.isArray(value)) return value.map(walk);
-    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, walk(item)]));
-    return value;
-  };
-  const clean = walk(projected) as QueryFacts;
-  if (clean.kind === "aggregate_progress") {
-    return { ...clean, snapshot: { ...clean.snapshot, checklists: clean.snapshot.checklists.map((item) => ({ ...item, completionPercent: toProgressPercent(item.completedItems, item.totalItems) })), summary: { ...clean.snapshot.summary, overallChecklistCompletionPercent: toProgressPercent(clean.snapshot.summary.completedChecklistItems, clean.snapshot.summary.totalChecklistItems) } } };
-  }
-  return clean;
 };

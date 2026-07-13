@@ -49,7 +49,6 @@ import type {
 } from "@/lib/agent/prompts/writing-assist";
 import type { IntentResolution } from "./resolve-intent-step";
 import { dispatchPreResolvedQuery } from "@/lib/agent/query/dispatcher";
-import { QueryStreamFailure } from "@/lib/agent/query/errors";
 import { resolveQueryRuntime } from "@/lib/agent/query/runtime-config";
 
 /* ──── Types ──── */
@@ -194,10 +193,6 @@ export const resolveLegacyHeuristicStep = async (
         outcome: "early_exit",
         response: queryDispatch.toResponse(updatedThread.id, tokenUsage),
       };
-    }
-
-    if (queryDispatch.outcome === "unavailable" || queryDispatch.outcome === "partial") {
-      throw new QueryStreamFailure(queryDispatch.terminal);
     }
 
     stream?.progress({

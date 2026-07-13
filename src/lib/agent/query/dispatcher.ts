@@ -3,19 +3,20 @@ import { formatProgressAssistantMessage } from "../progress";
 import type { AgentIntent } from "../schemas";
 import type { AgentChatResponse } from "../schemas";
 import type { AgentStreamController } from "../stream-events";
-import { formatPlanProgressAssistantMessage, projectQueryFactsForModel } from "./facts";
+import { formatPlanProgressAssistantMessage } from "./facts";
 import { loadAggregateProgressFacts, loadPlanProgressFacts } from "./facts-repository";
 import { classifyQueryEligibility } from "./intent-scope";
-import { renderCanonicalFactBlock, runLangChainQueryAgent } from "./langchain-query-agent";
-import { QUERY_CONTENT_CHAR_CAP, type QueryFacts, type QueryRuntime, type QueryStreamTerminalState } from "./types";
+import { renderCanonicalFactBlock } from "./langchain-query-agent";
+import { runQualitativeQueryCommentary, type QualitativeCommentaryResult } from "./qualitative-commentary";
+import { composeQueryAnswer, projectQualitativeQueryFacts } from "./qualitative-projection";
+import { QUERY_CONTENT_CHAR_CAP, type QueryFacts, type QueryRuntime } from "./types";
 
 type LegacyResult = { assistantMessage: string; pendingAction: null };
 type ToResponse = (threadId: number, tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>) => AgentChatResponse;
 export type QueryDispatchResult =
   | { outcome: "legacy"; modelCalls: 0; repositoryCalls: 0 }
   | { outcome: "clarify" | "legacy_facts"; assistantMessage: string; modelCalls: 0; repositoryCalls: 1; toResponse: ToResponse }
-  | { outcome: "complete"; assistantMessage: string; terminal: Extract<QueryStreamTerminalState, { status: "complete" }>; modelCalls: 1; repositoryCalls: 1; toResponse: ToResponse }
-  | { outcome: "unavailable" | "partial"; terminal: Exclude<QueryStreamTerminalState, { status: "complete" }>; modelCalls: 0 | 1; repositoryCalls: 1 };
+  | { outcome: "complete"; assistantMessage: string; terminal: { status: "complete"; persist: true; answer: string; modelCalls: 0 | 1; commentary: QualitativeCommentaryResult }; modelCalls: 0 | 1; repositoryCalls: 1; toResponse: ToResponse };
 
 export type DispatchPreResolvedQueryInput = {
   emitToken?: StreamTokenCallback;
@@ -24,7 +25,7 @@ export type DispatchPreResolvedQueryInput = {
   maxProjectionChars?: number;
   message?: string;
   runLegacy?: (facts?: QueryFacts | null) => Promise<LegacyResult>;
-  runModel?: (facts: QueryFacts) => Promise<QueryStreamTerminalState>;
+  runCommentary?: (facts: QueryFacts) => Promise<QualitativeCommentaryResult>;
   runtime?: QueryRuntime;
   stream?: AgentStreamController;
 };
@@ -64,19 +65,21 @@ export const dispatchPreResolvedQuery = async (input: DispatchPreResolvedQueryIn
     input.stream?.complete("stage-query", "需要补充计划 ID");
     return { outcome: "clarify", assistantMessage, modelCalls: 0, repositoryCalls: 1, toResponse: responseFactory(input, assistantMessage, "clarify") };
   }
-  const projectionChars = JSON.stringify(projectQueryFactsForModel(facts)).length;
-  const canonicalChars = renderCanonicalFactBlock(facts).length;
-  if (projectionChars > (input.maxProjectionChars ?? QUERY_CONTENT_CHAR_CAP) || canonicalChars > QUERY_CONTENT_CHAR_CAP) {
+  const canonical = renderCanonicalFactBlock(facts);
+  const projectionChars = JSON.stringify(projectQualitativeQueryFacts(facts)).length;
+  if (projectionChars > (input.maxProjectionChars ?? QUERY_CONTENT_CHAR_CAP) || canonical.length > QUERY_CONTENT_CHAR_CAP) {
     const legacy = input.runLegacy ? await input.runLegacy(facts) : formatLoadedFacts(facts);
     input.emitToken?.(legacy.assistantMessage, "response");
     input.stream?.complete("stage-query", "事实结果已生成");
     return { outcome: "legacy_facts", assistantMessage: legacy.assistantMessage, modelCalls: 0, repositoryCalls: 1, toResponse: responseFactory(input, legacy.assistantMessage, input.intent.intent) };
   }
-  const terminal = await (input.runModel ?? ((loaded) => runLangChainQueryAgent({ emitToken: input.emitToken, facts: loaded, userMessage: input.message ?? "查询当前进展" })))(facts);
-  if (terminal.status === "complete") {
-    input.stream?.complete("stage-query", "事实结果已生成");
-    return { outcome: "complete", assistantMessage: terminal.answer, terminal, modelCalls: 1, repositoryCalls: 1, toResponse: responseFactory(input, terminal.answer, input.intent.intent) };
-  }
-  input.stream?.error("stage-query", "只读查询暂时不可用");
-  return { outcome: terminal.status, terminal, modelCalls: terminal.modelCalls, repositoryCalls: 1 };
+  const commentary = await (input.runCommentary ?? ((loaded) => runQualitativeQueryCommentary({ facts: loaded })))(facts);
+  const assistantMessage = composeQueryAnswer(
+    canonical,
+    commentary.status === "accepted" ? commentary : { status: "omitted" },
+  );
+  input.emitToken?.(assistantMessage, "response");
+  input.stream?.complete("stage-query", commentary.status === "accepted" ? "事实与定性说明已生成" : "事实结果已生成");
+  const terminal = { answer: assistantMessage, commentary, modelCalls: commentary.modelCalls, persist: true as const, status: "complete" as const };
+  return { outcome: "complete", assistantMessage, terminal, modelCalls: commentary.modelCalls, repositoryCalls: 1, toResponse: responseFactory(input, assistantMessage, input.intent.intent) };
 };

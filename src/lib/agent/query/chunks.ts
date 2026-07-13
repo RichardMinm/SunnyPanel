@@ -3,7 +3,9 @@ import type { AIMessageChunk } from "@langchain/core/messages";
 export type QueryChunkClassification = { kind: "ignore" } | { kind: "text"; text: string } | { kind: "violation"; code: "numeric_output" | "tool_call" };
 
 export const classifyQueryChunk = (chunk: AIMessageChunk): QueryChunkClassification => {
-  if ((chunk.tool_call_chunks?.length ?? 0) > 0 || (chunk.tool_calls?.length ?? 0) > 0) return { kind: "violation", code: "tool_call" };
+  if ((chunk.tool_call_chunks?.length ?? 0) > 0
+    || (chunk.tool_calls?.length ?? 0) > 0
+    || Boolean(chunk.additional_kwargs?.function_call)) return { kind: "violation", code: "tool_call" };
   const blocks = chunk.contentBlocks ?? [];
   if (blocks.some((block) => block.type === "tool_call")) return { kind: "violation", code: "tool_call" };
   const text = blocks.length > 0
