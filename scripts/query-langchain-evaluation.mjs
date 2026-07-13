@@ -13,7 +13,7 @@ const buildModelConfig = () => {
     apiKey,
     baseURL: process.env.DEEPSEEK_BASE_URL?.trim() || "https://api.deepseek.com",
     maxRetries: 0,
-    model: process.env.DEEPSEEK_MODEL?.trim() || "deepseek-chat",
+    model: process.env.DEEPSEEK_MODEL?.trim() || "deepseek-v4-pro",
     provider: "deepseek",
     temperature: 0.1,
     timeoutMs: 45_000,
@@ -27,11 +27,13 @@ const runQueryEvaluation = async () => {
   for (const run of result.runs) {
     console.log(JSON.stringify({
       category: run.category,
+      commentaryStatus: run.commentaryStatus,
       fixtureId: run.fixtureId,
       intent: run.intent ?? null,
       latencyMs: run.latencyMs,
-      safeErrorCode: run.safeErrorCode ?? null,
+      omissionReason: run.omissionReason ?? null,
       terminalStatus: run.terminalStatus,
+      ttftMs: run.ttftMs,
     }));
   }
   const stamp = new Date().toISOString().replaceAll(":", "-");
