@@ -71,6 +71,8 @@ Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, a
 | **R6 Final Audit** | `docs/r6-final-heuristic-and-test-coverage-audit.md` | R6 post-mortem: heuristic residue, test validity, coverage matrix, protected tests status, risk register. Verdict: Pass with follow-up. | reference |
 | Root workflow contracts | `tests/agent/root-workflow-contract.test.ts`, `tests/agent/root-router-contract.test.ts` | Root weekly/timeline workflow contracts and router/tool-plan handoff boundaries. | normal |
 | **LangChain Foundation (L1-A)** | `tests/agent/llm/*.test.ts` (8 files) | Model config, factory, errors, structured output, Router/Orchestrator Zod schemas, message builder with untrusted context boundary. Pure unit tests — no API, no DB, no network. | normal |
+| **LangChain Query Runtime (L1-C1)** | `tests/agent/query-langchain-runtime.test.ts` | Shared `QueryFacts` preserve Legacy aggregate/plan parity; opt-in Query dispatch protects runtime selection, stream terminal states, and failure persistence. Default runtime remains Legacy. | protected |
+| **LangChain Query Evaluation (L1-C1)** | `tests/agent/query-langchain-evaluation.test.ts`, `scripts/query-langchain-evaluation.mjs` | Fixed 24-case synthetic/sanitized evaluation metrics and hard read-only safety gates. Deterministic tests use no API or DB. Live DeepSeek evaluation is explicit, DB-free, manual-only, and excluded from default CI. | protected |
 | **Orchestrator Shadow (L1-B-S2)** | `tests/agent/orchestration/safety-classifier.test.ts`, `tests/agent/orchestration/orchestrator-shadow.test.ts`, `tests/agent/orchestration/resource-readiness-guard.test.ts` | Safety classification, comparison, resource guard. Pure unit — no API, no DB. | normal |
 | **Router Shadow (L2-A)** | `tests/agent/router-shadow.test.ts` | Feature flag, comparison, prioritization, collector, Primary-unchanged. Pure unit — no API, no DB. Default off. | normal |
 | **Router Structured Protocol (L2-B)** | `tests/agent/router-protocol.test.ts`, `tests/agent/router-shadow.test.ts`, `tests/agent/llm/invoke-structured.test.ts`, `tests/agent/llm/provider-capabilities.test.ts` | Schema-sourced prompt allowlists, strict structured output, clarify/resource safeguards, one Provider call per Shadow evaluation, typed failure isolation, sanitized collector, and Primary unchanged. Fake models only; no API or DB. Default off. | protected |
@@ -167,6 +169,8 @@ Ops tests protect read-only observability. They must not introduce execute or ro
 | Floating command trigger | `tests/command/floating-trigger.test.ts` | Floating trigger hook and removed legacy composer wrapper. | normal |
 
 ## E2E
+
+The explicit non-CI Query evaluation command is `env -u DATABASE_URL -u AGENT_DEBUG_LOG AGENT_LIVE_LLM_EVAL=1 AGENT_QUERY_RUNTIME=langchain node --import dotenv/config --import tsx scripts/query-langchain-evaluation.mjs`. It must never run with `DATABASE_URL` set.
 
 | Spec | Requires server | Requires DB | Requires auth | Contract |
 | --- | --- | --- | --- | --- |
