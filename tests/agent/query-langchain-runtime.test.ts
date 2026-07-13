@@ -108,6 +108,7 @@ test("plan facts preserve every field used by the Legacy formatter", async () =>
     weeklyRhythm: "daily",
     dueDate: "2026-07-20",
     phases: [{ title: "Build", goal: "Ship", estimatedDays: 5, milestoneCount: 1, taskCount: 2 }],
+    phasesProvided: true,
   });
   assert.deepEqual(calls, [
     { method: "findPlanById", args: { collection: "plans", id: 42, overrideAccess: true } },
@@ -122,19 +123,30 @@ test("refactored Legacy aggregate formatter keeps locked output", async () => {
   );
 });
 
-test("refactored Legacy plan formatter keeps locked output", async () => {
-  const facts = await loadPlanProgressFacts({ planId: 42 }, {
+test("refactored Legacy plan formatter keeps populated, empty, and missing phases byte-locked", async () => {
+  const load = (phases: unknown) => loadPlanProgressFacts({ planId: 42 }, {
     ...aggregateDependencies,
     findPlanById: async () => ({
       id: 42, title: "L1-C1", state: "active", priority: "high", executionMode: "agent",
-      progress: 60, totalEstimatedDays: 5, weeklyRhythm: "daily", dueDate: "2026-07-20",
-      phases: [{ title: "Build", goal: "Ship", estimatedDays: 5, milestones: [{ title: "M", tasks: ["A", "B"] }] }],
+      progress: 60, totalEstimatedDays: 5, weeklyRhythm: "daily", dueDate: "2026-07-20", phases,
     } as never),
   });
-  assert.ok(facts);
+  const populated = await load([{ title: "Build", goal: "Ship", estimatedDays: 5, milestones: [{ title: "M", tasks: ["A", "B"] }] }]);
+  const empty = await load([]);
+  const missing = await load(undefined);
+  assert.ok(populated && empty && missing);
+
   assert.equal(
-    formatPlanProgressAssistantMessage(facts),
+    formatPlanProgressAssistantMessage(populated),
     "计划「L1-C1」\n状态: active | 优先级: high | 执行模式: agent\n预计总天数: 5 天\n当前进度: 60%\n学习节奏: daily\n截止日期: 2026-07-20\n\n阶段拆解（1 个阶段，共 2 个任务）:\n  阶段1「Build」: Ship（预计5天，1个里程碑）",
+  );
+  assert.equal(
+    formatPlanProgressAssistantMessage(empty),
+    "计划「L1-C1」\n状态: active | 优先级: high | 执行模式: agent\n预计总天数: 5 天\n当前进度: 60%\n学习节奏: daily\n截止日期: 2026-07-20\n\n",
+  );
+  assert.equal(
+    formatPlanProgressAssistantMessage(missing),
+    "计划「L1-C1」\n状态: active | 优先级: high | 执行模式: agent\n预计总天数: 5 天\n当前进度: 60%\n学习节奏: daily\n截止日期: 2026-07-20\n\n（暂无阶段拆解数据）",
   );
 });
 
@@ -158,7 +170,7 @@ const makeIntent = (name: AgentIntent["intent"], args: Record<string, unknown> =
 } as AgentIntent);
 
 const makePlanFacts = (overrides: Partial<PlanProgressFacts> = {}): PlanProgressFacts => ({
-  dueDate: "2026-07-20", executionMode: "agent", kind: "plan_progress", phases: [], planId: 7,
+  dueDate: "2026-07-20", executionMode: "agent", kind: "plan_progress", phases: [], phasesProvided: true, planId: 7,
   priority: "high", state: "active", storedProgressPercent: 60, title: "Release",
   totalEstimatedDays: 5, weeklyRhythm: "daily", ...overrides,
 });
@@ -212,12 +224,16 @@ test("provider projection scrubs common credential assignments without mutating 
       "DEEPSEEK_API_KEY: delta-value",
       "providerSecret=epsilon-value",
       "access_token: zeta-value",
+      "password=eta-value",
+      "passphrase: theta-value",
+      "DB_PASSWD=iota-value",
+      "OpenAI_Password: kappa-value",
     ].join(" "),
   });
   const before = structuredClone(facts);
   const serialized = JSON.stringify(projectQueryFactsForModel(facts));
 
-  assert.doesNotMatch(serialized, /alpha-value|beta-value|gamma-value|delta-value|epsilon-value|zeta-value/);
+  assert.doesNotMatch(serialized, /alpha-value|beta-value|gamma-value|delta-value|epsilon-value|zeta-value|eta-value|theta-value|iota-value|kappa-value/);
   assert.deepEqual(facts, before);
 });
 
@@ -317,6 +333,34 @@ test("a tool call after clean text becomes partial and rejects later text", asyn
   assert.equal(result.result.status, "partial");
   assert.equal(result.result.errorCode, "tool_call");
   assert.deepEqual(result.emitted, ["稳定。"]);
+});
+
+test("an oversized first chunk is rejected before commentary or canonical facts are emitted", async () => {
+  const canonical = renderCanonicalFactBlock(makePlanFacts());
+  const violatingChunk = "稳".repeat(12_000 - canonical.length + 1);
+  const result = await runStream([new AIMessageChunk({ content: violatingChunk })]);
+
+  assert.deepEqual(result.emitted, []);
+  assert.equal(result.result.status, "unavailable");
+  assert.equal(result.result.persist, false);
+  assert.equal(result.result.errorCode, "overflow");
+  assert.equal(result.result.modelCalls, 1);
+});
+
+test("post-text overflow preserves earlier commentary but rejects the violating chunk and canonical facts", async () => {
+  const firstChunk = "稳定。";
+  const canonical = renderCanonicalFactBlock(makePlanFacts());
+  const violatingChunk = "稳".repeat(12_000 - canonical.length - firstChunk.length + 1);
+  const result = await runStream([
+    new AIMessageChunk({ content: firstChunk }),
+    new AIMessageChunk({ content: violatingChunk }),
+  ]);
+
+  assert.deepEqual(result.emitted, [firstChunk]);
+  assert.equal(result.result.status, "partial");
+  assert.equal(result.result.persist, false);
+  assert.equal(result.result.errorCode, "overflow");
+  assert.equal(result.result.modelCalls, 1);
 });
 
 const aggregateFacts = {

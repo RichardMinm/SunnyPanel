@@ -105,6 +105,7 @@ const planFacts = (planId: number, title: string, storedProgressPercent: number)
   phases: [
     { estimatedDays: 2, goal: "Validate a synthetic milestone", milestoneCount: 1, taskCount: 3, title: "Synthetic phase" },
   ],
+  phasesProvided: true,
   planId,
   priority: "medium",
   state: "active",

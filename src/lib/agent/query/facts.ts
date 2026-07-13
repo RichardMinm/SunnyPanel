@@ -80,6 +80,7 @@ export const buildPlanProgressFacts = (plan: Plan): PlanProgressFacts => ({
   kind: "plan_progress", planId: plan.id, title: plan.title, state: plan.state, priority: plan.priority,
   executionMode: plan.executionMode ?? null, totalEstimatedDays: plan.totalEstimatedDays ?? null,
   storedProgressPercent: plan.progress ?? null, weeklyRhythm: plan.weeklyRhythm ?? null, dueDate: plan.dueDate ?? null,
+  phasesProvided: Array.isArray(plan.phases),
   phases: Array.isArray(plan.phases) ? (plan.phases as Array<{ title: string; goal: string; estimatedDays: number; milestones?: Array<{ tasks?: string[] }> }>).map((phase) => ({
     title: phase.title, goal: phase.goal, estimatedDays: phase.estimatedDays,
     milestoneCount: phase.milestones?.length ?? 0,
@@ -89,7 +90,8 @@ export const buildPlanProgressFacts = (plan: Plan): PlanProgressFacts => ({
 
 export const formatPlanProgressAssistantMessage = (facts: PlanProgressFacts) => {
   const phaseInfo = facts.phases.length > 0 ? facts.phases.map((phase, index) =>
-    `  阶段${index + 1}「${phase.title}」: ${phase.goal}（预计${phase.estimatedDays}天，${phase.milestoneCount}个里程碑）`).join("\n") : "（暂无阶段拆解数据）";
+    `  阶段${index + 1}「${phase.title}」: ${phase.goal}（预计${phase.estimatedDays}天，${phase.milestoneCount}个里程碑）`).join("\n")
+    : facts.phasesProvided ? "" : "（暂无阶段拆解数据）";
   const totalTasks = facts.phases.reduce((sum, phase) => sum + phase.taskCount, 0);
   return [
     `计划「${facts.title}」`,
@@ -102,7 +104,7 @@ export const formatPlanProgressAssistantMessage = (facts: PlanProgressFacts) => 
   ].filter(Boolean).join("\n");
 };
 
-const credentialAssignment = /\b((?:[A-Z0-9]+[_-])*(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|secret|token)|providerSecret)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
+const credentialAssignment = /\b((?:[A-Z0-9]+[_-])*(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passphrase|passwd|secret|token)|providerSecret)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
 const scrub = (value: string) => value
   .replace(/Bearer\s+\S+|sk-[A-Za-z0-9_-]+/gi, "[REDACTED]")
   .replace(credentialAssignment, "$1=[REDACTED]");

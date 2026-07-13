@@ -2,6 +2,7 @@ import type { QueryPlanProgressArgs, QueryProgressArgs } from "../schemas";
 import type { AgentProgressSnapshot } from "../progress";
 
 export const LANGCHAIN_QUERY_INTENTS = ["query_progress", "query_plan_progress"] as const;
+export const QUERY_CONTENT_CHAR_CAP = 12_000;
 export type QueryRuntime = "legacy" | "langchain";
 
 export type AggregateProgressFacts = {
@@ -21,6 +22,7 @@ export type PlanProgressFacts = {
     taskCount: number;
     title: string;
   }>;
+  phasesProvided: boolean;
   planId: number;
   priority: string;
   state: string;
@@ -31,7 +33,7 @@ export type PlanProgressFacts = {
 };
 
 export type QueryFacts = AggregateProgressFacts | PlanProgressFacts;
-export type SafeQueryErrorCode = "empty_stream" | "first_token_timeout" | "numeric_output" | "provider_error" | "tool_call" | "total_timeout";
+export type SafeQueryErrorCode = "empty_stream" | "first_token_timeout" | "numeric_output" | "overflow" | "provider_error" | "tool_call" | "total_timeout";
 
 export type QueryStreamTerminalState =
   | { status: "complete"; persist: true; answer: string; modelCalls: 1 }

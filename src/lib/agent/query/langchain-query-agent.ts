@@ -7,7 +7,7 @@ import { classifyQueryChunk } from "./chunks";
 import { toProgressPercent } from "./facts";
 import { buildQueryMessages } from "./prompt";
 import { resolveQueryTimeouts } from "./runtime-config";
-import type { QueryFacts, QueryStreamTerminalState, SafeQueryErrorCode } from "./types";
+import { QUERY_CONTENT_CHAR_CAP, type QueryFacts, type QueryStreamTerminalState, type SafeQueryErrorCode } from "./types";
 
 export type RunLangChainQueryInput = {
   emitToken?: StreamTokenCallback;
@@ -64,6 +64,8 @@ export const runLangChainQueryAgent = async (input: RunLangChainQueryInput): Pro
   let modelCalls: 0 | 1 = 0;
   const firstTokenDeadline = Date.now() + timeouts.firstTokenMs;
   const totalDeadline = Date.now() + timeouts.totalMs;
+  const canonical = renderCanonicalFactBlock(input.facts);
+  if (canonical.length > QUERY_CONTENT_CHAR_CAP) return failure("overflow", false, 0);
   try {
     const model = await resolveModel(input);
     if (!model) return failure("provider_error", false, 0);
@@ -88,11 +90,13 @@ export const runLangChainQueryAgent = async (input: RunLangChainQueryInput): Pro
       const classified = classifyQueryChunk(next.value as AIMessageChunk);
       if (classified.kind === "violation") return failure(classified.code, emitted, modelCalls);
       if (classified.kind === "text") {
+        if (commentary.length + classified.text.length + canonical.length > QUERY_CONTENT_CHAR_CAP) {
+          return failure("overflow", emitted, modelCalls);
+        }
         firstText = false; emitted = true; commentary += classified.text; input.emitToken?.(classified.text, "response");
       }
     }
     if (!emitted) return failure("empty_stream", false, modelCalls);
-    const canonical = renderCanonicalFactBlock(input.facts);
     input.emitToken?.(canonical, "response");
     return { status: "complete", persist: true, answer: commentary + canonical, modelCalls: 1 };
   } catch (error) {

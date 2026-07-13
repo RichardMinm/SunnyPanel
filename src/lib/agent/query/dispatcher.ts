@@ -7,7 +7,7 @@ import { formatPlanProgressAssistantMessage, projectQueryFactsForModel } from ".
 import { loadAggregateProgressFacts, loadPlanProgressFacts } from "./facts-repository";
 import { classifyQueryEligibility } from "./intent-scope";
 import { runLangChainQueryAgent } from "./langchain-query-agent";
-import type { QueryFacts, QueryRuntime, QueryStreamTerminalState } from "./types";
+import { QUERY_CONTENT_CHAR_CAP, type QueryFacts, type QueryRuntime, type QueryStreamTerminalState } from "./types";
 
 type LegacyResult = { assistantMessage: string; pendingAction: null };
 type ToResponse = (threadId: number, tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>) => AgentChatResponse;
@@ -65,7 +65,7 @@ export const dispatchPreResolvedQuery = async (input: DispatchPreResolvedQueryIn
     return { outcome: "clarify", assistantMessage, modelCalls: 0, repositoryCalls: 1, toResponse: responseFactory(input, assistantMessage, "clarify") };
   }
   const projectionChars = JSON.stringify(projectQueryFactsForModel(facts)).length;
-  if (projectionChars > (input.maxProjectionChars ?? 12_000)) {
+  if (projectionChars > (input.maxProjectionChars ?? QUERY_CONTENT_CHAR_CAP)) {
     const legacy = input.runLegacy ? await input.runLegacy(facts) : formatLoadedFacts(facts);
     input.emitToken?.(legacy.assistantMessage, "response");
     input.stream?.complete("stage-query", "事实结果已生成");
