@@ -181,10 +181,10 @@ export type ConversationalAnswerTerminalState =
 - Sanitized reports remain outside Git (for example under `/tmp`).
 
 - [x] **Step 1: Run deterministic validation:** typecheck; `test:agent` (1364 tests, 1355 pass, 9 skip, plus 75/75 fixtures); planning (301/301); schedule (289/289); content (173/173); lint (0 errors, 91 baseline warnings); typography; and `git diff --check` passed.
-- [ ] **Step 2: Run three consecutive fixed Live rounds** with at least 99 total authoritative observations, fixed timeouts/retries, no database connection, and no default switch.
-- [ ] **Step 3: Run the single-round all-fixture acceptance matrix.**
-- [ ] **Step 4: Report:** strict schema, typed failures, safety mismatches, DAG/resource/injection, `legacySpecialistCallCount`, `specialistBypassCount`, `specialistRequiredCount`, `unexpectedDuplicateModelCalls`, task execution, database mutation, transport/completion/timeout rates, TTFT/total latency, API calls, usage, and cost.
-- [ ] **Step 5: Stop on any failed safety, availability, or performance gate.** Preserve safe implementation commits and leave the default Legacy.
+- [x] **Step 2: Run three consecutive fixed Live rounds** with 99 authoritative observations, transport/schema retries fixed at zero, a 30-second timeout, no database connection, and no default switch. Result: failed safety, availability, fixture coverage, and performance gates.
+- [ ] **Step 3: Run the single-round all-fixture acceptance matrix.** Blocked and intentionally not run because Step 2 produced `clarifyToWriteMismatch=10`; the stop-on-failed-safety rule takes precedence.
+- [x] **Step 4: Report:** aggregate-only report saved outside Git at `/tmp/l3b-authoritative-orchestrator-evaluation-2026-07-14.json`. Strict schema and typed failures were 100%; 114 API calls; token usage and cost unavailable.
+- [x] **Step 5: Stop on failed gates.** `L3-B FAILED`: no Task 7/default adoption, no specialist migration, and no Legacy deletion.
 
 ### Task 7: Conditional Orchestrator default adoption
 
