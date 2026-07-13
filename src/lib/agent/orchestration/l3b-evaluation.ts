@@ -1,3 +1,8 @@
+import {
+  L3B_EVALUATION_CONFIG,
+  L3B_EVALUATION_CONFIG_HASH,
+} from "./l3b-evaluation-config";
+
 export type L3BMismatchCategory =
   | "clarify_mismatch"
   | "intent_mismatch"
@@ -47,15 +52,18 @@ export type L3BEvaluationRun = {
   inputTokens: null | number;
   intentMismatch: boolean;
   invalidDAG: boolean;
+  invalidResourceReference: boolean;
   inventedResource: boolean;
   legacySpecialistCalls: number;
   mismatchCategory: L3BMismatchCategory;
   modeMismatch: boolean;
+  missingRequiredResource: boolean;
   orchestratorLogicalCalls: number;
   orchestratorLatencyMs: number;
   orchestratorProviderAttempts: number;
   orchestratorUsable: boolean;
   outputTokens: null | number;
+  outsideAllowedResourceIds: boolean;
   promptInjectionSuccess: boolean;
   providerFailure: boolean;
   providerAttemptFailures: number;
@@ -111,14 +119,17 @@ export type L3BEvaluationMetrics = {
   fixtureCoverageMissing: string[];
   intentMismatch: CountRate;
   invalidDAG: number;
+  invalidResourceReference: number;
   inventedResource: number;
   legacySpecialistCallCount: number;
   mismatchCategories: Record<L3BMismatchCategory, number>;
   modeMismatch: CountRate;
+  missingRequiredResource: number;
   orchestratorLogicalCalls: number;
   orchestratorCompletionRate: number;
   orchestratorTotalLatencyMs: Distribution;
   orchestratorProviderAttempts: number;
+  outsideAllowedResourceIds: number;
   promptInjectionSuccess: number;
   providerCompletedResponses: number;
   providerFailure: number;
@@ -149,10 +160,23 @@ export type L3BEvaluationMetrics = {
   tokenUsage: "N/A" | { input: number; output: number; total: number };
   unexpectedDuplicateModelCalls: number;
   unexpectedWriteCandidate: number;
+  usablePlanRate: number;
   writeWithoutDraft: number;
 };
 
 export type L3BEvaluationReport = {
+  evaluationConfig: {
+    answerOutputBudget: {
+      firstTokenTimeoutMs: number;
+      maxOutputTokens: number;
+      maxParagraphs: number;
+      totalTimeoutMs: number;
+    };
+    evaluationConfigHash: string;
+    promptProtocolVersion: string;
+    resourceProtocolVersion: number;
+    schemaVersion: number;
+  };
   failureReasons: string[];
   metrics: L3BEvaluationMetrics;
   pass: boolean;
@@ -300,10 +324,12 @@ export const buildL3BEvaluationReport = (
     ),
     intentMismatch: countRate(comparable, "intentMismatch"),
     invalidDAG: countTrue(runs, "invalidDAG"),
+    invalidResourceReference: countTrue(runs, "invalidResourceReference"),
     inventedResource: countTrue(runs, "inventedResource"),
     legacySpecialistCallCount: sum(runs, "legacySpecialistCalls"),
     mismatchCategories,
     modeMismatch: countRate(comparable, "modeMismatch"),
+    missingRequiredResource: countTrue(runs, "missingRequiredResource"),
     orchestratorLogicalCalls: sum(runs, "orchestratorLogicalCalls"),
     orchestratorCompletionRate: ratio(
       runs.filter((run) => run.orchestratorUsable).length,
@@ -311,6 +337,7 @@ export const buildL3BEvaluationReport = (
     ),
     orchestratorTotalLatencyMs,
     orchestratorProviderAttempts: sum(runs, "orchestratorProviderAttempts"),
+    outsideAllowedResourceIds: countTrue(runs, "outsideAllowedResourceIds"),
     promptInjectionSuccess: countTrue(runs, "promptInjectionSuccess"),
     providerCompletedResponses: completedProviderResponses,
     providerFailure: countTrue(runs, "providerFailure"),
@@ -370,6 +397,10 @@ export const buildL3BEvaluationReport = (
       "unexpectedDuplicateModelCalls",
     ),
     unexpectedWriteCandidate: countTrue(runs, "unexpectedWriteCandidate"),
+    usablePlanRate: ratio(
+      runs.filter((run) => run.orchestratorUsable).length,
+      runs.length,
+    ),
     writeWithoutDraft: countTrue(runs, "writeWithoutDraft"),
   };
 
@@ -435,6 +466,18 @@ export const buildL3BEvaluationReport = (
   }
 
   return {
+    evaluationConfig: {
+      answerOutputBudget: {
+        firstTokenTimeoutMs: L3B_EVALUATION_CONFIG.answerFirstTokenTimeoutMs,
+        maxOutputTokens: L3B_EVALUATION_CONFIG.answerMaxOutputTokens,
+        maxParagraphs: L3B_EVALUATION_CONFIG.answerMaxParagraphs,
+        totalTimeoutMs: L3B_EVALUATION_CONFIG.answerTotalTimeoutMs,
+      },
+      evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
+      promptProtocolVersion: L3B_EVALUATION_CONFIG.promptProtocolVersion,
+      resourceProtocolVersion: L3B_EVALUATION_CONFIG.resourceProtocolVersion,
+      schemaVersion: L3B_EVALUATION_CONFIG.schemaVersion,
+    },
     failureReasons,
     metrics,
     pass: failureReasons.length === 0,

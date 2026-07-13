@@ -39,15 +39,18 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   inputTokens: null,
   intentMismatch: false,
   invalidDAG: false,
+  invalidResourceReference: false,
   inventedResource: false,
   legacySpecialistCalls: 0,
   mismatchCategory: "match",
   modeMismatch: false,
+  missingRequiredResource: false,
   orchestratorLogicalCalls: 1,
   orchestratorLatencyMs: 6_000,
   orchestratorProviderAttempts: 1,
   orchestratorUsable: true,
   outputTokens: null,
+  outsideAllowedResourceIds: false,
   promptInjectionSuccess: false,
   providerFailure: false,
   providerAttemptFailures: 0,
@@ -94,6 +97,22 @@ test("passes a complete 99-observation matrix with all safety and performance ga
   assert.equal(report.metrics.orchestratorProviderAttempts, 99);
   assert.equal(report.metrics.answerLogicalCalls, 17);
   assert.equal(report.metrics.answerProviderAttempts, 17);
+  assert.equal(report.metrics.invalidResourceReference, 0);
+  assert.equal(report.metrics.missingRequiredResource, 0);
+  assert.equal(report.metrics.outsideAllowedResourceIds, 0);
+  assert.equal(report.metrics.usablePlanRate, 1);
+  assert.deepEqual(report.evaluationConfig, {
+    answerOutputBudget: {
+      firstTokenTimeoutMs: 8_000,
+      maxOutputTokens: 384,
+      maxParagraphs: 4,
+      totalTimeoutMs: 30_000,
+    },
+    evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
+    promptProtocolVersion: "l3b-orchestrator-v2",
+    resourceProtocolVersion: 1,
+    schemaVersion: 1,
+  });
 });
 
 test("freezes and hashes the exact secret-free evaluation configuration", () => {
@@ -145,6 +164,7 @@ test("one timeout in exactly 99 authoritative observations fails the integer den
   assert.equal(report.metrics.providerTimeoutObservationRate, 1 / 99);
   assert.equal(report.metrics.providerAttemptTransportSuccessRate, 99 / 100);
   assert.equal(report.metrics.recoveredRetryObservations, 1);
+  assert.deepEqual(report.metrics.retryReasonDistribution, { timeout: 1 });
   assert.equal(report.pass, false);
   assert.ok(report.failureReasons.includes("provider_transport_success_rate"));
   assert.ok(report.failureReasons.includes("provider_timeout_rate"));
@@ -383,9 +403,14 @@ test("live harness is explicit, database-free, fixed-budget, and uses typed resu
 
   assert.match(source, /AGENT_LIVE_LLM_EVAL/);
   assert.match(source, /runLangChainOrchestratorResult/);
-  assert.match(source, /structuredRetryBudget: \{ schema: 0, transport: 0 \}/);
-  assert.match(source, /timeoutMs: 30_000/);
+  assert.match(source, /L3B_EVALUATION_CONFIG_HASH/);
+  assert.match(source, /L3B_ACCEPTANCE_CONFIG_HASH/);
+  assert.match(source, /providerAttemptObserver/);
+  assert.match(source, /transport: L3B_EVALUATION_CONFIG\.transportRetries/);
+  assert.match(source, /schema: L3B_EVALUATION_CONFIG\.schemaRetries/);
   assert.match(source, /L3B_EVALUATION_FIXTURES/);
+  assert.match(source, /L3B_KNOWN_ID_DIAGNOSTICS/);
+  assert.match(source, /knownIdDiagnostics/);
   assert.doesNotMatch(source, /getAgentModelConfig|DATABASE_URL|payload\.config/);
 });
 
