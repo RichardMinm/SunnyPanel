@@ -8,7 +8,10 @@ import {
   compareL3BSafetyClass,
   type L3BEvaluationRun,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation";
-import { L3B_EVALUATION_FIXTURES } from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
+import {
+  L3B_EVALUATION_FIXTURES,
+  L3B_KNOWN_ID_DIAGNOSTICS,
+} from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
 
 const fixtureIds = Array.from({ length: 33 }, (_, index) => `fixture-${index + 1}`);
 
@@ -270,6 +273,31 @@ test("keeps the original 33-fixture matrix and all high-risk segments", () => {
   assert.equal(
     L3B_EVALUATION_FIXTURES.filter((fixture) => fixture.injection).length,
     3,
+  );
+});
+
+test("restores title-only resource fixtures without usable IDs", () => {
+  for (const fixtureId of ["wrt-5", "cmp-2", "exr-1", "exr-2", "exr-3"]) {
+    const fixture = L3B_EVALUATION_FIXTURES.find(({ id }) => id === fixtureId);
+
+    assert.equal(fixture?.context.plans[0]?.title, "考研数学复习计划");
+    assert.equal(fixture?.context.plans[0]?.id, null);
+    assert.equal(fixture?.expected.safetyClass, "clarify");
+  }
+});
+
+test("keeps the six Plan known-ID diagnostics outside the gating matrix", () => {
+  assert.equal(L3B_KNOWN_ID_DIAGNOSTICS.length, 6);
+  assert.equal(
+    L3B_KNOWN_ID_DIAGNOSTICS.every(
+      (diagnostic) => diagnostic.gating === false && diagnostic.resourceKind === "plan",
+    ),
+    true,
+  );
+  assert.equal(
+    L3B_KNOWN_ID_DIAGNOSTICS.some((diagnostic) =>
+      L3B_EVALUATION_FIXTURES.some((fixture) => fixture.id === diagnostic.id)),
+    false,
   );
 });
 

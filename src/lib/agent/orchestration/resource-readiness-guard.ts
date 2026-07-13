@@ -22,6 +22,14 @@ export interface ResourceRequirement {
   allowedProducerIntents: string[];
 }
 
+export type ResourceProtocolEntry = Readonly<{
+  allowedProducerIntents: readonly string[];
+  existingIdFields: readonly string[];
+  intent: string;
+  outputRefFields: readonly string[];
+  resourceKind: ResourceKind;
+}>;
+
 export type ResourceReadinessErrorCode =
   | "RESOURCE_ID_MISSING"
   | "RESOURCE_ID_PLACEHOLDER"
@@ -78,6 +86,22 @@ const RESOURCE_REQUIREMENTS: Record<string, ResourceRequirement> = {
     allowedProducerIntents: [],
   },
 };
+
+/** Sanitized Prompt projection derived from the deterministic guard contract. */
+export const getResourceProtocolProjection = (): readonly ResourceProtocolEntry[] =>
+  Object.freeze(
+    Object.entries(RESOURCE_REQUIREMENTS).map(([intent, requirement]) =>
+      Object.freeze({
+        allowedProducerIntents: Object.freeze([
+          ...requirement.allowedProducerIntents,
+        ]),
+        existingIdFields: Object.freeze([...requirement.existingIdFields]),
+        intent,
+        outputRefFields: Object.freeze([...requirement.outputRefFields]),
+        resourceKind: requirement.resourceKind,
+      }),
+    ),
+  );
 
 /* ---- Resource index (from sanitized context) ---- */
 

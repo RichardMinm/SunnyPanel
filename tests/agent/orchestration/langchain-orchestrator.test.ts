@@ -14,6 +14,7 @@ import {
   runLangChainOrchestratorResult,
 } from "../../../src/lib/agent/orchestration/langchain-orchestrator";
 import { mapStructuredOutputToPlan } from "../../../src/lib/agent/orchestration/orchestrator-mapper";
+import { getResourceProtocolProjection } from "../../../src/lib/agent/orchestration/resource-readiness-guard";
 
 describe("langchain-orchestrator protocol", () => {
   it("renders every schema-derived mode, role, and intent into the trusted protocol", () => {
@@ -53,6 +54,24 @@ describe("langchain-orchestrator protocol", () => {
     assert.match(prompt, /execute/);
     assert.match(prompt, /receipt/);
     assert.match(prompt, /rollback/);
+  });
+
+  it("renders the deterministic resource projection and ambiguity rules", () => {
+    const prompt = buildLangChainSystemPrompt();
+
+    for (const entry of getResourceProtocolProjection()) {
+      assert.match(prompt, new RegExp(`\\b${entry.intent}\\b`));
+      for (const field of [...entry.existingIdFields, ...entry.outputRefFields]) {
+        assert.match(prompt, new RegExp(`\\b${field}\\b`));
+      }
+      for (const producer of entry.allowedProducerIntents) {
+        assert.match(prompt, new RegExp(`\\b${producer}\\b`));
+      }
+    }
+    assert.match(prompt, /标题.*不是.*资源引用/);
+    assert.match(prompt, /上下文.*ID.*原样复制/);
+    assert.match(prompt, /unfinished items|没完成的项目/);
+    assert.match(prompt, /cmp-2|复盘.*排到下周/);
   });
 
   it("returns a typed schema failure without projecting a successful plan", async () => {

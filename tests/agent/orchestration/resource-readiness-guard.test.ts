@@ -1,7 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { isUsableResourceId } from "../../../src/lib/agent/orchestration/safety-classifier";
-import { validateResourceReadiness, buildResourceIndex } from "../../../src/lib/agent/orchestration/resource-readiness-guard";
+import {
+  buildResourceIndex,
+  getResourceProtocolProjection,
+  validateResourceReadiness,
+} from "../../../src/lib/agent/orchestration/resource-readiness-guard";
 
 describe("resource-readiness-guard", () => {
   describe("isUsableResourceId", () => {
@@ -155,6 +159,26 @@ describe("resource-readiness-guard", () => {
       assert.equal(idx.planIds.has("42"), true);
       assert.equal(idx.planIds.has("?"), false);
       assert.equal(idx.planIds.size, 2); /* only p1 and 42 */
+    });
+  });
+
+  describe("resource protocol projection", () => {
+    it("derives immutable prompt metadata from the readiness requirements", () => {
+      const projection = getResourceProtocolProjection();
+
+      assert.deepEqual(
+        projection.find((entry) => entry.intent === "schedule_plan"),
+        {
+          allowedProducerIntents: ["compose_plan", "create_plan"],
+          existingIdFields: ["planId"],
+          intent: "schedule_plan",
+          outputRefFields: ["planRef"],
+          resourceKind: "plan",
+        },
+      );
+      assert.equal(Object.isFrozen(projection), true);
+      assert.equal(Object.isFrozen(projection[0]), true);
+      assert.equal(Object.isFrozen(projection[0]?.existingIdFields), true);
     });
   });
 });
