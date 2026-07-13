@@ -5,10 +5,25 @@ export type ModelCallRole =
   | "query_commentary"
   | "specialist";
 
-export type TurnModelCallBudget = {
+export type L3BTurnCallAccounting = {
+  answerLogicalCalls: number;
+  answerProviderAttempts: number;
+  orchestratorLogicalCalls: number;
+  orchestratorProviderAttempts: number;
+  replanLogicalCalls: number;
+  replanProviderAttempts: number;
+  specialistLogicalCalls: number;
+  specialistProviderAttempts: number;
+  unexpectedDuplicateModelCalls: number;
+};
+
+export type TurnModelCallBudget = L3BTurnCallAccounting & {
+  /** Compatibility aliases retained for existing production callers. */
   conversationalAnswerCalls: number;
   orchestratorCalls: number;
   queryCommentaryCalls: number;
+  queryCommentaryLogicalCalls: number;
+  queryCommentaryProviderAttempts: number;
   replanCalls: number;
   specialistCalls: number;
   unexpectedDuplicateCalls: number;
@@ -17,27 +32,73 @@ export type TurnModelCallBudget = {
 export type ModelCallBudgetRecorder = {
   /** Returns false when the same role already consumed the same logical scope. */
   record: (role: ModelCallRole, scopeId: string) => boolean;
+  recordProviderAttempt: (role: ModelCallRole) => void;
   snapshot: () => TurnModelCallBudget;
 };
 
 const emptyBudget = (): TurnModelCallBudget => ({
+  answerLogicalCalls: 0,
+  answerProviderAttempts: 0,
   conversationalAnswerCalls: 0,
   orchestratorCalls: 0,
+  orchestratorLogicalCalls: 0,
+  orchestratorProviderAttempts: 0,
   queryCommentaryCalls: 0,
+  queryCommentaryLogicalCalls: 0,
+  queryCommentaryProviderAttempts: 0,
   replanCalls: 0,
+  replanLogicalCalls: 0,
+  replanProviderAttempts: 0,
   specialistCalls: 0,
+  specialistLogicalCalls: 0,
+  specialistProviderAttempts: 0,
   unexpectedDuplicateCalls: 0,
+  unexpectedDuplicateModelCalls: 0,
 });
 
 const roleCounter: Record<
   ModelCallRole,
-  Exclude<keyof TurnModelCallBudget, "unexpectedDuplicateCalls">
+  | "conversationalAnswerCalls"
+  | "orchestratorCalls"
+  | "queryCommentaryCalls"
+  | "replanCalls"
+  | "specialistCalls"
 > = {
   conversational_answer: "conversationalAnswerCalls",
   orchestrator: "orchestratorCalls",
   query_commentary: "queryCommentaryCalls",
   replan: "replanCalls",
   specialist: "specialistCalls",
+};
+
+const logicalRoleCounter: Record<
+  ModelCallRole,
+  | "answerLogicalCalls"
+  | "orchestratorLogicalCalls"
+  | "queryCommentaryLogicalCalls"
+  | "replanLogicalCalls"
+  | "specialistLogicalCalls"
+> = {
+  conversational_answer: "answerLogicalCalls",
+  orchestrator: "orchestratorLogicalCalls",
+  query_commentary: "queryCommentaryLogicalCalls",
+  replan: "replanLogicalCalls",
+  specialist: "specialistLogicalCalls",
+};
+
+const providerAttemptCounter: Record<
+  ModelCallRole,
+  | "answerProviderAttempts"
+  | "orchestratorProviderAttempts"
+  | "queryCommentaryProviderAttempts"
+  | "replanProviderAttempts"
+  | "specialistProviderAttempts"
+> = {
+  conversational_answer: "answerProviderAttempts",
+  orchestrator: "orchestratorProviderAttempts",
+  query_commentary: "queryCommentaryProviderAttempts",
+  replan: "replanProviderAttempts",
+  specialist: "specialistProviderAttempts",
 };
 
 export const createModelCallBudgetRecorder = (): ModelCallBudgetRecorder => {
@@ -50,12 +111,17 @@ export const createModelCallBudgetRecorder = (): ModelCallBudgetRecorder => {
 
       if (consumedScopes.has(scopeKey)) {
         budget.unexpectedDuplicateCalls += 1;
+        budget.unexpectedDuplicateModelCalls += 1;
         return false;
       }
 
       consumedScopes.add(scopeKey);
       budget[roleCounter[role]] += 1;
+      budget[logicalRoleCounter[role]] += 1;
       return true;
+    },
+    recordProviderAttempt: (role) => {
+      budget[providerAttemptCounter[role]] += 1;
     },
     snapshot: () => ({ ...budget }),
   };

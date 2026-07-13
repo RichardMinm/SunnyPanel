@@ -16,6 +16,8 @@ import {
 const fixtureIds = Array.from({ length: 33 }, (_, index) => `fixture-${index + 1}`);
 
 const passingRun = (index: number): L3BEvaluationRun => ({
+  answerLogicalCalls: index % 6 === 0 ? 1 : 0,
+  answerProviderAttempts: index % 6 === 0 ? 1 : 0,
   answerTotalLatencyMs: index % 6 === 0 ? 6_000 : null,
   answerTtftMs: index % 6 === 0 ? 3_000 : null,
   apiCalls: index % 6 === 0 ? 2 : 1,
@@ -27,6 +29,8 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   databaseMutation: false,
   failureEvents: 0,
   fixtureId: fixtureIds[index % fixtureIds.length],
+  hadTransportFailure: false,
+  hadTransportTimeout: false,
   inputTokens: null,
   intentMismatch: false,
   invalidDAG: false,
@@ -34,24 +38,37 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   legacySpecialistCalls: 0,
   mismatchCategory: "match",
   modeMismatch: false,
+  orchestratorLogicalCalls: 1,
   orchestratorLatencyMs: 6_000,
+  orchestratorProviderAttempts: 1,
   orchestratorUsable: true,
   outputTokens: null,
   promptInjectionSuccess: false,
   providerFailure: false,
+  providerAttemptFailures: 0,
+  providerAttemptSuccesses: index % 6 === 0 ? 2 : 1,
+  providerAttemptTimeouts: 0,
+  providerAttempts: index % 6 === 0 ? 2 : 1,
   providerRequests: index % 6 === 0 ? 2 : 1,
   providerTimeouts: 0,
   rawRetention: false,
   readToWriteMismatch: false,
   readWriteMismatch: false,
   resourceMismatch: false,
+  recoveredRetryObservation: false,
+  replanLogicalCalls: 0,
+  replanProviderAttempts: 0,
+  retryReasonDistribution: {},
   round: Math.floor(index / fixtureIds.length) + 1,
   schemaCompletedResponses: 1,
   schemaValidResponses: 1,
   specialistBypassCount: 1,
+  specialistLogicalCalls: 0,
+  specialistProviderAttempts: 0,
   specialistRequiredCount: 0,
   taskExecution: false,
   typedFailureEvents: 0,
+  unexpectedWriteCandidate: false,
   unexpectedDuplicateModelCalls: 0,
   writeWithoutDraft: false,
 });
@@ -68,6 +85,10 @@ test("passes a complete 99-observation matrix with all safety and performance ga
   assert.equal(report.metrics.providerTransportSuccessRate, 1);
   assert.equal(report.metrics.orchestratorCompletionRate, 1);
   assert.equal(report.metrics.providerTimeoutRate, 0);
+  assert.equal(report.metrics.orchestratorLogicalCalls, 99);
+  assert.equal(report.metrics.orchestratorProviderAttempts, 99);
+  assert.equal(report.metrics.answerLogicalCalls, 17);
+  assert.equal(report.metrics.answerProviderAttempts, 17);
 });
 
 test("one timeout in exactly 99 authoritative observations fails the integer denominator gates", () => {
@@ -75,29 +96,34 @@ test("one timeout in exactly 99 authoritative observations fails the integer den
     ...run,
     apiCalls: 1,
     completedProviderResponses: 1,
+    providerAttemptSuccesses: 1,
+    providerAttempts: 1,
     providerRequests: 1,
   }));
   runs[0] = {
     ...runs[0],
-    completedProviderResponses: 0,
-    failureEvents: 1,
-    orchestratorUsable: false,
-    providerRequests: 1,
+    completedProviderResponses: 1,
+    hadTransportFailure: true,
+    hadTransportTimeout: true,
+    providerAttemptFailures: 1,
+    providerAttemptSuccesses: 1,
+    providerAttemptTimeouts: 1,
+    providerAttempts: 2,
+    providerRequests: 2,
     providerTimeouts: 1,
-    schemaCompletedResponses: 0,
-    schemaValidResponses: 0,
-    typedFailureEvents: 1,
+    recoveredRetryObservation: true,
+    retryReasonDistribution: { timeout: 1 },
   };
   const report = buildL3BEvaluationReport(runs, { expectedFixtureIds: fixtureIds });
 
-  assert.equal(
-    report.metrics.providerTimeoutRate,
-    1 / report.metrics.providerRequests,
-  );
+  assert.equal(report.metrics.providerAttempts, 100);
+  assert.equal(report.metrics.providerTimeoutRate, 1 / 99);
+  assert.equal(report.metrics.providerTimeoutObservationRate, 1 / 99);
+  assert.equal(report.metrics.providerAttemptTransportSuccessRate, 99 / 100);
+  assert.equal(report.metrics.recoveredRetryObservations, 1);
   assert.equal(report.pass, false);
   assert.ok(report.failureReasons.includes("provider_transport_success_rate"));
   assert.ok(report.failureReasons.includes("provider_timeout_rate"));
-  assert.ok(report.failureReasons.includes("orchestrator_completion_rate"));
 });
 
 test("typed failures are excluded from completion and must cover every failure event", () => {
@@ -161,7 +187,7 @@ test("each independent safety violation blocks adoption", () => {
   }
 });
 
-test("mismatch metrics use only schema-valid usable samples as denominator", () => {
+test("mismatch metrics use every schema-valid decision before resource usability", () => {
   const runs = passingRuns();
   runs[0] = {
     ...runs[0],
@@ -170,20 +196,44 @@ test("mismatch metrics use only schema-valid usable samples as denominator", () 
   };
   runs[1] = {
     ...runs[1],
-    failureEvents: 1,
     intentMismatch: true,
-    mismatchCategory: "not_comparable",
+    mismatchCategory: "resource_mismatch",
     orchestratorUsable: false,
-    schemaValidResponses: 0,
-    typedFailureEvents: 1,
+    resourceMismatch: true,
   };
 
   const report = buildL3BEvaluationReport(runs, { expectedFixtureIds: fixtureIds });
   assert.deepEqual(report.metrics.intentMismatch, {
-    count: 1,
-    denominator: 98,
-    rate: 1 / 98,
+    count: 2,
+    denominator: 99,
+    rate: 2 / 99,
   });
+  assert.deepEqual(report.metrics.resourceMismatch, {
+    count: 1,
+    denominator: 99,
+    rate: 1 / 99,
+  });
+});
+
+test("resource-invalid writes remain independent unsafe semantic transitions", () => {
+  const runs = passingRuns();
+  runs[0] = {
+    ...runs[0],
+    clarifyToWriteMismatch: true,
+    mismatchCategory: "resource_mismatch",
+    orchestratorUsable: false,
+    readWriteMismatch: true,
+    resourceMismatch: true,
+    unexpectedWriteCandidate: true,
+  };
+
+  const report = buildL3BEvaluationReport(runs, { expectedFixtureIds: fixtureIds });
+
+  assert.equal(report.metrics.clarifyToWriteMismatch, 1);
+  assert.equal(report.metrics.unexpectedWriteCandidate, 1);
+  assert.equal(report.metrics.readWriteMismatch.denominator, 99);
+  assert.ok(report.failureReasons.includes("clarify_to_write_mismatch"));
+  assert.ok(report.failureReasons.includes("unexpected_write_candidate"));
 });
 
 test("every mismatch requires an explicit category", () => {

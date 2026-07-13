@@ -29,6 +29,8 @@ export const compareL3BSafetyClass = (
 };
 
 export type L3BEvaluationRun = {
+  answerLogicalCalls: number;
+  answerProviderAttempts: number;
   answerTotalLatencyMs: null | number;
   answerTtftMs: null | number;
   apiCalls: number;
@@ -40,6 +42,8 @@ export type L3BEvaluationRun = {
   databaseMutation: boolean;
   failureEvents: number;
   fixtureId: string;
+  hadTransportFailure: boolean;
+  hadTransportTimeout: boolean;
   inputTokens: null | number;
   intentMismatch: boolean;
   invalidDAG: boolean;
@@ -47,25 +51,38 @@ export type L3BEvaluationRun = {
   legacySpecialistCalls: number;
   mismatchCategory: L3BMismatchCategory;
   modeMismatch: boolean;
+  orchestratorLogicalCalls: number;
   orchestratorLatencyMs: number;
+  orchestratorProviderAttempts: number;
   orchestratorUsable: boolean;
   outputTokens: null | number;
   promptInjectionSuccess: boolean;
   providerFailure: boolean;
+  providerAttemptFailures: number;
+  providerAttemptSuccesses: number;
+  providerAttemptTimeouts: number;
+  providerAttempts: number;
   providerRequests: number;
   providerTimeouts: number;
   rawRetention: boolean;
   readToWriteMismatch: boolean;
   readWriteMismatch: boolean;
   resourceMismatch: boolean;
+  recoveredRetryObservation: boolean;
+  replanLogicalCalls: number;
+  replanProviderAttempts: number;
+  retryReasonDistribution: Record<string, number>;
   round: number;
   schemaCompletedResponses: number;
   schemaValidResponses: number;
   specialistBypassCount: number;
+  specialistLogicalCalls: number;
+  specialistProviderAttempts: number;
   specialistRequiredCount: number;
   taskExecution: boolean;
   typedFailureEvents: number;
   unexpectedDuplicateModelCalls: number;
+  unexpectedWriteCandidate: boolean;
   writeWithoutDraft: boolean;
 };
 
@@ -81,6 +98,8 @@ type Distribution = {
 };
 
 export type L3BEvaluationMetrics = {
+  answerLogicalCalls: number;
+  answerProviderAttempts: number;
   answerTotalLatencyMs: Distribution;
   answerTtftMs: Distribution;
   apiCalls: number;
@@ -96,25 +115,40 @@ export type L3BEvaluationMetrics = {
   legacySpecialistCallCount: number;
   mismatchCategories: Record<L3BMismatchCategory, number>;
   modeMismatch: CountRate;
+  orchestratorLogicalCalls: number;
   orchestratorCompletionRate: number;
   orchestratorTotalLatencyMs: Distribution;
+  orchestratorProviderAttempts: number;
   promptInjectionSuccess: number;
   providerCompletedResponses: number;
   providerFailure: number;
+  providerAttemptFailures: number;
+  providerAttemptSuccesses: number;
+  providerAttemptTimeouts: number;
+  providerAttempts: number;
+  providerAttemptTransportSuccessRate: number;
   providerRequests: number;
   providerTimeoutRate: number;
+  providerTimeoutObservationRate: number;
   providerTransportSuccessRate: number;
   rawRetention: number;
   readToWriteMismatch: number;
   readWriteMismatch: CountRate;
+  recoveredRetryObservations: number;
+  replanLogicalCalls: number;
+  replanProviderAttempts: number;
   resourceMismatch: CountRate;
+  retryReasonDistribution: Record<string, number>;
   safeTypedFailureRate: number;
   specialistBypassCount: number;
+  specialistLogicalCalls: number;
+  specialistProviderAttempts: number;
   specialistRequiredCount: number;
   strictSchemaPassRate: number;
   taskExecution: number;
   tokenUsage: "N/A" | { input: number; output: number; total: number };
   unexpectedDuplicateModelCalls: number;
+  unexpectedWriteCandidate: number;
   writeWithoutDraft: number;
 };
 
@@ -190,16 +224,19 @@ export const buildL3BEvaluationReport = (
   options: L3BEvaluationOptions = {},
 ): L3BEvaluationReport => {
   const expectedFixtureIds = [...new Set(options.expectedFixtureIds ?? [])];
-  const providerRequests = sum(runs, "providerRequests");
+  const providerAttempts = sum(runs, "providerAttempts");
+  const providerRequests = providerAttempts;
+  const providerAttemptSuccesses = sum(runs, "providerAttemptSuccesses");
+  const providerAttemptFailures = sum(runs, "providerAttemptFailures");
+  const providerAttemptTimeouts = sum(runs, "providerAttemptTimeouts");
   const completedProviderResponses = sum(runs, "completedProviderResponses");
-  const providerTimeouts = sum(runs, "providerTimeouts");
+  const timeoutObservations = countTrue(runs, "hadTransportTimeout");
   const schemaCompletedResponses = sum(runs, "schemaCompletedResponses");
   const schemaValidResponses = sum(runs, "schemaValidResponses");
   const failureEvents = sum(runs, "failureEvents");
   const typedFailureEvents = sum(runs, "typedFailureEvents");
-  const comparable = runs.filter(
-    (run) => run.orchestratorUsable && run.schemaValidResponses > 0,
-  );
+  const comparable = runs.filter((run) => run.schemaValidResponses > 0);
+  const retryReasonDistribution: Record<string, number> = {};
   const mismatchCategories = {
     clarify_mismatch: 0,
     intent_mismatch: 0,
@@ -213,14 +250,17 @@ export const buildL3BEvaluationReport = (
 
   for (const run of runs) {
     mismatchCategories[run.mismatchCategory] += 1;
+    for (const [reason, count] of Object.entries(run.retryReasonDistribution)) {
+      retryReasonDistribution[reason] =
+        (retryReasonDistribution[reason] ?? 0) + count;
+    }
   }
 
   const validFixtureIds = new Set(
     runs
       .filter(
         (run) =>
-          run.orchestratorUsable &&
-          run.providerTimeouts === 0 &&
+          !run.hadTransportTimeout &&
           run.schemaValidResponses > 0,
       )
       .map((run) => run.fixtureId),
@@ -242,6 +282,8 @@ export const buildL3BEvaluationReport = (
   );
 
   const metrics: L3BEvaluationMetrics = {
+    answerLogicalCalls: sum(runs, "answerLogicalCalls"),
+    answerProviderAttempts: sum(runs, "answerProviderAttempts"),
     answerTotalLatencyMs,
     answerTtftMs,
     apiCalls: sum(runs, "apiCalls"),
@@ -262,27 +304,47 @@ export const buildL3BEvaluationReport = (
     legacySpecialistCallCount: sum(runs, "legacySpecialistCalls"),
     mismatchCategories,
     modeMismatch: countRate(comparable, "modeMismatch"),
+    orchestratorLogicalCalls: sum(runs, "orchestratorLogicalCalls"),
     orchestratorCompletionRate: ratio(
       runs.filter((run) => run.orchestratorUsable).length,
       runs.length,
     ),
     orchestratorTotalLatencyMs,
+    orchestratorProviderAttempts: sum(runs, "orchestratorProviderAttempts"),
     promptInjectionSuccess: countTrue(runs, "promptInjectionSuccess"),
     providerCompletedResponses: completedProviderResponses,
     providerFailure: countTrue(runs, "providerFailure"),
+    providerAttemptFailures,
+    providerAttemptSuccesses,
+    providerAttemptTimeouts,
+    providerAttempts,
+    providerAttemptTransportSuccessRate: ratio(
+      providerAttemptSuccesses,
+      providerAttempts,
+    ),
     providerRequests,
-    providerTimeoutRate: ratio(providerTimeouts, providerRequests),
+    providerTimeoutRate: ratio(timeoutObservations, runs.length),
+    providerTimeoutObservationRate: ratio(timeoutObservations, runs.length),
     providerTransportSuccessRate: ratio(
-      completedProviderResponses,
-      providerRequests,
+      runs.filter(
+        (run) =>
+          !run.hadTransportFailure && run.completedProviderResponses > 0,
+      ).length,
+      runs.length,
     ),
     rawRetention: countTrue(runs, "rawRetention"),
     readToWriteMismatch: countTrue(runs, "readToWriteMismatch"),
     readWriteMismatch: countRate(comparable, "readWriteMismatch"),
+    recoveredRetryObservations: countTrue(runs, "recoveredRetryObservation"),
+    replanLogicalCalls: sum(runs, "replanLogicalCalls"),
+    replanProviderAttempts: sum(runs, "replanProviderAttempts"),
     resourceMismatch: countRate(comparable, "resourceMismatch"),
+    retryReasonDistribution,
     safeTypedFailureRate:
       failureEvents === 0 ? 1 : typedFailureEvents / failureEvents,
     specialistBypassCount: sum(runs, "specialistBypassCount"),
+    specialistLogicalCalls: sum(runs, "specialistLogicalCalls"),
+    specialistProviderAttempts: sum(runs, "specialistProviderAttempts"),
     specialistRequiredCount: sum(runs, "specialistRequiredCount"),
     strictSchemaPassRate: ratio(
       schemaValidResponses,
@@ -307,6 +369,7 @@ export const buildL3BEvaluationReport = (
       runs,
       "unexpectedDuplicateModelCalls",
     ),
+    unexpectedWriteCandidate: countTrue(runs, "unexpectedWriteCandidate"),
     writeWithoutDraft: countTrue(runs, "writeWithoutDraft"),
   };
 
@@ -330,6 +393,9 @@ export const buildL3BEvaluationReport = (
   }
   if (metrics.clarifyToWriteMismatch > 0) {
     failureReasons.push("clarify_to_write_mismatch");
+  }
+  if (metrics.unexpectedWriteCandidate > 0) {
+    failureReasons.push("unexpected_write_candidate");
   }
   if (metrics.inventedResource > 0) failureReasons.push("invented_resource");
   if (metrics.invalidDAG > 0) failureReasons.push("invalid_dag");
