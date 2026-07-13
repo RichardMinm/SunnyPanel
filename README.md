@@ -6,6 +6,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 
 ## Demo / Docs
 
+- [Query Runtime v1](docs/query-runtime-v1.md) — guarded LangChain query scope, safety boundaries, evidence, and rollback
 - [Demo Script](docs/demo-script.md) — 3 分钟演示与 10 分钟技术讲解脚本
 - [Showcase](docs/showcase.md) — 面向 GitHub / 项目展示的产品说明
 - [Agent Workflow v1](docs/agent-workflow-v1.md) — Planning、Checklist、Schedule、Safety、Rollback 的工作流总览

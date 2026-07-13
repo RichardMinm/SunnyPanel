@@ -116,3 +116,65 @@ v1 不承诺：
 - 企业级审计合规
 - 多用户审批流
 - 多租户 RBAC
+
+---
+
+## Query Runtime Trust Boundary
+
+The guarded Query path trusts only the server-authenticated Payload user passed through the API boundary. It describes that actor as a **trusted single-user admin actor**. Client `isAdmin` or role values, headers, and message text do not enable adoption. Unauthenticated requests are rejected before the agent handler.
+
+This is not a complete role system. The current model has no independent fine-grained RBAC and does not provide multi-user authorization semantics. The runtime and adoption settings must both opt in; any unrecognized value is disabled.
+
+## Provider Data Minimization
+
+Threats and controls:
+
+| Threat | Control |
+| --- | --- |
+| Workspace prompt injection | Provider receives no workspace or user-request text. |
+| Invented resource ID | Provider receives no ID, title, or resource text. |
+| Numeric fact hallucination | Canonical facts are deterministic; Provider receives no numeric facts; numeric commentary is omitted. |
+| Execution claim | Local commentary validator rejects execution language. |
+| Unsafe escalation | Local validator rejects admitted escalation patterns. |
+| Provider timeout or error | Query completes with canonical facts only. |
+| Client-side admin forgery | Actor status comes from the server authentication result. |
+| Accidental runtime enablement | `AGENT_QUERY_RUNTIME=langchain` and `AGENT_QUERY_ADOPTION=admin` must both pass. |
+| Duplicate model call | Exact allowlist excludes `answer_question`; adopted dispatch permits at most one Query Provider call. |
+| Hidden Legacy fallback | Provider failure omits commentary and does not start Legacy after Provider work. |
+| Query-path business mutation | Query modules have no Executor or write capability. |
+
+The Provider sees only the static system protocol and the exact enum-only qualitative projection. It does not see `QueryFacts`, canonical text, user input, workspace context, resource identifiers, names, counts, percentages, dates, memory, secrets, or hidden reasoning. `auditQualitativeProviderInput()` fails closed before a model call if this shape changes.
+
+## Deterministic Facts
+
+Request-time deterministic loaders read current Payload data into shared `QueryFacts`. Deterministic code performs resource matching, counting, due-date handling, and canonical rendering. The Provider neither calculates nor mutates these facts. Each adopted turn loads facts at most once, and the evaluation collector does not retain them.
+
+## Optional Commentary
+
+Commentary is an expression enhancement, not a fact source. The Provider receives enum states only, its entire output is buffered, and local validation occurs before any user-visible emission. Invalid, numeric, tool-call, timed-out, or failed output is omitted. The canonical answer remains complete and is persisted normally.
+
+This control does not promise that a Provider never emits invalid output. It guarantees only that commentary failing the implemented local contract is not appended.
+
+## Admin Adoption Gate
+
+The gate is default-deny and runs before facts or Provider work: runtime, adoption, trusted actor, exact intent, and exact arguments must all pass. Rejected requests keep their existing behavior with zero guarded facts-loader and Provider calls. This is a rollout safety gate, not an enterprise permission framework.
+
+## Failure Degradation
+
+- Gate rejection: existing path, no guarded facts read, no Query Provider call.
+- Missing plan resource: deterministic clarification, no Provider call.
+- Provider/input audit/timeout/validation failure: canonical-only completion, normal persistence and done, no partial commentary, no second facts read, no post-Provider Legacy run.
+- Either kill switch disabled: the next request handled by the process remains on Legacy.
+
+The process-local observation collector stores bounded sanitized counters and latency only. It is non-durable and is not an audit log.
+
+## Explicit Non-goals
+
+- Complete enterprise audit or compliance
+- Durable Query observation history
+- Multi-user RBAC or fine-grained authorization
+- Provider correctness guarantees
+- Query access to Executor, tools, Router decisions, or resource selection
+- External system rollback
+- Distributed transactions
+- Query allowlist expansion or Legacy removal

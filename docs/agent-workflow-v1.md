@@ -32,6 +32,34 @@ Rules:
 - 不写数据库
 - 不生成 write receipt
 
+### Guarded Query Read Path
+
+The guarded LangChain Query runtime is a narrow implementation of the read boundary, not a replacement for the write workflow:
+
+```text
+Primary preResolvedIntent
+→ Read eligibility and trusted actor gate
+├─ rejected → existing Legacy path
+└─ adopted
+   → deterministic QueryFacts
+   → deterministic canonical answer
+   → optional enum-only qualitative commentary
+   → existing conversation persistence
+   → response
+```
+
+Current adoption supports only exact `query_progress` aggregate variants without a checklist title and exact `query_plan_progress` with a positive integer `planId`. Defaults remain `AGENT_QUERY_RUNTIME=legacy` and `AGENT_QUERY_ADOPTION=off`; wider adoption is not enabled. The complete contract is in `docs/query-runtime-v1.md`.
+
+Rules:
+
+- Query does not enter Draft, Dry-run, Policy Guard, Pending Confirmation, Execute, Receipt, or Rollback.
+- The Query Provider has no tools and cannot execute an operation.
+- Deterministic `QueryFacts` is the fact source; optional commentary cannot change it.
+- A rejected gate preserves the existing path and is not itself an error.
+- Commentary failure degrades to a canonical-only response, not a second Legacy run.
+- `evaluate_plan` is not a pure-read migration target.
+- Write and compound intents remain on their existing workflows.
+
 ### Write Intent
 
 Examples:

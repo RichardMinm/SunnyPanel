@@ -113,3 +113,61 @@ Local-first write model:
 - 主要写入本地 Payload / PostgreSQL
 - 本地写入可设计 rollback
 - 外部系统写入不进入 v1
+
+---
+
+## 4. Guarded Query Runtime
+
+The Query runtime is a read-only branch inside the existing trusted `preResolvedIntent` production seam. It is not a new Router, LangGraph node, or workflow graph.
+
+### Components
+
+| Component | Responsibility | Source |
+| --- | --- | --- |
+| Query Runtime Config | Dynamically resolve `legacy/langchain`, `off/admin`, and bounded commentary timeouts. | `src/lib/agent/query/runtime-config.ts` |
+| Admin Adoption Gate | Default-deny trusted actor, exact intent, and exact argument eligibility. | `src/lib/agent/query/admin-adoption.ts` |
+| Shared QueryFacts Loader | Read current aggregate or plan facts once and build deterministic fact objects. | `src/lib/agent/query/facts-repository.ts`, `facts.ts` |
+| Canonical Renderer | Render the authoritative user-visible fact block without a model. | `src/lib/agent/query/langchain-query-agent.ts` |
+| Qualitative Projection | Reduce facts to a frozen enum-only state object. | `src/lib/agent/query/qualitative-projection.ts` |
+| Provider Input Audit | Verify static protocol, roles, exact keys, serialization, and enum values before a call. | `src/lib/agent/query/qualitative-projection.ts` |
+| Buffered Commentary Runner | Make at most one optional model call and buffer the complete stream. | `src/lib/agent/query/qualitative-commentary.ts` |
+| Commentary Validator | Reject numbers, resources, execution claims, structure, Markdown, overflow, and unsafe escalation. | `src/lib/agent/query/qualitative-projection.ts` |
+| Composer | Keep canonical facts first and append only accepted commentary. | `src/lib/agent/query/qualitative-projection.ts` |
+| Observation Collector | Keep at most 200 sanitized process-local observations. | `src/lib/agent/query/admin-adoption-observer.ts` |
+| Legacy Query Path | Remain authoritative whenever the dual gate or exact eligibility rejects. | existing chat pipeline |
+
+### Dependency Direction
+
+```text
+Runtime / Adoption Gate
+→ QueryFacts Loader
+→ Canonical Renderer
+→ Qualitative Projection
+→ Provider Input Audit
+→ Buffered Provider Runner
+→ Commentary Validator
+→ Canonical-first Composer
+→ Existing Conversation Persistence
+```
+
+Forbidden reverse dependencies:
+
+```text
+Provider → QueryFacts mutation
+Provider → Database
+Provider → Executor
+Provider → Router decision
+Provider → Resource selection
+```
+
+The Provider is downstream and optional. It cannot feed facts or decisions back into the gate, database, Router, or business execution path.
+
+### Deployment and Storage Boundary
+
+- No new LangGraph node or graph transition.
+- No checkpoint state or schema change.
+- No Payload migration or new business collection.
+- No Query-specific durable storage.
+- Existing conversation persistence stores the final complete answer.
+- Observation collection is bounded, in-process, and non-durable; it is not enterprise audit storage.
+- Defaults remain `AGENT_QUERY_RUNTIME=legacy` and `AGENT_QUERY_ADOPTION=off`.
