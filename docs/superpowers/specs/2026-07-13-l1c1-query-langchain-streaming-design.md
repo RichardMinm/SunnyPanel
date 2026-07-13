@@ -2,7 +2,7 @@
 
 Date: 2026-07-13
 
-Status: Approved design, implementation pending
+Status: Review amended; implementation blocked by empty parity-confirmed allowlist
 
 Baseline: `12e6f01aa1f0e0cfd86076d4c6bad7fd6ff59b41`
 
@@ -10,9 +10,16 @@ Branch: `phase/l1c1-query-langchain`
 
 ## 1. Decision
 
-L1-C1 migrates only trusted, single-turn, pure-read Query requests whose
-`preResolvedIntent` was selected by the authoritative Primary Orchestrator.
-The new LangChain path generates a natural-language answer as a text stream.
+L1-C1 may migrate only trusted, single-turn, pure-read Query requests whose
+`preResolvedIntent` was selected by the authoritative Primary Orchestrator and
+whose facts are provably equivalent to the current Legacy result. The Context
+Parity Audit in this document found no currently eligible intent. Therefore,
+the production LangChain Query allowlist is empty and implementation must not
+start under the present context-only design.
+
+`answer_question` remains on the existing path because the Primary
+Orchestrator has already generated its answer. Calling a Query model afterward
+would create a second model call, add latency/cost, and permit semantic drift.
 
 Compound Query tasks remain on the existing Legacy path. Migrating compound
 tasks would require changing LangGraph subgraph streaming callbacks and
@@ -24,7 +31,9 @@ The runtime remains opt-in:
 AGENT_QUERY_RUNTIME=legacy|langchain
 ```
 
-Missing, empty, or unknown values select `legacy`. L1-C1 does not change the
+Missing, empty, or unknown values select `legacy`. While the parity-confirmed
+allowlist is empty, `langchain` also dispatches every intent to Legacy. L1-C1
+does not change the
 default Router, Router Canary/Shadow, Primary decisions, graph topology,
 checkpoint state, executor, or write-safety chain.
 
@@ -61,38 +70,109 @@ Relevant behavior found during the audit:
 - `invokeStructured()` has local abort composition, but there is no reusable
   public timeout/signal helper that fits this streaming path.
 
-Therefore, L1-C1 adds a narrowly scoped dispatcher at the trusted
-`preResolvedIntent` seam and does not repurpose the compound Structured Query
-Agent.
+Therefore, L1-C1 must first prove fact parity. No dispatcher is added while
+the eligible set is empty, and the compound Structured Query Agent is not
+repurposed.
 
 ## 3. Scope and explicit allowlist
 
 Eligibility uses exact equality against one shared constant, never prefix or
-substring matching:
+substring matching. After the Context Parity Audit, the constant is currently:
 
-```text
-answer_question
-query_progress
-query_plan_progress
-query_checklist_progress
+```ts
+const LANGCHAIN_QUERY_INTENTS = [] as const;
 ```
 
-The shared constant is the source for implementation checks, prompt text, and
-tests. It is not a second Router schema and does not reinterpret invalid Router
-output.
+The shared constant would be the source for implementation checks, prompt text,
+and tests after at least one intent reaches `PARITY_CONFIRMED`. It is not a
+second Router schema and does not reinterpret invalid Router output.
+
+### 3.1 Context Parity Audit
+
+#### `query_progress` — `CONTEXT_INCOMPLETE`
+
+- Legacy data source: `getAgentProgressSnapshot()` in
+  `src/lib/agent/progress.ts` performs request-time Payload reads of up to 100
+  plans and 100 checklists using `overrideAccess: true`.
+- Legacy facts: plan counts by state, due-soon/overdue/high-priority counts,
+  checklist count, completed/total checklist items, completion rate, and up to
+  five open checklist items.
+- Context fields: `AgentPromptContext.plans` has state, priority, due date, and
+  visibility; `checklists` has ID, title, status, visibility, and precomputed
+  completed/total items.
+- Non-equivalence: the context builder selects at most 12 plans and at most 12
+  checklists. The selective workspace loader also reads only 12 checklists.
+  Legacy reads up to 100 of each. The context therefore cannot reproduce
+  aggregate counts or global checklist totals when more records exist.
+- Freshness: context is loaded earlier in the turn, while Legacy performs a
+  later request-time read during execution. Even with equal fields, there is a
+  stale-snapshot window.
+
+#### `query_plan_progress` — `CONTEXT_INCOMPLETE`
+
+- Legacy query function: `queryPlanProgressFromIntent()` in
+  `src/lib/agent/tools/query-tools.ts` uses `findByID()` or searches the ten
+  most recently updated plans.
+- Legacy fields: `state`, `priority`, `executionMode`, `totalEstimatedDays`,
+  stored `progress`, `weeklyRhythm`, `dueDate`, `phases`, milestone counts, and
+  task counts.
+- Context fields: `AgentPromptContext.plans` retains ID, title, state,
+  priority, execution mode, due date, visibility, agent metadata, and linked
+  content count.
+- Non-equivalence: prompt context drops `progress`, `totalEstimatedDays`,
+  `weeklyRhythm`, `phases`, milestone/task details, and the actual linked
+  checklist relationships. It also selects at most 12 private plans, whereas
+  the Legacy lookup has different query/visibility behavior.
+- Checklist aggregation: the Legacy query function does not calculate linked
+  checklist completion. `calculatePlanChecklistProgress()` exists for the
+  workspace/dashboard snapshot but its result is not included in
+  `AgentPromptContext` and is not part of the current Legacy Query contract.
+- Freshness: the same earlier-context versus later-execution read window exists.
+
+#### `query_checklist_progress` — `NOT_ELIGIBLE`
+
+- Legacy query function: none is wired for this intent. In
+  `executeAgentIntent()`, `query_checklist_progress` shares a placeholder branch
+  with `query_schedule` and returns a generic schedule-query receipt.
+- A real checklist calculation exists only through
+  `getAgentProgressSnapshot({ checklistTitle })`, which is wired to
+  `query_progress`, not `query_checklist_progress`.
+- Context fields contain selected checklist totals, but only for the bounded
+  subset and without a production Legacy semantic baseline for this intent.
+- Migrating this intent would silently repair/redefine query dispatch, which is
+  outside L1-C1.
+
+### 3.2 Audit result
+
+| Intent | Result | LangChain eligible |
+| --- | --- | --- |
+| `query_progress` | `CONTEXT_INCOMPLETE` | No |
+| `query_plan_progress` | `CONTEXT_INCOMPLETE` | No |
+| `query_checklist_progress` | `NOT_ELIGIBLE` | No |
+
+No intent is `PARITY_CONFIRMED`. Data correctness takes precedence over phase
+size, so L1-C1 has no production migration target under the current
+context-only constraint.
 
 Explicit exclusions:
 
+- `answer_question`: excluded because the Primary already generated the answer;
+  a Query model call would be duplicate turn-level generation.
 - `evaluate_plan`: excluded because the current implementation persists data.
 - `query_schedule`: excluded because it already has a dedicated deterministic
   production path.
 - all write, compound, policy, confirmation, and execute intents.
 - all compound task-plan Query Agent calls.
 
-Ineligible intents continue through the unchanged Legacy path even when the
-environment value is `langchain`.
+All intents continue through the unchanged Legacy path even when the
+environment value is `langchain` until a later approved design establishes
+`PARITY_CONFIRMED`.
 
-## 4. Target architecture
+## 4. Conditional target architecture
+
+This architecture is not authorized for implementation while the allowlist is
+empty. It describes the path only after a separately reviewed parity change
+makes at least one intent eligible.
 
 ```text
 Primary Orchestrator (authoritative)
@@ -108,9 +188,12 @@ Primary Orchestrator (authoritative)
               -> existing final response/persistence boundary
 ```
 
-The production seam is a minimal branch inside
-`src/lib/agent/chat-pipeline/legacy-heuristic-resolution-step.ts`. This is a
-dispatcher branch only; it must not add a LangGraph node or alter edges/state.
+The routing seam remains near
+`src/lib/agent/chat-pipeline/legacy-heuristic-resolution-step.ts`, but the
+persistence audit in Section 9 shows that partial failure cannot be correctly
+implemented only inside that function. Any future implementation also needs a
+narrow typed-failure handoff at the existing pipeline finalization boundary.
+It must not add a LangGraph node or alter edges/state.
 
 Expected focused modules under `src/lib/agent/query/`:
 
@@ -126,7 +209,7 @@ Expected focused modules under `src/lib/agent/query/`:
 Names may be consolidated during implementation when that reduces surface area,
 but the boundaries and contracts in this document remain required.
 
-## 5. Query readiness contract
+## 5. Query readiness and deterministic facts contract
 
 Readiness is a pure function. It must not call a model, database, executor, or
 tool and must not mutate prompt context.
@@ -142,14 +225,11 @@ type QueryContextReference = {
 }
 ```
 
-Rules:
+Rules for a future parity-confirmed intent:
 
-- `answer_question`: ready without a resource reference.
-- `query_progress`: ready for aggregate progress without a resource reference.
-- `query_plan_progress`: requires one exact, visible plan match by supplied ID
-  or title.
-- `query_checklist_progress`: requires one exact, visible checklist match by
-  supplied ID or title.
+- an aggregate query is ready only when the complete Legacy-equivalent record
+  population is represented;
+- a resource query requires one exact, visible match by supplied ID or title;
 - a missing, invalid, invisible, or ambiguous reference returns a deterministic
   typed clarify result with a non-empty question.
 - readiness never invents an ID or silently chooses among ambiguous resources.
@@ -157,6 +237,60 @@ Rules:
 
 The readiness result is either `ready` with normalized references or `clarify`.
 There is no best-effort partial resolution.
+
+Facts are calculated by deterministic code before any model call. The model is
+never responsible for division, counting, state filtering, due-date arithmetic,
+resource matching, or visibility decisions. A future shared `QueryFacts` union
+must preserve the facts of the Legacy implementation it replaces. For example:
+
+```ts
+type QueryFacts =
+  | {
+      kind: "aggregate_progress"
+      activePlans: number
+      backlogPlans: number
+      pausedPlans: number
+      completedPlans: number
+      dueSoonPlans: number
+      overduePlans: number
+      highPriorityPlans: number
+      checklistCount: number
+      completedItems: number
+      totalItems: number
+      progressPercent: number
+    }
+  | {
+      kind: "plan_progress"
+      planId: number
+      title: string
+      state: string
+      priority: string
+      executionMode: null | string
+      storedProgressPercent: null | number
+      dueDate: null | string
+      phaseCount: number
+      milestoneCount: number
+      taskCount: number
+    }
+  | {
+      kind: "checklist_progress"
+      checklistId: number
+      title: string
+      completedItems: number
+      totalItems: number
+      progressPercent: number
+    }
+```
+
+The simpler `completed/total` plan shape is not adopted as-is because the
+current Legacy `query_plan_progress` contract reports stored plan progress and
+phase structure rather than linked-checklist completion. Introducing a new
+calculation would redefine query semantics instead of preserving them.
+
+The final response must contain a deterministic fact line rendered directly
+from `QueryFacts`; the optional model stream may add qualitative explanation
+but must not introduce, repeat, or transform numeric facts. If deterministic
+facts are incomplete, readiness returns clarify or the intent remains Legacy.
 
 ## 6. Context selection and trust boundary
 
@@ -209,22 +343,25 @@ tests.
 
 The call is a natural-language streaming call, not Structured Output. It has:
 
-- at most one model/API call per turn;
+- at most one Query model/API call and no duplication of answer generation
+  already performed by the Primary during the same turn;
 - no schema retry;
 - no transport retry in this layer;
 - no empty-stream non-streaming fallback;
 - no automatic Legacy fallback after the LangChain path starts.
 
 Only text content blocks are emitted to the existing SSE answer channel.
-Reasoning/thinking blocks are ignored and never persisted or logged. Any tool
-call or tool-call delta is a contract violation and terminates the LangChain
-result without executing it.
+Reasoning/thinking blocks are ignored and never persisted or logged; streaming
+continues so later text may still complete the answer. A `tool_call` or
+`tool_call_chunk` immediately aborts consumption, is never executed, and makes
+all later text in that stream ineligible. Before the first text token it maps
+to `unavailable`; after a text token it maps to `partial`.
 
 The runner aggregates emitted answer text for the final result, trims it,
 requires it to be non-empty, and applies a fixed maximum answer length. The
 same capped aggregate is the only candidate for successful final persistence.
 
-## 9. Timeout, abort, and failure semantics
+## 9. Timeout, abort, failure, and persistence semantics
 
 Defaults:
 
@@ -240,8 +377,9 @@ first-token maximum: 12,000 ms
 total maximum:       45,000 ms
 ```
 
-L1-C1 implements a query-specific, one-call phase controller because the
-current codebase has no reusable streaming abort helper. It does not refactor
+Any future eligible implementation uses a query-specific, one-call phase
+controller because the current codebase has no reusable streaming abort helper.
+It does not refactor
 the existing Structured Output controller as part of this phase.
 
 Caller disconnect/abort is not currently propagated through the HTTP/graph
@@ -260,13 +398,73 @@ Failure semantics:
   to one of these two states according to whether answer text was emitted;
 - Primary intent and all safety state remain unchanged.
 
-The existing SSE lifecycle remains authoritative. The integration must expose
-controlled failure/incomplete metadata without representing a partial result as
-complete.
+The terminal result is explicit:
+
+```ts
+type QueryStreamTerminalState =
+  | {
+      status: "complete"
+      persist: true
+      answer: string
+    }
+  | {
+      status: "unavailable"
+      persist: false
+      errorCode: SafeQueryErrorCode
+    }
+  | {
+      status: "partial"
+      persist: false
+      partialOutputEmitted: true
+      errorCode: SafeQueryErrorCode
+    }
+```
+
+### 9.1 Current persistence/SSE audit
+
+- `runExecuteAndPersistStep()` calls its `persistAgentTurn()` dependency for a
+  normal result.
+- in the production pipeline, `persistAgentTurn()` buffers the assistant turn
+  when `finalizeTurn` is present.
+- the end of `createRunAgentChatPipeline()` passes that buffered turn to
+  `createAgentTurnFinalizer()`.
+- `createAgentTurnFinalizer()` appends either `assistant_completed` or
+  `turn_failed`, then calls `projectAgentThreadFromEvents()`.
+- `hydrateAgentThreadState()` currently projects responses from both event
+  types into `AgentThread.messages`. Therefore, merely calling the finalizer
+  with `failure` does not satisfy `persist: false` for the assistant message.
+- `createAgentChatStream()` already supports a generic `error` terminal event,
+  but the wrapper in `handle-agent-chat-post.ts` normally catches runtime
+  errors, finalizes a safe response, and returns it, causing `done` rather than
+  propagating `error` to the SSE envelope.
+
+Consequently, partial persistence cannot be safely implemented only in
+`legacy-heuristic-resolution-step.ts`. Before any eligible intent is enabled,
+the implementation plan must name and test a narrow typed-failure handoff:
+
+1. `complete` calls the existing `persistAgentTurn()` path and ends with
+   `meta` + `done`.
+2. `unavailable` and `partial` never place generated/partial model text in the
+   buffered assistant turn.
+3. idempotency is preserved using the existing `turn_failed` event, containing
+   only a safe error response and an optional backward-compatible internal flag
+   that prevents projection into `AgentThread.messages`; no Payload collection
+   schema or migration is added.
+4. for streaming requests, the recognized safe Query failure is rethrown after
+   failure bookkeeping so `createAgentChatStream()` emits its existing `error`
+   event and closes. No `done` event follows.
+5. for non-stream requests, the same safe response is returned without partial
+   text.
+6. no empty assistant message and no incomplete model output is written into
+   the session projection.
+
+This finalizer behavior is a prerequisite, not authorized implementation while
+the allowlist remains empty.
 
 ## 10. Runtime dispatch and no-double-run invariant
 
-The dispatcher is selected once per eligible turn:
+With the current empty allowlist, the dispatcher selects Legacy for every turn.
+After a future parity approval, it is selected once per eligible turn:
 
 - `legacy`: invoke only the current Legacy continuation.
 - `langchain`: invoke readiness once; if ready, invoke only the LangChain
@@ -278,7 +476,9 @@ result terminates Query handling for that turn. It never falls through into
 
 Tests must prove:
 
-- maximum one Query model call;
+- `answer_question` never enters the LangChain Query runner;
+- no turn duplicates answer generation already completed by the Primary;
+- maximum one Query model call for a future eligible progress turn;
 - zero model calls for readiness clarify;
 - no hidden Legacy fallback;
 - no duplicate SSE answer token emission;
@@ -311,40 +511,70 @@ forbidden in telemetry and evaluation reports.
 
 ## 12. Deterministic test strategy
 
-Implementation follows test-driven development with fake model streams and no
-network. Required coverage includes:
+Any future implementation follows test-driven development with fake model
+streams and no network. Required coverage includes:
 
 1. runtime defaults and unknown values select Legacy;
-2. exact allowlist and exclusion of near/prefix matches;
-3. prompt intent list shares the allowlist source;
-4. ready `answer_question` and aggregate progress;
-5. exact plan and checklist resource resolution;
-6. missing, invisible, and ambiguous resources produce clarify;
-7. clarify question is non-empty and model call count is zero;
-8. bounded explicit-reference-first context selection;
-9. low-confidence memory and secrets are excluded;
-10. workspace prompt injection remains data;
-11. text-only streaming and reasoning-block suppression;
-12. tool-call output is rejected and never executed;
-13. first-token and total timeout behavior;
-14. pre-token unavailable versus post-token partial behavior;
-15. empty and over-limit answers are rejected;
-16. one-call/no-retry/no-Legacy-fallback invariant;
-17. successful integration reuses existing SSE/finalization behavior;
-18. partial/unavailable results are not persisted as complete;
-19. Primary intent remains unchanged;
-20. write, compound, evaluate-plan, and schedule paths remain unchanged;
-21. collector contains no raw prompt, response, secret, or reasoning.
+2. current exact allowlist is empty and near/prefix matches are excluded;
+3. `answer_question` always remains Legacy and makes zero Query model calls;
+4. each candidate intent has a recorded parity classification;
+5. `CONTEXT_INCOMPLETE`, `CONTEXT_STALE_RISK`, and `NOT_ELIGIBLE` dispatch to
+   Legacy even when `AGENT_QUERY_RUNTIME=langchain`;
+6. a future prompt intent list shares the parity-confirmed allowlist source;
+7. exact plan and checklist resource resolution after parity is established;
+8. missing, invisible, and ambiguous resources produce clarify;
+9. clarify question is non-empty and model call count is zero;
+10. `QueryFacts` calculations match Legacy deterministic facts exactly;
+11. the deterministic fact line matches `QueryFacts` and the model never
+    calculates or changes numeric facts;
+12. bounded explicit-reference-first context selection;
+13. low-confidence memory and secrets are excluded;
+14. workspace prompt injection remains data;
+15. text-only streaming ignores reasoning blocks and accepts later text;
+16. a pre-text tool-call block aborts as `unavailable` and is never executed;
+17. a post-text tool-call block aborts as `partial`, rejects later text, and is
+    never executed;
+18. first-token and total timeout behavior;
+19. empty and over-limit answers are rejected;
+20. one-call/no-retry/no-Legacy-fallback invariant;
+21. `complete` has `persist=true` and ends with `done`;
+22. `unavailable` has `persist=false`, is not projected into session messages,
+    and ends with the existing SSE `error` event;
+23. `partial` has `persist=false`, stores no partial output, and ends with the
+    existing SSE `error` event;
+24. no empty assistant message is projected for a Query failure;
+25. Primary intent remains unchanged;
+26. write, compound, answer, evaluate-plan, and schedule paths remain unchanged;
+27. switching runtime to Legacy restores the original query path;
+28. collector contains no raw prompt, response, secret, or reasoning.
+
+Additional review acceptance gates are numbered to match the review:
+
+37. `answer_question` is absent from the LangChain allowlist.
+38. every allowlisted intent has a completed Context Parity Audit.
+39. an intent without context parity remains Legacy automatically.
+40. deterministic `QueryFacts`, never the model, calculate progress facts.
+41. the whole turn does not duplicate Primary answer generation.
+42. complete/unavailable/partial persistence behavior has explicit tests.
+43. tool calls before/after first text map to unavailable/partial.
+44. Live Smoke fact difference against Legacy `QueryFacts` is zero.
+45. runtime `legacy` restores the original query path.
 
 `tests/TEST_MAP.md` is updated with focused test ownership.
 
-## 13. Controlled live smoke evaluation
+## 13. Conditional controlled live smoke evaluation
+
+The real-provider smoke is blocked while the parity-confirmed allowlist is
+empty. Running it now would either make zero relevant provider calls or test an
+unauthorized intent. It becomes valid only after a separately reviewed parity
+change.
 
 The real-provider smoke is a separate explicit command, is never part of
 default CI, does not connect to a database, and uses synthetic sanitized
 fixtures only. It contains exactly 24 cases:
 
-- 6 general consultation/read questions;
+- 6 `answer_question` negative controls that must remain Legacy and make zero
+  Query model calls;
 - 5 plan-progress queries;
 - 4 checklist-progress queries;
 - 4 insufficient/ambiguous cases that must clarify without a model;
@@ -359,6 +589,7 @@ Required report fields:
 - complete, unavailable, partial, and schema/contract failure counts;
 - model/API calls and maximum calls per turn;
 - duplicate model calls and Legacy fallback calls;
+- Legacy `QueryFacts` versus candidate deterministic fact differences;
 - time-to-first-answer-token P50 and observed upper tail;
 - total latency P50 and observed upper tail;
 - timeout categories;
@@ -371,23 +602,53 @@ Required report fields:
 Safety gates require zeros for duplicate calls, Legacy fallback after
 LangChain start, tool execution, task execution, database mutation, invented
 resources, prompt-injection success, unsafe write/compound adoption, and
-forbidden data retention.
+forbidden data retention. Fact difference must also be zero for every eligible
+progress fixture.
 
 Product latency is evaluated separately from safety. The intended targets are
 first answer token at or below 8 seconds and total completion at or below 30
 seconds for non-simulated cases; misses block adoption but do not authorize
 raising the hard bounds in this phase.
 
-## 14. Verification and commits
+## 14. Resolution options after the audit
 
-Implementation verification uses the exact deterministic baseline required by
-the phase request, including typecheck, agent/planning/schedule/content suites,
-lint, full ESLint with the worktree ignore, and `git diff --check`.
+### Option A — keep the context-only constraint and stop (recommended)
+
+Keep the allowlist empty, leave every query on Legacy, and mark L1-C1
+implementation blocked. This is the only option consistent with the current
+requirements without redefining data semantics.
+
+### Option B — share Legacy database fact extractors
+
+Refactor current Legacy query reads into shared deterministic `QueryFacts`
+builders, then let Legacy formatting and a future LangChain formatter consume
+the same facts. This can prove fact parity, but it explicitly abandons the
+"already loaded `AgentPromptContext` only" constraint and requires a new design
+approval before implementation.
+
+### Option C — enrich the context snapshot to parity
+
+Add complete Legacy-equivalent fact aggregates and resource detail to the
+context-loading contract before routing. This preserves a context-only Query
+runner but expands context loading/policy work, needs freshness semantics, and
+risks coupling a broad workspace snapshot to one Query runtime. It is larger
+than L1-C1 and is not recommended as a hidden prerequisite.
+
+Under the reviewed constraints, Option A is selected. Options B or C require a
+new explicit scope decision and a revised design review.
+
+## 15. Verification and commits
+
+No implementation verification or live provider run is due while the allowlist
+is empty. If a later approved design enables an intent, verification uses the
+exact deterministic baseline required by the phase request, including
+typecheck, agent/planning/schedule/content suites, lint, full ESLint with the
+worktree ignore, and `git diff --check`.
 
 The real-provider smoke is run separately with explicit environment variables
 and without `DATABASE_URL`. It is not added to default CI.
 
-Implementation commits remain scoped:
+Future implementation commits remain scoped:
 
 1. `feat(agent): add LangChain read-only query runtime`
 2. `test(agent): add LangChain query runtime evaluation`
@@ -395,7 +656,7 @@ Implementation commits remain scoped:
 This design record is committed separately before implementation. No amend,
 push, `git add -A`, or temporary report commit is permitted.
 
-## 15. Rollback and phase boundary
+## 16. Rollback and phase boundary
 
 Each implementation/evaluation commit is independently revertible with:
 
@@ -409,6 +670,10 @@ Operational rollback is immediate by leaving or setting:
 AGENT_QUERY_RUNTIME=legacy
 ```
 
-Completion of L1-C1 does not authorize default adoption, compound Query
-migration, write handling, Router changes, graph changes, or Legacy deletion.
-After reporting evidence, the phase stops.
+The current audit does not complete the migration objective: L1-C1 remains
+blocked with an empty production allowlist. It does establish that the runtime
+must remain Legacy and that no provider smoke should be run yet.
+
+Any later completion of L1-C1 does not authorize default adoption, compound
+Query migration, write handling, Router changes, graph changes, or Legacy
+deletion. After reporting evidence, the phase stops.
