@@ -152,7 +152,7 @@ export type ConversationalAnswerTerminalState =
 - [x] **Step 3: Implement the minimum text-only LangChain runtime** with `createChatModel()`, `buildMessages()`, an injectable fake model, one Provider call, bounded first/total timeout, and text/tool/reasoning block validation. Reuse complete `reply`/`args.answer`; do not call Query commentary; remove no Legacy code.
 - [x] **Step 4: Integrate terminal behavior** so only complete answers reach the existing `persistAgentTurn()` success path. Unavailable/incomplete throw a typed safe stream failure before finalization; already-emitted partial text is never projected as a completed assistant message.
 - [x] **Step 5: Run GREEN:** 36 answer/terminal tests, 60 combined chat-pipeline/LangGraph focused tests, Agent-test TypeScript compilation, production typecheck, and affected-file lint passed.
-- [ ] **Step 6: Commit:** `git commit -m "feat(agent): add LangChain conversational answer stream"`.
+- [x] **Step 6: Commit:** `9cfbaba feat(agent): add LangChain conversational answer stream`.
 
 ### Task 5: Build deterministic L3-B evaluation and safety gates
 
@@ -167,10 +167,10 @@ export type ConversationalAnswerTerminalState =
 
 - Produces aggregate-only reporting for safety, availability, performance, role budgets, specialist disposition, API calls/usage/cost, task execution, and database mutation.
 
-- [ ] **Step 1: Write failing tests** for every independent gate and denominator, including 99 observations with one timeout failing the `<=1%` threshold, typed failures excluded from completion, and sanitized reports containing no raw prompt/response/context/secret.
-- [ ] **Step 2: Run RED:** `node --import tsx --test tests/agent/orchestration/l3b-evaluation.test.ts`; expect missing report builder.
-- [ ] **Step 3: Implement the pure report builder and update the explicit DB-free harness** to reuse the unchanged fixture matrix, fixed retry/timeout budgets, one authoritative attempt per observation, and role-call counters.
-- [ ] **Step 4: Run GREEN**, script source-contract tests, typecheck, and `git diff --check`.
+- [x] **Step 1: Write failing tests** for every independent gate and denominator, including 99 observations with one timeout failing the `<=1%` threshold, typed failures excluded from completion, and sanitized reports containing no raw prompt/response/context/secret.
+- [x] **Step 2: Run RED:** missing report builder failed; retry-budget and numeric resource-ID classification received separate RED coverage.
+- [x] **Step 3: Implement the pure report builder and update the explicit DB-free harness** to reuse the unchanged fixture matrix, fixed retry/timeout budgets, one authoritative attempt per observation, and role-call counters.
+- [x] **Step 4: Run GREEN**, including 70 focused tests, typecheck, affected-file ESLint, disabled-by-default script check, and `git diff --check`.
 - [ ] **Step 5: Commit:** `git commit -m "test(agent): add L3-B orchestrator evaluation"`.
 
 ### Task 6: Run deterministic baseline and explicit Live Provider evaluation

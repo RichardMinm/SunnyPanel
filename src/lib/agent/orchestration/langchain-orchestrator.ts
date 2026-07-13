@@ -26,6 +26,7 @@ import type { ModelConfig } from "../llm/model-config";
 import type { ModelError } from "../llm/model-errors";
 import type { OrchestratorPlan } from "./types";
 import { mapStructuredOutputToPlan } from "./orchestrator-mapper";
+import type { ResourceReadinessErrorCode } from "./resource-readiness-guard";
 
 /* ---- Safe clarify fallback (deterministic, no model output reuse) ---- */
 
@@ -60,6 +61,7 @@ export type OrchestratorInvocationResult =
   | {
       status: "unavailable";
       reason: OrchestratorFailureReason;
+      resourceIssueCodes?: ResourceReadinessErrorCode[];
       safeMessage: string;
     };
 
@@ -227,12 +229,24 @@ export type LangChainOrchestratorOptions = {
   modelConfig?: ModelConfig;
   /** Injectable model factory for deterministic tests. */
   modelFactory?: ModelFactory;
+  /** Explicit bounded retries for evaluation. Production defaults remain one each. */
+  structuredRetryBudget?: {
+    schema: number;
+    transport: number;
+  };
 };
 
 export const runLangChainOrchestratorResult = async (
   options: LangChainOrchestratorOptions,
 ): Promise<OrchestratorInvocationResult> => {
-  const { message, context, signal, modelConfig, modelFactory = createChatModel } = options;
+  const {
+    message,
+    context,
+    signal,
+    modelConfig,
+    modelFactory = createChatModel,
+    structuredRetryBudget,
+  } = options;
 
   /* 1. Build protocol-only system prompt.
    *    jsonMode requires pure JSON output. This prompt treats the model
@@ -293,8 +307,8 @@ export const runLangChainOrchestratorResult = async (
     modelConfig: config,
     modelFactory,
     signal,
-    maxTransportRetries: 1,
-    maxSchemaRetries: 1,
+    maxTransportRetries: structuredRetryBudget?.transport ?? 1,
+    maxSchemaRetries: structuredRetryBudget?.schema ?? 1,
   });
 
   /* 6. Handle failure — safe clarify, no legacy fallback */
@@ -338,11 +352,14 @@ export const runLangChainOrchestratorResult = async (
       issues: guardResult.issues.map((i) => i.code),
     });
 
-    return unavailable(
-      "invalid_resource_reference",
-      guardResult.issues[0]?.safeMessage
+    return {
+      reason: "invalid_resource_reference",
+      resourceIssueCodes: guardResult.issues.map((issue) => issue.code),
+      safeMessage:
+        guardResult.issues[0]?.safeMessage
         ?? "没有找到可引用的资源。需要先创建，还是选择其他已有资源？",
-    );
+      status: "unavailable",
+    };
   }
 
   /* 9. Map to existing OrchestrationPlan */

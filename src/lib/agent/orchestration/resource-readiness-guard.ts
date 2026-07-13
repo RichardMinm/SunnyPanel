@@ -114,6 +114,12 @@ export interface GuardTaskInput {
   dependsOn: string[];
 }
 
+const normalizeResourceId = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
+};
+
 /* ---- Main Guard ---- */
 
 export const validateResourceReadiness = (params: {
@@ -168,7 +174,8 @@ export const validateResourceReadiness = (params: {
     /* Try existing ID fields but with placeholder/invalid values */
     const hasPlaceholder = req.existingIdFields.some((field) => {
       const v = task.args[field];
-      return v !== undefined && v !== null && !isUsableResourceId(v);
+      const id = normalizeResourceId(v);
+      return v !== undefined && v !== null && (id === null || !isUsableResourceId(id));
     });
 
     if (hasPlaceholder) {
@@ -185,7 +192,8 @@ export const validateResourceReadiness = (params: {
     /* Try existing ID but not in context */
     const hasUnknownId = req.existingIdFields.some((field) => {
       const v = task.args[field];
-      return isUsableResourceId(v) && !idSet.has(String(v));
+      const id = normalizeResourceId(v);
+      return id !== null && isUsableResourceId(id) && !idSet.has(id);
     });
 
     if (hasUnknownId) {

@@ -28,6 +28,14 @@ describe("resource-readiness-guard", () => {
       assert.equal(r.ready, true);
     });
 
+    it("schedule_plan accepts a numeric planId present in the context index", () => {
+      const r = validateResourceReadiness({
+        tasks: [{ id: "t1", intent: "schedule_plan", args: { planId: 42 }, dependsOn: [] }],
+        resourceIndex: idx(["42"]),
+      });
+      assert.equal(r.ready, true);
+    });
+
     it("schedule_plan without planId → not ready", () => {
       const r = validateResourceReadiness({
         tasks: [{ id: "t1", intent: "schedule_plan", args: {}, dependsOn: [] }],
@@ -50,6 +58,15 @@ describe("resource-readiness-guard", () => {
       const r = validateResourceReadiness({
         tasks: [{ id: "t1", intent: "schedule_plan", args: { planId: "plan-999" }, dependsOn: [] }],
         resourceIndex: idx(["test-plan-001"]),
+      });
+      assert.equal(r.ready, false);
+      assert.equal(r.issues[0].code, "RESOURCE_ID_NOT_IN_CONTEXT");
+    });
+
+    it("classifies an unknown numeric planId as not in context", () => {
+      const r = validateResourceReadiness({
+        tasks: [{ id: "t1", intent: "schedule_plan", args: { planId: 999 }, dependsOn: [] }],
+        resourceIndex: idx(["42"]),
       });
       assert.equal(r.ready, false);
       assert.equal(r.issues[0].code, "RESOURCE_ID_NOT_IN_CONTEXT");

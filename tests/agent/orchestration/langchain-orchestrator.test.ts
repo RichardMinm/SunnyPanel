@@ -91,6 +91,91 @@ describe("langchain-orchestrator protocol", () => {
     assert.equal("plan" in result, false);
     assert.equal(calls, 2);
   });
+
+  it("allows the explicit evaluation harness to disable all retries", async () => {
+    let calls = 0;
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-14T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [],
+      },
+      message: "制定一个计划",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: () => ({
+        withStructuredOutput: () => ({
+          invoke: async () => {
+            calls += 1;
+            return { version: 1 };
+          },
+        }),
+      }) as unknown as BaseChatModel,
+      structuredRetryBudget: {
+        schema: 0,
+        transport: 0,
+      },
+    });
+
+    assert.equal(result.status, "unavailable");
+    assert.equal(calls, 1);
+  });
+
+  it("returns sanitized resource issue codes for evaluation without retaining model output", async () => {
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-14T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [{ id: 101, priority: "medium", state: "active", title: "考研数学" }],
+      },
+      message: "安排计划",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: () => ({
+        withStructuredOutput: () => ({
+          invoke: async () => ({
+            mode: "single",
+            routingSummary: "安排计划",
+            tasks: [{
+              agentRole: "schedule",
+              args: { planId: 999 },
+              dependsOn: [],
+              id: "t1",
+              intent: "schedule_plan",
+              label: "安排计划",
+            }],
+            version: 1,
+          }),
+        }),
+      }) as unknown as BaseChatModel,
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.deepEqual(result, {
+      reason: "invalid_resource_reference",
+      resourceIssueCodes: ["RESOURCE_ID_NOT_IN_CONTEXT"],
+      safeMessage: "schedule_plan 引用的资源 ID 不在当前上下文中。",
+      status: "unavailable",
+    });
+  });
 });
 
 describe("langchain-orchestrator (schema + mapper contracts)", () => {
