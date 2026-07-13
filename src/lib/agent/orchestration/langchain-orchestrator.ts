@@ -62,6 +62,11 @@ export type OrchestratorFailureReason =
   | "schema_failure"
   | "timeout";
 
+export type OrchestratorDecisionProjection = Readonly<{
+  intents: readonly string[];
+  mode: (typeof ORCHESTRATOR_MODES)[number];
+}>;
+
 export type OrchestratorInvocationResult =
   | { status: "success"; plan: OrchestratorPlan }
   | {
@@ -69,12 +74,16 @@ export type OrchestratorInvocationResult =
       reason: OrchestratorFailureReason;
       resourceIssueCodes?: ResourceReadinessErrorCode[];
       safeMessage: string;
+      schemaValidDecision?: OrchestratorDecisionProjection;
     };
 
 const unavailable = (
   reason: OrchestratorFailureReason,
   safeMessage: string,
-): OrchestratorInvocationResult => ({ reason, safeMessage, status: "unavailable" });
+  schemaValidDecision?: OrchestratorDecisionProjection,
+): OrchestratorInvocationResult => schemaValidDecision
+  ? { reason, safeMessage, schemaValidDecision, status: "unavailable" }
+  : { reason, safeMessage, status: "unavailable" };
 
 const modelErrorReason = (error: ModelError): OrchestratorFailureReason => {
   if (error.code === "MODEL_TIMEOUT") return "timeout";
@@ -341,6 +350,11 @@ export const runLangChainOrchestratorResult = async (
     return unavailable(modelErrorReason(result.error), result.error.safeMessage);
   }
 
+  const schemaValidDecision: OrchestratorDecisionProjection = Object.freeze({
+    intents: Object.freeze(result.data.tasks.map((task) => task.intent)),
+    mode: result.data.mode,
+  });
+
   /* 7. Validate DAG */
   const dagResult = validateTaskDAG(result.data);
 
@@ -349,7 +363,11 @@ export const runLangChainOrchestratorResult = async (
       errors: dagResult.errors,
     });
 
-    return unavailable("invalid_dag", "模型返回的任务依赖关系无效，暂时无法安全重规划。");
+    return unavailable(
+      "invalid_dag",
+      "模型返回的任务依赖关系无效，暂时无法安全重规划。",
+      schemaValidDecision,
+    );
   }
 
   /* 8. Resource Readiness Guard — validate resource references
@@ -378,6 +396,7 @@ export const runLangChainOrchestratorResult = async (
       safeMessage:
         guardResult.issues[0]?.safeMessage
         ?? "没有找到可引用的资源。需要先创建，还是选择其他已有资源？",
+      schemaValidDecision,
       status: "unavailable",
     };
   }

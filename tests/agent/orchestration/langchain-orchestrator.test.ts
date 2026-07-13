@@ -241,8 +241,75 @@ describe("langchain-orchestrator protocol", () => {
       reason: "invalid_resource_reference",
       resourceIssueCodes: ["RESOURCE_ID_NOT_IN_CONTEXT"],
       safeMessage: "schedule_plan 引用的资源 ID 不在当前上下文中。",
+      schemaValidDecision: {
+        intents: ["schedule_plan"],
+        mode: "single",
+      },
       status: "unavailable",
     });
+    assert.doesNotMatch(JSON.stringify(result), /planId|999|安排计划/);
+  });
+
+  it("returns only mode and intents from a schema-valid invalid DAG", async () => {
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-14T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [],
+      },
+      message: "回答两个问题",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: () => ({
+        withStructuredOutput: () => ({
+          invoke: async () => ({
+            mode: "single",
+            routingSummary: "invalid dag sentinel",
+            tasks: [
+              {
+                agentRole: "query",
+                args: { secret: "first-secret" },
+                dependsOn: [],
+                id: "t1",
+                intent: "answer_question",
+                label: "first-label",
+              },
+              {
+                agentRole: "query",
+                args: { secret: "second-secret" },
+                dependsOn: [],
+                id: "t2",
+                intent: "query_plan",
+                label: "second-label",
+              },
+            ],
+            version: 1,
+          }),
+        }),
+      }) as unknown as BaseChatModel,
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.equal(result.status, "unavailable");
+    if (result.status !== "unavailable") return;
+    assert.equal(result.reason, "invalid_dag");
+    assert.deepEqual(result.schemaValidDecision, {
+      intents: ["answer_question", "query_plan"],
+      mode: "single",
+    });
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /first-secret|second-secret|first-label|second-label|invalid dag sentinel|t1|t2/,
+    );
   });
 });
 
