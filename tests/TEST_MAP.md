@@ -170,7 +170,7 @@ Ops tests protect read-only observability. They must not introduce execute or ro
 
 ## E2E
 
-The explicit non-CI Query evaluation command is `env -u DATABASE_URL -u AGENT_DEBUG_LOG AGENT_LIVE_LLM_EVAL=1 AGENT_QUERY_RUNTIME=langchain node --import dotenv/config --import tsx scripts/query-langchain-evaluation.mjs`. It must never run with `DATABASE_URL` set.
+The explicit non-CI Query evaluation command is `env -u AGENT_DEBUG_LOG DATABASE_URL= AGENT_LIVE_LLM_EVAL=1 AGENT_QUERY_RUNTIME=langchain node --import dotenv/config --import tsx scripts/query-langchain-evaluation.mjs`. Setting `DATABASE_URL=` before dotenv loads prevents the local `.env` from restoring a database connection; the script also rejects every non-empty database URL.
 
 | Spec | Requires server | Requires DB | Requires auth | Contract |
 | --- | --- | --- | --- | --- |
