@@ -35,11 +35,11 @@
 
 Add tests proving:
 
-1. unset/unknown/current explicit values resolve to the documented runtime;
+1. before adoption, current values retain current behavior; after adoption, unset resolves to `langchain`, explicit `langchain`/`legacy` remain exact, and unknown/empty resolve to `legacy`;
 2. dispatcher is the only authoritative Orchestrator entry;
 3. incremental/global replan use the injected/selected Orchestrator service, never direct Legacy import;
 4. provider/schema failure produces safe typed clarify and never calls Legacy;
-5. one orchestration decision is made per turn and model-call counts include replan/specialist calls;
+5. role-based call budgets separately count Orchestrator, explicit replan, conversational answer, Query commentary, and specialist calls, with zero unexpected duplicates;
 6. Primary remains unchanged when Shadow/Canary fails.
 
 Run focused tests and confirm they fail for the direct replan bypass before implementation.
@@ -71,7 +71,7 @@ Actions:
 - Modify injection points in `src/lib/agent/chat-pipeline/orchestration-step.ts`
 - Modify `src/lib/agent/langgraph/full-adapter.ts` and/or `orchestration-subgraph.ts` only as required for dependency injection
 
-Replace direct `runOrchestrator` imports with an injected service whose default is `dispatchOrchestrator`. Preserve completed-task observations, resource references, dependency fixups, and deterministic failure strategy. A failed LangChain replan returns a typed safe plan; it never calls Legacy.
+Replace direct `runOrchestrator` imports with an injected service whose default is `dispatchOrchestrator`. Preserve completed-task observations, resource references, dependency fixups, and deterministic failure strategy. Define `ReplanResult` as `success` with a validated `OrchestratorPlan` or `unavailable` with `provider_error | timeout | schema_failure | invalid_dag | invalid_resource_reference` and a safe message. Failure returns this typed safe failure result and preserves the current accepted plan/state: it creates no task, modifies no completed task, executes no replacement plan, performs no automatic within-call retry, and never calls Legacy. The existing pipeline maps the failure to safe unavailable/clarify behavior.
 
 ### Task B4: Specialist duplicate-call accounting and deterministic bypass
 
@@ -81,9 +81,9 @@ Replace direct `runOrchestrator` imports with an injected service whose default 
 - Audit/modify `src/lib/agent/agents/run-specialized-agent.ts`
 - Audit/modify `src/lib/agent/agents/enrich-intent.ts`
 
-L3-B closes duplicate-call risk without migrating a domain specialist. Add whole-turn accounting and a deterministic completeness predicate for each schema-valid Orchestrator task. A complete task skips specialist enrichment; an incomplete task keeps its current known specialist path and is recorded as a remaining Legacy domain seam.
+L3-B closes duplicate-call risk without migrating a domain specialist. Add a `TurnModelCallBudget` that records `orchestratorCalls`, `replanCalls`, `conversationalAnswerCalls`, `queryCommentaryCalls`, `specialistCalls`, and `unexpectedDuplicateCalls`. Enforce at most one Orchestrator call per authoritative attempt, one replan call per explicit replan event, one answer call only when no complete answer exists, one commentary call per eligible Query, one specialist call per task only when deterministic completeness fails, and zero unexpected duplicates. Add a deterministic completeness predicate for each schema-valid Orchestrator task. A complete task skips specialist enrichment; an incomplete task keeps its current known specialist path and is recorded as a remaining Legacy domain seam.
 
-L3-B must not change specialist prompts, domain schemas, domain fallbacks, write workflows, or `completeStructured()` callers. Tests measure the entire turn, prove the complete-task bypass, and prove an incomplete-task route is classified rather than hidden. The L3-B report must state: authoritative Orchestrator default is LangChain, downstream specialist seams may still be Legacy, and whole-system migration is not complete.
+L3-B must not change specialist prompts, domain schemas, domain fallbacks, write workflows, or `completeStructured()` callers. Tests measure the entire turn, prove the complete-task bypass, and prove an incomplete-task route is classified rather than hidden. The L3-B report must include `legacySpecialistCallCount`, `specialistBypassCount`, `specialistRequiredCount`, and `unexpectedDuplicateModelCalls`; only the last must be zero in L3-B. It must also state: authoritative Orchestrator default is LangChain, downstream specialist seams may still be Legacy, and whole-system migration is not complete. L3-D owns `legacySpecialistCallCount = 0`.
 
 ### Task B5: Orchestrator evaluation without default switch
 
@@ -119,7 +119,11 @@ Required contracts:
 - no active answer path uses direct `/chat/completions` HTTP or an empty-stream non-stream second-call fallback;
 - reasoning/thinking blocks are ignored and never emitted or persisted;
 - `tool_call` and `tool_call_chunk` abort the answer stream, are never executed, and cannot contribute later text;
-- current SSE event order, assistant persistence, cancellation, and terminal behavior remain unchanged;
+- before the first text token, Provider error, first/total timeout, tool call/chunk, overflow, cancellation, empty final stream, or invalid content returns `unavailable`, emits no answer text, persists no successful assistant message, sends the existing safe SSE error terminal, sends no later `done`, and never falls back to Legacy;
+- after text emission, the same failures return `incomplete`; already-sent text may remain visible but is never persisted/projected as a completed assistant answer, later chunks are rejected, the existing safe SSE error terminal is sent with no later `done`, and no Legacy fallback occurs;
+- reasoning/thinking blocks are ignored and streaming continues; a tool call immediately maps to `unavailable` before text or `incomplete` after text;
+- `complete` persists the answer, while `unavailable` and `incomplete` use `persist: false`; focused tests identify the existing persistence function/return path and prove no empty or incomplete successful assistant message remains;
+- this partial contract is only for general conversational answers; Query Commentary remains fully buffered with `accepted | omitted` and never exposes partial output;
 - whole-turn accounting distinguishes Orchestrator, answer generation, optional Query commentary, and still-Legacy domain specialist calls.
 
 Do not migrate Planning, Schedule, Memory, Content, Review, or generic specialist schemas in B6. Dead `client.ts` helper deletion remains L3-G work after caller proof.
@@ -128,7 +132,17 @@ Do not migrate Planning, Schedule, Memory, Content, Review, or generic specialis
 
 Re-run the Orchestrator and conversational-answer matrices after B6. Require all safety gates, `providerTransportSuccessRate >= 99%`, `providerTimeoutRate <= 1%`, `orchestratorCompletionRate >= 99%`, conversational TTFT P50/upper-tail `<= 4,000/8,000 ms`, and Orchestrator/answer total P50/upper-tail `<= 8,000/20,000 ms`.
 
-Only after these gates pass, create a separate adoption commit changing the unset Orchestrator default to LangChain while retaining explicit `AGENT_ORCHESTRATOR_RUNTIME=legacy` rollback. Unknown values must fail safely and be tested. Do not delete Legacy or claim downstream specialist migration is complete.
+Only after these gates pass, create a separate adoption commit with this exact resolver table:
+
+```text
+unset    -> langchain
+langchain -> langchain
+legacy   -> legacy
+unknown  -> legacy
+empty    -> legacy
+```
+
+Supported non-empty values may be trimmed/case-normalized. Explicit invalid or empty configuration must not silently select LangChain. Retain `AGENT_ORCHESTRATOR_RUNTIME=legacy` rollback. Do not delete Legacy or claim downstream specialist migration is complete.
 
 ## Phase L3-C — Query default runtime
 
@@ -249,14 +263,14 @@ LangGraph may own sequencing, state transitions, streaming lifecycle, and resume
 
 Define whether in-flight Legacy checkpoints are drained, version-routed, or migrated. Test resume across the supported boundary. Do not delete a node/schema while persisted checkpoints can still require it.
 
-## Phase L3-F — Default switch and soak
+## Phase L3-F — Remaining Default Closure & Global Production Soak
 
-Create one configuration-only/default-adoption change after B–E pass. During a defined soak window collect only redacted counters:
+After B–E pass, create configuration-only/default-adoption changes only for remaining Graph/Domain defaults that were not already switched. Do not repeat the Orchestrator default commit completed in L3-B or the Query runtime/adoption default commit completed in L3-C. Verify those earlier defaults remain effective, then run the global soak and rollback drill. During a defined soak window collect only redacted counters:
 
 - runtime selected per turn;
 - provider/schema/timeout failures;
 - fallback selection before turn;
-- duplicate model calls;
+- role-based model-call counts and unexpected duplicates;
 - latency P50/P95/upper tail, API calls, and cost;
 - read/write/clarify/resource mismatch;
 - task execution and database mutation during evaluation;
@@ -265,6 +279,8 @@ Create one configuration-only/default-adoption change after B–E pass. During a
 Before calling the whole runtime LangChain-default, the active-path inventory must report `activeProductionDirectChatHttpCalls = 0`, `activeProductionCompleteStructuredCalls = 0`, and `activeLegacyChatModelCalls = 0`. Deterministic paths and embedding-only transport are separately classified and do not count as Legacy chat-model calls.
 
 Apply the design's denominators exactly: schema validity is over completed Provider payloads; transport success, timeout, and Orchestrator completion are over all Provider requests or all authoritative observations as defined. Safe typed failure does not count as product completion. Safety failure stops the phase; availability or performance failure blocks the default switch without discarding the safe implementation.
+
+At exactly 99 observations, one timeout is approximately `1.01%`, so the `providerTimeoutRate <= 1%` gate permits zero timeouts. Fix the observation count and timeout/retry policy before evaluation; never add requests after a failure merely to dilute the denominator.
 
 No raw prompt, response, reasoning, workspace record, or secret is collected. Drill rollback using explicit Legacy environment values and record the result.
 
