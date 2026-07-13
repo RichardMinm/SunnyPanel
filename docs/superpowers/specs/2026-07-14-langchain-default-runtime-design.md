@@ -58,6 +58,7 @@ POST /api/agent/chat
 | Module | Current production seam | Class | Model boundary / parser | Side effects | L3 destination |
 |---|---|---|---|---|---|
 | Orchestrator | `orchestration-step` -> `orchestrator-dispatcher` | active production | Legacy `completeStructuredStreaming`; LangChain `invokeStructured` behind flag | produces plans only; downstream may propose/execute | L3-B: make dispatcher the only seam, migrate replan, close prompt/context issues, then switch default |
+| Conversational Answer | pre-resolved `answer_question` -> specialized Query enrichment or already-generated answer; `client.ts::generateStreamingReply` is exported/injected but its current resolver parameter is ignored | active answer surface plus dead/unwired compatibility helper | active specialist answer uses Legacy `completeStructured`; old helper uses direct HTTP/SSE and an empty-stream non-stream fallback | response streaming and assistant persistence only | L3-B B6: establish one authoritative answer-generation decision and migrate any reachable text generation without changing SSE/persistence |
 | Router | Canary/Shadow hook after Primary; old Router V2 in `client.ts` | shadow + compatibility | Shadow uses `invokeStructured`; V2 uses manual parse in old intent resolver | observational hook has none | retain Shadow/Canary off; retire V2 only after no active callers |
 | Query | exact `query_progress` / ID-only `query_plan_progress` guarded dispatcher | active production, opt-in | canonical deterministic facts; LangChain qualitative commentary only | repository reads; no writes | L3-C: parity-gated rollout, then default; keep unsupported variants legacy until migrated |
 | Planning | compose dry-run, plan decomposer, topic inference, readiness clarification | active production | direct HTTP + regex/JSON parser; `completeStructured`; deterministic fallback | creates proposals; execution stays gated | L3-D: structured schemas, deterministic facts/validation, no direct model-to-write |
@@ -142,6 +143,10 @@ Parsing provider SSE frames in `streamChatCompletion`, HTTP response JSON, persi
 
 `session/transition-engine.ts` places first and retry raw model output in its returned trace. It is not currently called by production, so this is not evidence that raw responses are presently persisted. It is, however, a hard wiring/deletion gate: any future production use must remove or redact raw attempts and keep only safe error categories.
 
+### F16 — General conversational answer generation needs an explicit owner
+
+The current `answer_question` surface has two materially different cases: an intent may already carry a complete `reply`/`args.answer`, in which case `resolveLegacyHeuristicStep()` streams that text deterministically; otherwise specialized Query enrichment can generate the answer through Legacy `completeStructured()`. `client.ts::generateStreamingReply()` still contains direct HTTP/SSE text generation and an empty-stream non-stream second call, but repository import tracing found no active production caller: the function is exported and its dependency is threaded through facades, then deliberately ignored by the retired resolver. L3-B must still classify every caller and establish the authoritative answer boundary. It must reuse an existing Primary answer without another model call, use a LangChain text model only when generation is actually required, and leave dead helper deletion to L3-G after proof.
+
 ## 6. Target architecture
 
 ```text
@@ -160,6 +165,10 @@ HTTP/SSE boundary
      -> QueryService
         -> repository -> QueryFacts -> canonical response
         -> optional bounded qualitative LangChain commentary
+     -> ConversationalAnswerService
+        -> reuse already-generated authoritative answer, or
+        -> createChatModel -> validated text-only stream (one call)
+        -> existing SSE + persistence terminal boundary
      -> policy / dry-run / confirmation / executor
      -> receipt / rollback / persistence / finalization
 ```
@@ -180,14 +189,16 @@ The following invariants are non-negotiable across L3:
 8. Query facts are computed deterministically; a model may not recompute or alter them.
 9. Model tool calls are never executed merely because the provider emitted them. Tool exposure and execution remain allowlisted and separately authorized.
 10. A complete turn owns model-call accounting so duplicate Orchestrator/specialist/query calls are visible.
+11. Answer generation is selected once: an already-generated authoritative answer is reused, while a missing answer may trigger at most one text-generation call.
+12. Reasoning and tool-call blocks from a conversational stream are never emitted, persisted, or executed.
 
 ## 8. Migration and default-switch order
 
-1. **L3-B Orchestrator closure:** dispatcher-only access (including replan), context-free schema-derived prompt, minimal untrusted projections, typed failure, call accounting, parity and live evaluation. Switch Orchestrator default only after gates pass.
-2. **L3-C Query closure:** expand only intents with deterministic fact parity; preserve canonical facts; validate persistence/stream terminal states; switch Query default/adoption in a separate change.
+1. **L3-B authoritative surface closure:** first close Orchestrator dispatch/replan and duplicate-call accounting without migrating domain specialists; then close the conversational answer-generation boundary. Switch the Orchestrator default only after both sub-surfaces and Provider gates pass. L3-B completion means the authoritative Orchestrator and general answer surface are LangChain-owned; downstream domain specialist seams may still be Legacy and must be reported as such.
+2. **L3-C Query closure:** expand only intents with deterministic fact parity; preserve canonical-first persistence and normal terminal semantics; classify every active Query as `LANGCHAIN_ENHANCED`, `DETERMINISTIC`, `NOT_PURE_READ`, or `RETIRED`; then switch Query runtime/adoption in a separate change. L3-C exit requires `activeLegacyQueryModelCalls = 0`.
 3. **L3-D specialized workflows:** migrate Planning, Checklist, Schedule, Memory, Content, and Review model seams one bounded domain at a time. Remove direct provider chat calls and model JSON extractors only after tests and live smoke.
 4. **L3-E LangGraph consolidation:** remove duplicate legacy orchestration graphs/facades only after all active nodes call migrated services. Preserve checkpoint compatibility or provide an explicit versioned drain strategy.
-5. **L3-F default and soak:** change defaults separately from implementation. Observe schema rate, fallback, duplicate calls, latency, cost, unsafe adoption, execution, and persistence for a defined window. Roll back through environment/runtime config.
+5. **L3-F global default and soak:** change defaults separately from implementation. Before claiming the whole runtime is LangChain-default, require `activeProductionDirectChatHttpCalls = 0`, `activeProductionCompleteStructuredCalls = 0`, and `activeLegacyChatModelCalls = 0`; deterministic and embedding-only paths are classified separately. Observe schema rate, fallback, duplicate calls, latency, cost, unsafe adoption, execution, and persistence for a defined window. Roll back through environment/runtime config.
 6. **L3-G decommission:** delete Legacy code only after search/caller/telemetry proof and after the rollback window closes.
 
 No phase may combine implementation migration, default switch, and deletion in one commit.
@@ -202,6 +213,8 @@ No phase may combine implementation migration, default switch, and deletion in o
 
 Fallback means selecting a runtime before a turn. Once a LangChain call starts, its schema/provider failure returns a typed safe failure; it does not silently invoke the Legacy model within the same turn.
 
+After the L3-C adoption commit, unset values resolve to `AGENT_QUERY_RUNTIME=langchain` and `AGENT_QUERY_ADOPTION=admin`. The explicit rollback values remain `AGENT_QUERY_RUNTIME=legacy` and `AGENT_QUERY_ADOPTION=off`. Removing the adoption gate is deferred to L3-F or L3-G.
+
 ## 10. Legacy deletion prerequisites
 
 Legacy Orchestrator, Router V2, `completeStructured`, direct chat HTTP helpers, compatibility graph, and manual model JSON parsers may be deleted only when all applicable conditions hold:
@@ -212,6 +225,7 @@ Legacy Orchestrator, Router V2, `completeStructured`, direct chat HTTP helpers, 
 - rollback no longer depends on the implementation;
 - checkpoint/resume compatibility is resolved;
 - no model-output parser, prompt, or schema is referenced by scripts or operational evaluation;
+- runtime inventory reports zero active production direct-chat HTTP calls, `completeStructured()` calls, and Legacy chat-model calls;
 - full test, lint, typecheck, smoke, task-execution, database-mutation, and duplicate-call gates pass;
 - a dedicated deletion commit and rollback plan exist.
 
@@ -224,14 +238,54 @@ Embedding HTTP is not deleted merely because chat completion is migrated; it is 
 | Orchestrator protocol | schema/allowlist same-source, DAG, clarify linkage, untrusted injection, resource references | fixed fixture set, schema pass, semantic mismatch, latency/cost | 100% strict schema; zero unsafe write/resource/injection cases |
 | Runtime dispatch | explicit legacy/langchain, unknown/unset behavior, no within-turn fallback | runtime selection counters | exactly one authoritative implementation per turn |
 | Replan | dispatcher injection, completed-task preservation, no duplicate write | failure scenarios | zero direct Legacy bypass |
-| Specialist agents | one model boundary, strict schemas, base-intent fallback policy | domain smoke | no direct HTTP/manual model JSON parser |
-| Query | facts parity, canonical block invariance, commentary omission, stream/persistence terminal | Legacy vs QueryFacts fixtures | zero fact mismatch and write adoption |
+| Conversational answer | generated-answer reuse, one decision/call, reasoning/tool block rejection, SSE/persistence invariance | consultation and already-answered fixtures | no duplicate answer call; no direct chat HTTP on an active path |
+| Specialist agents | schema-complete deterministic bypass and whole-turn accounting in L3-B; structured migration in L3-D | domain smoke | L3-B records remaining Legacy seams; L3-D removes direct HTTP/manual model JSON parser |
+| Query | facts parity, canonical block invariance, accepted/omitted commentary, canonical-only persistence and normal done | Legacy vs QueryFacts fixtures | zero fact mismatch/write adoption/partial output; one facts load; `activeLegacyQueryModelCalls=0` at L3-C exit |
 | Safety/execution | policy, confirmation, resource guard, executor isolation | task execution/database mutation counters during evaluation | zero unauthorized execution/mutation |
 | LangGraph | node ordering, resume/checkpoint, one-call accounting | soak traces | no duplicate model/domain action |
 | Data protection | collector redaction, context projection, prompt injection | audit sample without raw payloads | no raw prompt/response/reasoning/secret |
 | Rollback | environment resolver tests and legacy compatibility suite | rollback drill | restored known path without migration/schema change |
 
-## 12. L3-A exit assessment
+## 12. Provider adoption gates and denominators
+
+Safety, availability, and product performance are separate verdicts. A safe typed clarify is a safety success but an Orchestrator product-completion failure. No metric uses schema-valid samples as the denominator for transport availability.
+
+### Safety gates — any failure immediately fails the evaluation round
+
+- `completedProviderResponsesSchemaValid = schema-valid completed Provider payloads / completed Provider payloads = 100%`;
+- `safeTypedFailureRate = typed safe failures / all transport, timeout, schema, and validation failures = 100%`;
+- `readToWriteMismatch = 0`;
+- `clarifyToWriteMismatch = 0`;
+- `inventedResource = 0`;
+- `invalidDAG = 0`;
+- `promptInjectionSuccess = 0`;
+- `writeWithoutDraft = 0`;
+- `duplicateModelCall = 0`, measured across the complete turn and excluding explicitly separate optional Query commentary only where its contract permits one call;
+- `businessMutationDuringEvaluation = 0`;
+- raw prompt/response/reasoning/secret retention = 0.
+
+### Availability gates — failure blocks the default switch but preserves the safe implementation
+
+Use the unchanged fixed fixture matrix for three consecutive rounds (at least 99 authoritative Orchestrator observations). Report counts as well as rates:
+
+- `providerTransportSuccessRate = Provider requests that return a completed payload / all Provider requests >= 99%`;
+- `providerTimeoutRate = timed-out Provider requests / all Provider requests <= 1%`;
+- `orchestratorCompletionRate = schema-valid usable Orchestrator plans / all authoritative Orchestrator observations >= 99%`;
+- every original fixed fixture must obtain at least one non-timeout schema-valid result across the three rounds;
+- the single-round fixed-matrix acceptance run still requires every fixture to finish with a schema-valid usable plan before the default commit.
+
+These gates are stricter than the earlier Router Canary evidence, where 4/32 observations timed out at the 8-second boundary, and are consistent with the later Query limited-adoption evidence of 30/30 Provider completions. A transport/schema failure can remain safely isolated while still blocking adoption.
+
+### Performance gates — failure blocks adoption, not implementation
+
+- conversational answer TTFT P50 `<= 4,000 ms` and observed upper tail `<= 8,000 ms`;
+- authoritative Orchestrator total latency P50 `<= 8,000 ms` and observed upper tail `<= 20,000 ms`;
+- end-to-end authoritative answer total latency P50 `<= 8,000 ms` and observed upper tail `<= 20,000 ms`;
+- report Provider calls, usage, and cost, using `N/A` only when metadata is unavailable.
+
+Structured Orchestrator invocation has no user-visible token stream, so TTFT applies to the separate conversational answer stream; Orchestrator reports total invocation latency. The limits reflect the observed Query Provider P50 of about 3.2 seconds and upper tail of about 7.9 seconds while rejecting the earlier Router upper tails near 20–31 seconds as a default-product target. Timeouts and retry budgets are fixed before evaluation and must not be raised to make a report pass.
+
+## 13. L3-A exit assessment
 
 The audit and target design are complete when paired with the implementation plan, but no runtime migration is claimed. Current state remains:
 
