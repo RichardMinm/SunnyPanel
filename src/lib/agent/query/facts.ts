@@ -102,7 +102,10 @@ export const formatPlanProgressAssistantMessage = (facts: PlanProgressFacts) => 
   ].filter(Boolean).join("\n");
 };
 
-const scrub = (value: string) => value.replace(/Bearer\s+\S+|sk-[A-Za-z0-9_-]+/gi, "[REDACTED]");
+const credentialAssignment = /\b((?:[A-Z0-9]+[_-])*(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|secret|token)|providerSecret)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi;
+const scrub = (value: string) => value
+  .replace(/Bearer\s+\S+|sk-[A-Za-z0-9_-]+/gi, "[REDACTED]")
+  .replace(credentialAssignment, "$1=[REDACTED]");
 export const projectQueryFactsForModel = (facts: QueryFacts): unknown => {
   const projected = JSON.parse(JSON.stringify(facts)) as QueryFacts;
   const walk = (value: unknown): unknown => {

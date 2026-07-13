@@ -13,7 +13,7 @@ export const classifyQueryEligibility = (intent: AgentIntent, runtime?: string):
   }
   if (intent.intent === "query_plan_progress") {
     const args = intent.args as { planId?: unknown; planTitle?: unknown };
-    return typeof args.planId === "number" && !args.planTitle
+    return typeof args.planId === "number" && Number.isInteger(args.planId) && args.planId > 0 && !args.planTitle
       ? { eligible: true, runtime: "langchain", intent: "query_plan_progress" }
       : { eligible: false, runtime: "legacy", reason: "unsupported_query_variant" };
   }

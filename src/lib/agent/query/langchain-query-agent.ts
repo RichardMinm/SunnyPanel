@@ -22,10 +22,15 @@ export type RunLangChainQueryInput = {
 export const renderCanonicalFactBlock = (facts: QueryFacts) => {
   if (facts.kind === "aggregate_progress") {
     const s = facts.snapshot.summary;
-    return `\n\n事实：当前 ${s.planCount} 项计划，进行中 ${s.activePlans}，已完成 ${s.completedPlans}；清单条目完成 ${s.completedChecklistItems}/${s.totalChecklistItems}（${toProgressPercent(s.completedChecklistItems, s.totalChecklistItems)}%）。`;
+    const planFacts = `当前 ${s.planCount} 项计划，进行中 ${s.activePlans}，已完成 ${s.completedPlans}`;
+    const checklistFacts = `清单条目完成 ${s.completedChecklistItems}/${s.totalChecklistItems}（${toProgressPercent(s.completedChecklistItems, s.totalChecklistItems)}%）`;
+    if (facts.args.scope === "plans") return `\n\n事实：${planFacts}。`;
+    if (facts.args.scope === "checklists") return `\n\n事实：${checklistFacts}。`;
+    return `\n\n事实：${planFacts}；${checklistFacts}。`;
   }
   const phaseTasks = facts.phases.reduce((sum, phase) => sum + phase.taskCount, 0);
-  return `\n\n事实：计划「${facts.title}」状态为 ${facts.state}，存储进度 ${facts.storedProgressPercent ?? 0}%，共 ${facts.phases.length} 个阶段、${phaseTasks} 个任务。`;
+  const storedProgress = facts.storedProgressPercent === null ? "未记录" : `${facts.storedProgressPercent}%`;
+  return `\n\n事实：计划「${facts.title}」状态为 ${facts.state}，存储进度${storedProgress === "未记录" ? "" : " "}${storedProgress}，共 ${facts.phases.length} 个阶段、${phaseTasks} 个任务。`;
 };
 
 const failure = (code: SafeQueryErrorCode, emitted: boolean, modelCalls: 0 | 1): QueryStreamTerminalState => emitted

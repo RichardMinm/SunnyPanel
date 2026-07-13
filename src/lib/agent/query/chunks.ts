@@ -10,6 +10,6 @@ export const classifyQueryChunk = (chunk: AIMessageChunk): QueryChunkClassificat
     ? blocks.filter((block): block is Extract<typeof block, { type: "text" }> => block.type === "text").map((block) => block.text).join("")
     : typeof chunk.content === "string" ? chunk.content : "";
   if (!text) return { kind: "ignore" };
-  if (/\d/.test(text)) return { kind: "violation", code: "numeric_output" };
+  if (/\p{Nd}/u.test(text)) return { kind: "violation", code: "numeric_output" };
   return { kind: "text", text };
 };
