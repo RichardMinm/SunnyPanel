@@ -82,7 +82,7 @@ export type ResolveIntentStepParams = {
   thread: AgentThread;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
-  user: { id: number };
+  user: { collection?: "users"; id: number };
   userPreferences?: import("@/lib/agent/user-preferences").UserPreferences | null;
   workbenchMode?: AgentWorkbenchMode | null;
   writingAssistRunner?: (request: WritingAssistRequest) => Promise<WritingAssistResult>;

@@ -1,4 +1,7 @@
-import type { QueryRuntime } from "./types";
+import type { QueryAdoption, QueryRuntime } from "./types";
+
+export const resolveQueryAdoption = (value = process.env.AGENT_QUERY_ADOPTION): QueryAdoption =>
+  value === "admin" ? "admin" : "off";
 
 export const resolveQueryRuntime = (value = process.env.AGENT_QUERY_RUNTIME): QueryRuntime =>
   value === "langchain" ? "langchain" : "legacy";

@@ -240,6 +240,8 @@ test("dispatch emits and persists canonical first with optional accepted comment
   const emitted: string[] = [];
   let factsLoads = 0;
   const result = await dispatchPreResolvedQuery({
+    actor: { isAdmin: true },
+    adoption: "admin",
     emitToken: (value) => emitted.push(value),
     intent: planIntent,
     loadFacts: async () => { factsLoads += 1; return planFacts(); },
@@ -262,6 +264,8 @@ test("commentary timeout or validation omission still completes and persists can
     let legacyCalls = 0;
     const emitted: string[] = [];
     const result = await dispatchPreResolvedQuery({
+      actor: { isAdmin: true },
+      adoption: "admin",
       emitToken: (value) => emitted.push(value),
       intent: planIntent,
       loadFacts: async () => planFacts(),

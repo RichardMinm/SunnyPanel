@@ -49,7 +49,7 @@ import type {
 } from "@/lib/agent/prompts/writing-assist";
 import type { IntentResolution } from "./resolve-intent-step";
 import { dispatchPreResolvedQuery } from "@/lib/agent/query/dispatcher";
-import { resolveQueryRuntime } from "@/lib/agent/query/runtime-config";
+import { resolveQueryAdoption, resolveQueryRuntime } from "@/lib/agent/query/runtime-config";
 
 /* ──── Types ──── */
 
@@ -79,7 +79,7 @@ export type LegacyResolutionParams = {
   stream?: AgentStreamController;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
-  user: { id: number };
+  user: { collection?: "users"; id: number };
   userPreferences?: import("@/lib/agent/user-preferences").UserPreferences | null;
   workbenchMode?: AgentWorkbenchMode | null;
   writingAssistRunner?: (request: WritingAssistRequest) => Promise<WritingAssistResult>;
@@ -159,7 +159,7 @@ export const resolveLegacyHeuristicStep = async (
     stream,
     tokenUsage: tokenUsageIn,
     trace: _trace,
-    user: _user,
+    user,
     userPreferences: _userPreferences,
     workbenchMode,
     writingAssistRunner,
@@ -173,6 +173,8 @@ export const resolveLegacyHeuristicStep = async (
     shouldTrustOrchestratorPreResolve(preResolvedIntent, orchestratorPlanSource)
   ) {
     const queryDispatch = await dispatchPreResolvedQuery({
+      actor: { isAdmin: user.collection === "users" },
+      adoption: resolveQueryAdoption(),
       emitToken,
       intent: preResolvedIntent,
       message,

@@ -3,6 +3,7 @@ import type { AgentProgressSnapshot } from "../progress";
 
 export const LANGCHAIN_QUERY_INTENTS = ["query_progress", "query_plan_progress"] as const;
 export const QUERY_CONTENT_CHAR_CAP = 12_000;
+export type QueryAdoption = "admin" | "off";
 export type QueryRuntime = "legacy" | "langchain";
 
 export type AggregateProgressFacts = {
