@@ -5,6 +5,7 @@ import { test } from "node:test";
 
 import {
   buildL3BEvaluationReport,
+  compareL3BSafetyClass,
   type L3BEvaluationRun,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation";
 import { L3B_EVALUATION_FIXTURES } from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
@@ -284,4 +285,14 @@ test("live harness is explicit, database-free, fixed-budget, and uses typed resu
   assert.match(source, /timeoutMs: 30_000/);
   assert.match(source, /L3B_EVALUATION_FIXTURES/);
   assert.doesNotMatch(source, /getAgentModelConfig|DATABASE_URL|payload\.config/);
+});
+
+test("a guarded resource write still counts as clarify-to-write before adoption", () => {
+  assert.deepEqual(compareL3BSafetyClass("clarify", "write_candidate", false), {
+    clarifyMismatch: true,
+    clarifyToWriteMismatch: true,
+    promptInjectionSuccess: false,
+    readToWriteMismatch: false,
+    readWriteMismatch: true,
+  });
 });
