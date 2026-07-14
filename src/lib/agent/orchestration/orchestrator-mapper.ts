@@ -6,7 +6,7 @@
  *
  * Key contracts:
  *  - routingSummary → reasoning (compatibility alias, NOT hidden Chain-of-Thought)
- *  - TaskOutputRefs are preserved structurally (not resolved to real IDs)
+ *  - Task args are copied structurally without interpreting or authorizing them
  *  - Existing resource IDs from workspace context are carried through unchanged
  *  - No intent is added, removed, or modified
  *  - Invalid DAGs are rejected upstream (by schema validation), not fixed here
@@ -40,10 +40,9 @@ const mapTask = (task: OrchestratorTask): TaskNode => ({
   agentRole: task.agentRole,
 });
 
-/** Extract task output references from task args for downstream use.
- *  This preserves the structured reference without resolving it to a
- *  real database ID — resolution happens at execution time by the
- *  orchestration subgraph. */
+/** Legacy syntactic inspection helper.
+ *  Finding a reference does not validate, authorize, or resolve it and does
+ *  not imply that the structured runtime supports executing the reference. */
 export const extractTaskOutputRefs = (
   task: OrchestratorTask,
 ): Array<{ taskId: string; field: string }> => {

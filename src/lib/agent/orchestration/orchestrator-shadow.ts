@@ -18,7 +18,12 @@
 
 import type { OrchestratorPlan } from "./types";
 import type { OrchestratorOutput } from "../llm/schemas/orchestrator-output";
-import { orchestratorOutputSchema, validateTaskDAG } from "../llm/schemas/orchestrator-output";
+import {
+  ORCHESTRATOR_OUTPUT_SCHEMA_VERSION,
+  orchestratorOutputSchema,
+  validateTaskDAG,
+} from "../llm/schemas/orchestrator-output";
+import { CONSULTATION_INTENTS } from "./orchestrator-decision-consistency";
 import { classifyIntents, type SafetyClass } from "./safety-classifier";
 
 /* ---- Feature flag ---- */
@@ -104,6 +109,20 @@ const extractResourceIds = (plan: OrchestratorPlan): string[] => {
 const normalizeMode = (mode: string): string =>
   mode === "single" || mode === "compound" ? mode : "unknown";
 
+const decisionCodeForPlan = (plan: OrchestratorPlan): OrchestratorOutput["decisionCode"] => {
+  if (plan.mode === "compound") return "compound_ready";
+  const intents = extractIntents(plan);
+  const safetyClass = classifyIntents(intents);
+  if (safetyClass === "write_candidate" || safetyClass === "mixed") {
+    return "explicit_write_ready";
+  }
+  if (safetyClass === "clarify") return "unsupported_request";
+  const consultationIntents = new Set<string>(CONSULTATION_INTENTS);
+  return intents.every((intent) => consultationIntents.has(intent))
+    ? "pure_consultation"
+    : "pure_read_query";
+};
+
 /** Build the primary side of the comparison from a plan. */
 const buildPrimarySide = (plan: OrchestratorPlan) => {
   const intents = extractIntents(plan);
@@ -123,7 +142,8 @@ const buildPrimarySide = (plan: OrchestratorPlan) => {
 const validateStrict = (plan: OrchestratorPlan): { valid: boolean; errors: string[] } => {
   /* Convert to OrchestratorOutput shape for Zod validation */
   const output: OrchestratorOutput = {
-    version: 1,
+    version: ORCHESTRATOR_OUTPUT_SCHEMA_VERSION,
+    decisionCode: decisionCodeForPlan(plan),
     mode: plan.mode as "compound" | "single",
     routingSummary: plan.reasoning.slice(0, 80),
     tasks: plan.tasks.map((t) => ({

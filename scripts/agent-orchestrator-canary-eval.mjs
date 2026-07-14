@@ -25,14 +25,21 @@ const [
   { buildWorkspaceContext, runLangChainOrchestratorResult },
   { createModelCallBudgetRecorder },
   { L3B_EVALUATION_FIXTURES, L3B_KNOWN_ID_DIAGNOSTICS },
+  { ORCHESTRATOR_DECISION_CODES },
   {
     assertSanitizedL3BReport,
+    assertL3BStabilityPrerequisite,
+    buildL3BDiagnosticStatus,
     buildL3BEvaluationReport,
+    combineL3BTopLevelPass,
     compareL3BSafetyClass,
+    forbiddenReportKey,
+    resolveL3BEvaluationGateStage,
     selectL3BEvaluationFixtures,
     writeSanitizedL3BReport,
   },
   { classifySemanticDisagreement, summarizeSemanticDisagreements },
+  { CONSULTATION_INTENTS },
   { L3B_EVALUATION_CONFIG, L3B_EVALUATION_CONFIG_HASH },
   { classifyIntents },
 ] = await Promise.all([
@@ -43,8 +50,10 @@ const [
   import("../src/lib/agent/orchestration/langchain-orchestrator.ts"),
   import("../src/lib/agent/orchestration/model-call-budget.ts"),
   import("../src/lib/agent/orchestration/l3b-evaluation-fixtures.ts"),
+  import("../src/lib/agent/llm/schemas/orchestrator-output.ts"),
   import("../src/lib/agent/orchestration/l3b-evaluation.ts"),
   import("../src/lib/agent/orchestration/l3b-semantic-evidence.ts"),
+  import("../src/lib/agent/orchestration/orchestrator-decision-consistency.ts"),
   import("../src/lib/agent/orchestration/l3b-evaluation-config.ts"),
   import("../src/lib/agent/orchestration/safety-classifier.ts"),
 ]);
@@ -53,15 +62,19 @@ const selectedFixtures = selectL3BEvaluationFixtures(
   L3B_EVALUATION_FIXTURES,
   process.env.L3B_EVAL_FIXTURE_IDS,
 );
+const gateStage = resolveL3BEvaluationGateStage({
+  fixtures: L3B_EVALUATION_FIXTURES,
+  rounds,
+  selectedFixtures,
+});
 
-if (
-  rounds === 3
-  && process.env.L3B_ACCEPTANCE_CONFIG_HASH !== L3B_EVALUATION_CONFIG_HASH
-) {
-  throw new Error(
-    "L3B stability requires L3B_ACCEPTANCE_CONFIG_HASH from a passing single-round acceptance run",
-  );
-}
+assertL3BStabilityPrerequisite({
+  acceptanceConfigHash: process.env.L3B_ACCEPTANCE_CONFIG_HASH,
+  evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
+  fixtures: L3B_EVALUATION_FIXTURES,
+  rounds,
+  selectedFixtures,
+});
 
 const modelConfig = createModelConfig({
   apiKey,
@@ -129,6 +142,7 @@ const emptyRun = (fixture, round) => ({
   completedProviderResponses: 0,
   costUsd: null,
   databaseMutation: false,
+  decisionConsistencyError: null,
   failureEvents: 0,
   fixtureId: fixture.id,
   hadTransportFailure: false,
@@ -163,16 +177,19 @@ const emptyRun = (fixture, round) => ({
   replanLogicalCalls: 0,
   replanProviderAttempts: 0,
   resourceMismatch: false,
+  resourceConflict: false,
   retryReasonDistribution: {},
   round,
   schemaCompletedResponses: 0,
   schemaValidResponses: 0,
+  semanticDecisionCorrect: false,
   semanticProjection: null,
   specialistBypassCount: 0,
   specialistLogicalCalls: 0,
   specialistProviderAttempts: 0,
   specialistRequiredCount: 0,
   taskExecution: false,
+  taskOutputReferenceUnsupported: false,
   typedFailureEvents: 0,
   unexpectedDuplicateModelCalls: 0,
   unexpectedWriteCandidate: false,
@@ -212,15 +229,31 @@ const observeOrchestratorAttempt = (run, recorder) => {
   };
 };
 
+const expectedDecisionCode = (fixture) => {
+  if (fixture.expected.mode === "compound") return "compound_ready";
+  if (fixture.expected.safetyClass === "read") {
+    return fixture.tag === "consultation" ? "pure_consultation" : "pure_read_query";
+  }
+  if (fixture.expected.safetyClass === "write_candidate") return "explicit_write_ready";
+  if (fixture.tag === "compound") return "compound_missing_target";
+  if (fixture.tag === "clarify") return "unsupported_request";
+  return "explicit_write_missing_resource";
+};
+
 const applySemanticDecision = (run, fixture, decision) => {
   const actualSafetyClass = classifyIntents(decision.intents);
+  if (!ORCHESTRATOR_DECISION_CODES.includes(decision.decisionCode)) {
+    run.rawRetention = true;
+    return;
+  }
   run.semanticProjection = Object.freeze({
-    decisionCode: decision.decisionCode ?? "not_available_pre_r1",
+    decisionCode: decision.decisionCode,
     intents: Object.freeze([...decision.intents]),
     mode: decision.mode,
     safetyClass: actualSafetyClass,
     taskCount: decision.taskCount ?? decision.intents.length,
   });
+  run.semanticDecisionCorrect = decision.decisionCode === expectedDecisionCode(fixture);
   const expected = fixture.expected;
   run.modeMismatch = decision.mode !== expected.mode;
   run.intentMismatch = !expected.intents.includes(decision.intents[0] ?? "");
@@ -237,13 +270,7 @@ const applySemanticDecision = (run, fixture, decision) => {
     && (actualSafetyClass === "write_candidate" || actualSafetyClass === "mixed");
 };
 
-const consultationIntents = new Set([
-  "answer_question",
-  "compare_concepts",
-  "explain_concept",
-  "give_examples",
-  "give_learning_path",
-]);
+const consultationIntents = new Set(CONSULTATION_INTENTS);
 
 const expectedRequestClass = (fixture) => {
   if (fixture.expected.mode === "compound") return "compound";
@@ -312,6 +339,10 @@ const classifyMismatch = (run) => {
 const applyResourceIssues = (run, codes = []) => {
   run.invalidResourceReference = codes.length > 0;
   run.resourceMismatch = codes.length > 0;
+  run.resourceConflict = codes.includes("RESOURCE_TITLE_CONFLICT");
+  run.taskOutputReferenceUnsupported = codes.includes(
+    "RESOURCE_OUTPUT_REF_UNSUPPORTED",
+  );
   run.inventedResource = codes.some((code) =>
     code === "RESOURCE_ID_NOT_IN_CONTEXT" || code === "RESOURCE_KIND_MISMATCH");
   run.outsideAllowedResourceIds = codes.includes("RESOURCE_ID_NOT_IN_CONTEXT");
@@ -372,15 +403,20 @@ for (let round = 1; round <= rounds; round += 1) {
         run.schemaValidResponses = 1;
         applySemanticDecision(run, fixture, result.schemaValidDecision);
       }
+      if (result.decisionConsistencyError) {
+        run.decisionConsistencyError = result.decisionConsistencyError;
+      }
       if (result.reason === "invalid_resource_reference") {
         applyResourceIssues(run, result.resourceIssueCodes);
       }
     } else {
       const plan = result.plan;
-      const intents = plan.tasks.map((task) => task.intent);
       run.schemaCompletedResponses = 1;
       run.schemaValidResponses = 1;
-      applySemanticDecision(run, fixture, { intents, mode: plan.mode });
+      if (!result.schemaValidDecision) {
+        throw new Error("Successful R1 Orchestrator result omitted its semantic projection");
+      }
+      applySemanticDecision(run, fixture, result.schemaValidDecision);
 
       const knownIds = knownResourceIds(fixture);
       const referencedIds = plan.tasks.flatMap((task) =>
@@ -478,6 +514,7 @@ for (let round = 1; round <= rounds; round += 1) {
     run.unexpectedDuplicateModelCalls = budget.unexpectedDuplicateModelCalls;
     run.providerRequests = run.providerAttempts;
     run.apiCalls = run.providerAttempts;
+    run.rawRetention ||= forbiddenReportKey(run, "run", false) !== null;
     runs.push(run);
     console.log(
       `${fixture.id}#${round}: ${run.orchestratorUsable ? "OK" : "OBSERVED"}`
@@ -546,16 +583,21 @@ const runKnownIdDiagnostic = async (diagnostic) => {
   };
 };
 
-const knownIdDiagnostics = rounds === 1
+const knownIdDiagnostics = gateStage === "acceptance"
   ? await Promise.all(L3B_KNOWN_ID_DIAGNOSTICS.map(runKnownIdDiagnostic))
   : [];
 
 const gating = buildL3BEvaluationReport(runs, {
   expectedFixtureIds: selectedFixtures.map((fixture) => fixture.id),
+  gateStage,
   minimumObservations: selectedFixtures.length * rounds,
   minimumRounds: rounds,
 });
-const pass = gating.pass;
+const diagnosticStatus = buildL3BDiagnosticStatus(knownIdDiagnostics, {
+  expectedDiagnostics: L3B_KNOWN_ID_DIAGNOSTICS.length,
+  required: gateStage === "acceptance",
+});
+const pass = combineL3BTopLevelPass(gating.pass, diagnosticStatus);
 const safeGating = {
   evaluationConfig: {
     answerOutputBudget: gating.evaluationConfig.answerOutputBudget,
@@ -565,12 +607,14 @@ const safeGating = {
     schemaVersion: gating.evaluationConfig.schemaVersion,
   },
   failureReasons: gating.failureReasons,
+  gateStage: gating.gateStage,
   metrics: gating.metrics,
   pass: gating.pass,
   semanticDisagreements: gating.semanticDisagreements,
   semanticDisagreementSummary: gating.semanticDisagreementSummary,
 };
 const report = {
+  diagnosticStatus,
   gating: safeGating,
   knownIdDiagnostics,
   observations: runs.map(({ fixtureId, round, semanticProjection }) => ({

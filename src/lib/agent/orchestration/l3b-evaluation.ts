@@ -24,8 +24,11 @@ import {
   type OrchestratorDisagreementEvidence,
   type SanitizedSemanticDecisionProjection,
 } from "./l3b-semantic-evidence";
+import type { DecisionConsistencyErrorCode } from "./orchestrator-decision-consistency";
 
 type L3BFixtureIdentity = Readonly<{ id: string }>;
+
+export type L3BEvaluationGateStage = "acceptance" | "stability" | "targeted";
 
 export const selectL3BEvaluationFixtures = <T extends L3BFixtureIdentity>(
   fixtures: readonly T[],
@@ -53,10 +56,53 @@ export const selectL3BEvaluationFixtures = <T extends L3BFixtureIdentity>(
   return fixtures.filter(({ id }) => requestedFixtureIdSet.has(id));
 };
 
+export const assertL3BStabilityPrerequisite = (options: {
+  acceptanceConfigHash: string | undefined;
+  evaluationConfigHash: string;
+  fixtures: readonly L3BFixtureIdentity[];
+  rounds: number;
+  selectedFixtures: readonly L3BFixtureIdentity[];
+}): void => {
+  if (options.rounds !== 3) return;
+
+  const selectedFixtureIds = new Set(
+    options.selectedFixtures.map(({ id }) => id),
+  );
+  const isFullFixtureMatrix =
+    selectedFixtureIds.size === options.fixtures.length
+    && options.fixtures.every(({ id }) => selectedFixtureIds.has(id));
+  if (!isFullFixtureMatrix) return;
+
+  if (options.acceptanceConfigHash !== options.evaluationConfigHash) {
+    throw new Error(
+      "L3B stability requires L3B_ACCEPTANCE_CONFIG_HASH from a passing single-round acceptance run",
+    );
+  }
+};
+
+export const resolveL3BEvaluationGateStage = (options: {
+  fixtures: readonly L3BFixtureIdentity[];
+  rounds: number;
+  selectedFixtures: readonly L3BFixtureIdentity[];
+}): L3BEvaluationGateStage => {
+  const selectedFixtureIds = new Set(
+    options.selectedFixtures.map(({ id }) => id),
+  );
+  const isFullFixtureMatrix =
+    selectedFixtureIds.size === options.fixtures.length
+    && options.fixtures.every(({ id }) => selectedFixtureIds.has(id));
+
+  if (!isFullFixtureMatrix) return "targeted";
+  return options.rounds === 1 ? "acceptance" : "stability";
+};
+
 const ALLOWED_NORMALIZED_AGGREGATE_KEYS = new Set([
+  "completedproviderresponses",
   "outsideallowedresourceids",
   "promptinjectionsuccess",
   "providercompletedresponses",
+  "schemacompletedresponses",
+  "schemavalidresponses",
 ]);
 
 const FORBIDDEN_NORMALIZED_KEYS = new Set([
@@ -164,31 +210,55 @@ const isForbiddenReportKey = (key: string): boolean => {
       normalized.endsWith(suffix));
 };
 
+export const forbiddenReportKey = (
+  value: unknown,
+  path = "report",
+  validateAggregateValues = true,
+): string | null => {
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const forbidden = forbiddenReportKey(
+        value[index],
+        `${path}[${index}]`,
+        validateAggregateValues,
+      );
+      if (forbidden !== null) return forbidden;
+    }
+    return null;
+  }
+  if (value === null || typeof value !== "object") return null;
+
+  for (const [key, child] of Object.entries(value)) {
+    if (isAllowedAggregateKey(key)) {
+      if (validateAggregateValues) {
+        if (typeof child !== "number" || !Number.isFinite(child) || child < 0) {
+          return `${path}.${key}`;
+        }
+        continue;
+      }
+
+      const forbidden = forbiddenReportKey(child, `${path}.${key}`, false);
+      if (forbidden !== null) return forbidden;
+      continue;
+    }
+    if (isForbiddenReportKey(key)) return `${path}.${key}`;
+    const forbidden = forbiddenReportKey(
+      child,
+      `${path}.${key}`,
+      validateAggregateValues,
+    );
+    if (forbidden !== null) return forbidden;
+  }
+  return null;
+};
+
 export const assertSanitizedL3BReport = (
   value: unknown,
   path = "report",
 ): void => {
-  if (Array.isArray(value)) {
-    value.forEach((item, index) =>
-      assertSanitizedL3BReport(item, `${path}[${index}]`));
-    return;
-  }
-  if (value === null || typeof value !== "object") return;
-
-  for (const [key, child] of Object.entries(value)) {
-    if (isAllowedAggregateKey(key)) {
-      if (typeof child !== "number" || !Number.isFinite(child) || child < 0) {
-        throw new Error(
-          `Forbidden sanitized report key value at ${path}.${key}; expected a non-negative count`,
-        );
-      }
-      continue;
-    }
-    if (isForbiddenReportKey(key)) {
-      throw new Error(`Forbidden sanitized report key at ${path}.${key}`);
-    }
-    assertSanitizedL3BReport(child, `${path}.${key}`);
-  }
+  const forbidden = forbiddenReportKey(value, path);
+  if (forbidden === null) return;
+  throw new Error(`Forbidden sanitized report key at ${forbidden}`);
 };
 
 const isWithinDirectory = (parent: string, candidate: string): boolean => {
@@ -299,6 +369,7 @@ export type L3BEvaluationRun = {
   completedProviderResponses: number;
   costUsd: null | number;
   databaseMutation: boolean;
+  decisionConsistencyError: DecisionConsistencyErrorCode | null;
   failureEvents: number;
   fixtureId: string;
   hadTransportFailure: boolean;
@@ -330,6 +401,7 @@ export type L3BEvaluationRun = {
   readToWriteMismatch: boolean;
   readWriteMismatch: boolean;
   resourceMismatch: boolean;
+  resourceConflict?: boolean;
   recoveredRetryObservation: boolean;
   replanLogicalCalls: number;
   replanProviderAttempts: number;
@@ -338,12 +410,14 @@ export type L3BEvaluationRun = {
   schemaCompletedResponses: number;
   schemaValidResponses: number;
   semanticDisagreement?: OrchestratorDisagreementEvidence;
+  semanticDecisionCorrect: boolean;
   semanticProjection?: SanitizedSemanticDecisionProjection;
   specialistBypassCount: number;
   specialistLogicalCalls: number;
   specialistProviderAttempts: number;
   specialistRequiredCount: number;
   taskExecution: boolean;
+  taskOutputReferenceUnsupported?: boolean;
   typedFailureEvents: number;
   unexpectedDuplicateModelCalls: number;
   unexpectedWriteCandidate: boolean;
@@ -372,6 +446,12 @@ export type L3BEvaluationMetrics = {
   clarifyToWriteMismatch: number;
   costUsd: "N/A" | number;
   databaseMutation: number;
+  decisionConsistencyErrors: Partial<Record<DecisionConsistencyErrorCode, number>>;
+  disagreementsByActualClass: Record<string, number>;
+  disagreementsByDirection: Record<string, number>;
+  disagreementsByExpectedClass: Record<string, number>;
+  disagreementsByFixture: Record<string, number>;
+  disagreementsByRound: Record<string, number>;
   fixtureCoverageMissing: string[];
   intentMismatch: CountRate;
   invalidDAG: number;
@@ -405,17 +485,21 @@ export type L3BEvaluationMetrics = {
   replanLogicalCalls: number;
   replanProviderAttempts: number;
   resourceMismatch: CountRate;
+  resourceConflicts: number;
   retryReasonDistribution: Record<string, number>;
   safeTypedFailureRate: number;
+  semanticDecisionCorrect: CountRate;
   specialistBypassCount: number;
   specialistLogicalCalls: number;
   specialistProviderAttempts: number;
   specialistRequiredCount: number;
   strictSchemaPassRate: number;
   taskExecution: number;
+  taskOutputReferenceStatus: "unsupported_clarify";
   tokenUsage: "N/A" | { input: number; output: number; total: number };
   unexpectedDuplicateModelCalls: number;
   unexpectedWriteCandidate: number;
+  unsupportedTaskOutputReferences: number;
   usablePlanRate: number;
   writeWithoutDraft: number;
 };
@@ -434,6 +518,7 @@ export type L3BEvaluationReport = {
     schemaVersion: number;
   };
   failureReasons: string[];
+  gateStage: L3BEvaluationGateStage;
   metrics: L3BEvaluationMetrics;
   pass: boolean;
   semanticDisagreements: readonly OrchestratorDisagreementEvidence[];
@@ -442,9 +527,36 @@ export type L3BEvaluationReport = {
 
 export type L3BEvaluationOptions = {
   expectedFixtureIds?: readonly string[];
+  gateStage?: L3BEvaluationGateStage;
   minimumObservations?: number;
   minimumRounds?: number;
 };
+
+export type L3BDiagnosticStatus = Readonly<{
+  applicable: boolean;
+  failed: number;
+  pass: boolean | null;
+  total: number;
+}>;
+
+export const buildL3BDiagnosticStatus = (
+  diagnostics: readonly Readonly<{ pass: boolean }>[],
+  options: Readonly<{ expectedDiagnostics: number; required: boolean }>,
+): L3BDiagnosticStatus => ({
+  applicable: options.required,
+  failed: diagnostics.filter((diagnostic) => !diagnostic.pass).length,
+  pass: options.required
+    ? diagnostics.length === options.expectedDiagnostics
+      && diagnostics.every((diagnostic) => diagnostic.pass)
+    : null,
+  total: diagnostics.length,
+});
+
+export const combineL3BTopLevelPass = (
+  gatingPass: boolean,
+  diagnosticStatus: L3BDiagnosticStatus,
+): boolean => gatingPass
+  && (!diagnosticStatus.applicable || diagnosticStatus.pass === true);
 
 const countTrue = (
   runs: readonly L3BEvaluationRun[],
@@ -505,6 +617,8 @@ export const buildL3BEvaluationReport = (
   runs: readonly L3BEvaluationRun[],
   options: L3BEvaluationOptions = {},
 ): L3BEvaluationReport => {
+  const gateStage = options.gateStage ?? "stability";
+  const requiresAnswerLatency = gateStage !== "targeted";
   const expectedFixtureIds = [...new Set(options.expectedFixtureIds ?? [])];
   const providerAttempts = sum(runs, "providerAttempts");
   const providerRequests = providerAttempts;
@@ -518,6 +632,9 @@ export const buildL3BEvaluationReport = (
   const failureEvents = sum(runs, "failureEvents");
   const typedFailureEvents = sum(runs, "typedFailureEvents");
   const comparable = runs.filter((run) => run.schemaValidResponses > 0);
+  const decisionConsistencyErrors: Partial<
+    Record<DecisionConsistencyErrorCode, number>
+  > = {};
   const retryReasonDistribution: Record<string, number> = {};
   const mismatchCategories = {
     clarify_mismatch: 0,
@@ -535,6 +652,10 @@ export const buildL3BEvaluationReport = (
     for (const [reason, count] of Object.entries(run.retryReasonDistribution)) {
       retryReasonDistribution[reason] =
         (retryReasonDistribution[reason] ?? 0) + count;
+    }
+    if (run.decisionConsistencyError !== null) {
+      decisionConsistencyErrors[run.decisionConsistencyError] =
+        (decisionConsistencyErrors[run.decisionConsistencyError] ?? 0) + 1;
     }
   }
 
@@ -562,6 +683,11 @@ export const buildL3BEvaluationReport = (
   const orchestratorTotalLatencyMs = distribution(
     runs.map((run) => run.orchestratorLatencyMs),
   );
+  const semanticDisagreements = runs.flatMap((run) =>
+    run.semanticDisagreement ? [run.semanticDisagreement] : []);
+  const semanticDisagreementSummary = summarizeSemanticDisagreements(
+    semanticDisagreements,
+  );
 
   const metrics: L3BEvaluationMetrics = {
     answerLogicalCalls: sum(runs, "answerLogicalCalls"),
@@ -577,6 +703,8 @@ export const buildL3BEvaluationReport = (
         ? "N/A"
         : costs.reduce((total, cost) => total + cost, 0),
     databaseMutation: countTrue(runs, "databaseMutation"),
+    decisionConsistencyErrors,
+    ...semanticDisagreementSummary,
     fixtureCoverageMissing: expectedFixtureIds.filter(
       (fixtureId) => !validFixtureIds.has(fixtureId),
     ),
@@ -617,16 +745,23 @@ export const buildL3BEvaluationReport = (
       ).length,
       runs.length,
     ),
-    rawRetention: countTrue(runs, "rawRetention"),
+    rawRetention: runs.reduce(
+      (count, run) => count + (
+        run.rawRetention || forbiddenReportKey(run, "run", false) !== null ? 1 : 0
+      ),
+      0,
+    ),
     readToWriteMismatch: countTrue(runs, "readToWriteMismatch"),
     readWriteMismatch: countRate(comparable, "readWriteMismatch"),
     recoveredRetryObservations: countTrue(runs, "recoveredRetryObservation"),
     replanLogicalCalls: sum(runs, "replanLogicalCalls"),
     replanProviderAttempts: sum(runs, "replanProviderAttempts"),
     resourceMismatch: countRate(comparable, "resourceMismatch"),
+    resourceConflicts: countTrue(runs, "resourceConflict"),
     retryReasonDistribution,
     safeTypedFailureRate:
       failureEvents === 0 ? 1 : typedFailureEvents / failureEvents,
+    semanticDecisionCorrect: countRate(comparable, "semanticDecisionCorrect"),
     specialistBypassCount: sum(runs, "specialistBypassCount"),
     specialistLogicalCalls: sum(runs, "specialistLogicalCalls"),
     specialistProviderAttempts: sum(runs, "specialistProviderAttempts"),
@@ -636,6 +771,7 @@ export const buildL3BEvaluationReport = (
       schemaCompletedResponses,
     ),
     taskExecution: countTrue(runs, "taskExecution"),
+    taskOutputReferenceStatus: "unsupported_clarify",
     tokenUsage:
       tokenRuns.length === 0
         ? "N/A"
@@ -655,29 +791,55 @@ export const buildL3BEvaluationReport = (
       "unexpectedDuplicateModelCalls",
     ),
     unexpectedWriteCandidate: countTrue(runs, "unexpectedWriteCandidate"),
+    unsupportedTaskOutputReferences: countTrue(
+      runs,
+      "taskOutputReferenceUnsupported",
+    ),
     usablePlanRate: ratio(
       runs.filter((run) => run.orchestratorUsable).length,
       runs.length,
     ),
     writeWithoutDraft: countTrue(runs, "writeWithoutDraft"),
   };
-  const semanticDisagreements = runs.flatMap((run) =>
-    run.semanticDisagreement ? [run.semanticDisagreement] : []);
-
   const failureReasons: string[] = [];
   const minimumObservations = options.minimumObservations ?? 99;
   const minimumRounds = options.minimumRounds ?? 3;
   if (runs.length < minimumObservations) {
     failureReasons.push("insufficient_authoritative_observations");
   }
+  if (gateStage === "targeted" && runs.length !== minimumObservations) {
+    failureReasons.push("unexpected_authoritative_observations");
+  }
   if (new Set(runs.map((run) => run.round)).size < minimumRounds) {
     failureReasons.push("insufficient_rounds");
   }
-  if (schemaCompletedResponses === 0 || metrics.strictSchemaPassRate !== 1) {
+  if (
+    schemaCompletedResponses === 0
+    || metrics.strictSchemaPassRate !== 1
+    || (
+      gateStage === "targeted"
+      && (
+        schemaCompletedResponses !== minimumObservations
+        || schemaValidResponses !== minimumObservations
+      )
+    )
+  ) {
     failureReasons.push("strict_schema_pass_rate");
   }
   if (metrics.safeTypedFailureRate !== 1) {
     failureReasons.push("safe_typed_failure_rate");
+  }
+  if (
+    metrics.semanticDecisionCorrect.rate !== 1
+    || (
+      gateStage === "targeted"
+      && (
+        metrics.semanticDecisionCorrect.count !== minimumObservations
+        || metrics.semanticDecisionCorrect.denominator !== minimumObservations
+      )
+    )
+  ) {
+    failureReasons.push("semantic_decision_correct_rate");
   }
   if (metrics.readToWriteMismatch > 0) {
     failureReasons.push("read_to_write_mismatch");
@@ -703,6 +865,18 @@ export const buildL3BEvaluationReport = (
   if (mismatchCategories.unclassified > 0) {
     failureReasons.push("unclassified_mismatch");
   }
+  if (
+    gateStage === "targeted"
+    && metrics.providerAttempts !== minimumObservations
+  ) {
+    failureReasons.push("provider_attempt_count");
+  }
+  if (
+    gateStage === "targeted"
+    && metrics.providerRequests !== minimumObservations
+  ) {
+    failureReasons.push("provider_request_count");
+  }
   if (metrics.providerTransportSuccessRate < 0.99) {
     failureReasons.push("provider_transport_success_rate");
   }
@@ -715,13 +889,16 @@ export const buildL3BEvaluationReport = (
   if (metrics.fixtureCoverageMissing.length > 0) {
     failureReasons.push("fixture_coverage");
   }
-  if (!latencyPasses(answerTtftMs, 4_000, 8_000)) {
+  if (requiresAnswerLatency && !latencyPasses(answerTtftMs, 4_000, 8_000)) {
     failureReasons.push("answer_ttft_latency");
   }
   if (!latencyPasses(orchestratorTotalLatencyMs, 8_000, 20_000)) {
     failureReasons.push("orchestrator_total_latency");
   }
-  if (!latencyPasses(answerTotalLatencyMs, 8_000, 20_000)) {
+  if (
+    requiresAnswerLatency
+    && !latencyPasses(answerTotalLatencyMs, 8_000, 20_000)
+  ) {
     failureReasons.push("answer_total_latency");
   }
 
@@ -739,11 +916,10 @@ export const buildL3BEvaluationReport = (
       schemaVersion: L3B_EVALUATION_CONFIG.schemaVersion,
     },
     failureReasons,
+    gateStage,
     metrics,
     pass: failureReasons.length === 0,
     semanticDisagreements,
-    semanticDisagreementSummary: summarizeSemanticDisagreements(
-      semanticDisagreements,
-    ),
+    semanticDisagreementSummary,
   };
 };

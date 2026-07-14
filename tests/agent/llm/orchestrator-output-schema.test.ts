@@ -16,14 +16,16 @@ describe("orchestrator-output-schema", () => {
   });
 
   const validSinglePlan = {
-    version: 1 as const,
+    version: 2 as const,
+    decisionCode: "explicit_write_ready" as const,
     mode: "single" as const,
     routingSummary: "创建学习计划",
     tasks: [makeTask("t1")],
   };
 
   const validCompoundPlan = {
-    version: 1 as const,
+    version: 2 as const,
+    decisionCode: "compound_ready" as const,
     mode: "compound" as const,
     routingSummary: "创建计划并排入日程",
     tasks: [
@@ -47,7 +49,8 @@ describe("orchestrator-output-schema", () => {
 
     it("parses complex DAG with multiple dependencies", () => {
       const result = orchestratorOutputSchema.safeParse({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "多步骤工作计划",
         tasks: [
@@ -63,7 +66,8 @@ describe("orchestrator-output-schema", () => {
 
     it("rejects plan with 0 tasks", () => {
       const result = orchestratorOutputSchema.safeParse({
-        version: 1,
+        version: 2,
+        decisionCode: "explicit_write_ready",
         mode: "single",
         routingSummary: "empty",
         tasks: [],
@@ -77,7 +81,8 @@ describe("orchestrator-output-schema", () => {
         makeTask(`t${i + 1}`));
 
       const result = orchestratorOutputSchema.safeParse({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "too many",
         tasks,
@@ -148,7 +153,8 @@ describe("orchestrator-output-schema", () => {
 
     it("validates complex DAG", () => {
       const plan = {
-        version: 1 as const,
+        version: 2 as const,
+        decisionCode: "compound_ready" as const,
         mode: "compound" as const,
         routingSummary: "complex",
         tasks: [
@@ -165,7 +171,8 @@ describe("orchestrator-output-schema", () => {
 
     it("detects single mode with multiple tasks", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "explicit_write_ready",
         mode: "single",
         routingSummary: "bad single",
         tasks: [makeTask("t1"), makeTask("t2")],
@@ -177,7 +184,8 @@ describe("orchestrator-output-schema", () => {
 
     it("detects compound mode with 1 task", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "bad compound",
         tasks: [makeTask("t1")],
@@ -189,7 +197,8 @@ describe("orchestrator-output-schema", () => {
 
     it("detects duplicate task IDs", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "duplicate ids",
         tasks: [makeTask("t1"), makeTask("t1")],
@@ -201,7 +210,8 @@ describe("orchestrator-output-schema", () => {
 
     it("detects self-dependency", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "explicit_write_ready",
         mode: "single",
         routingSummary: "self dep",
         tasks: [makeTask("t1", ["t1"])],
@@ -213,7 +223,8 @@ describe("orchestrator-output-schema", () => {
 
     it("detects missing dependency", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "missing dep",
         tasks: [makeTask("t1"), makeTask("t2", ["t3"])],
@@ -225,7 +236,8 @@ describe("orchestrator-output-schema", () => {
 
     it("detects duplicate dependencies", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "dup dep",
         tasks: [makeTask("t1"), makeTask("t2"), makeTask("t3", ["t1", "t1"])],
@@ -237,7 +249,8 @@ describe("orchestrator-output-schema", () => {
 
     it("detects circular dependency (simple cycle)", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "cycle",
         tasks: [
@@ -252,7 +265,8 @@ describe("orchestrator-output-schema", () => {
 
     it("detects circular dependency (3-node cycle)", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "3-cycle",
         tasks: [
@@ -268,7 +282,8 @@ describe("orchestrator-output-schema", () => {
 
     it("accepts valid branching DAG", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "branching",
         tasks: [

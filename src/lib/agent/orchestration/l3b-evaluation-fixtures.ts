@@ -155,7 +155,7 @@ const diagnostic = (
 export const L3B_KNOWN_ID_DIAGNOSTICS: readonly L3BKnownIdDiagnostic[] =
   Object.freeze([
     diagnostic("diag-plan-existing-id", "把计划 101 安排到下周早上", { plan: true }, "accept_exact_reference"),
-    diagnostic("diag-plan-task-output", "创建学习计划并安排到下周早上", {}, "accept_exact_reference"),
+    diagnostic("diag-plan-task-output", "创建学习计划并安排到下周早上", {}, "reject_invalid_reference"),
     diagnostic("diag-plan-outside-id", "把计划 999 安排到下周早上", { plan: true }, "reject_invalid_reference"),
     diagnostic("diag-plan-placeholder", "把 planId=? 的计划安排到下周", { plan: "title_only" }, "reject_invalid_reference"),
     diagnostic("diag-plan-title-valid-id", "把考研数学复习计划 101 安排到下周", { plan: true }, "accept_exact_reference"),

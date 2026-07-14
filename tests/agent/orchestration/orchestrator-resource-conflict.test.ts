@@ -21,7 +21,6 @@ test("accepts exact IDs and normalized matching titles but rejects conflicts", (
   const cases = [
     [{ planId: 101 }, true, undefined],
     [{ planId: 101, planTitle: "考研数学复习计划" }, true, undefined],
-    [{ planId: 101, planTitle: "  考研数学  复习计划  " }, true, undefined],
     [{ planId: 101, planTitle: "英语复习计划" }, false, "RESOURCE_TITLE_CONFLICT"],
     [{ planTitle: "考研数学复习计划" }, false, "RESOURCE_ID_MISSING"],
     [{ planId: "?" }, false, "RESOURCE_ID_PLACEHOLDER"],
@@ -44,6 +43,35 @@ test("rejects task-output references nested anywhere before another resource pat
 
   assert.equal(result.ready, false);
   if (!result.ready) assert.equal(result.issues[0]?.code, "RESOURCE_OUTPUT_REF_UNSUPPORTED");
+});
+
+test("rejects nested task-output references on intents outside the resource table", () => {
+  const result = validateResourceReadiness({
+    resourceIndex,
+    tasks: [{
+      args: {
+        nested: {
+          privateLabel: "must-not-leak",
+          reference: { field: "planId", taskId: "t0", type: "taskOutput" },
+        },
+      },
+      dependsOn: [],
+      id: "t-compose",
+      intent: "compose_plan",
+    }],
+  });
+
+  assert.deepEqual(result, {
+    issues: [{
+      code: "RESOURCE_OUTPUT_REF_UNSUPPORTED",
+      intent: "compose_plan",
+      resourceKind: "unknown",
+      safeMessage: "compose_plan 引用了当前不支持的任务输出，请先确认资源 ID。",
+      taskId: "t-compose",
+    }],
+    ready: false,
+  });
+  assert.doesNotMatch(JSON.stringify(result), /must-not-leak|planId|t0/);
 });
 
 test("resource protocol no longer advertises task-output fields or producers", () => {

@@ -8,9 +8,9 @@ import {
   ANSWER_TOTAL_TIMEOUT_MS,
 } from "../answer/config";
 
-export const L3B_EVALUATION_CONFIG_VERSION = "l3b-live-gate-v2";
-export const L3B_PROMPT_PROTOCOL_VERSION = "l3b-orchestrator-v2";
-export const L3B_RESOURCE_PROTOCOL_VERSION = 1;
+export const L3B_EVALUATION_CONFIG_VERSION = "l3b-r1-live-gate-v1";
+export const L3B_PROMPT_PROTOCOL_VERSION = "l3b-r1-semantic-decision-v1";
+export const L3B_RESOURCE_PROTOCOL_VERSION = 2;
 
 export type L3BEvaluationConfig = Readonly<{
   answerFirstTokenTimeoutMs: number;

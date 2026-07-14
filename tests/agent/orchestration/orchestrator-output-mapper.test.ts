@@ -1,11 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mapStructuredOutputToPlan, extractTaskOutputRefs } from "../../../src/lib/agent/orchestration/orchestrator-mapper";
+import { mapStructuredOutputToPlan } from "../../../src/lib/agent/orchestration/orchestrator-mapper";
 import type { OrchestratorOutput } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
 
 describe("orchestrator-output-mapper", () => {
   const validSingle: OrchestratorOutput = {
-    version: 1,
+    version: 2,
+    decisionCode: "explicit_write_ready",
     mode: "single",
     routingSummary: "创建学习计划",
     tasks: [
@@ -21,7 +22,8 @@ describe("orchestrator-output-mapper", () => {
   };
 
   const validCompound: OrchestratorOutput = {
-    version: 1,
+    version: 2,
+    decisionCode: "compound_ready",
     mode: "compound",
     routingSummary: "创建计划并排入日程",
     tasks: [
@@ -37,9 +39,7 @@ describe("orchestrator-output-mapper", () => {
         id: "t2",
         label: "排入日程",
         intent: "schedule_plan",
-        args: {
-          planRef: { type: "taskOutput", taskId: "t1", field: "planId" },
-        },
+        args: { planId: 42 },
         dependsOn: ["t1"],
         agentRole: "schedule",
       },
@@ -74,15 +74,13 @@ describe("orchestrator-output-mapper", () => {
       assert.ok(plan.reasoning.length <= 80);
     });
 
-    it("preserves task args including TaskOutputRefs", () => {
+    it("preserves task args without leaking semantic metadata into the plan", () => {
       const plan = mapStructuredOutputToPlan(validCompound);
       const task2Args = plan.tasks[1].args as Record<string, unknown>;
 
-      assert.ok(task2Args.planRef);
-      assert.equal(
-        (task2Args.planRef as Record<string, string>).type,
-        "taskOutput",
-      );
+      assert.equal(task2Args.planId, 42);
+      assert.equal("decisionCode" in plan, false);
+      assert.deepEqual(Object.keys(plan).sort(), ["mode", "reasoning", "source", "tasks"]);
     });
 
     it("does not modify intent", () => {
@@ -102,7 +100,8 @@ describe("orchestrator-output-mapper", () => {
 
     it("does not fix invalid DAG — passes through as-is", () => {
       const badOutput: OrchestratorOutput = {
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "bad dag",
         tasks: [
@@ -119,7 +118,8 @@ describe("orchestrator-output-mapper", () => {
 
     it("existing resource IDs are preserved unchanged", () => {
       const output: OrchestratorOutput = {
-        version: 1,
+        version: 2,
+        decisionCode: "explicit_write_ready",
         mode: "single",
         routingSummary: "append to existing plan",
         tasks: [
@@ -149,35 +149,4 @@ describe("orchestrator-output-mapper", () => {
     });
   });
 
-  describe("extractTaskOutputRefs", () => {
-    it("extracts TaskOutputRef from args", () => {
-      const task = validCompound.tasks[1];
-      const refs = extractTaskOutputRefs(task);
-
-      assert.equal(refs.length, 1);
-      assert.equal(refs[0].taskId, "t1");
-      assert.equal(refs[0].field, "planId");
-    });
-
-    it("returns empty array when no refs present", () => {
-      const task = validSingle.tasks[0];
-      const refs = extractTaskOutputRefs(task);
-
-      assert.equal(refs.length, 0);
-    });
-
-    it("does not confuse regular objects with TaskOutputRefs", () => {
-      const task = {
-        id: "t1",
-        label: "test",
-        intent: "answer_question" as const,
-        args: { answer: { text: "hello" } },
-        dependsOn: [] as string[],
-        agentRole: "query" as const,
-      };
-      const refs = extractTaskOutputRefs(task);
-
-      assert.equal(refs.length, 0);
-    });
-  });
 });

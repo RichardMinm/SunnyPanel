@@ -12,7 +12,7 @@ import { routerIntentNameSchema } from "./router-output";
 
 const MAX_TASKS = 8;
 
-export const ORCHESTRATOR_OUTPUT_SCHEMA_VERSION = 1;
+export const ORCHESTRATOR_OUTPUT_SCHEMA_VERSION = 2;
 
 /* ---- Agent role ---- */
 
@@ -59,9 +59,30 @@ export type OrchestratorTask = z.infer<typeof orchestratorTaskSchema>;
 
 export const ORCHESTRATOR_MODES = ["compound", "single"] as const;
 
+export const ORCHESTRATOR_DECISION_CODES = [
+  "pure_consultation",
+  "pure_read_query",
+  "explicit_write_ready",
+  "explicit_write_missing_resource",
+  "compound_ready",
+  "compound_missing_target",
+  "unsupported_request",
+] as const;
+
+export const orchestratorDecisionCodeSchema = z.enum(
+  ORCHESTRATOR_DECISION_CODES,
+);
+
+export type OrchestratorDecisionCode = z.infer<
+  typeof orchestratorDecisionCodeSchema
+>;
+
 export const orchestratorOutputBaseSchema = z.object({
   /** Schema version for future migration. */
   version: z.literal(ORCHESTRATOR_OUTPUT_SCHEMA_VERSION),
+
+  /** Closed semantic decision that explains the task shape. */
+  decisionCode: orchestratorDecisionCodeSchema,
 
   /** Whether this is a single or compound (multi-task) plan. */
   mode: z.enum(ORCHESTRATOR_MODES),

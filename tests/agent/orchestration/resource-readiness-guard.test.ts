@@ -22,7 +22,13 @@ describe("resource-readiness-guard", () => {
   });
 
   describe("validateResourceReadiness", () => {
-    const idx = (planIds: string[] = []) => ({ planIds: new Set(planIds), checklistIds: new Set<string>(), scheduleItemIds: new Set<string>() });
+    const idx = (planIds: string[] = []) => ({
+      checklistIds: new Set<string>(),
+      checklistTitlesById: new Map<string, string>(),
+      planIds: new Set(planIds),
+      planTitlesById: new Map<string, string>(),
+      scheduleItemIds: new Set<string>(),
+    });
 
     it("schedule_plan with valid existing planId → ready", () => {
       const r = validateResourceReadiness({
@@ -76,7 +82,7 @@ describe("resource-readiness-guard", () => {
       assert.equal(r.issues[0].code, "RESOURCE_ID_NOT_IN_CONTEXT");
     });
 
-    it("compose_plan → schedule_plan with valid taskOutput → ready", () => {
+    it("rejects taskOutput references even when the producer and dependency are valid", () => {
       const r = validateResourceReadiness({
         tasks: [
           { id: "t1", intent: "compose_plan", args: {}, dependsOn: [] },
@@ -84,7 +90,8 @@ describe("resource-readiness-guard", () => {
         ],
         resourceIndex: idx(),
       });
-      assert.equal(r.ready, true);
+      assert.equal(r.ready, false);
+      assert.equal(r.issues[0]?.code, "RESOURCE_OUTPUT_REF_UNSUPPORTED");
     });
 
     it("query_plan → schedule_plan via taskOutput → not ready (query is not producer)", () => {
@@ -96,6 +103,7 @@ describe("resource-readiness-guard", () => {
         resourceIndex: idx(),
       });
       assert.equal(r.ready, false);
+      assert.equal(r.issues[0]?.code, "RESOURCE_OUTPUT_REF_UNSUPPORTED");
     });
 
     it("schedule_plan with taskOutput but missing dependsOn → not ready", () => {
@@ -107,6 +115,7 @@ describe("resource-readiness-guard", () => {
         resourceIndex: idx(),
       });
       assert.equal(r.ready, false);
+      assert.equal(r.issues[0]?.code, "RESOURCE_OUTPUT_REF_UNSUPPORTED");
     });
 
     it("compose_plan without resource requirement → ready", () => {
@@ -152,13 +161,21 @@ describe("resource-readiness-guard", () => {
   describe("buildResourceIndex", () => {
     it("builds from context plans", () => {
       const idx = buildResourceIndex({
-        plans: [{ id: "p1" }, { id: 42 }, { id: "?" }, { id: "" }, { id: null }],
+        plans: [
+          { id: "p1", title: "  Study   PLAN  " },
+          { id: 42, title: "考研数学复习计划" },
+          { id: "?", title: "ignored" },
+          { id: "", title: "ignored" },
+          { id: null, title: "ignored" },
+        ],
         checklists: [],
       });
       assert.equal(idx.planIds.has("p1"), true);
       assert.equal(idx.planIds.has("42"), true);
       assert.equal(idx.planIds.has("?"), false);
       assert.equal(idx.planIds.size, 2); /* only p1 and 42 */
+      assert.equal(idx.planTitlesById.get("p1"), "study plan");
+      assert.equal(idx.planTitlesById.get("42"), "考研数学复习计划");
     });
   });
 
@@ -169,10 +186,10 @@ describe("resource-readiness-guard", () => {
       assert.deepEqual(
         projection.find((entry) => entry.intent === "schedule_plan"),
         {
-          allowedProducerIntents: ["compose_plan", "create_plan"],
+          allowedProducerIntents: [],
           existingIdFields: ["planId"],
           intent: "schedule_plan",
-          outputRefFields: ["planRef"],
+          outputRefFields: [],
           resourceKind: "plan",
         },
       );

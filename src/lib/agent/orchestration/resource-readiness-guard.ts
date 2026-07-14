@@ -1,7 +1,7 @@
 /** Resource Readiness Guard — deterministic resource validation.
  *
  * Validates that write-candidate orchestrator tasks have the required
- * resource references (existing IDs or valid taskOutput refs).
+ * existing resource references. Runtime taskOutput resolution is not supported.
  *
  * Runs AFTER Zod strict schema + DAG validation.
  * Runs BEFORE Draft / Dry-run / Policy Guard / Execute.
@@ -34,6 +34,8 @@ export type ResourceReadinessErrorCode =
   | "RESOURCE_ID_MISSING"
   | "RESOURCE_ID_PLACEHOLDER"
   | "RESOURCE_ID_NOT_IN_CONTEXT"
+  | "RESOURCE_TITLE_CONFLICT"
+  | "RESOURCE_OUTPUT_REF_UNSUPPORTED"
   | "RESOURCE_REF_MISSING"
   | "RESOURCE_OUTPUT_REF_INVALID"
   | "RESOURCE_OUTPUT_PRODUCER_INVALID"
@@ -58,14 +60,14 @@ const RESOURCE_REQUIREMENTS: Record<string, ResourceRequirement> = {
   schedule_plan: {
     resourceKind: "plan",
     existingIdFields: ["planId"],
-    outputRefFields: ["planRef"],
-    allowedProducerIntents: ["compose_plan", "create_plan"],
+    outputRefFields: [],
+    allowedProducerIntents: [],
   },
   append_plan_item: {
     resourceKind: "plan",
     existingIdFields: ["planId"],
-    outputRefFields: ["planRef"],
-    allowedProducerIntents: ["compose_plan", "create_plan"],
+    outputRefFields: [],
+    allowedProducerIntents: [],
   },
   complete_plan_item: {
     resourceKind: "plan",
@@ -107,27 +109,52 @@ export const getResourceProtocolProjection = (): readonly ResourceProtocolEntry[
 
 export interface OrchestrationResourceIndex {
   planIds: Set<string>;
+  planTitlesById: ReadonlyMap<string, string>;
   checklistIds: Set<string>;
+  checklistTitlesById: ReadonlyMap<string, string>;
   scheduleItemIds: Set<string>;
 }
 
+const normalizeResourceTitle = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  return value.trim().replace(/\s+/gu, " ").toLowerCase();
+};
+
+const buildTitleMap = (
+  resources: Array<{ id?: number | string | null; title?: string | null }>,
+): ReadonlyMap<string, string> => new Map(
+  resources.flatMap((resource) => {
+    const id = resource.id != null ? String(resource.id) : null;
+    const title = normalizeResourceTitle(resource.title);
+    return id !== null && isUsableResourceId(id) && title
+      ? [[id, title] as const]
+      : [];
+  }),
+);
+
 /** Build a resource index from AgentPromptContext. */
 export const buildResourceIndex = (context: {
-  plans?: Array<{ id?: number | string | null }>;
-  checklists?: Array<{ id?: number | string | null }>;
-}): OrchestrationResourceIndex => ({
-  planIds: new Set(
-    (context.plans ?? [])
+  plans?: Array<{ id?: number | string | null; title?: string | null }>;
+  checklists?: Array<{ id?: number | string | null; title?: string | null }>;
+}): OrchestrationResourceIndex => {
+  const plans = context.plans ?? [];
+  const checklists = context.checklists ?? [];
+  return {
+    planIds: new Set(
+      plans
       .map((p) => (p.id != null ? String(p.id) : null))
       .filter((id): id is string => id !== null && isUsableResourceId(id)),
-  ),
-  checklistIds: new Set(
-    (context.checklists ?? [])
+    ),
+    planTitlesById: buildTitleMap(plans),
+    checklistIds: new Set(
+      checklists
       .map((c) => (c.id != null ? String(c.id) : null))
       .filter((id): id is string => id !== null && isUsableResourceId(id)),
-  ),
-  scheduleItemIds: new Set(),
-});
+    ),
+    checklistTitlesById: buildTitleMap(checklists),
+    scheduleItemIds: new Set(),
+  };
+};
 
 /* ---- Task input ---- */
 
@@ -144,6 +171,13 @@ const normalizeResourceId = (value: unknown): string | null => {
   return null;
 };
 
+const containsTaskOutputReference = (value: unknown): boolean => {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (record.type === "taskOutput") return true;
+  return Object.values(record).some(containsTaskOutputReference);
+};
+
 /* ---- Main Guard ---- */
 
 export const validateResourceReadiness = (params: {
@@ -154,6 +188,18 @@ export const validateResourceReadiness = (params: {
 
   for (const task of params.tasks) {
     const req = RESOURCE_REQUIREMENTS[task.intent];
+
+    if (containsTaskOutputReference(task.args)) {
+      issues.push({
+        taskId: task.id,
+        intent: task.intent,
+        resourceKind: req?.resourceKind ?? "unknown",
+        code: "RESOURCE_OUTPUT_REF_UNSUPPORTED",
+        safeMessage: `${task.intent} 引用了当前不支持的任务输出，请先确认资源 ID。`,
+      });
+      continue;
+    }
+
     if (!req) continue; /* No resource requirement defined for this intent */
 
     const kind = req.resourceKind;
@@ -162,38 +208,31 @@ export const validateResourceReadiness = (params: {
       : params.resourceIndex.scheduleItemIds;
 
     /* Check existing resource ID */
-    const hasExistingId = req.existingIdFields.some((field) => {
-      const v = task.args[field];
-      if (v == null) return false;
-      /* Accept both string and numeric IDs */
-      const idStr = String(v);
-      return isUsableResourceId(idStr) && idSet.has(idStr);
-    });
+    const existingId = req.existingIdFields
+      .map((field) => normalizeResourceId(task.args[field]))
+      .find((id): id is string => id !== null && isUsableResourceId(id) && idSet.has(id));
 
-    if (hasExistingId) continue; /* Ready: existing resource found */
-
-    /* Check taskOutput reference */
-    const hasOutputRef = req.outputRefFields.some((field) => {
-      const ref = task.args[field];
-      if (!ref || typeof ref !== "object") return false;
-      const r = ref as Record<string, unknown>;
-      if (r.type !== "taskOutput") return false;
-
-      const refTaskId = r.taskId;
-      if (typeof refTaskId !== "string" || refTaskId === task.id) return false;
-
-      /* Must have dependsOn */
-      if (!task.dependsOn.includes(refTaskId)) return false;
-
-      /* Producer task must exist and have allowed intent */
-      const producer = params.tasks.find((t) => t.id === refTaskId);
-      if (!producer) return false;
-      if (!req.allowedProducerIntents.includes(producer.intent)) return false;
-
-      return true;
-    });
-
-    if (hasOutputRef) continue; /* Ready: valid taskOutput reference */
+    if (existingId !== undefined) {
+      const expectedTitle = kind === "plan"
+        ? params.resourceIndex.planTitlesById.get(existingId)
+        : undefined;
+      const suppliedTitle = normalizeResourceTitle(task.args.planTitle);
+      if (
+        task.args.planTitle !== undefined
+        && expectedTitle !== undefined
+        && suppliedTitle !== expectedTitle
+      ) {
+        issues.push({
+          taskId: task.id,
+          intent: task.intent,
+          resourceKind: kind,
+          code: "RESOURCE_TITLE_CONFLICT",
+          safeMessage: `${task.intent} 的资源 ID 与标题不一致，请确认后重试。`,
+        });
+        continue;
+      }
+      continue;
+    }
 
     /* Try existing ID fields but with placeholder/invalid values */
     const hasPlaceholder = req.existingIdFields.some((field) => {

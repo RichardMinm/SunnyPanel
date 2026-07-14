@@ -4,6 +4,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { StructuredProviderAttemptEvent } from "../../../src/lib/agent/llm/invoke-structured";
 import {
   ORCHESTRATOR_AGENT_ROLES,
+  ORCHESTRATOR_DECISION_CODES,
   ORCHESTRATOR_MODES,
   orchestratorOutputSchema,
   validateTaskDAG,
@@ -16,11 +17,16 @@ import {
 } from "../../../src/lib/agent/orchestration/langchain-orchestrator";
 import { mapStructuredOutputToPlan } from "../../../src/lib/agent/orchestration/orchestrator-mapper";
 import { getResourceProtocolProjection } from "../../../src/lib/agent/orchestration/resource-readiness-guard";
+import {
+  L3B_EVALUATION_CONFIG,
+  L3B_EVALUATION_CONFIG_HASH,
+} from "../../../src/lib/agent/orchestration/l3b-evaluation-config";
 
 describe("langchain-orchestrator protocol", () => {
-  it("renders every schema-derived mode, role, and intent into the trusted protocol", () => {
+  it("renders every schema-derived decision, mode, role, and intent into the trusted protocol", () => {
     const prompt = buildLangChainSystemPrompt();
 
+    for (const decisionCode of ORCHESTRATOR_DECISION_CODES) assert.match(prompt, new RegExp(`\\b${decisionCode}\\b`));
     for (const mode of ORCHESTRATOR_MODES) assert.match(prompt, new RegExp(`\\b${mode}\\b`));
     for (const role of ORCHESTRATOR_AGENT_ROLES) assert.match(prompt, new RegExp(`\\b${role}\\b`));
     for (const intent of ROUTER_INTENT_NAMES) assert.match(prompt, new RegExp(`\\b${intent}\\b`));
@@ -62,17 +68,42 @@ describe("langchain-orchestrator protocol", () => {
 
     for (const entry of getResourceProtocolProjection()) {
       assert.match(prompt, new RegExp(`\\b${entry.intent}\\b`));
-      for (const field of [...entry.existingIdFields, ...entry.outputRefFields]) {
+      for (const field of entry.existingIdFields) {
         assert.match(prompt, new RegExp(`\\b${field}\\b`));
-      }
-      for (const producer of entry.allowedProducerIntents) {
-        assert.match(prompt, new RegExp(`\\b${producer}\\b`));
       }
     }
     assert.match(prompt, /标题.*不是.*资源引用/);
     assert.match(prompt, /上下文.*ID.*原样复制/);
-    assert.match(prompt, /unfinished items|没完成的项目/);
-    assert.match(prompt, /cmp-2|复盘.*排到下周/);
+    assert.match(prompt, /未完成项目.*精确目标 ID/);
+    assert.doesNotMatch(prompt, /taskOutput/i);
+  });
+
+  it("renders the fixed five-step classifier with at most three contrastive groups", () => {
+    const prompt = buildLangChainSystemPrompt();
+
+    assert.match(prompt, /1\. 判断用户是否明确要求改变状态/);
+    assert.match(prompt, /2\. 若要求改变状态，判断每个必需资源和目标是否可信且就绪/);
+    assert.match(prompt, /3\. 判断是否至少有两个真实、共同必需或相互依赖的动作/);
+    assert.match(prompt, /4\. 选择且只选择一个 decisionCode/);
+    assert.match(prompt, /5\. 输出该 decisionCode 要求的 mode 和 task 形状/);
+    assert.equal((prompt.match(/对照组[一二三]/g) ?? []).length, 3);
+    for (const code of [
+      "explicit_write_missing_resource",
+      "compound_missing_target",
+      "unsupported_request",
+    ]) {
+      assert.match(prompt, new RegExp(`${code}[^\\n]*single[^\\n]*clarify[^\\n]*args\\.question`));
+    }
+  });
+
+  it("freezes the R1 protocol metadata and deterministic secret-free hash", () => {
+    assert.equal(L3B_EVALUATION_CONFIG.evaluationConfigVersion, "l3b-r1-live-gate-v1");
+    assert.equal(L3B_EVALUATION_CONFIG.promptProtocolVersion, "l3b-r1-semantic-decision-v1");
+    assert.equal(L3B_EVALUATION_CONFIG.resourceProtocolVersion, 2);
+    assert.equal(
+      L3B_EVALUATION_CONFIG_HASH,
+      "ecbb9b9380bfab37e6084e265c58ee7d6982a03b21b35e150df524156b217dc3",
+    );
   });
 
   it("returns a typed schema failure without projecting a successful plan", async () => {
@@ -173,6 +204,7 @@ describe("langchain-orchestrator protocol", () => {
       modelFactory: () => ({
         withStructuredOutput: () => ({
           invoke: async () => ({
+            decisionCode: "pure_consultation",
             mode: "single",
             routingSummary: "回答问题",
             tasks: [{
@@ -183,7 +215,7 @@ describe("langchain-orchestrator protocol", () => {
               intent: "answer_question",
               label: "回答问题",
             }],
-            version: 1,
+            version: 2,
           }),
         }),
       }) as unknown as BaseChatModel,
@@ -192,6 +224,13 @@ describe("langchain-orchestrator protocol", () => {
     });
 
     assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.deepEqual(result.schemaValidDecision, {
+      decisionCode: "pure_consultation",
+      intents: ["answer_question"],
+      mode: "single",
+      taskCount: 1,
+    });
     assert.deepEqual(events, [
       { attempt: 1, phase: "started" },
       { attempt: 1, phase: "succeeded" },
@@ -220,6 +259,7 @@ describe("langchain-orchestrator protocol", () => {
       modelFactory: () => ({
         withStructuredOutput: () => ({
           invoke: async () => ({
+            decisionCode: "explicit_write_ready",
             mode: "single",
             routingSummary: "安排计划",
             tasks: [{
@@ -230,7 +270,7 @@ describe("langchain-orchestrator protocol", () => {
               intent: "schedule_plan",
               label: "安排计划",
             }],
-            version: 1,
+            version: 2,
           }),
         }),
       }) as unknown as BaseChatModel,
@@ -242,15 +282,82 @@ describe("langchain-orchestrator protocol", () => {
       resourceIssueCodes: ["RESOURCE_ID_NOT_IN_CONTEXT"],
       safeMessage: "schedule_plan 引用的资源 ID 不在当前上下文中。",
       schemaValidDecision: {
+        decisionCode: "explicit_write_ready",
         intents: ["schedule_plan"],
         mode: "single",
+        taskCount: 1,
       },
       status: "unavailable",
     });
     assert.doesNotMatch(JSON.stringify(result), /planId|999|安排计划/);
   });
 
-  it("returns only mode and intents from a schema-valid invalid DAG", async () => {
+  it("rejects an inconsistent schema-valid decision before DAG, resources, mapping, retry, or fallback", async () => {
+    let calls = 0;
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-14T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [],
+      },
+      message: "查看计划",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: () => ({
+        withStructuredOutput: () => ({
+          invoke: async () => {
+            calls += 1;
+            return {
+              decisionCode: "pure_read_query",
+              mode: "single",
+              routingSummary: "错误地生成写入任务",
+              tasks: [{
+                agentRole: "plan",
+                args: { secret: "task-args-sentinel", title: "private-title" },
+                dependsOn: [],
+                id: "t1",
+                intent: "compose_plan",
+                label: "private-label",
+              }],
+              version: 2,
+            };
+          },
+        }),
+      }) as unknown as BaseChatModel,
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.equal(calls, 1);
+    assert.deepEqual(result, {
+      decisionConsistencyError: "read_intent_not_allowed",
+      reason: "invalid_decision_consistency",
+      safeMessage: "模型返回的语义决策与任务形状不一致，暂时无法安全重规划。",
+      schemaValidDecision: {
+        decisionCode: "pure_read_query",
+        intents: ["compose_plan"],
+        mode: "single",
+        taskCount: 1,
+      },
+      status: "unavailable",
+    });
+    assert.equal("plan" in result, false);
+    assert.equal("resourceIssueCodes" in result, false);
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /task-args-sentinel|private-title|private-label|错误地生成写入任务|t1/,
+    );
+  });
+
+  it("returns only the semantic projection from a schema-valid invalid DAG", async () => {
     const result = await runLangChainOrchestratorResult({
       context: {
         checklists: [],
@@ -272,7 +379,8 @@ describe("langchain-orchestrator protocol", () => {
       modelFactory: () => ({
         withStructuredOutput: () => ({
           invoke: async () => ({
-            mode: "single",
+            decisionCode: "compound_ready",
+            mode: "compound",
             routingSummary: "invalid dag sentinel",
             tasks: [
               {
@@ -280,19 +388,19 @@ describe("langchain-orchestrator protocol", () => {
                 args: { secret: "first-secret" },
                 dependsOn: [],
                 id: "t1",
-                intent: "answer_question",
+                intent: "compose_plan",
                 label: "first-label",
               },
               {
                 agentRole: "query",
                 args: { secret: "second-secret" },
-                dependsOn: [],
+                dependsOn: ["t3"],
                 id: "t2",
                 intent: "query_plan",
                 label: "second-label",
               },
             ],
-            version: 1,
+            version: 2,
           }),
         }),
       }) as unknown as BaseChatModel,
@@ -303,8 +411,10 @@ describe("langchain-orchestrator protocol", () => {
     if (result.status !== "unavailable") return;
     assert.equal(result.reason, "invalid_dag");
     assert.deepEqual(result.schemaValidDecision, {
-      intents: ["answer_question", "query_plan"],
-      mode: "single",
+      decisionCode: "compound_ready",
+      intents: ["compose_plan", "query_plan"],
+      mode: "compound",
+      taskCount: 2,
     });
     assert.doesNotMatch(
       JSON.stringify(result),
@@ -317,7 +427,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
   describe("orchestrator output schema", () => {
     it("valid single plan parses correctly", () => {
       const output = {
-        version: 1,
+        version: 2,
+        decisionCode: "explicit_write_ready",
         mode: "single",
         routingSummary: "创建学习计划",
         tasks: [
@@ -337,7 +448,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("valid compound plan parses correctly", () => {
       const output = {
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "创建并排期",
         tasks: [
@@ -351,7 +463,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("rejects unknown intent", () => {
       const output = {
-        version: 1,
+        version: 2,
+        decisionCode: "pure_read_query",
         mode: "single",
         routingSummary: "bad",
         tasks: [
@@ -364,7 +477,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("rejects invalid agentRole", () => {
       const output = {
-        version: 1,
+        version: 2,
+        decisionCode: "pure_consultation",
         mode: "single",
         routingSummary: "bad",
         tasks: [
@@ -377,7 +491,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("rejects extra unknown fields (strict)", () => {
       const output = {
-        version: 1,
+        version: 2,
+        decisionCode: "pure_consultation",
         mode: "single",
         routingSummary: "test",
         tasks: [
@@ -391,7 +506,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("accepts routingSummary at max 80 chars", () => {
       const output = {
-        version: 1,
+        version: 2,
+        decisionCode: "pure_consultation",
         mode: "single",
         routingSummary: "x".repeat(80),
         tasks: [
@@ -404,7 +520,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("rejects routingSummary over 80 chars", () => {
       const output = {
-        version: 1,
+        version: 2,
+        decisionCode: "pure_consultation",
         mode: "single",
         routingSummary: "x".repeat(81),
         tasks: [
@@ -419,7 +536,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
   describe("DAG validation", () => {
     it("detects cyclic dependency", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "cycle",
         tasks: [
@@ -433,7 +551,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("detects nonexistent dependency", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "compound_ready",
         mode: "compound",
         routingSummary: "missing dep",
         tasks: [
@@ -447,7 +566,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("detects self-dependency", () => {
       const result = validateTaskDAG({
-        version: 1,
+        version: 2,
+        decisionCode: "explicit_write_ready",
         mode: "single",
         routingSummary: "self-dep",
         tasks: [
@@ -462,7 +582,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
   describe("mapper: read/write boundary", () => {
     it("consultation stays read-only", () => {
       const plan = mapStructuredOutputToPlan({
-        version: 1,
+        version: 2,
+        decisionCode: "pure_consultation",
         mode: "single",
         routingSummary: "回答咨询问题",
         tasks: [
@@ -474,7 +595,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("query stays read-only", () => {
       const plan = mapStructuredOutputToPlan({
-        version: 1,
+        version: 2,
+        decisionCode: "pure_read_query",
         mode: "single",
         routingSummary: "查询进度",
         tasks: [
@@ -486,7 +608,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("explicit write is only a candidate", () => {
       const plan = mapStructuredOutputToPlan({
-        version: 1,
+        version: 2,
+        decisionCode: "explicit_write_ready",
         mode: "single",
         routingSummary: "创建计划",
         tasks: [
@@ -499,7 +622,8 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
 
     it("ambiguity should clarify, not write", () => {
       const plan = mapStructuredOutputToPlan({
-        version: 1,
+        version: 2,
+        decisionCode: "explicit_write_missing_resource",
         mode: "single",
         routingSummary: "需要更多信息",
         tasks: [
@@ -510,10 +634,11 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
     });
   });
 
-  describe("mapper: existing resources + output refs", () => {
+  describe("mapper: existing resources", () => {
     it("existing plan ID is preserved", () => {
       const plan = mapStructuredOutputToPlan({
-        version: 1,
+        version: 2,
+        decisionCode: "explicit_write_ready",
         mode: "single",
         routingSummary: "使用已有计划",
         tasks: [
@@ -523,46 +648,5 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
       assert.equal((plan.tasks[0].args as Record<string, unknown>).planId, 42);
     });
 
-    it("task output reference is preserved", () => {
-      const plan = mapStructuredOutputToPlan({
-        version: 1,
-        mode: "compound",
-        routingSummary: "创建并排期",
-        tasks: [
-          { id: "t1", label: "创建", intent: "compose_plan", args: {}, dependsOn: [], agentRole: "plan" },
-          {
-            id: "t2", label: "排期", intent: "schedule_plan",
-            args: { planRef: { type: "taskOutput", taskId: "t1", field: "planId" } },
-            dependsOn: ["t1"], agentRole: "schedule",
-          },
-        ],
-      });
-
-      const t2Args = plan.tasks[1].args as Record<string, unknown>;
-      const ref = t2Args.planRef as Record<string, string>;
-      assert.equal(ref.type, "taskOutput");
-      assert.equal(ref.taskId, "t1");
-      assert.equal(ref.field, "planId");
-    });
-
-    it("output ref does not become a fake real ID", () => {
-      const plan = mapStructuredOutputToPlan({
-        version: 1,
-        mode: "compound",
-        routingSummary: "test",
-        tasks: [
-          { id: "t1", label: "c", intent: "compose_plan", args: {}, dependsOn: [], agentRole: "plan" },
-          {
-            id: "t2", label: "s", intent: "schedule_plan",
-            args: { planRef: { type: "taskOutput", taskId: "t1", field: "planId" } },
-            dependsOn: ["t1"], agentRole: "schedule",
-          },
-        ],
-      });
-
-      /* planId should NOT be a concrete number — it stays as a ref */
-      const t2Args = plan.tasks[1].args as Record<string, unknown>;
-      assert.equal(typeof t2Args.planId, "undefined");
-    });
   });
 });

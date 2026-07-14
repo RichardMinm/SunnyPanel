@@ -12,10 +12,14 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 
 import {
+  assertL3BStabilityPrerequisite,
+  buildL3BDiagnosticStatus,
   buildL3BEvaluationReport,
+  combineL3BTopLevelPass,
   compareL3BSafetyClass,
   assertSanitizedL3BReport,
   selectL3BEvaluationFixtures,
+  resolveL3BEvaluationGateStage,
   type L3BEvaluationRun,
   writeSanitizedL3BReport,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation";
@@ -43,6 +47,7 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   completedProviderResponses: index % 6 === 0 ? 2 : 1,
   costUsd: null,
   databaseMutation: false,
+  decisionConsistencyError: null,
   failureEvents: 0,
   fixtureId: fixtureIds[index % fixtureIds.length],
   hadTransportFailure: false,
@@ -81,6 +86,14 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   round: Math.floor(index / fixtureIds.length) + 1,
   schemaCompletedResponses: 1,
   schemaValidResponses: 1,
+  semanticDecisionCorrect: true,
+  semanticProjection: {
+    decisionCode: "pure_read_query",
+    intents: ["query_plan"],
+    mode: "single",
+    safetyClass: "read",
+    taskCount: 1,
+  },
   specialistBypassCount: 1,
   specialistLogicalCalls: 0,
   specialistProviderAttempts: 0,
@@ -120,10 +133,198 @@ test("passes a complete 99-observation matrix with all safety and performance ga
       totalTimeoutMs: 30_000,
     },
     evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
-    promptProtocolVersion: "l3b-orchestrator-v2",
-    resourceProtocolVersion: 1,
-    schemaVersion: 1,
+    promptProtocolVersion: "l3b-r1-semantic-decision-v1",
+    resourceProtocolVersion: 2,
+    schemaVersion: 2,
   });
+});
+
+test("passes the exact targeted 15 contract without Answer observations", () => {
+  const targetedFixtureIds = ["qry-1", "qry-2", "cmp-3", "cmp-4", "mis-2"];
+  const runs = Array.from({ length: 15 }, (_, index) => ({
+    ...passingRun(index),
+    answerLogicalCalls: 0,
+    answerProviderAttempts: 0,
+    answerTotalLatencyMs: null,
+    answerTtftMs: null,
+    apiCalls: 1,
+    completedProviderResponses: 1,
+    fixtureId: targetedFixtureIds[index % targetedFixtureIds.length],
+    orchestratorLatencyMs: 6_000,
+    providerAttemptSuccesses: 1,
+    providerAttempts: 1,
+    providerRequests: 1,
+    round: Math.floor(index / targetedFixtureIds.length) + 1,
+  }));
+
+  const report = buildL3BEvaluationReport(runs, {
+    expectedFixtureIds: targetedFixtureIds,
+    gateStage: "targeted",
+    minimumObservations: 15,
+    minimumRounds: 3,
+  });
+
+  assert.equal(report.pass, true);
+  assert.deepEqual(report.failureReasons, []);
+  assert.equal(report.metrics.authoritativeObservations, 15);
+  assert.equal(report.metrics.providerRequests, 15);
+  assert.equal(report.metrics.providerAttempts, 15);
+  assert.equal(report.metrics.strictSchemaPassRate, 1);
+  assert.deepEqual(report.metrics.semanticDecisionCorrect, {
+    count: 15,
+    denominator: 15,
+    rate: 1,
+  });
+  assert.equal(report.metrics.providerTransportSuccessRate, 1);
+  assert.equal(report.metrics.orchestratorCompletionRate, 1);
+  assert.deepEqual(report.metrics.fixtureCoverageMissing, []);
+  assert.equal(report.metrics.providerTimeoutRate, 0);
+  assert.deepEqual(report.metrics.answerTtftMs, { p50: null, upperTail: null });
+  assert.deepEqual(report.metrics.answerTotalLatencyMs, { p50: null, upperTail: null });
+});
+
+test("targeted 15 rejects fourteen successes plus one transport failure", () => {
+  const targetedFixtureIds = ["qry-1", "qry-2", "cmp-3", "cmp-4", "mis-2"];
+  const runs = Array.from({ length: 15 }, (_, index) => ({
+    ...passingRun(index),
+    answerLogicalCalls: 0,
+    answerProviderAttempts: 0,
+    answerTotalLatencyMs: null,
+    answerTtftMs: null,
+    apiCalls: 1,
+    completedProviderResponses: 1,
+    fixtureId: targetedFixtureIds[index % targetedFixtureIds.length],
+    providerAttemptSuccesses: 1,
+    providerAttempts: 1,
+    providerRequests: 1,
+    round: Math.floor(index / targetedFixtureIds.length) + 1,
+  }));
+  runs[0] = {
+    ...runs[0],
+    completedProviderResponses: 0,
+    failureEvents: 1,
+    hadTransportFailure: true,
+    orchestratorUsable: false,
+    providerAttemptFailures: 1,
+    providerAttemptSuccesses: 0,
+    providerFailure: true,
+    schemaCompletedResponses: 0,
+    schemaValidResponses: 0,
+    semanticDecisionCorrect: false,
+    semanticProjection: undefined,
+    typedFailureEvents: 1,
+  };
+
+  const report = buildL3BEvaluationReport(runs, {
+    expectedFixtureIds: targetedFixtureIds,
+    gateStage: "targeted",
+    minimumObservations: 15,
+    minimumRounds: 3,
+  });
+
+  assert.equal(report.pass, false);
+  assert.equal(report.metrics.providerTransportSuccessRate, 14 / 15);
+  assert.equal(report.metrics.orchestratorCompletionRate, 14 / 15);
+  assert.ok(report.failureReasons.includes("strict_schema_pass_rate"));
+  assert.ok(report.failureReasons.includes("semantic_decision_correct_rate"));
+  assert.ok(report.failureReasons.includes("provider_transport_success_rate"));
+  assert.ok(report.failureReasons.includes("orchestrator_completion_rate"));
+});
+
+test("targeted 15 retains exact counts, coverage, timeout, and Orchestrator latency gates", () => {
+  const targetedFixtureIds = ["qry-1", "qry-2", "cmp-3", "cmp-4", "mis-2"];
+  const targetedRuns = () => Array.from({ length: 15 }, (_, index) => ({
+    ...passingRun(index),
+    answerLogicalCalls: 0,
+    answerProviderAttempts: 0,
+    answerTotalLatencyMs: null,
+    answerTtftMs: null,
+    apiCalls: 1,
+    completedProviderResponses: 1,
+    fixtureId: targetedFixtureIds[index % targetedFixtureIds.length],
+    providerAttemptSuccesses: 1,
+    providerAttempts: 1,
+    providerRequests: 1,
+    round: Math.floor(index / targetedFixtureIds.length) + 1,
+  }));
+  const cases = [
+    ["provider_attempt_count", { providerAttemptSuccesses: 2, providerAttempts: 2, providerRequests: 2 }],
+    ["provider_timeout_rate", { hadTransportTimeout: true, providerAttemptTimeouts: 1 }],
+    ["orchestrator_completion_rate", { orchestratorUsable: false }],
+    ["orchestrator_total_latency", { orchestratorLatencyMs: 20_001 }],
+  ] as const;
+
+  for (const [reason, patch] of cases) {
+    const runs = targetedRuns();
+    runs[0] = { ...runs[0], ...patch };
+    const report = buildL3BEvaluationReport(runs, {
+      expectedFixtureIds: targetedFixtureIds,
+      gateStage: "targeted",
+      minimumObservations: 15,
+      minimumRounds: 3,
+    });
+    assert.ok(report.failureReasons.includes(reason), reason);
+  }
+
+  const uncoveredRuns = targetedRuns().map((run) => ({
+    ...run,
+    fixtureId: run.fixtureId === "mis-2" ? "qry-1" : run.fixtureId,
+  }));
+  const uncoveredReport = buildL3BEvaluationReport(uncoveredRuns, {
+    expectedFixtureIds: targetedFixtureIds,
+    gateStage: "targeted",
+    minimumObservations: 15,
+    minimumRounds: 3,
+  });
+  assert.ok(uncoveredReport.failureReasons.includes("fixture_coverage"));
+});
+
+test("full-matrix acceptance still requires Answer latency observations", () => {
+  const runs = Array.from({ length: 33 }, (_, index) => ({
+    ...passingRun(index),
+    answerLogicalCalls: 0,
+    answerProviderAttempts: 0,
+    answerTotalLatencyMs: null,
+    answerTtftMs: null,
+    round: 1,
+  }));
+
+  const report = buildL3BEvaluationReport(runs, {
+    expectedFixtureIds: fixtureIds,
+    gateStage: "acceptance",
+    minimumObservations: 33,
+    minimumRounds: 1,
+  });
+
+  assert.equal(report.pass, false);
+  assert.ok(report.failureReasons.includes("answer_ttft_latency"));
+  assert.ok(report.failureReasons.includes("answer_total_latency"));
+});
+
+test("one failed known-ID diagnostic blocks top-level acceptance without changing gating", () => {
+  const diagnostics = Array.from({ length: 6 }, (_, index) => ({
+    id: `diag-${index + 1}`,
+    pass: index !== 4,
+  }));
+
+  const diagnosticStatus = buildL3BDiagnosticStatus(diagnostics, {
+    expectedDiagnostics: 6,
+    required: true,
+  });
+
+  assert.deepEqual(diagnosticStatus, {
+    applicable: true,
+    failed: 1,
+    pass: false,
+    total: 6,
+  });
+  assert.equal(combineL3BTopLevelPass(true, diagnosticStatus), false);
+  assert.equal(combineL3BTopLevelPass(false, {
+    applicable: false,
+    failed: 0,
+    pass: null,
+    total: 0,
+  }), false);
 });
 
 test("freezes and hashes the exact secret-free evaluation configuration", () => {
@@ -358,6 +559,31 @@ test("aggregate report cannot retain raw prompt, response, reasoning, context, o
   const serialized = JSON.stringify(report);
 
   assert.doesNotMatch(serialized, /sk-secret|hidden reasoning|private context|rawPrompt|rawResponse|workspaceContext/);
+  assert.equal(report.metrics.rawRetention, 1);
+});
+
+test("zero schema-valid decisions render every mismatch rate as N/A, never zero", () => {
+  const runs = passingRuns().map((run) => ({
+    ...run,
+    mismatchCategory: "not_comparable" as const,
+    schemaValidResponses: 0,
+    semanticDecisionCorrect: false,
+    semanticProjection: undefined,
+  }));
+  const report = buildL3BEvaluationReport(runs, { expectedFixtureIds: fixtureIds });
+
+  for (const metric of [
+    report.metrics.clarifyMismatch,
+    report.metrics.intentMismatch,
+    report.metrics.modeMismatch,
+    report.metrics.readWriteMismatch,
+    report.metrics.resourceMismatch,
+    report.metrics.semanticDecisionCorrect,
+  ]) {
+    assert.equal(metric.denominator, 0);
+    assert.equal(metric.rate, null);
+  }
+  assert.match(JSON.stringify(report.metrics), /"rate":null/);
 });
 
 test("keeps the original 33-fixture matrix and all high-risk segments", () => {
@@ -434,6 +660,7 @@ test("live harness is explicit, database-free, fixed-budget, and uses typed resu
   assert.match(source, /runLangChainOrchestratorResult/);
   assert.match(source, /L3B_EVALUATION_CONFIG_HASH/);
   assert.match(source, /L3B_ACCEPTANCE_CONFIG_HASH/);
+  assert.match(source, /assertL3BStabilityPrerequisite/);
   assert.match(source, /providerAttemptObserver/);
   assert.match(source, /transport: L3B_EVALUATION_CONFIG\.transportRetries/);
   assert.match(source, /schema: L3B_EVALUATION_CONFIG\.schemaRetries/);
@@ -444,8 +671,9 @@ test("live harness is explicit, database-free, fixed-budget, and uses typed resu
   assert.match(source, /L3B_EVAL_REPORT_PATH/);
   assert.match(source, /assertSanitizedL3BReport\(report\)/);
   assert.match(source, /writeSanitizedL3BReport/);
-  assert.match(source, /const pass = gating\.pass;/);
-  assert.doesNotMatch(source, /diagnosticsPass/);
+  assert.match(source, /buildL3BDiagnosticStatus/);
+  assert.match(source, /combineL3BTopLevelPass/);
+  assert.match(source, /diagnosticStatus/);
   assert.match(source, /orchestrator-plan-to-intent/);
   assert.match(source, /specialist-task-completeness/);
   assert.doesNotMatch(source, /src\/lib\/agent\/orchestrator\.ts/);
@@ -473,6 +701,75 @@ test("fixture selection rejects empty and unknown IDs, deduplicates, and preserv
     () => selectL3BEvaluationFixtures(L3B_EVALUATION_FIXTURES, "qry-1,nope"),
     /Unknown L3B fixture IDs: nope/,
   );
+});
+
+test("requires the acceptance hash only for the full three-round stability matrix", () => {
+  const targeted = selectL3BEvaluationFixtures(
+    L3B_EVALUATION_FIXTURES,
+    "qry-1,qry-2,cmp-3,cmp-4,mis-2",
+  );
+  const base = {
+    acceptanceConfigHash: undefined,
+    evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
+    fixtures: L3B_EVALUATION_FIXTURES,
+  };
+
+  assert.doesNotThrow(() => assertL3BStabilityPrerequisite({
+    ...base,
+    rounds: 3,
+    selectedFixtures: targeted,
+  }));
+  assert.doesNotThrow(() => assertL3BStabilityPrerequisite({
+    ...base,
+    rounds: 1,
+    selectedFixtures: L3B_EVALUATION_FIXTURES,
+  }));
+  assert.throws(
+    () => assertL3BStabilityPrerequisite({
+      ...base,
+      rounds: 3,
+      selectedFixtures: L3B_EVALUATION_FIXTURES,
+    }),
+    /requires L3B_ACCEPTANCE_CONFIG_HASH/,
+  );
+  assert.throws(
+    () => assertL3BStabilityPrerequisite({
+      ...base,
+      acceptanceConfigHash: "wrong-hash",
+      rounds: 3,
+      selectedFixtures: L3B_EVALUATION_FIXTURES,
+    }),
+    /requires L3B_ACCEPTANCE_CONFIG_HASH/,
+  );
+  assert.doesNotThrow(() => assertL3BStabilityPrerequisite({
+    ...base,
+    acceptanceConfigHash: L3B_EVALUATION_CONFIG_HASH,
+    rounds: 3,
+    selectedFixtures: L3B_EVALUATION_FIXTURES,
+  }));
+});
+
+test("selects targeted, acceptance, and stability stages from the frozen matrix", () => {
+  const targeted = selectL3BEvaluationFixtures(
+    L3B_EVALUATION_FIXTURES,
+    "qry-1,qry-2,cmp-3,cmp-4,mis-2",
+  );
+
+  assert.equal(resolveL3BEvaluationGateStage({
+    fixtures: L3B_EVALUATION_FIXTURES,
+    rounds: 3,
+    selectedFixtures: targeted,
+  }), "targeted");
+  assert.equal(resolveL3BEvaluationGateStage({
+    fixtures: L3B_EVALUATION_FIXTURES,
+    rounds: 1,
+    selectedFixtures: L3B_EVALUATION_FIXTURES,
+  }), "acceptance");
+  assert.equal(resolveL3BEvaluationGateStage({
+    fixtures: L3B_EVALUATION_FIXTURES,
+    rounds: 3,
+    selectedFixtures: L3B_EVALUATION_FIXTURES,
+  }), "stability");
 });
 
 test("sanitized report validation rejects forbidden keys at any nested depth", () => {
@@ -614,6 +911,11 @@ test("emits sanitized disagreement projections and empty five-way summaries", ()
     disagreementsByFixture: {},
     disagreementsByRound: {},
   });
+  assert.deepEqual(report.metrics.disagreementsByActualClass, {});
+  assert.deepEqual(report.metrics.disagreementsByDirection, {});
+  assert.deepEqual(report.metrics.disagreementsByExpectedClass, {});
+  assert.deepEqual(report.metrics.disagreementsByFixture, {});
+  assert.deepEqual(report.metrics.disagreementsByRound, {});
 });
 
 test("a guarded resource write still counts as clarify-to-write before adoption", () => {
