@@ -25,6 +25,7 @@ const [
   { buildWorkspaceContext, runLangChainOrchestratorResult },
   { createModelCallBudgetRecorder },
   { L3B_EVALUATION_FIXTURES, L3B_KNOWN_ID_DIAGNOSTICS },
+  { matchesExpectedIntentContract },
   { ORCHESTRATOR_DECISION_CODES },
   {
     assertSanitizedL3BReport,
@@ -50,6 +51,7 @@ const [
   import("../src/lib/agent/orchestration/langchain-orchestrator.ts"),
   import("../src/lib/agent/orchestration/model-call-budget.ts"),
   import("../src/lib/agent/orchestration/l3b-evaluation-fixtures.ts"),
+  import("../src/lib/agent/orchestration/l3b-semantic-accounting.ts"),
   import("../src/lib/agent/llm/schemas/orchestrator-output.ts"),
   import("../src/lib/agent/orchestration/l3b-evaluation.ts"),
   import("../src/lib/agent/orchestration/l3b-semantic-evidence.ts"),
@@ -144,6 +146,7 @@ const emptyRun = (fixture, round) => ({
   completedProviderResponses: 0,
   costUsd: null,
   databaseMutation: false,
+  decisionCodeCorrect: false,
   decisionConsistencyError: null,
   failureEvents: 0,
   fixtureId: fixture.id,
@@ -160,6 +163,7 @@ const emptyRun = (fixture, round) => ({
   modeMismatch: false,
   orchestratorLatencyMs: 0,
   orchestratorLogicalCalls: 0,
+  orchestratorCompleted: false,
   orchestratorProviderAttempts: 0,
   orchestratorUsable: false,
   outputTokens: null,
@@ -191,7 +195,6 @@ const emptyRun = (fixture, round) => ({
   semanticValidationsCompleted: 0,
   schemaCompletedResponses: 0,
   schemaValidResponses: 0,
-  semanticDecisionCorrect: false,
   semanticProjection: null,
   specialistBypassCount: 0,
   specialistLogicalCalls: 0,
@@ -311,10 +314,14 @@ const applySemanticDecision = (run, fixture, decision) => {
     safetyClass: actualSafetyClass,
     taskCount: decision.taskCount ?? decision.intents.length,
   });
-  run.semanticDecisionCorrect = decision.decisionCode === expectedDecisionCode(fixture);
+  run.decisionCodeCorrect = decision.decisionCode === expectedDecisionCode(fixture);
   const expected = fixture.expected;
   run.modeMismatch = decision.mode !== expected.mode;
-  run.intentMismatch = !expected.intents.includes(decision.intents[0] ?? "");
+  run.intentMismatch = !matchesExpectedIntentContract({
+    actualIntents: decision.intents,
+    expectedIntents: expected.intents,
+    expectedMode: expected.mode,
+  });
   Object.assign(
     run,
     compareL3BSafetyClass(
@@ -469,6 +476,7 @@ for (let round = 1; round <= rounds; round += 1) {
       }
     } else {
       const plan = result.plan;
+      run.orchestratorCompleted = true;
       run.schemaCompletedResponses = 1;
       run.schemaValidResponses = 1;
       if (!result.schemaValidDecision) {

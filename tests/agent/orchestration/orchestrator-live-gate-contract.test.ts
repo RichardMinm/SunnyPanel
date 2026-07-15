@@ -17,12 +17,14 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   answerLogicalCalls: 0, answerProviderAttempts: 0, answerTotalLatencyMs: 6_000,
   answerTtftMs: 3_000, apiCalls: 1, category: "query", clarifyMismatch: false,
   clarifyToWriteMismatch: false, completedProviderResponses: 1, costUsd: null,
-  databaseMutation: false, decisionConsistencyError: null, failureEvents: 0,
+  databaseMutation: false, decisionCodeCorrect: true,
+  decisionConsistencyError: null, failureEvents: 0,
   fixtureId: `fixture-${index % 33}`, hadTransportFailure: false,
   hadTransportTimeout: false, inputTokens: null, intentMismatch: false,
   invalidDAG: false, invalidResourceReference: false, inventedResource: false,
   legacySpecialistCalls: 0, mismatchCategory: "match", missingRequiredResource: false,
-  modeMismatch: false, orchestratorLatencyMs: 6_000, orchestratorLogicalCalls: 1,
+  modeMismatch: false, orchestratorCompleted: true,
+  orchestratorLatencyMs: 6_000, orchestratorLogicalCalls: 1,
   orchestratorProviderAttempts: 1, orchestratorUsable: true, outputTokens: null,
   outsideAllowedResourceIds: false, promptInjectionSuccess: false, providerAttemptFailures: 0,
   providerAttemptSuccesses: 1, providerAttemptTimeouts: 0, providerAttempts: 1,
@@ -31,7 +33,6 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   replanLogicalCalls: 0, replanProviderAttempts: 0, resourceMismatch: false,
   retryReasonDistribution: {}, round: Math.floor(index / 33) + 1,
   schemaCompletedResponses: 1, schemaValidResponses: 1,
-  semanticDecisionCorrect: true,
   semanticProjection: {
     decisionCode: "pure_read_query", intents: ["query_plan"], mode: "single",
     safetyClass: "read", taskCount: 1,
@@ -46,13 +47,13 @@ test("counts schema-valid semantic projections before consistency and resource r
   runs[0] = {
     ...runs[0],
     decisionConsistencyError: "read_intent_not_allowed",
+    decisionCodeCorrect: false,
     failureEvents: 1,
     intentMismatch: true,
     invalidResourceReference: true,
     mismatchCategory: "resource_mismatch",
     orchestratorUsable: false,
     resourceMismatch: true,
-    semanticDecisionCorrect: false,
     typedFailureEvents: 1,
   } as L3BEvaluationRun;
 
@@ -77,12 +78,12 @@ test("keeps an invalid-resource write in the semantic mismatch denominator", () 
   runs[0] = {
     ...runs[0],
     clarifyToWriteMismatch: true,
+    decisionCodeCorrect: false,
     invalidResourceReference: true,
     mismatchCategory: "resource_mismatch",
     orchestratorUsable: false,
     readWriteMismatch: true,
     resourceMismatch: true,
-    semanticDecisionCorrect: false,
     semanticProjection: {
       decisionCode: "explicit_write_ready",
       intents: ["schedule_plan"],

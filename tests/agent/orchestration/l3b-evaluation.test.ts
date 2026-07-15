@@ -47,6 +47,7 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   completedProviderResponses: index % 6 === 0 ? 2 : 1,
   costUsd: null,
   databaseMutation: false,
+  decisionCodeCorrect: true,
   decisionConsistencyError: null,
   failureEvents: 0,
   fixtureId: fixtureIds[index % fixtureIds.length],
@@ -62,6 +63,7 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   modeMismatch: false,
   missingRequiredResource: false,
   orchestratorLogicalCalls: 1,
+  orchestratorCompleted: true,
   orchestratorLatencyMs: 6_000,
   orchestratorProviderAttempts: 1,
   orchestratorUsable: true,
@@ -92,7 +94,6 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   semanticValidationsCompleted: 1,
   schemaCompletedResponses: 1,
   schemaValidResponses: 1,
-  semanticDecisionCorrect: true,
   semanticProjection: {
     decisionCode: "pure_read_query",
     intents: ["query_plan"],
@@ -126,6 +127,11 @@ test("passes a complete 99-observation matrix with all safety and performance ga
   assert.equal(report.metrics.baseSchemaPasses, 99);
   assert.equal(report.metrics.strictSchemaPasses, 99);
   assert.equal(report.metrics.semanticValidationsCompleted, 99);
+  assert.deepEqual(report.metrics.decisionCodeCorrect, {
+    count: 99,
+    denominator: 99,
+    rate: 1,
+  });
   assert.equal(report.metrics.orchestratorCompletionRate, 1);
   assert.equal(report.metrics.providerTimeoutRate, 0);
   assert.equal(report.metrics.orchestratorLogicalCalls, 99);
@@ -213,15 +219,17 @@ test("targeted 15 rejects fourteen successes plus one transport failure", () => 
   runs[0] = {
     ...runs[0],
     completedProviderResponses: 0,
+    decisionCodeCorrect: false,
     failureEvents: 1,
     hadTransportFailure: true,
+    mismatchCategory: "not_comparable",
+    orchestratorCompleted: false,
     orchestratorUsable: false,
     providerAttemptFailures: 1,
     providerAttemptSuccesses: 0,
     providerFailure: true,
     schemaCompletedResponses: 0,
     schemaValidResponses: 0,
-    semanticDecisionCorrect: false,
     semanticProjection: undefined,
     typedFailureEvents: 1,
   };
@@ -240,6 +248,70 @@ test("targeted 15 rejects fourteen successes plus one transport failure", () => 
   assert.ok(report.failureReasons.includes("semantic_decision_correct_rate"));
   assert.ok(report.failureReasons.includes("provider_transport_success_rate"));
   assert.ok(report.failureReasons.includes("orchestrator_completion_rate"));
+});
+
+test("reconciles Run 3 broad decision-code matches with exclusive semantic correctness", () => {
+  const runs = Array.from({ length: 15 }, (_, index) => ({
+    ...passingRun(index),
+    fixtureId: ["qry-1", "qry-2", "cmp-3", "cmp-4", "mis-2"][index % 5],
+    round: Math.floor(index / 5) + 1,
+  }));
+  for (const index of [2, 3, 7, 12, 13]) {
+    runs[index] = {
+      ...runs[index],
+      decisionCodeCorrect: false,
+      mismatchCategory: "read_write_mismatch",
+      orchestratorUsable: false,
+      readWriteMismatch: true,
+    };
+  }
+  runs[8] = {
+    ...runs[8],
+    decisionCodeCorrect: true,
+    intentMismatch: true,
+    mismatchCategory: "intent_mismatch",
+    orchestratorUsable: false,
+  };
+
+  const report = buildL3BEvaluationReport(runs, {
+    gateStage: "targeted",
+    minimumObservations: 15,
+    minimumRounds: 3,
+  });
+
+  assert.deepEqual(report.metrics.decisionCodeCorrect, {
+    count: 10,
+    denominator: 15,
+    rate: 10 / 15,
+  });
+  assert.deepEqual(report.metrics.semanticDecisionCorrect, {
+    count: 9,
+    denominator: 15,
+    rate: 9 / 15,
+  });
+  assert.deepEqual(report.metrics.semanticAccounting, {
+    comparable: 15,
+    decisionCodeCorrect: 10,
+    exclusiveCategories: {
+      clarify_mismatch: 0,
+      intent_mismatch: 1,
+      match: 9,
+      mode_mismatch: 0,
+      not_comparable: 0,
+      read_write_mismatch: 5,
+      resource_mismatch: 0,
+      unclassified: 0,
+    },
+    exclusiveCategoryTotal: 15,
+    observations: 15,
+    semanticCorrect: 9,
+    semanticIncorrect: 6,
+  });
+  assert.equal(report.metrics.orchestratorCompletionRate, 1);
+  assert.equal(report.metrics.usablePlanRate, 9 / 15);
+  assert.ok(report.failureReasons.includes("semantic_decision_correct_rate"));
+  assert.ok(report.failureReasons.includes("usable_plan_rate"));
+  assert.equal(report.failureReasons.includes("orchestrator_completion_rate"), false);
 });
 
 test("targeted 15 retains exact counts, coverage, timeout, and Orchestrator latency gates", () => {
@@ -261,7 +333,8 @@ test("targeted 15 retains exact counts, coverage, timeout, and Orchestrator late
   const cases = [
     ["provider_attempt_count", { providerAttemptSuccesses: 2, providerAttempts: 2, providerRequests: 2 }],
     ["provider_timeout_rate", { hadTransportTimeout: true, providerAttemptTimeouts: 1 }],
-    ["orchestrator_completion_rate", { orchestratorUsable: false }],
+    ["orchestrator_completion_rate", { orchestratorCompleted: false, orchestratorUsable: false }],
+    ["usable_plan_rate", { orchestratorUsable: false }],
     ["orchestrator_total_latency", { orchestratorLatencyMs: 20_001 }],
   ] as const;
 
@@ -425,7 +498,10 @@ test("typed failures are excluded from completion and must cover every failure e
   safeRuns[0] = {
     ...safeRuns[0],
     completedProviderResponses: 0,
+    decisionCodeCorrect: false,
     failureEvents: 1,
+    mismatchCategory: "not_comparable",
+    orchestratorCompleted: false,
     orchestratorUsable: false,
     providerFailure: true,
     schemaCompletedResponses: 0,
@@ -448,7 +524,9 @@ test("completed Provider payloads require a 100 percent strict schema rate", () 
   runs[0] = {
     ...runs[0],
     failureEvents: 1,
+    decisionCodeCorrect: false,
     mismatchCategory: "not_comparable",
+    orchestratorCompleted: false,
     orchestratorUsable: false,
     schemaValidResponses: 0,
     typedFailureEvents: 1,
@@ -605,7 +683,7 @@ test("zero schema-valid decisions render every mismatch rate as N/A, never zero"
     ...run,
     mismatchCategory: "not_comparable" as const,
     schemaValidResponses: 0,
-    semanticDecisionCorrect: false,
+    decisionCodeCorrect: false,
     semanticProjection: undefined,
   }));
   const report = buildL3BEvaluationReport(runs, { expectedFixtureIds: fixtureIds });
