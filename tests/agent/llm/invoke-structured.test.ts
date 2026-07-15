@@ -331,12 +331,22 @@ describe("invokeStructured (L1-A contract)", () => {
       });
 
       assert.equal(result.ok, true);
-      assert.deepEqual(events, [
-        { attempt: 1, phase: "started" },
-        { attempt: 1, phase: "failed", reason: "connection_reset", retryScheduled: true },
-        { attempt: 2, phase: "started" },
-        { attempt: 2, phase: "succeeded" },
+      assert.deepEqual(events.map(({ attempt, phase }) => ({ attempt, phase })), [
+        { attempt: 1, phase: "providerRequestStarted" },
+        { attempt: 1, phase: "failed" },
+        { attempt: 2, phase: "providerRequestStarted" },
+        { attempt: 2, phase: "providerResponseReceived" },
+        { attempt: 2, phase: "baseSchemaValidated" },
+        { attempt: 2, phase: "strictSchemaValidated" },
       ]);
+      const firstFailure = events[1];
+      assert.equal(firstFailure?.phase, "failed");
+      if (firstFailure?.phase === "failed") {
+        assert.equal(firstFailure.reason, "connection_reset");
+        assert.equal(firstFailure.retryScheduled, true);
+        assert.equal(firstFailure.safeProtocol.responseReceived, false);
+        assert.equal(firstFailure.safeProtocol.httpStatusClass, "network_error");
+      }
       assert.doesNotMatch(JSON.stringify(events), /socket closed|ECONNRESET/);
     });
 

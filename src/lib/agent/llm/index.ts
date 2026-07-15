@@ -43,6 +43,21 @@ export type {
   StructuredModelResult,
 } from "./invoke-structured";
 
+/* Safe structured-output protocol diagnostics */
+export {
+  createSafeProtocolDiagnostics,
+} from "./structured-protocol";
+export type {
+  SafeProtocolDiagnostics,
+  StructuredProtocolFailure,
+} from "./structured-protocol";
+
+/* Strict whole-output prompt JSON parser */
+export {
+  extractWholePromptJson,
+  parsePromptJsonObject,
+} from "./prompt-json-parser";
+
 /* Provider capabilities */
 export {
   getProviderCapabilities,

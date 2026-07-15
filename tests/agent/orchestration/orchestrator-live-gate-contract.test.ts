@@ -149,6 +149,27 @@ test("diagnostics and raw payload-bearing keys stay outside authoritative denomi
   assert.doesNotMatch(source, /runs\.push\([^)]*diagnostic/);
 });
 
+test("runs known-ID diagnostics only after the acceptance matrix passes", () => {
+  const source = readFileSync(
+    resolve(process.cwd(), "scripts/agent-orchestrator-canary-eval.mjs"),
+    "utf8",
+  );
+  const gatingIndex = source.indexOf("const gating = buildL3BEvaluationReport");
+  const diagnosticsIndex = source.indexOf("const knownIdDiagnostics =");
+
+  assert.notEqual(gatingIndex, -1);
+  assert.notEqual(diagnosticsIndex, -1);
+  assert.ok(gatingIndex < diagnosticsIndex);
+  assert.match(
+    source.slice(diagnosticsIndex, source.indexOf("const diagnosticStatus =")),
+    /gateStage === "acceptance" && gating\.pass/,
+  );
+  assert.match(
+    source.slice(source.indexOf("const runKnownIdDiagnostic"), gatingIndex),
+    /structuredRetryBudget:[\s\S]*transport: 0/,
+  );
+});
+
 test("diagnostic failures remain denominator-isolated but block one-round acceptance", () => {
   const runs = Array.from({ length: 33 }, (_, index) => ({
     ...passingRun(index),
@@ -165,6 +186,7 @@ test("diagnostic failures remain denominator-isolated but block one-round accept
     Array.from({ length: 6 }, (_, index) => ({
       id: `diag-${index}`,
       pass: index !== 0,
+      providerAttempts: 1,
     })),
     { expectedDiagnostics: 6, required: true },
   );
@@ -215,8 +237,13 @@ test("legitimate numeric aggregate values remain accepted", () => {
         completedProviderResponses: 1,
         outsideAllowedResourceIds: 0,
         providerCompletedResponses: 1,
+        providerResponsesReceived: 1,
         schemaCompletedResponses: 1,
         schemaValidResponses: 1,
+        structuredJsonParses: 1,
+        baseSchemaPasses: 1,
+        strictSchemaPasses: 1,
+        semanticValidationsCompleted: 1,
       }, "run", validateAggregateValues),
       null,
     );

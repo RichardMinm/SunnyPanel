@@ -1,43 +1,25 @@
-/** Unified structured model invocation service.
+/**
+ * Unified structured model invocation with bounded retry and payload-free
+ * Provider protocol diagnostics.
  *
- * Wraps LangChain's `withStructuredOutput()` with provider-aware strategy
- * selection, typed error handling, cancellation support, and bounded retry.
- *
- * Unlike the legacy `completeStructured` in complete-structured.ts, this
- * service NEVER uses JSON substring extraction (no `extractJSONObject`,
- * no `{`/`}` scanning). The entire model response must be valid JSON that
- * parses against the supplied Zod schema.
- *
- * ## Retry Contract
- *
- * ChatOpenAI is created with `maxRetries=0` — all retry logic lives here.
- *
- * Two independent retry counters:
- *   maxTransportRetries (default 1) — explicit no-payload network, retryable
- *     HTTP 5xx, and shared-policy rate-limit errors only.
- *     Exhausted → returns MODEL_UNAVAILABLE.
- *     Each transport retry resets the schema retry counter.
- *   maxSchemaRetries (default 1) — OutputParserException, Zod validation failure.
- *     Exhausted → returns STRUCTURED_OUTPUT_RETRY_EXHAUSTED.
- *
- * NEVER retried: config errors (MODEL_NOT_CONFIGURED), abort (AbortError),
- *   timeout (TimeoutError), auth failures (401).
- *
- * Maximum provider calls per invocation:
- *   schema-only failures: (1 + maxSchemaRetries).
- *   transport-only failures: (1 + maxTransportRetries).
- *   mixed (worst case): (1 + maxTransportRetries) × (1 + maxSchemaRetries).
+ * Native JSON Schema and function-calling providers retain LangChain's
+ * withStructuredOutput() path. Conservative prompt_json providers use the same
+ * LangChain transport but parse one whole JSON object explicitly so the final
+ * strict schema always sees the Provider's original parsed keys.
  */
 
-import type { z } from "zod";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
 import type { Runnable } from "@langchain/core/runnables";
-import { HumanMessage, SystemMessage, AIMessage } from "@langchain/core/messages";
+import type { z } from "zod";
+
+import type { ChatMessage } from "./message-builder";
 import type { ModelConfig } from "./model-config";
-import type { ModelError } from "./model-errors";
-import type { StructuredOutputDiagnostics } from "./model-errors";
+import type { ModelError, StructuredOutputDiagnostics } from "./model-errors";
 import {
+  modelAuthFailed,
   modelNotConfigured,
+  modelRateLimited,
   modelTimeout,
   modelUnavailable,
   structuredOutputRetryExhausted,
@@ -45,41 +27,36 @@ import {
 } from "./model-errors";
 import type { ModelFactory } from "./model-factory";
 import { createChatModel } from "./model-factory";
-import { getProviderCapabilities, type StructuredOutputMode } from "./provider-capabilities";
-import type { ChatMessage } from "./message-builder";
+import { extractWholePromptJson } from "./prompt-json-parser";
+import {
+  advanceSafeProtocolDiagnostics,
+  createSafeProtocolDiagnostics,
+  type SafeProtocolDiagnostics,
+  type StructuredProtocolFailure,
+} from "./structured-protocol";
+import {
+  getProviderCapabilities,
+  type StructuredOutputMode,
+} from "./provider-capabilities";
 
 /* ---- Public types ---- */
 
 export type InvokeStructuredOptions<TSchema extends z.ZodType> = {
-  /** The Zod schema to validate against. */
   schema: TSchema;
-  /** Human-readable name for the schema (used in error messages). */
   schemaName: string;
-  /** Messages to send (system, context, history, user request). */
   messages: ChatMessage[];
-  /** Validated model configuration. */
   modelConfig: ModelConfig;
-  /** Injectable model factory (defaults to createChatModel). */
   modelFactory?: ModelFactory;
-  /** Caller-provided cancellation signal. */
   signal?: AbortSignal;
-  /** LangChain tags for tracing. */
   tags?: string[];
-  /** Maximum whitelisted no-payload transport retries. Default 1.
-   *  Unknown errors, config errors, abort, timeout, auth, and completed
-   *  Provider payloads are NEVER transport-retried. */
   maxTransportRetries?: number;
-  /** Maximum schema repair (parse/validation) retries. Default 1.
-   *  Each schema retry causes an additional provider call.
-   *  Config errors, abort, timeout are NEVER retried. */
   maxSchemaRetries?: number;
-  /** Optional simplified schema for LangChain model construction.
-   *  Use when the main schema has .strict() or .superRefine() that
-   *  LangChain's withStructuredOutput cannot convert to JSON Schema.
-   *  The main `schema` is still used for post-invoke validation.
-   *  If omitted, `schema` is used for both. */
+  /**
+   * A simplified schema may be used to classify base-schema failures. Its
+   * transformed data is always discarded; the final schema validates the same
+   * original parsed object.
+   */
   modelSchema?: z.ZodType;
-  /** Sanitized lifecycle observer for each real Provider attempt. */
   providerAttemptObserver?: StructuredProviderAttemptObserver;
 };
 
@@ -96,14 +73,33 @@ export type StructuredAttemptFailureReason =
   | "provider_protocol"
   | "timeout";
 
+type StageEventPhase =
+  | "providerResponseReceived"
+  | "contentExtracted"
+  | "jsonParsed"
+  | "baseSchemaValidated"
+  | "strictSchemaValidated";
+
 export type StructuredProviderAttemptEvent =
-  | { attempt: number; phase: "started" }
-  | { attempt: number; phase: "succeeded" }
+  | { attempt: number; phase: "providerRequestStarted" }
+  | {
+      attempt: number;
+      phase: StageEventPhase;
+      safeProtocol: SafeProtocolDiagnostics;
+    }
+  | {
+      attempt: number;
+      phase: "semanticValidationCompleted";
+      passed: boolean;
+      safeProtocol: SafeProtocolDiagnostics;
+    }
   | {
       attempt: number;
       phase: "failed";
       reason: StructuredAttemptFailureReason;
       retryScheduled: boolean;
+      protocolFailure?: StructuredProtocolFailure;
+      safeProtocol: SafeProtocolDiagnostics;
     };
 
 export type StructuredProviderAttemptObserver = (
@@ -113,6 +109,32 @@ export type StructuredProviderAttemptObserver = (
 export type StructuredModelResult<T> =
   | { ok: true; data: T; provider: string; model: string }
   | { ok: false; error: ModelError };
+
+type ProtocolFailureDetails = Readonly<{
+  failure: StructuredProtocolFailure;
+  diagnostics: SafeProtocolDiagnostics;
+  issues: StructuredOutputDiagnostics["issues"];
+}>;
+
+class SafeProtocolFailureError extends Error {
+  readonly details: ProtocolFailureDetails;
+
+  constructor(details: ProtocolFailureDetails) {
+    super("Structured Provider protocol failure");
+    this.name = "SafeProtocolFailureError";
+    this.details = details;
+  }
+}
+
+class NativeSchemaValidationError extends Error {
+  readonly issues: StructuredOutputDiagnostics["issues"];
+
+  constructor(issues: StructuredOutputDiagnostics["issues"]) {
+    super("Native structured output schema validation failed");
+    this.name = "NativeSchemaValidationError";
+    this.issues = issues;
+  }
+}
 
 /* ---- Main entry point ---- */
 
@@ -133,41 +155,14 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     providerAttemptObserver,
   } = options;
 
-  /* 1. Build the LangChain chat model.
-   *    ChatOpenAI is created with maxRetries=0 — we own all retry. */
-  let model: BaseChatModel;
-
-  try {
-    model = modelFactory(modelConfig);
-  } catch (err) {
-    return {
-      ok: false,
-      error: modelNotConfigured(
-        `Failed to create chat model: ${err instanceof Error ? err.message : String(err)}`,
-      ),
-    };
-  }
-
-  /* 2. Determine structured output strategy */
   const capabilities = getProviderCapabilities(modelConfig.provider);
   const strategy = capabilities.structuredOutputMode;
-
-  /* 3. Convert messages to LangChain format */
-  const lcMessages = messages.map((m) => {
-    switch (m.role) {
-      case "system":
-        return new SystemMessage(m.content);
-      case "user":
-        return new HumanMessage(m.content);
-      case "assistant":
-        return new AIMessage(m.content);
-      default:
-        return new HumanMessage(m.content);
-    }
-  });
-
-  let lastStructuredOutputDiagnostics: StructuredOutputDiagnostics | undefined;
   let providerAttempt = 0;
+  let activeAttempt = 0;
+  let activeAttemptStartedAt = 0;
+  let responseEventEmitted = false;
+  let safeProtocol = createSafeProtocolDiagnostics();
+
   const observeAttempt = (event: StructuredProviderAttemptEvent) => {
     try {
       providerAttemptObserver?.(event);
@@ -176,114 +171,183 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     }
   };
 
-  /* 4. Build the structured runnable */
-  let structuredRunnable: Runnable<typeof lcMessages, z.infer<TSchema>>;
+  const advance = (
+    patch: Partial<SafeProtocolDiagnostics>,
+  ): SafeProtocolDiagnostics => {
+    safeProtocol = advanceSafeProtocolDiagnostics(safeProtocol, patch);
+    return safeProtocol;
+  };
 
+  const emitStage = (phase: StageEventPhase): void => {
+    observeAttempt({ attempt: activeAttempt, phase, safeProtocol });
+  };
+
+  const markResponseReceivedWithoutEnvelope = (): void => {
+    if (responseEventEmitted) return;
+    responseEventEmitted = true;
+    advance({
+      responseReceived: true,
+      latencyMs: Date.now() - activeAttemptStartedAt,
+    });
+    emitStage("providerResponseReceived");
+  };
+
+  let model: BaseChatModel;
   try {
-    /* Use modelSchema for LangChain if provided (avoids .strict()/.superRefine() issues).
-     *   The main `schema` is always used for post-invoke validation. */
-    structuredRunnable = buildStructuredRunnable(model, modelSchema ?? schema, schemaName, strategy);
-  } catch {
+    model = modelFactory(modelConfig, {
+      safeResponseObserver: (observation) => {
+        if (activeAttempt === 0) return;
+        responseEventEmitted = true;
+        advance({
+          ...observation,
+          latencyMs: Date.now() - activeAttemptStartedAt,
+        });
+        emitStage("providerResponseReceived");
+      },
+    });
+  } catch (error) {
     return {
       ok: false,
-      error: structuredOutputUnsupported(
-        modelConfig.provider,
-        modelConfig.model,
+      error: modelNotConfigured(
+        `Failed to create chat model: ${error instanceof Error ? error.message : String(error)}`,
       ),
     };
   }
 
-  /* 5. Transport retry loop (outer) — network/HTTP/provider errors */
-  for (let transportAttempt = 0; transportAttempt <= maxTransportRetries; transportAttempt++) {
-    /* 5a. Schema retry loop (inner) — parse/validation errors */
-    for (let schemaAttempt = 0; schemaAttempt <= maxSchemaRetries; schemaAttempt++) {
+  const lcMessages = messages.map((message) => {
+    switch (message.role) {
+      case "system":
+        return new SystemMessage(message.content);
+      case "user":
+        return new HumanMessage(message.content);
+      case "assistant":
+        return new AIMessage(message.content);
+      default:
+        return new HumanMessage(message.content);
+    }
+  });
+
+  let structuredRunnable: Runnable<typeof lcMessages, unknown> | null = null;
+  if (strategy !== "prompt_json") {
+    try {
+      structuredRunnable = buildStructuredRunnable(
+        model,
+        modelSchema ?? schema,
+        schemaName,
+        strategy,
+      );
+    } catch {
+      return {
+        ok: false,
+        error: structuredOutputUnsupported(modelConfig.provider, modelConfig.model),
+      };
+    }
+  }
+
+  let lastStructuredOutputDiagnostics: StructuredOutputDiagnostics | undefined;
+
+  for (
+    let transportAttempt = 0;
+    transportAttempt <= maxTransportRetries;
+    transportAttempt += 1
+  ) {
+    for (
+      let schemaAttempt = 0;
+      schemaAttempt <= maxSchemaRetries;
+      schemaAttempt += 1
+    ) {
       const controller = new AbortController();
       const timeoutId = setTimeout(
         () => controller.abort(new DOMException("Timeout", "TimeoutError")),
         modelConfig.timeoutMs,
       );
-
       const onCallerAbort = () => controller.abort();
       signal?.addEventListener("abort", onCallerAbort, { once: true });
 
+      providerAttempt += 1;
+      activeAttempt = providerAttempt;
+      activeAttemptStartedAt = Date.now();
+      responseEventEmitted = false;
+      safeProtocol = createSafeProtocolDiagnostics();
+      observeAttempt({ attempt: activeAttempt, phase: "providerRequestStarted" });
+
       try {
-        providerAttempt += 1;
-        const currentProviderAttempt = providerAttempt;
-        observeAttempt({ attempt: currentProviderAttempt, phase: "started" });
-        const result = await structuredRunnable.invoke(lcMessages, {
-          signal: controller.signal,
-          tags,
-        });
-        observeAttempt({ attempt: currentProviderAttempt, phase: "succeeded" });
+        let rawResult: unknown;
+
+        if (strategy === "prompt_json") {
+          const jsonModel = model.withConfig({
+            outputVersion: "v0",
+            response_format: { type: "json_object" },
+          } as unknown as Parameters<typeof model.withConfig>[0]);
+          const message = await jsonModel.invoke(lcMessages, {
+            signal: controller.signal,
+            tags,
+          });
+          markResponseReceivedWithoutEnvelope();
+          rawResult = parsePromptJsonMessage(message, modelSchema ?? schema, schema, {
+            advance,
+            emitStage,
+            safeProtocol: () => safeProtocol,
+          });
+        } else {
+          const parsed = await structuredRunnable!.invoke(lcMessages, {
+            signal: controller.signal,
+            tags,
+          });
+          markResponseReceivedWithoutEnvelope();
+          rawResult = validateNativeStructuredResult(
+            parsed,
+            modelSchema ?? schema,
+            schema,
+            { advance, emitStage, safeProtocol: () => safeProtocol },
+          );
+        }
 
         clearTimeout(timeoutId);
         signal?.removeEventListener("abort", onCallerAbort);
 
-        /* Double-validate with Zod for defense in depth */
-        const validated = schema.safeParse(result);
-
-        if (validated.success) {
-          return {
-            ok: true,
-            data: validated.data as z.infer<TSchema>,
-            provider: modelConfig.provider,
-            model: modelConfig.model,
-          };
-        }
-
-        lastStructuredOutputDiagnostics = {
-          stage: "zod_validation",
-          issues: validated.error.issues.map((issue) => ({
-            code: issue.code,
-            path: issue.path.map((segment) =>
-              typeof segment === "symbol"
-                ? segment.description ?? "symbol"
-                : segment,
-            ),
-            missing: getValueAtPath(result, issue.path) === undefined,
-          })),
-        };
-
-        /* Schema validation failed — retry if we have schema attempts left */
-        if (schemaAttempt < maxSchemaRetries) {
-          continue; /* inner loop: schema retry */
-        }
-
-        /* Schema retries exhausted */
         return {
-          ok: false,
-          error: structuredOutputRetryExhausted(
-            maxSchemaRetries,
-            modelConfig.provider,
-            modelConfig.model,
-            lastStructuredOutputDiagnostics,
-          ),
+          ok: true,
+          data: rawResult as z.infer<TSchema>,
+          provider: modelConfig.provider,
+          model: modelConfig.model,
         };
-      } catch (err) {
+      } catch (error) {
         clearTimeout(timeoutId);
         signal?.removeEventListener("abort", onCallerAbort);
 
-        /* NEVER retry: timeout */
-        if (err instanceof DOMException && err.name === "TimeoutError") {
+        if (isTimeoutError(error, controller.signal)) {
+          advance({
+            httpStatusClass: safeProtocol.responseReceived
+              ? safeProtocol.httpStatusClass
+              : "network_error",
+            latencyMs: Date.now() - activeAttemptStartedAt,
+          });
           observeAttempt({
-            attempt: providerAttempt,
+            attempt: activeAttempt,
             phase: "failed",
             reason: "timeout",
             retryScheduled: false,
+            safeProtocol,
           });
           return {
             ok: false,
-            error: modelTimeout(modelConfig.timeoutMs, modelConfig.provider),
+            error: modelTimeout(
+              modelConfig.timeoutMs,
+              modelConfig.provider,
+              transportDiagnostics(safeProtocol),
+            ),
           };
         }
 
-        /* NEVER retry: caller abort */
-        if (err instanceof DOMException && err.name === "AbortError") {
+        if (isCallerAbort(error, signal)) {
+          advance({ latencyMs: Date.now() - activeAttemptStartedAt });
           observeAttempt({
-            attempt: providerAttempt,
+            attempt: activeAttempt,
             phase: "failed",
             reason: "cancelled",
             retryScheduled: false,
+            safeProtocol,
           });
           return {
             ok: false,
@@ -292,34 +356,56 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
               retryable: false,
               provider: modelConfig.provider,
               safeMessage: "请求已被取消。",
+              structuredOutput: transportDiagnostics(safeProtocol),
             },
           };
         }
 
-        /* Schema retry: OutputParserException or Zod validation failure.
-         *   Check both err.name and constructor.name for cross-version compat. */
-        if (
-          err instanceof Error
-          && (err.name === "OutputParserException"
-            || err.constructor?.name === "OutputParserException"
-            || (err as unknown as Record<string, unknown>).lc_error_code === "OUTPUT_PARSING_FAILURE")
-        ) {
+        const observedEnvelopeFailure = classifyObservedEnvelopeFailure(
+          error,
+          safeProtocol,
+        );
+        if (error instanceof NativeSchemaValidationError) {
           const retryScheduled = schemaAttempt < maxSchemaRetries;
+          lastStructuredOutputDiagnostics = {
+            stage: "zod_validation",
+            issues: error.issues,
+          };
           observeAttempt({
-            attempt: providerAttempt,
+            attempt: activeAttempt,
             phase: "failed",
             reason: "provider_protocol",
             retryScheduled,
+            safeProtocol,
           });
-          lastStructuredOutputDiagnostics = {
-            stage: "provider_protocol",
-            issues: [],
+          if (retryScheduled) continue;
+          return {
+            ok: false,
+            error: structuredOutputRetryExhausted(
+              maxSchemaRetries,
+              modelConfig.provider,
+              modelConfig.model,
+              lastStructuredOutputDiagnostics,
+            ),
           };
-
-          if (retryScheduled) {
-            continue; /* inner loop: schema retry */
-          }
-
+        }
+        const protocolError = error instanceof SafeProtocolFailureError
+          ? error
+          : observedEnvelopeFailure;
+        if (protocolError !== null) {
+          const retryScheduled = schemaAttempt < maxSchemaRetries;
+          lastStructuredOutputDiagnostics = protocolDiagnostics(
+            protocolError.details,
+          );
+          observeAttempt({
+            attempt: activeAttempt,
+            phase: "failed",
+            reason: "provider_protocol",
+            retryScheduled,
+            protocolFailure: protocolError.details.failure,
+            safeProtocol: protocolError.details.diagnostics,
+          });
+          if (retryScheduled) continue;
           return {
             ok: false,
             error: structuredOutputRetryExhausted(
@@ -331,84 +417,404 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
           };
         }
 
-        const retryReason = classifyStructuredTransportRetry(err);
-        const retryScheduled =
-          retryReason !== null && transportAttempt < maxTransportRetries;
+        if (isOutputParserException(error)) {
+          const retryScheduled = schemaAttempt < maxSchemaRetries;
+          observeAttempt({
+            attempt: activeAttempt,
+            phase: "failed",
+            reason: "provider_protocol",
+            retryScheduled,
+            safeProtocol,
+          });
+          lastStructuredOutputDiagnostics = {
+            stage: "provider_protocol",
+            issues: [],
+          };
+          if (retryScheduled) continue;
+          return {
+            ok: false,
+            error: structuredOutputRetryExhausted(
+              maxSchemaRetries,
+              modelConfig.provider,
+              modelConfig.model,
+              lastStructuredOutputDiagnostics,
+            ),
+          };
+        }
+
+        advance({
+          httpStatusClass: safeProtocol.responseReceived
+            ? safeProtocol.httpStatusClass
+            : "network_error",
+          latencyMs: Date.now() - activeAttemptStartedAt,
+        });
+        const retryReason = classifyStructuredTransportRetry(error);
+        const retryScheduled = retryReason !== null
+          && transportAttempt < maxTransportRetries;
         observeAttempt({
-          attempt: providerAttempt,
+          attempt: activeAttempt,
           phase: "failed",
           reason: retryReason ?? "non_retryable_transport",
           retryScheduled,
+          safeProtocol,
         });
 
-        /* Transport retry: explicit no-payload network/HTTP whitelist only. */
         if (retryScheduled) {
-          await new Promise((r) => setTimeout(r, 500 * (transportAttempt + 1)));
-          break; /* exit inner loop → retry at transport level */
+          await new Promise((resolve) =>
+            setTimeout(resolve, 500 * (transportAttempt + 1)));
+          break;
         }
 
-        /* Transport retries exhausted */
+        const diagnostics = transportDiagnostics(safeProtocol);
+        const status = getErrorStatus(error);
+        if (status === 401 || status === 403) {
+          return {
+            ok: false,
+            error: modelAuthFailed(modelConfig.provider, diagnostics),
+          };
+        }
+        if (status === 429) {
+          return {
+            ok: false,
+            error: modelRateLimited(
+              modelConfig.provider,
+              modelConfig.model,
+              diagnostics,
+            ),
+          };
+        }
         return {
           ok: false,
-          error: modelUnavailable(modelConfig.provider, err),
+          error: modelUnavailable(modelConfig.provider, undefined, diagnostics),
         };
       }
     }
   }
 
-  /* Should not reach here, but safety net */
   return {
     ok: false,
     error: modelUnavailable(modelConfig.provider),
   };
 };
 
-export const classifyStructuredTransportRetry = (
-  error: unknown,
-): StructuredRetryReason | null => {
-  if (!(error instanceof Error)) return null;
+type ProtocolStageContext = Readonly<{
+  advance: (
+    patch: Partial<SafeProtocolDiagnostics>,
+  ) => SafeProtocolDiagnostics;
+  emitStage: (phase: StageEventPhase) => void;
+  safeProtocol: () => SafeProtocolDiagnostics;
+}>;
 
-  const item = error as Error & {
-    code?: unknown;
-    providerPayloadReceived?: unknown;
-    response?: { status?: unknown };
-    status?: unknown;
-    statusCode?: unknown;
-  };
-
-  if (item.providerPayloadReceived === true) return null;
-
-  const code = typeof item.code === "string" ? item.code : "";
-  if (code === "ECONNRESET") return "connection_reset";
-  if (["ECONNREFUSED", "ENETUNREACH", "EAI_AGAIN"].includes(code)) {
-    return "network_transport";
+const parsePromptJsonMessage = <TSchema extends z.ZodType>(
+  message: unknown,
+  baseSchema: z.ZodType,
+  strictSchema: TSchema,
+  context: ProtocolStageContext,
+): z.infer<TSchema> => {
+  const diagnostics = context.safeProtocol();
+  const finalContentAbsent =
+    diagnostics.contentState === "missing"
+    || diagnostics.contentState === "empty";
+  if (diagnostics.finishReason === "length") {
+    throwProtocol("provider_truncated", context, "content_extraction");
+  }
+  if (
+    diagnostics.finishReason !== null
+    && diagnostics.finishReason !== "stop"
+  ) {
+    if (
+      finalContentAbsent
+      && diagnostics.toolCallsPresent
+    ) {
+      throwProtocol("provider_tool_arguments_only", context, "content_extraction");
+    }
+    throwProtocol(
+      "provider_finish_reason_unexpected",
+      context,
+      "content_extraction",
+    );
+  }
+  if (
+    diagnostics.httpStatusClass === "2xx"
+    && diagnostics.choicesState !== "present"
+  ) {
+    throwProtocol(
+      "provider_response_envelope_invalid",
+      context,
+      "not_started",
+    );
+  }
+  if (finalContentAbsent) {
+    if (diagnostics.reasoningPresent) {
+      throwProtocol("provider_reasoning_only", context, "content_extraction");
+    }
+    if (diagnostics.toolCallsPresent) {
+      throwProtocol("provider_tool_arguments_only", context, "content_extraction");
+    }
+    throwProtocol(
+      diagnostics.contentState === "missing"
+        ? "provider_missing_content"
+        : "provider_empty_completion",
+      context,
+      "content_extraction",
+    );
   }
 
-  const status = Number(item.status ?? item.statusCode ?? item.response?.status);
-  if (status === 429) return "rate_limit";
-  if ([500, 502, 503, 504].includes(status)) return "provider_5xx";
+  if (typeof message !== "object" || message === null || !("content" in message)) {
+    throwProtocol(
+      "provider_adapter_normalization_failed",
+      context,
+      "content_extraction",
+    );
+  }
+  const content = (message as { content: unknown }).content;
+  if (typeof content !== "string") {
+    throwProtocol(
+      "provider_adapter_normalization_failed",
+      context,
+      "content_extraction",
+    );
+  }
+  const textContent = content as string;
+  if (textContent.trim().length === 0) {
+    throwProtocol("provider_empty_completion", context, "content_extraction");
+  }
 
+  context.advance({ parserSubstage: "content_extraction" });
+  context.emitStage("contentExtracted");
+
+  const extracted = extractWholePromptJson(textContent);
+  const candidate = "candidate" in extracted ? extracted.candidate : null;
+  if (candidate === null) {
+    throwProtocol("provider_json_extraction_failed", context, "json_extraction");
+  }
+
+  let rawObject: unknown;
+  try {
+    rawObject = JSON.parse(candidate as string);
+  } catch {
+    throwProtocol("provider_json_parse_failed", context, "json_parse");
+  }
+  if (typeof rawObject !== "object" || rawObject === null || Array.isArray(rawObject)) {
+    throwProtocol("provider_json_extraction_failed", context, "json_extraction");
+  }
+
+  context.advance({ parserSubstage: "json_parse" });
+  context.emitStage("jsonParsed");
+
+  context.advance({ baseSchemaReached: true, parserSubstage: "base_schema" });
+  const baseValidated = baseSchema.safeParse(rawObject);
+  if (!baseValidated.success) {
+    throw new SafeProtocolFailureError({
+      failure: "provider_base_schema_failed",
+      diagnostics: context.safeProtocol(),
+      issues: sanitizeZodIssues(baseValidated.error.issues, rawObject),
+    });
+  }
+  context.emitStage("baseSchemaValidated");
+
+  context.advance({ strictSchemaReached: true, parserSubstage: "strict_schema" });
+  const strictValidated = strictSchema.safeParse(rawObject);
+  if (!strictValidated.success) {
+    throw new SafeProtocolFailureError({
+      failure: "provider_strict_schema_failed",
+      diagnostics: context.safeProtocol(),
+      issues: sanitizeZodIssues(strictValidated.error.issues, rawObject),
+    });
+  }
+  context.emitStage("strictSchemaValidated");
+  return strictValidated.data;
+};
+
+const validateNativeStructuredResult = <TSchema extends z.ZodType>(
+  result: unknown,
+  baseSchema: z.ZodType,
+  strictSchema: TSchema,
+  context: ProtocolStageContext,
+): z.infer<TSchema> => {
+  context.advance({ baseSchemaReached: true, parserSubstage: "base_schema" });
+  const baseValidated = baseSchema.safeParse(result);
+  if (!baseValidated.success) {
+    throw new NativeSchemaValidationError(
+      sanitizeZodIssues(baseValidated.error.issues, result),
+    );
+  }
+  context.emitStage("baseSchemaValidated");
+
+  context.advance({ strictSchemaReached: true, parserSubstage: "strict_schema" });
+  const strictValidated = strictSchema.safeParse(result);
+  if (!strictValidated.success) {
+    throw new NativeSchemaValidationError(
+      sanitizeZodIssues(strictValidated.error.issues, result),
+    );
+  }
+  context.emitStage("strictSchemaValidated");
+  return strictValidated.data;
+};
+
+const throwProtocol = (
+  failure: StructuredProtocolFailure,
+  context: ProtocolStageContext,
+  parserSubstage: SafeProtocolDiagnostics["parserSubstage"],
+): never => {
+  context.advance({ parserSubstage });
+  throw new SafeProtocolFailureError({
+    failure,
+    diagnostics: context.safeProtocol(),
+    issues: [],
+  });
+};
+
+const classifyObservedEnvelopeFailure = (
+  error: unknown,
+  diagnostics: SafeProtocolDiagnostics,
+): SafeProtocolFailureError | null => {
+  if (!diagnostics.responseReceived || diagnostics.httpStatusClass !== "2xx") {
+    return null;
+  }
+  if (
+    diagnostics.choicesState === "missing"
+    || diagnostics.choicesState === "empty"
+    || diagnostics.choicesState === "not_available"
+  ) {
+    return new SafeProtocolFailureError({
+      failure: "provider_response_envelope_invalid",
+      diagnostics,
+      issues: [],
+    });
+  }
+  if (isOutputParserException(error)) {
+    return new SafeProtocolFailureError({
+      failure: "provider_adapter_normalization_failed",
+      diagnostics,
+      issues: [],
+    });
+  }
   return null;
 };
+
+const protocolDiagnostics = (
+  details: ProtocolFailureDetails,
+): StructuredOutputDiagnostics => ({
+  stage: "provider_protocol",
+  issues: details.issues,
+  protocolFailure: details.failure,
+  safeProtocol: details.diagnostics,
+});
+
+const transportDiagnostics = (
+  diagnostics: SafeProtocolDiagnostics,
+): StructuredOutputDiagnostics => ({
+  stage: "provider_protocol",
+  issues: [],
+  safeProtocol: diagnostics,
+});
+
+const sanitizeZodIssues = (
+  issues: readonly z.core.$ZodIssue[],
+  value: unknown,
+): StructuredOutputDiagnostics["issues"] => issues.map((issue) => ({
+  code: issue.code,
+  path: issue.path.map((segment) =>
+    typeof segment === "symbol" ? segment.description ?? "symbol" : segment),
+  missing: getValueAtPath(value, issue.path) === undefined,
+}));
 
 const getValueAtPath = (
   value: unknown,
   path: readonly PropertyKey[],
 ): unknown => {
   let current = value;
-
   for (const segment of path) {
     if (typeof current !== "object" || current === null) return undefined;
     current = (current as Record<PropertyKey, unknown>)[segment];
   }
-
   return current;
 };
 
-/* ---- Internal helpers ---- */
+const isOutputParserException = (error: unknown): boolean =>
+  error instanceof Error
+  && (
+    error.name === "OutputParserException"
+    || error.constructor?.name === "OutputParserException"
+    || (error as unknown as Record<string, unknown>).lc_error_code
+      === "OUTPUT_PARSING_FAILURE"
+  );
 
-/** Build a structured output runnable using the appropriate strategy.
- *  Returns a Runnable that, when invoked, produces validated output. */
+const getBoundedErrorChain = (error: unknown): readonly Record<string, unknown>[] => {
+  const chain: Record<string, unknown>[] = [];
+  const seen = new Set<object>();
+  let current = error;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (typeof current !== "object" || current === null || seen.has(current)) {
+      break;
+    }
+    seen.add(current);
+    const record = current as Record<string, unknown>;
+    chain.push(record);
+    current = record.cause;
+  }
+  return chain;
+};
+
+const hasErrorIdentity = (
+  error: unknown,
+  identity: string,
+): boolean => getBoundedErrorChain(error).some((item) =>
+  item.name === identity
+  || (
+    typeof item.constructor === "function"
+    && item.constructor.name === identity
+  ));
+
+const isTimeoutError = (error: unknown, attemptSignal: AbortSignal): boolean =>
+  hasErrorIdentity(error, "TimeoutError")
+  || hasErrorIdentity(error, "APIConnectionTimeoutError")
+  || (
+    attemptSignal.aborted
+    && attemptSignal.reason instanceof DOMException
+    && attemptSignal.reason.name === "TimeoutError"
+  );
+
+const isCallerAbort = (
+  error: unknown,
+  callerSignal: AbortSignal | undefined,
+): boolean => callerSignal?.aborted === true
+  || (error instanceof DOMException && error.name === "AbortError");
+
+const getErrorStatus = (error: unknown): number | null => {
+  for (const item of getBoundedErrorChain(error)) {
+    const response = typeof item.response === "object" && item.response !== null
+      ? item.response as Record<string, unknown>
+      : undefined;
+    const status = Number(item.status ?? item.statusCode ?? response?.status);
+    if (Number.isInteger(status)) return status;
+  }
+  return null;
+};
+
+export const classifyStructuredTransportRetry = (
+  error: unknown,
+): StructuredRetryReason | null => {
+  const chain = getBoundedErrorChain(error);
+  if (chain.some((item) => item.providerPayloadReceived === true)) return null;
+
+  for (const item of chain) {
+    const code = typeof item.code === "string" ? item.code : "";
+    if (code === "ECONNRESET") return "connection_reset";
+    if (["ECONNREFUSED", "ENETUNREACH", "EAI_AGAIN"].includes(code)) {
+      return "network_transport";
+    }
+  }
+
+  const status = getErrorStatus(error);
+  if (status === 429) return "rate_limit";
+  if (status !== null && [500, 502, 503, 504].includes(status)) {
+    return "provider_5xx";
+  }
+  return null;
+};
+
 const buildStructuredRunnable = <TSchema extends z.ZodType>(
   model: BaseChatModel,
   schema: TSchema,
@@ -422,18 +828,14 @@ const buildStructuredRunnable = <TSchema extends z.ZodType>(
         name: schemaName,
         method: "jsonSchema",
       });
-
     case "function_calling":
       return model.withStructuredOutput(schema, {
         name: schemaName,
         method: "functionCalling",
       });
-
     case "prompt_json":
+    case "unsupported":
     default:
-      return model.withStructuredOutput(schema, {
-        name: schemaName,
-        method: "jsonMode",
-      });
+      throw new Error("Unsupported structured output strategy");
   }
 };

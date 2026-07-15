@@ -73,6 +73,7 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   providerAttemptSuccesses: index % 6 === 0 ? 2 : 1,
   providerAttemptTimeouts: 0,
   providerAttempts: index % 6 === 0 ? 2 : 1,
+  providerResponsesReceived: index % 6 === 0 ? 2 : 1,
   providerRequests: index % 6 === 0 ? 2 : 1,
   providerTimeouts: 0,
   rawRetention: false,
@@ -83,7 +84,12 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   replanLogicalCalls: 0,
   replanProviderAttempts: 0,
   retryReasonDistribution: {},
+  protocolFailureDistribution: {},
   round: Math.floor(index / fixtureIds.length) + 1,
+  structuredJsonParses: 1,
+  baseSchemaPasses: 1,
+  strictSchemaPasses: 1,
+  semanticValidationsCompleted: 1,
   schemaCompletedResponses: 1,
   schemaValidResponses: 1,
   semanticDecisionCorrect: true,
@@ -115,6 +121,11 @@ test("passes a complete 99-observation matrix with all safety and performance ga
   assert.equal(report.metrics.authoritativeObservations, 99);
   assert.equal(report.metrics.strictSchemaPassRate, 1);
   assert.equal(report.metrics.providerTransportSuccessRate, 1);
+  assert.equal(report.metrics.providerResponsesReceived, 116);
+  assert.equal(report.metrics.structuredJsonParses, 99);
+  assert.equal(report.metrics.baseSchemaPasses, 99);
+  assert.equal(report.metrics.strictSchemaPasses, 99);
+  assert.equal(report.metrics.semanticValidationsCompleted, 99);
   assert.equal(report.metrics.orchestratorCompletionRate, 1);
   assert.equal(report.metrics.providerTimeoutRate, 0);
   assert.equal(report.metrics.orchestratorLogicalCalls, 99);
@@ -305,6 +316,7 @@ test("one failed known-ID diagnostic blocks top-level acceptance without changin
   const diagnostics = Array.from({ length: 6 }, (_, index) => ({
     id: `diag-${index + 1}`,
     pass: index !== 4,
+    providerAttempts: 1,
   }));
 
   const diagnosticStatus = buildL3BDiagnosticStatus(diagnostics, {
@@ -316,6 +328,7 @@ test("one failed known-ID diagnostic blocks top-level acceptance without changin
     applicable: true,
     failed: 1,
     pass: false,
+    providerAttempts: 6,
     total: 6,
   });
   assert.equal(combineL3BTopLevelPass(true, diagnosticStatus), false);
@@ -323,14 +336,39 @@ test("one failed known-ID diagnostic blocks top-level acceptance without changin
     applicable: false,
     failed: 0,
     pass: null,
+    providerAttempts: 0,
     total: 0,
   }), false);
+});
+
+test("known-ID diagnostics reject recovered retries and require exactly six requests", () => {
+  const diagnostics = Array.from({ length: 6 }, (_, index) => ({
+    pass: true,
+    providerAttempts: index === 0 ? 2 : 1,
+  }));
+
+  assert.deepEqual(buildL3BDiagnosticStatus(diagnostics, {
+    expectedDiagnostics: 6,
+    required: true,
+  }), {
+    applicable: true,
+    failed: 1,
+    pass: false,
+    providerAttempts: 7,
+    total: 6,
+  });
 });
 
 test("freezes and hashes the exact secret-free evaluation configuration", () => {
   assert.equal(Object.isFrozen(L3B_EVALUATION_CONFIG), true);
   assert.equal(L3B_EVALUATION_CONFIG.temperature, 0.1);
   assert.equal(L3B_EVALUATION_CONFIG.answerMaxOutputTokens, 384);
+  assert.equal(L3B_EVALUATION_CONFIG.orchestratorMaxOutputTokens, 4096);
+  assert.equal(L3B_EVALUATION_CONFIG.orchestratorThinkingMode, "disabled");
+  assert.equal(
+    L3B_EVALUATION_CONFIG.evaluationConfigVersion,
+    "l3b-r2-provider-protocol-v1",
+  );
   assert.equal(L3B_EVALUATION_CONFIG.transportRetries, 1);
   assert.equal(L3B_EVALUATION_CONFIG.schemaRetries, 0);
   assert.equal(L3B_EVALUATION_CONFIG.semanticRetries, 0);
@@ -664,6 +702,8 @@ test("live harness is explicit, database-free, fixed-budget, and uses typed resu
   assert.match(source, /providerAttemptObserver/);
   assert.match(source, /transport: L3B_EVALUATION_CONFIG\.transportRetries/);
   assert.match(source, /schema: L3B_EVALUATION_CONFIG\.schemaRetries/);
+  assert.match(source, /maxOutputTokens: L3B_EVALUATION_CONFIG\.orchestratorMaxOutputTokens/);
+  assert.match(source, /thinkingMode: L3B_EVALUATION_CONFIG\.orchestratorThinkingMode/);
   assert.match(source, /L3B_EVALUATION_FIXTURES/);
   assert.match(source, /L3B_KNOWN_ID_DIAGNOSTICS/);
   assert.match(source, /knownIdDiagnostics/);
@@ -773,6 +813,27 @@ test("selects targeted, acceptance, and stability stages from the frozen matrix"
 });
 
 test("sanitized report validation rejects forbidden keys at any nested depth", () => {
+  const safeProtocol = {
+    baseSchemaReached: false,
+    choicesState: "present",
+    contentState: "empty",
+    finishReason: "stop",
+    httpStatusClass: "2xx",
+    latencyMs: 123,
+    parserSubstage: "content_extraction",
+    reasoningPresent: true,
+    responseReceived: true,
+    semanticValidationReached: false,
+    strictSchemaReached: false,
+    toolCallsPresent: false,
+  } as const;
+  const safeProtocolAttempt = {
+    attempt: 1,
+    phase: "failed",
+    protocolFailure: "provider_reasoning_only",
+    safeProtocol,
+  } as const;
+
   assert.doesNotThrow(() => assertSanitizedL3BReport({
     metrics: {
       outsideAllowedResourceIds: 0,
@@ -787,6 +848,7 @@ test("sanitized report validation rejects forbidden keys at any nested depth", (
     }],
     observations: [{
       fixtureId: "qry-1",
+      protocolAttempts: [safeProtocolAttempt],
       round: 1,
       semanticProjection: {
         decisionCode: "not_available_pre_r1",
@@ -797,9 +859,42 @@ test("sanitized report validation rejects forbidden keys at any nested depth", (
       },
     }],
   }));
+  for (const invalidAttempt of [
+    { ...safeProtocolAttempt, phase: "SYNTHETIC_RAW_RESPONSE_SENTINEL" },
+    {
+      ...safeProtocolAttempt,
+      protocolFailure: "SYNTHETIC_RAW_REASONING_SENTINEL",
+    },
+    { ...safeProtocolAttempt, attempt: 0 },
+    { ...safeProtocolAttempt, value: "SYNTHETIC_RAW_CONTENT_SENTINEL" },
+  ]) {
+    assert.throws(
+      () => assertSanitizedL3BReport({ protocolAttempts: [invalidAttempt] }),
+      /Forbidden sanitized report key/,
+    );
+  }
   assert.throws(
     () => assertSanitizedL3BReport({ safe: [{ deeper: { apiKey: "never-write" } }] }),
     /Forbidden sanitized report key at report\.safe\[0\]\.deeper\.apiKey/,
+  );
+  assert.throws(
+    () => assertSanitizedL3BReport({
+      safeProtocol: {
+        baseSchemaReached: false,
+        choicesState: "present",
+        contentState: "private Provider content",
+        finishReason: "stop",
+        httpStatusClass: "2xx",
+        latencyMs: 1,
+        parserSubstage: "not_started",
+        reasoningPresent: false,
+        responseReceived: true,
+        semanticValidationReached: false,
+        strictSchemaReached: false,
+        toolCallsPresent: false,
+      },
+    }),
+    /Forbidden sanitized report key/,
   );
 
   const forbiddenCases = [

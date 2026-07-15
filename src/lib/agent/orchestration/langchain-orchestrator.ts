@@ -30,6 +30,11 @@ import {
 import { ROUTER_INTENT_NAMES } from "../llm/schemas/router-output";
 import type { ModelConfig } from "../llm/model-config";
 import type { ModelError } from "../llm/model-errors";
+import {
+  advanceSafeProtocolDiagnostics,
+  createSafeProtocolDiagnostics,
+  type SafeProtocolDiagnostics,
+} from "../llm/structured-protocol";
 import type { OrchestratorPlan } from "./types";
 import { mapStructuredOutputToPlan } from "./orchestrator-mapper";
 import {
@@ -287,6 +292,36 @@ export const runLangChainOrchestratorResult = async (
     providerAttemptObserver,
   } = options;
 
+  let latestProviderAttempt = 0;
+  let latestSafeProtocol: SafeProtocolDiagnostics =
+    createSafeProtocolDiagnostics();
+  const observeProviderAttempt: StructuredProviderAttemptObserver = (event) => {
+    latestProviderAttempt = event.attempt;
+    if ("safeProtocol" in event) latestSafeProtocol = event.safeProtocol;
+    try {
+      providerAttemptObserver?.(event);
+    } catch {
+      // Evaluation observers must never affect orchestration.
+    }
+  };
+  const emitSemanticValidation = (passed: boolean): void => {
+    if (latestProviderAttempt === 0) return;
+    latestSafeProtocol = advanceSafeProtocolDiagnostics(latestSafeProtocol, {
+      parserSubstage: passed ? "completed" : "semantic_validation",
+      semanticValidationReached: true,
+    });
+    try {
+      providerAttemptObserver?.({
+        attempt: latestProviderAttempt,
+        phase: "semanticValidationCompleted",
+        passed,
+        safeProtocol: latestSafeProtocol,
+      });
+    } catch {
+      // Evaluation observers must never affect orchestration.
+    }
+  };
+
   /* 1. Build protocol-only system prompt.
    *    jsonMode requires pure JSON output. This prompt treats the model
    *    as a pure protocol generator — NOT as a conversational agent.
@@ -348,7 +383,7 @@ export const runLangChainOrchestratorResult = async (
     signal,
     maxTransportRetries: structuredRetryBudget?.transport ?? 1,
     maxSchemaRetries: structuredRetryBudget?.schema ?? 1,
-    providerAttemptObserver,
+    providerAttemptObserver: observeProviderAttempt,
   });
 
   /* 6. Handle failure — safe clarify, no legacy fallback */
@@ -369,6 +404,7 @@ export const runLangChainOrchestratorResult = async (
   });
 
   const consistencyResult = validateOrchestratorDecisionConsistency(result.data);
+  emitSemanticValidation(consistencyResult.valid);
 
   if (!consistencyResult.valid) {
     logAgentEvent("warn", "orchestrator.langchain.invalid_decision_consistency", {

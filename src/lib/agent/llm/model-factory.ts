@@ -11,24 +11,46 @@
 import { ChatOpenAI } from "@langchain/openai";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { ModelConfig } from "./model-config";
+import {
+  createSafeProtocolFetch,
+  type SafeProviderResponseObserver,
+} from "./structured-protocol";
 
 /** Signature for an injectable model factory. */
-export type ModelFactory = (config: ModelConfig) => BaseChatModel;
+export type ModelFactoryOptions = Readonly<{
+  safeResponseObserver?: SafeProviderResponseObserver;
+}>;
+
+export type ModelFactory = (
+  config: ModelConfig,
+  options?: ModelFactoryOptions,
+) => BaseChatModel;
 
 /** Default factory: builds a ChatOpenAI instance configured for the given
  *  provider's OpenAI-compatible endpoint.
  *
  *  Does NOT make any network calls. Does NOT access the database.
  *  Only throws if the underlying ChatOpenAI constructor rejects the config. */
-export const createChatModel: ModelFactory = (config: ModelConfig) =>
+export const createChatModel: ModelFactory = (config, options) =>
   new ChatOpenAI({
     apiKey: config.apiKey,
     model: config.model,
     configuration: {
       baseURL: config.baseURL,
+      ...(options?.safeResponseObserver
+        ? {
+            fetch: createSafeProtocolFetch(
+              globalThis.fetch.bind(globalThis),
+              options.safeResponseObserver,
+            ),
+          }
+        : {}),
     },
     temperature: config.temperature,
     maxTokens: config.maxOutputTokens,
     timeout: config.timeoutMs,
     maxRetries: 0, // retry is owned by the structured invocation layer
+    ...(config.thinkingMode
+      ? { modelKwargs: { thinking: { type: config.thinkingMode } } }
+      : {}),
   });

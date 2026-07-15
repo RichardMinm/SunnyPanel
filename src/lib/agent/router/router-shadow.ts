@@ -80,7 +80,9 @@ export type RouterSchemaErrorCategory =
 export const classifyRouterSchemaDiagnostics = (
   diagnostics: StructuredOutputDiagnostics,
 ): RouterSchemaErrorCategory[] => {
-  if (diagnostics.stage === "provider_protocol") {
+  const zodReached = diagnostics.protocolFailure === "provider_base_schema_failed"
+    || diagnostics.protocolFailure === "provider_strict_schema_failed";
+  if (diagnostics.stage === "provider_protocol" && !zodReached) {
     return ["provider_structured_output_protocol_failure"];
   }
 

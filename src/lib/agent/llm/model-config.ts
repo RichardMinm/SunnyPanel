@@ -21,6 +21,7 @@ export type ModelConfig = Readonly<{
   timeoutMs: number;
   maxRetries: number;
   maxOutputTokens?: number;
+  thinkingMode?: "disabled" | "enabled";
   structuredOutputMode: "function_calling" | "json_schema" | "prompt_json" | "provider_default";
 }>;
 
@@ -41,6 +42,7 @@ export const createModelConfig = (params: {
   timeoutMs?: number;
   maxRetries?: number;
   maxOutputTokens?: number;
+  thinkingMode?: ModelConfig["thinkingMode"];
   structuredOutputMode?: ModelConfig["structuredOutputMode"];
 }): ModelConfig | ModelError => {
   const apiKey = params.apiKey?.trim();
@@ -80,6 +82,9 @@ export const createModelConfig = (params: {
     ...(params.maxOutputTokens === undefined
       ? {}
       : { maxOutputTokens: params.maxOutputTokens }),
+    ...(params.thinkingMode === undefined
+      ? {}
+      : { thinkingMode: params.thinkingMode }),
     structuredOutputMode: params.structuredOutputMode ?? "provider_default",
   }) as ModelConfig;
 };

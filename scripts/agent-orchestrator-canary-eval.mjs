@@ -79,11 +79,13 @@ assertL3BStabilityPrerequisite({
 const modelConfig = createModelConfig({
   apiKey,
   baseURL: L3B_EVALUATION_CONFIG.baseURL,
+  maxOutputTokens: L3B_EVALUATION_CONFIG.orchestratorMaxOutputTokens,
   maxRetries: 0,
   model: L3B_EVALUATION_CONFIG.model,
   provider: L3B_EVALUATION_CONFIG.provider,
   structuredOutputMode: L3B_EVALUATION_CONFIG.structuredOutputMode,
   temperature: L3B_EVALUATION_CONFIG.temperature,
+  thinkingMode: L3B_EVALUATION_CONFIG.orchestratorThinkingMode,
   timeoutMs: L3B_EVALUATION_CONFIG.orchestratorTimeoutMs,
 });
 
@@ -167,6 +169,7 @@ const emptyRun = (fixture, round) => ({
   providerAttemptSuccesses: 0,
   providerAttemptTimeouts: 0,
   providerAttempts: 0,
+  providerResponsesReceived: 0,
   providerFailure: false,
   providerRequests: 0,
   providerTimeouts: 0,
@@ -179,7 +182,13 @@ const emptyRun = (fixture, round) => ({
   resourceMismatch: false,
   resourceConflict: false,
   retryReasonDistribution: {},
+  protocolFailureDistribution: {},
+  protocolAttempts: [],
   round,
+  structuredJsonParses: 0,
+  baseSchemaPasses: 0,
+  strictSchemaPasses: 0,
+  semanticValidationsCompleted: 0,
   schemaCompletedResponses: 0,
   schemaValidResponses: 0,
   semanticDecisionCorrect: false,
@@ -203,20 +212,56 @@ const incrementReason = (distribution, reason) => {
 const observeOrchestratorAttempt = (run, recorder) => {
   let retryWasScheduled = false;
   return (event) => {
-    if (event.phase === "started") {
+    if (event.phase === "providerRequestStarted") {
       run.providerAttempts += 1;
       recorder.recordProviderAttempt("orchestrator");
       return;
     }
-    if (event.phase === "succeeded") {
+
+    if (event.safeProtocol) {
+      const safeAttempt = {
+        attempt: event.attempt,
+        phase: event.phase,
+        protocolFailure: event.protocolFailure ?? null,
+        safeProtocol: event.safeProtocol,
+      };
+      const existing = run.protocolAttempts.findIndex(
+        (attempt) => attempt.attempt === event.attempt,
+      );
+      if (existing === -1) run.protocolAttempts.push(safeAttempt);
+      else run.protocolAttempts[existing] = safeAttempt;
+    }
+
+    if (event.phase === "providerResponseReceived") {
       run.providerAttemptSuccesses += 1;
       run.completedProviderResponses += 1;
+      run.providerResponsesReceived += 1;
       run.recoveredRetryObservation ||= retryWasScheduled;
       return;
     }
+    if (event.phase === "jsonParsed") {
+      run.structuredJsonParses += 1;
+      return;
+    }
+    if (event.phase === "baseSchemaValidated") {
+      run.baseSchemaPasses += 1;
+      return;
+    }
+    if (event.phase === "strictSchemaValidated") {
+      run.strictSchemaPasses += 1;
+      return;
+    }
+    if (event.phase === "semanticValidationCompleted") {
+      run.semanticValidationsCompleted += 1;
+      return;
+    }
+    if (event.phase !== "failed") return;
 
     run.providerAttemptFailures += 1;
     incrementReason(run.retryReasonDistribution, event.reason);
+    if (event.protocolFailure) {
+      incrementReason(run.protocolFailureDistribution, event.protocolFailure);
+    }
     retryWasScheduled ||= event.retryScheduled;
     if (event.reason === "timeout") {
       run.providerAttemptTimeouts += 1;
@@ -468,6 +513,7 @@ for (let round = 1; round <= rounds; round += 1) {
         if (answer.status === "complete") {
           run.providerAttemptSuccesses += answerAttempts;
           run.completedProviderResponses += answerAttempts;
+          run.providerResponsesReceived += answerAttempts;
         } else {
           run.failureEvents += 1;
           run.typedFailureEvents += 1;
@@ -480,6 +526,7 @@ for (let round = 1; round <= rounds; round += 1) {
           if (completedUnsafe) {
             run.providerAttemptSuccesses += answerAttempts;
             run.completedProviderResponses += answerAttempts;
+            run.providerResponsesReceived += answerAttempts;
           } else {
             run.providerAttemptFailures += answerAttempts;
             incrementReason(run.retryReasonDistribution, answer.errorCode);
@@ -532,11 +579,11 @@ const runKnownIdDiagnostic = async (diagnostic) => {
     message: diagnostic.message,
     modelConfig,
     providerAttemptObserver: (event) => {
-      if (event.phase === "started") providerAttempts += 1;
+      if (event.phase === "providerRequestStarted") providerAttempts += 1;
     },
     structuredRetryBudget: {
       schema: L3B_EVALUATION_CONFIG.schemaRetries,
-      transport: L3B_EVALUATION_CONFIG.transportRetries,
+      transport: 0,
     },
   });
 
@@ -583,16 +630,16 @@ const runKnownIdDiagnostic = async (diagnostic) => {
   };
 };
 
-const knownIdDiagnostics = gateStage === "acceptance"
-  ? await Promise.all(L3B_KNOWN_ID_DIAGNOSTICS.map(runKnownIdDiagnostic))
-  : [];
-
 const gating = buildL3BEvaluationReport(runs, {
   expectedFixtureIds: selectedFixtures.map((fixture) => fixture.id),
   gateStage,
   minimumObservations: selectedFixtures.length * rounds,
   minimumRounds: rounds,
 });
+const knownIdDiagnostics = gateStage === "acceptance" && gating.pass
+  ? await Promise.all(L3B_KNOWN_ID_DIAGNOSTICS.map(runKnownIdDiagnostic))
+  : [];
+
 const diagnosticStatus = buildL3BDiagnosticStatus(knownIdDiagnostics, {
   expectedDiagnostics: L3B_KNOWN_ID_DIAGNOSTICS.length,
   required: gateStage === "acceptance",
@@ -617,8 +664,14 @@ const report = {
   diagnosticStatus,
   gating: safeGating,
   knownIdDiagnostics,
-  observations: runs.map(({ fixtureId, round, semanticProjection }) => ({
+  observations: runs.map(({
     fixtureId,
+    protocolAttempts,
+    round,
+    semanticProjection,
+  }) => ({
+    fixtureId,
+    protocolAttempts,
     round,
     semanticProjection,
   })),

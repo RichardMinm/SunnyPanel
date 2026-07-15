@@ -25,6 +25,10 @@ import {
   type SanitizedSemanticDecisionProjection,
 } from "./l3b-semantic-evidence";
 import type { DecisionConsistencyErrorCode } from "./orchestrator-decision-consistency";
+import type {
+  SafeProtocolDiagnostics,
+  StructuredProtocolFailure,
+} from "../llm/structured-protocol";
 
 type L3BFixtureIdentity = Readonly<{ id: string }>;
 
@@ -101,8 +105,13 @@ const ALLOWED_NORMALIZED_AGGREGATE_KEYS = new Set([
   "outsideallowedresourceids",
   "promptinjectionsuccess",
   "providercompletedresponses",
+  "providerresponsesreceived",
   "schemacompletedresponses",
   "schemavalidresponses",
+  "structuredjsonparses",
+  "baseschemapasses",
+  "strictschemapasses",
+  "semanticvalidationscompleted",
 ]);
 
 const FORBIDDEN_NORMALIZED_KEYS = new Set([
@@ -210,6 +219,157 @@ const isForbiddenReportKey = (key: string): boolean => {
       normalized.endsWith(suffix));
 };
 
+const SAFE_HTTP_STATUS_CLASSES = new Set([
+  "2xx",
+  "4xx",
+  "5xx",
+  "network_error",
+  "not_available",
+]);
+const SAFE_SHAPE_STATES = new Set([
+  "missing",
+  "empty",
+  "present",
+  "not_available",
+]);
+const SAFE_FINISH_REASONS = new Set([
+  "stop",
+  "length",
+  "tool_calls",
+  "content_filter",
+  "unknown",
+]);
+const SAFE_PARSER_SUBSTAGES = new Set([
+  "not_started",
+  "content_extraction",
+  "json_extraction",
+  "json_parse",
+  "base_schema",
+  "strict_schema",
+  "semantic_validation",
+  "completed",
+]);
+const SAFE_PROTOCOL_KEYS = new Set([
+  "responseReceived",
+  "httpStatusClass",
+  "choicesState",
+  "contentState",
+  "reasoningPresent",
+  "toolCallsPresent",
+  "finishReason",
+  "parserSubstage",
+  "baseSchemaReached",
+  "strictSchemaReached",
+  "semanticValidationReached",
+  "latencyMs",
+]);
+const SAFE_PROTOCOL_FAILURES = new Set<StructuredProtocolFailure>([
+  "provider_empty_completion",
+  "provider_missing_content",
+  "provider_reasoning_only",
+  "provider_tool_arguments_only",
+  "provider_json_extraction_failed",
+  "provider_json_parse_failed",
+  "provider_base_schema_failed",
+  "provider_strict_schema_failed",
+  "provider_truncated",
+  "provider_finish_reason_unexpected",
+  "provider_response_envelope_invalid",
+  "provider_adapter_normalization_failed",
+]);
+const SAFE_PROTOCOL_ATTEMPT_PHASES = new Set([
+  "providerResponseReceived",
+  "contentExtracted",
+  "jsonParsed",
+  "baseSchemaValidated",
+  "strictSchemaValidated",
+  "semanticValidationCompleted",
+  "failed",
+]);
+const SAFE_PROTOCOL_ATTEMPT_KEYS = new Set([
+  "attempt",
+  "phase",
+  "protocolFailure",
+  "safeProtocol",
+]);
+
+/** Exact-shape exception for the approved payload-free protocol contract. */
+const isSafeProtocolDiagnostics = (
+  value: Record<string, unknown>,
+): value is Record<keyof SafeProtocolDiagnostics, unknown> => {
+  const keys = Object.keys(value);
+  if (
+    keys.length !== SAFE_PROTOCOL_KEYS.size
+    || keys.some((key) => !SAFE_PROTOCOL_KEYS.has(key))
+  ) {
+    return false;
+  }
+  return typeof value.responseReceived === "boolean"
+    && SAFE_HTTP_STATUS_CLASSES.has(String(value.httpStatusClass))
+    && SAFE_SHAPE_STATES.has(String(value.choicesState))
+    && SAFE_SHAPE_STATES.has(String(value.contentState))
+    && typeof value.reasoningPresent === "boolean"
+    && typeof value.toolCallsPresent === "boolean"
+    && (
+      value.finishReason === null
+      || SAFE_FINISH_REASONS.has(String(value.finishReason))
+    )
+    && SAFE_PARSER_SUBSTAGES.has(String(value.parserSubstage))
+    && typeof value.baseSchemaReached === "boolean"
+    && typeof value.strictSchemaReached === "boolean"
+    && typeof value.semanticValidationReached === "boolean"
+    && (
+      value.latencyMs === null
+      || (
+        typeof value.latencyMs === "number"
+        && Number.isFinite(value.latencyMs)
+        && value.latencyMs >= 0
+      )
+    );
+};
+
+const isSafeProtocolFailureDistribution = (
+  value: Record<string, unknown>,
+): boolean => {
+  const entries = Object.entries(value);
+  return entries.length > 0 && entries.every(([key, count]) =>
+    SAFE_PROTOCOL_FAILURES.has(key as StructuredProtocolFailure)
+    && typeof count === "number"
+    && Number.isInteger(count)
+    && count >= 0);
+};
+
+const isSafeProtocolAttempt = (
+  value: Record<string, unknown>,
+): boolean => {
+  const keys = Object.keys(value);
+  if (
+    keys.length !== SAFE_PROTOCOL_ATTEMPT_KEYS.size
+    || keys.some((key) => !SAFE_PROTOCOL_ATTEMPT_KEYS.has(key))
+    || typeof value.attempt !== "number"
+    || !Number.isInteger(value.attempt)
+    || value.attempt < 1
+    || !SAFE_PROTOCOL_ATTEMPT_PHASES.has(String(value.phase))
+    || typeof value.safeProtocol !== "object"
+    || value.safeProtocol === null
+    || Array.isArray(value.safeProtocol)
+    || !isSafeProtocolDiagnostics(value.safeProtocol as Record<string, unknown>)
+  ) {
+    return false;
+  }
+  if (value.protocolFailure !== null) {
+    if (
+      value.phase !== "failed"
+      || !SAFE_PROTOCOL_FAILURES.has(
+        value.protocolFailure as StructuredProtocolFailure,
+      )
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
 export const forbiddenReportKey = (
   value: unknown,
   path = "report",
@@ -227,6 +387,20 @@ export const forbiddenReportKey = (
     return null;
   }
   if (value === null || typeof value !== "object") return null;
+
+  const record = value as Record<string, unknown>;
+  if (
+    "safeProtocol" in record
+    && ("attempt" in record || "phase" in record || "protocolFailure" in record)
+  ) {
+    return isSafeProtocolAttempt(record) ? null : path;
+  }
+  if (
+    isSafeProtocolDiagnostics(record)
+    || isSafeProtocolFailureDistribution(record)
+  ) {
+    return null;
+  }
 
   for (const [key, child] of Object.entries(value)) {
     if (isAllowedAggregateKey(key)) {
@@ -395,6 +569,7 @@ export type L3BEvaluationRun = {
   providerAttemptSuccesses: number;
   providerAttemptTimeouts: number;
   providerAttempts: number;
+  providerResponsesReceived?: number;
   providerRequests: number;
   providerTimeouts: number;
   rawRetention: boolean;
@@ -406,7 +581,18 @@ export type L3BEvaluationRun = {
   replanLogicalCalls: number;
   replanProviderAttempts: number;
   retryReasonDistribution: Record<string, number>;
+  protocolFailureDistribution?: Partial<Record<StructuredProtocolFailure, number>>;
+  protocolAttempts?: readonly Readonly<{
+    attempt: number;
+    phase: string;
+    protocolFailure: StructuredProtocolFailure | null;
+    safeProtocol: SafeProtocolDiagnostics;
+  }>[];
   round: number;
+  structuredJsonParses?: number;
+  baseSchemaPasses?: number;
+  strictSchemaPasses?: number;
+  semanticValidationsCompleted?: number;
   schemaCompletedResponses: number;
   schemaValidResponses: number;
   semanticDisagreement?: OrchestratorDisagreementEvidence;
@@ -473,6 +659,7 @@ export type L3BEvaluationMetrics = {
   providerAttemptSuccesses: number;
   providerAttemptTimeouts: number;
   providerAttempts: number;
+  providerResponsesReceived: number;
   providerAttemptTransportSuccessRate: number;
   providerRequests: number;
   providerTimeoutRate: number;
@@ -487,6 +674,11 @@ export type L3BEvaluationMetrics = {
   resourceMismatch: CountRate;
   resourceConflicts: number;
   retryReasonDistribution: Record<string, number>;
+  protocolFailureDistribution: Partial<Record<StructuredProtocolFailure, number>>;
+  structuredJsonParses: number;
+  baseSchemaPasses: number;
+  strictSchemaPasses: number;
+  semanticValidationsCompleted: number;
   safeTypedFailureRate: number;
   semanticDecisionCorrect: CountRate;
   specialistBypassCount: number;
@@ -536,21 +728,34 @@ export type L3BDiagnosticStatus = Readonly<{
   applicable: boolean;
   failed: number;
   pass: boolean | null;
+  providerAttempts: number;
   total: number;
 }>;
 
 export const buildL3BDiagnosticStatus = (
-  diagnostics: readonly Readonly<{ pass: boolean }>[],
+  diagnostics: readonly Readonly<{ pass: boolean; providerAttempts: number }>[],
   options: Readonly<{ expectedDiagnostics: number; required: boolean }>,
-): L3BDiagnosticStatus => ({
-  applicable: options.required,
-  failed: diagnostics.filter((diagnostic) => !diagnostic.pass).length,
-  pass: options.required
-    ? diagnostics.length === options.expectedDiagnostics
-      && diagnostics.every((diagnostic) => diagnostic.pass)
-    : null,
-  total: diagnostics.length,
-});
+): L3BDiagnosticStatus => {
+  const providerAttempts = diagnostics.reduce(
+    (total, diagnostic) => total + diagnostic.providerAttempts,
+    0,
+  );
+  return {
+    applicable: options.required,
+    failed: diagnostics.filter(
+      (diagnostic) => !diagnostic.pass || diagnostic.providerAttempts !== 1,
+    ).length,
+    pass: options.required
+      ? diagnostics.length === options.expectedDiagnostics
+        && providerAttempts === options.expectedDiagnostics
+        && diagnostics.every(
+          (diagnostic) => diagnostic.pass && diagnostic.providerAttempts === 1,
+        )
+      : null,
+    providerAttempts,
+    total: diagnostics.length,
+  };
+};
 
 export const combineL3BTopLevelPass = (
   gatingPass: boolean,
@@ -625,6 +830,7 @@ export const buildL3BEvaluationReport = (
   const providerAttemptSuccesses = sum(runs, "providerAttemptSuccesses");
   const providerAttemptFailures = sum(runs, "providerAttemptFailures");
   const providerAttemptTimeouts = sum(runs, "providerAttemptTimeouts");
+  const providerResponsesReceived = sum(runs, "providerResponsesReceived");
   const completedProviderResponses = sum(runs, "completedProviderResponses");
   const timeoutObservations = countTrue(runs, "hadTransportTimeout");
   const schemaCompletedResponses = sum(runs, "schemaCompletedResponses");
@@ -636,6 +842,9 @@ export const buildL3BEvaluationReport = (
     Record<DecisionConsistencyErrorCode, number>
   > = {};
   const retryReasonDistribution: Record<string, number> = {};
+  const protocolFailureDistribution: Partial<
+    Record<StructuredProtocolFailure, number>
+  > = {};
   const mismatchCategories = {
     clarify_mismatch: 0,
     intent_mismatch: 0,
@@ -652,6 +861,13 @@ export const buildL3BEvaluationReport = (
     for (const [reason, count] of Object.entries(run.retryReasonDistribution)) {
       retryReasonDistribution[reason] =
         (retryReasonDistribution[reason] ?? 0) + count;
+    }
+    for (const [failure, count] of Object.entries(
+      run.protocolFailureDistribution ?? {},
+    )) {
+      const protocolFailure = failure as StructuredProtocolFailure;
+      protocolFailureDistribution[protocolFailure] =
+        (protocolFailureDistribution[protocolFailure] ?? 0) + count;
     }
     if (run.decisionConsistencyError !== null) {
       decisionConsistencyErrors[run.decisionConsistencyError] =
@@ -731,6 +947,7 @@ export const buildL3BEvaluationReport = (
     providerAttemptSuccesses,
     providerAttemptTimeouts,
     providerAttempts,
+    providerResponsesReceived,
     providerAttemptTransportSuccessRate: ratio(
       providerAttemptSuccesses,
       providerAttempts,
@@ -759,6 +976,11 @@ export const buildL3BEvaluationReport = (
     resourceMismatch: countRate(comparable, "resourceMismatch"),
     resourceConflicts: countTrue(runs, "resourceConflict"),
     retryReasonDistribution,
+    protocolFailureDistribution,
+    structuredJsonParses: sum(runs, "structuredJsonParses"),
+    baseSchemaPasses: sum(runs, "baseSchemaPasses"),
+    strictSchemaPasses: sum(runs, "strictSchemaPasses"),
+    semanticValidationsCompleted: sum(runs, "semanticValidationsCompleted"),
     safeTypedFailureRate:
       failureEvents === 0 ? 1 : typedFailureEvents / failureEvents,
     semanticDecisionCorrect: countRate(comparable, "semanticDecisionCorrect"),

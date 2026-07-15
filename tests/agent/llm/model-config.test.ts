@@ -113,6 +113,19 @@ describe("model-config", () => {
       }
     });
 
+    it("preserves an explicit thinking-mode override", () => {
+      const config = createModelConfig({
+        ...validParams,
+        thinkingMode: "disabled",
+      });
+
+      if (isModelError(config)) throw new Error("expected config not error");
+      const defaultConfig = createModelConfig(validParams);
+      if (isModelError(defaultConfig)) throw new Error("expected config not error");
+      assert.equal(config.thinkingMode, "disabled");
+      assert.equal(defaultConfig.thinkingMode, undefined);
+    });
+
     it("normalizes trailing slashes in baseURL", () => {
       const config = createModelConfig({
         ...validParams,

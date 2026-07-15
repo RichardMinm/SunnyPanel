@@ -8,6 +8,11 @@
  * internal provider details.
  */
 
+import type {
+  SafeProtocolDiagnostics,
+  StructuredProtocolFailure,
+} from "./structured-protocol";
+
 export type ModelErrorCode =
   | "MODEL_NOT_CONFIGURED"
   | "MODEL_UNAVAILABLE"
@@ -29,6 +34,8 @@ export type SanitizedStructuredOutputIssue = Readonly<{
 export type StructuredOutputDiagnostics = Readonly<{
   stage: "provider_protocol" | "zod_validation";
   issues: readonly SanitizedStructuredOutputIssue[];
+  protocolFailure?: StructuredProtocolFailure;
+  safeProtocol?: SafeProtocolDiagnostics;
 }>;
 
 export type ModelError = Readonly<{
@@ -54,43 +61,50 @@ export const modelNotConfigured = (
 
 export const modelUnavailable = (
   provider?: string,
-  cause?: unknown,
+  _cause?: unknown,
+  structuredOutput?: StructuredOutputDiagnostics,
 ): ModelError => ({
   code: "MODEL_UNAVAILABLE",
   retryable: true,
   provider,
   safeMessage: "AI 服务暂时不可用，请稍后重试。",
-  cause,
+  structuredOutput,
 });
 
 export const modelRateLimited = (
   provider?: string,
   model?: string,
+  structuredOutput?: StructuredOutputDiagnostics,
 ): ModelError => ({
   code: "MODEL_RATE_LIMITED",
   retryable: true,
   provider,
   model,
   safeMessage: "请求频率过高，请稍后重试。",
+  structuredOutput,
 });
 
 export const modelAuthFailed = (
   provider?: string,
+  structuredOutput?: StructuredOutputDiagnostics,
 ): ModelError => ({
   code: "MODEL_AUTH_FAILED",
   retryable: false,
   provider,
   safeMessage: "AI 服务认证失败，请检查 API 配置。",
+  structuredOutput,
 });
 
 export const modelTimeout = (
   timeoutMs: number,
   provider?: string,
+  structuredOutput?: StructuredOutputDiagnostics,
 ): ModelError => ({
   code: "MODEL_TIMEOUT",
   retryable: true,
   provider,
   safeMessage: `请求超时（${Math.round(timeoutMs / 1000)}s），请稍后重试。`,
+  structuredOutput,
 });
 
 export const modelInvalidResponse = (

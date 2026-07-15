@@ -90,6 +90,7 @@ const makeConfig = (overrides: { timeoutMs?: number } = {}) => {
     provider: "deepseek",
     structuredOutputMode: "provider_default",
     temperature: 0.1,
+    thinkingMode: "disabled",
     timeoutMs: overrides.timeoutMs ?? 1_000,
   });
   if (isModelError(config)) throw new Error(config.safeMessage);
@@ -110,7 +111,11 @@ const completionEnvelope = (params: {
       message: {
         ...(params.includeContent === false
           ? {}
-          : { content: params.content ?? JSON.stringify(VALID_OUTPUT) }),
+          : {
+              content: Object.prototype.hasOwnProperty.call(params, "content")
+                ? params.content
+                : JSON.stringify(VALID_OUTPUT),
+            }),
         ...(params.reasoningContent === undefined
           ? {}
           : { reasoning_content: params.reasoningContent }),
@@ -174,12 +179,12 @@ const withSyntheticFetch = async <T>(
 
 const invokeEnvelope = async (
   fakeFetch: typeof fetch,
-  options: { timeoutMs?: number } = {},
+  options: { maxTransportRetries?: number; timeoutMs?: number } = {},
 ) => {
   const events: unknown[] = [];
   const result = await withSyntheticFetch(fakeFetch, () => invokeStructured({
     maxSchemaRetries: 0,
-    maxTransportRetries: 0,
+    maxTransportRetries: options.maxTransportRetries ?? 0,
     messages: SYNTHETIC_MESSAGES,
     modelConfig: makeConfig(options),
     modelSchema: orchestratorOutputBaseSchema,
@@ -280,6 +285,12 @@ describe("invokeStructured real Provider envelope contract", () => {
         "baseSchemaValidated",
         "strictSchemaValidated",
       ]);
+      assert.equal(
+        JSON.stringify({ events, result }).includes(
+          "synthetic reasoning that must not be retained",
+        ),
+        false,
+      );
     });
   }
 
@@ -358,6 +369,21 @@ describe("invokeStructured real Provider envelope contract", () => {
     },
     {
       body: completionEnvelope({
+        content: null,
+        reasoningContent: "synthetic reasoning only with null content",
+      }),
+      diagnostics: {
+        contentState: "missing",
+        finishReason: "stop",
+        parserSubstage: "content_extraction",
+        responseReceived: true,
+        strictSchemaReached: false,
+      },
+      name: "classifies reasoning-only response with null content",
+      subtype: "provider_reasoning_only",
+    },
+    {
+      body: completionEnvelope({
         content: "",
         finishReason: "tool_calls",
         toolCalls: [{
@@ -374,6 +400,26 @@ describe("invokeStructured real Provider envelope contract", () => {
         strictSchemaReached: false,
       },
       name: "classifies tool-arguments-only response",
+      subtype: "provider_tool_arguments_only",
+    },
+    {
+      body: completionEnvelope({
+        content: null,
+        finishReason: "tool_calls",
+        toolCalls: [{
+          function: { arguments: "synthetic tool arguments", name: "emit" },
+          id: "call-synthetic-null-content",
+          type: "function",
+        }],
+      }),
+      diagnostics: {
+        contentState: "missing",
+        finishReason: "tool_calls",
+        parserSubstage: "content_extraction",
+        responseReceived: true,
+        strictSchemaReached: false,
+      },
+      name: "classifies tool-arguments-only response with null content",
       subtype: "provider_tool_arguments_only",
     },
     {
@@ -419,7 +465,13 @@ describe("invokeStructured real Provider envelope contract", () => {
       body: completionEnvelope({
         content: JSON.stringify({
           ...VALID_OUTPUT,
-          tasks: VALID_OUTPUT.tasks.map(({ agentRole: _omitted, ...task }) => task),
+          tasks: VALID_OUTPUT.tasks.map((task) => ({
+            args: task.args,
+            dependsOn: task.dependsOn,
+            id: task.id,
+            intent: task.intent,
+            label: task.label,
+          })),
         }),
       }),
       diagnostics: {
@@ -519,13 +571,23 @@ describe("invokeStructured real Provider envelope contract", () => {
 
   for (const scenario of protocolFailures) {
     it(scenario.name, async () => {
-      const { result } = await invokeEnvelope(async () => responseFor(scenario.body));
+      const { events, result } = await invokeEnvelope(async () =>
+        responseFor(scenario.body));
       assertSafeProtocolFailure(
         result,
         "STRUCTURED_OUTPUT_RETRY_EXHAUSTED",
         scenario.subtype,
         scenario.diagnostics,
       );
+      const serialized = JSON.stringify({ events, result });
+      for (const sentinel of [
+        "synthetic reasoning only",
+        "synthetic reasoning only with null content",
+        "synthetic tool arguments",
+        "call-synthetic",
+      ]) {
+        assert.equal(serialized.includes(sentinel), false);
+      }
     });
   }
 
@@ -539,7 +601,7 @@ describe("invokeStructured real Provider envelope contract", () => {
 
   for (const scenario of httpCases) {
     it(`preserves safe diagnostics for ${scenario.name}`, async () => {
-      const { result } = await invokeEnvelope(async () => responseFor(
+      const { events, result } = await invokeEnvelope(async () => responseFor(
         { error: { type: "synthetic_error" } },
         scenario.status,
       ));
@@ -548,6 +610,10 @@ describe("invokeStructured real Provider envelope contract", () => {
       assert.equal(result.error.code, scenario.expectedCode);
       const failure = getFailureView(result);
       assert.equal(failure.safeProtocol?.responseReceived, true);
+      assert.equal(
+        JSON.stringify({ events, result }).includes("synthetic_error"),
+        false,
+      );
     });
   }
 
@@ -561,5 +627,34 @@ describe("invokeStructured real Provider envelope contract", () => {
     const { result } = await invokeEnvelope(neverCompletes, { timeoutMs: 20 });
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.error.code, "MODEL_TIMEOUT");
+  });
+
+  it("retries an SDK-wrapped ECONNRESET without retaining its cause", async () => {
+    let calls = 0;
+    const sentinel = "SYNTHETIC_WRAPPED_CONNECTION_CAUSE";
+    const { events, result } = await invokeEnvelope(async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw Object.assign(new Error(sentinel), { code: "ECONNRESET" });
+      }
+      return responseFor(completionEnvelope({}));
+    }, { maxTransportRetries: 1 });
+
+    assert.equal(result.ok, true);
+    assert.equal(calls, 2);
+    assert.equal(JSON.stringify({ events, result }).includes(sentinel), false);
+  });
+
+  it("classifies an SDK-wrapped TimeoutError without retaining its cause", async () => {
+    const sentinel = "SYNTHETIC_WRAPPED_TIMEOUT_CAUSE";
+    const { events, result } = await invokeEnvelope(async () => {
+      const error = new Error(sentinel);
+      error.name = "TimeoutError";
+      throw error;
+    });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error.code, "MODEL_TIMEOUT");
+    assert.equal(JSON.stringify({ events, result }).includes(sentinel), false);
   });
 });

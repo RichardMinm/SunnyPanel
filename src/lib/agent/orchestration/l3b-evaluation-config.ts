@@ -8,7 +8,7 @@ import {
   ANSWER_TOTAL_TIMEOUT_MS,
 } from "../answer/config";
 
-export const L3B_EVALUATION_CONFIG_VERSION = "l3b-r1-live-gate-v1";
+export const L3B_EVALUATION_CONFIG_VERSION = "l3b-r2-provider-protocol-v1";
 export const L3B_PROMPT_PROTOCOL_VERSION = "l3b-r1-semantic-decision-v1";
 export const L3B_RESOURCE_PROTOCOL_VERSION = 2;
 
@@ -20,7 +20,8 @@ export type L3BEvaluationConfig = Readonly<{
   baseURL: string;
   evaluationConfigVersion: string;
   model: string;
-  orchestratorMaxOutputTokens: "provider_default";
+  orchestratorMaxOutputTokens: number;
+  orchestratorThinkingMode: "disabled";
   orchestratorTimeoutMs: number;
   promptProtocolVersion: string;
   provider: "deepseek";
@@ -41,7 +42,8 @@ export const L3B_EVALUATION_CONFIG: L3BEvaluationConfig = Object.freeze({
   baseURL: "https://api.deepseek.com",
   evaluationConfigVersion: L3B_EVALUATION_CONFIG_VERSION,
   model: "deepseek-v4-pro",
-  orchestratorMaxOutputTokens: "provider_default",
+  orchestratorMaxOutputTokens: 4096,
+  orchestratorThinkingMode: "disabled",
   orchestratorTimeoutMs: 30_000,
   promptProtocolVersion: L3B_PROMPT_PROTOCOL_VERSION,
   provider: "deepseek",

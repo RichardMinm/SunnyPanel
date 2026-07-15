@@ -64,6 +64,29 @@ describe("model-factory", () => {
 
       assert.equal((model as unknown as { maxTokens?: number }).maxTokens, 384);
     });
+
+    it("sends thinking mode only when explicitly configured", () => {
+      const configured = createModelConfig({
+        apiKey: "sk-test-key",
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-v4-pro",
+        provider: "deepseek",
+        thinkingMode: "disabled",
+      });
+      if (isModelError(configured)) throw new Error("expected valid config");
+
+      const configuredModel = createChatModel(configured) as unknown as {
+        modelKwargs?: Record<string, unknown>;
+      };
+      const defaultModel = createChatModel(validConfig("deepseek")) as unknown as {
+        modelKwargs?: Record<string, unknown>;
+      };
+
+      assert.deepEqual(configuredModel.modelKwargs, {
+        thinking: { type: "disabled" },
+      });
+      assert.deepEqual(defaultModel.modelKwargs ?? {}, {});
+    });
   });
 
   describe("factory injection pattern", () => {

@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { StructuredProviderAttemptEvent } from "../../../src/lib/agent/llm/invoke-structured";
+import type { ModelFactory } from "../../../src/lib/agent/llm/model-factory";
 import {
   ORCHESTRATOR_AGENT_ROLES,
   ORCHESTRATOR_DECISION_CODES,
@@ -21,6 +22,14 @@ import {
   L3B_EVALUATION_CONFIG,
   L3B_EVALUATION_CONFIG_HASH,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation-config";
+
+const promptJsonModelFactory = (
+  invoke: () => unknown | Promise<unknown>,
+): ModelFactory => () => ({
+  withConfig: () => ({
+    invoke: async () => ({ content: JSON.stringify(await invoke()) }),
+  }),
+}) as unknown as BaseChatModel;
 
 describe("langchain-orchestrator protocol", () => {
   it("renders every schema-derived decision, mode, role, and intent into the trusted protocol", () => {
@@ -96,13 +105,13 @@ describe("langchain-orchestrator protocol", () => {
     }
   });
 
-  it("freezes the R1 protocol metadata and deterministic secret-free hash", () => {
-    assert.equal(L3B_EVALUATION_CONFIG.evaluationConfigVersion, "l3b-r1-live-gate-v1");
+  it("freezes the R2 protocol metadata and deterministic secret-free hash", () => {
+    assert.equal(L3B_EVALUATION_CONFIG.evaluationConfigVersion, "l3b-r2-provider-protocol-v1");
     assert.equal(L3B_EVALUATION_CONFIG.promptProtocolVersion, "l3b-r1-semantic-decision-v1");
     assert.equal(L3B_EVALUATION_CONFIG.resourceProtocolVersion, 2);
     assert.equal(
       L3B_EVALUATION_CONFIG_HASH,
-      "ecbb9b9380bfab37e6084e265c58ee7d6982a03b21b35e150df524156b217dc3",
+      "5d5e845d1afa412e9546de6abdf579f674869209540dc95e60a00761edda65dc",
     );
   });
 
@@ -126,14 +135,10 @@ describe("langchain-orchestrator protocol", () => {
         temperature: 0,
         timeoutMs: 100,
       },
-      modelFactory: () => ({
-        withStructuredOutput: () => ({
-          invoke: async () => {
-            calls += 1;
-            return { version: 1 };
-          },
-        }),
-      }) as unknown as BaseChatModel,
+      modelFactory: promptJsonModelFactory(() => {
+        calls += 1;
+        return { version: 1 };
+      }),
     });
 
     assert.equal(result.status, "unavailable");
@@ -163,14 +168,10 @@ describe("langchain-orchestrator protocol", () => {
         temperature: 0,
         timeoutMs: 100,
       },
-      modelFactory: () => ({
-        withStructuredOutput: () => ({
-          invoke: async () => {
-            calls += 1;
-            return { version: 1 };
-          },
-        }),
-      }) as unknown as BaseChatModel,
+      modelFactory: promptJsonModelFactory(() => {
+        calls += 1;
+        return { version: 1 };
+      }),
       structuredRetryBudget: {
         schema: 0,
         transport: 0,
@@ -201,9 +202,7 @@ describe("langchain-orchestrator protocol", () => {
         temperature: 0,
         timeoutMs: 100,
       },
-      modelFactory: () => ({
-        withStructuredOutput: () => ({
-          invoke: async () => ({
+      modelFactory: promptJsonModelFactory(() => ({
             decisionCode: "pure_consultation",
             mode: "single",
             routingSummary: "回答问题",
@@ -216,9 +215,7 @@ describe("langchain-orchestrator protocol", () => {
               label: "回答问题",
             }],
             version: 2,
-          }),
-        }),
-      }) as unknown as BaseChatModel,
+          })),
       providerAttemptObserver: (event) => events.push(event),
       structuredRetryBudget: { schema: 0, transport: 0 },
     });
@@ -231,10 +228,22 @@ describe("langchain-orchestrator protocol", () => {
       mode: "single",
       taskCount: 1,
     });
-    assert.deepEqual(events, [
-      { attempt: 1, phase: "started" },
-      { attempt: 1, phase: "succeeded" },
+    assert.deepEqual(events.map(({ attempt, phase }) => ({ attempt, phase })), [
+      { attempt: 1, phase: "providerRequestStarted" },
+      { attempt: 1, phase: "providerResponseReceived" },
+      { attempt: 1, phase: "contentExtracted" },
+      { attempt: 1, phase: "jsonParsed" },
+      { attempt: 1, phase: "baseSchemaValidated" },
+      { attempt: 1, phase: "strictSchemaValidated" },
+      { attempt: 1, phase: "semanticValidationCompleted" },
     ]);
+    const semanticEvent = events.at(-1);
+    assert.equal(semanticEvent?.phase, "semanticValidationCompleted");
+    if (semanticEvent?.phase === "semanticValidationCompleted") {
+      assert.equal(semanticEvent.passed, true);
+      assert.equal(semanticEvent.safeProtocol.semanticValidationReached, true);
+      assert.equal(semanticEvent.safeProtocol.parserSubstage, "completed");
+    }
   });
 
   it("returns sanitized resource issue codes for evaluation without retaining model output", async () => {
@@ -256,9 +265,7 @@ describe("langchain-orchestrator protocol", () => {
         temperature: 0,
         timeoutMs: 100,
       },
-      modelFactory: () => ({
-        withStructuredOutput: () => ({
-          invoke: async () => ({
+      modelFactory: promptJsonModelFactory(() => ({
             decisionCode: "explicit_write_ready",
             mode: "single",
             routingSummary: "安排计划",
@@ -271,9 +278,7 @@ describe("langchain-orchestrator protocol", () => {
               label: "安排计划",
             }],
             version: 2,
-          }),
-        }),
-      }) as unknown as BaseChatModel,
+          })),
       structuredRetryBudget: { schema: 0, transport: 0 },
     });
 
@@ -312,9 +317,7 @@ describe("langchain-orchestrator protocol", () => {
         temperature: 0,
         timeoutMs: 100,
       },
-      modelFactory: () => ({
-        withStructuredOutput: () => ({
-          invoke: async () => {
+      modelFactory: promptJsonModelFactory(() => {
             calls += 1;
             return {
               decisionCode: "pure_read_query",
@@ -330,9 +333,7 @@ describe("langchain-orchestrator protocol", () => {
               }],
               version: 2,
             };
-          },
-        }),
-      }) as unknown as BaseChatModel,
+          }),
       structuredRetryBudget: { schema: 0, transport: 0 },
     });
 
@@ -376,9 +377,7 @@ describe("langchain-orchestrator protocol", () => {
         temperature: 0,
         timeoutMs: 100,
       },
-      modelFactory: () => ({
-        withStructuredOutput: () => ({
-          invoke: async () => ({
+      modelFactory: promptJsonModelFactory(() => ({
             decisionCode: "compound_ready",
             mode: "compound",
             routingSummary: "invalid dag sentinel",
@@ -401,9 +400,7 @@ describe("langchain-orchestrator protocol", () => {
               },
             ],
             version: 2,
-          }),
-        }),
-      }) as unknown as BaseChatModel,
+          })),
       structuredRetryBudget: { schema: 0, transport: 0 },
     });
 

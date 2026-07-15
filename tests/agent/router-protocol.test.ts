@@ -45,8 +45,8 @@ const baseOutput = {
 };
 
 const fakeModelFactory = (output: unknown): ModelFactory => () => ({
-  withStructuredOutput: () => ({
-    invoke: async () => output,
+  withConfig: () => ({
+    invoke: async () => ({ content: JSON.stringify(output) }),
   }),
 }) as unknown as BaseChatModel;
 
