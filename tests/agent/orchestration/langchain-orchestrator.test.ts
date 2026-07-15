@@ -97,18 +97,20 @@ describe("langchain-orchestrator protocol", () => {
     }
     assert.match(prompt, /标题.*不是.*资源引用/);
     assert.match(prompt, /上下文.*ID.*原样复制/);
-    assert.match(prompt, /未完成项目.*精确目标 ID/);
+    assert.match(prompt, /已有.*未完成项目.*精确目标 ID/);
     assert.doesNotMatch(prompt, /taskOutput/i);
   });
 
-  it("renders the fixed five-step classifier with at most three contrastive groups", () => {
+  it("renders the fixed seven-step classifier with at most three contrastive groups", () => {
     const prompt = buildLangChainSystemPrompt();
 
-    assert.match(prompt, /1\. 判断用户是否明确要求改变状态/);
-    assert.match(prompt, /2\. 若要求改变状态，判断每个必需资源和目标是否可信且就绪/);
-    assert.match(prompt, /3\. 判断是否至少有两个真实、共同必需或相互依赖的动作/);
-    assert.match(prompt, /4\. 选择且只选择一个 decisionCode/);
-    assert.match(prompt, /5\. 输出该 decisionCode 要求的 mode 和 task 形状/);
+    assert.match(prompt, /1\. 识别用户请求中所有明确目标/);
+    assert.match(prompt, /2\. 将每个目标分类为只读或状态改变候选/);
+    assert.match(prompt, /3\. 把可以独立表示、共同必需或相互依赖的目标拆成任务/);
+    assert.match(prompt, /4\. 根据任务数量与依赖关系判断 single 或 compound/);
+    assert.match(prompt, /5\. 对每个写入候选区分 existing-target mutation 与 new-resource task dependency/);
+    assert.match(prompt, /6\. 检查是否缺少会阻止安全且明确草案的信息/);
+    assert.match(prompt, /7\. 只有存在阻塞性缺失时才 clarify/);
     assert.equal((prompt.match(/对照组[一二三]/g) ?? []).length, 3);
     for (const code of [
       "explicit_write_missing_resource",
