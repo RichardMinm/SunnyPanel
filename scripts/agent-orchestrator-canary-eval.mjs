@@ -209,6 +209,13 @@ const incrementReason = (distribution, reason) => {
   distribution[reason] = (distribution[reason] ?? 0) + 1;
 };
 
+const classifySchemaIssue = (issue) => {
+  if (issue.missing) return "missing_required";
+  if (issue.code === "invalid_type") return "wrong_type";
+  if (issue.code === "invalid_value") return "invalid_enum";
+  return "invalid_shape";
+};
+
 const observeOrchestratorAttempt = (run, recorder) => {
   let retryWasScheduled = false;
   return (event) => {
@@ -223,6 +230,12 @@ const observeOrchestratorAttempt = (run, recorder) => {
         attempt: event.attempt,
         phase: event.phase,
         protocolFailure: event.protocolFailure ?? null,
+        schemaIssues: (event.schemaIssues ?? []).map((issue) => ({
+          category: classifySchemaIssue(issue),
+          code: issue.code,
+          missing: issue.missing,
+          path: issue.path,
+        })),
         safeProtocol: event.safeProtocol,
       };
       const existing = run.protocolAttempts.findIndex(

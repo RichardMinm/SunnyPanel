@@ -591,6 +591,38 @@ describe("invokeStructured real Provider envelope contract", () => {
     });
   }
 
+  it("emits only sanitized field diagnostics for a base-schema failure", async () => {
+    const sentinel = "SYNTHETIC_SCHEMA_VALUE_MUST_NOT_BE_RETAINED";
+    const missingDecision = Object.fromEntries(
+      Object.entries(VALID_OUTPUT).filter(([key]) => key !== "decisionCode"),
+    );
+    const { events, result } = await invokeEnvelope(async () => responseFor(
+      completionEnvelope({
+        content: JSON.stringify({
+          ...missingDecision,
+          routingSummary: sentinel,
+        }),
+      }),
+    ));
+
+    assert.equal(result.ok, false);
+    const failed = events.find((event) =>
+      (event as { phase?: unknown }).phase === "failed") as {
+        schemaIssues?: readonly {
+          code: string;
+          missing: boolean;
+          path: readonly (number | string)[];
+        }[];
+      } | undefined;
+    assert.ok(failed);
+    assert.equal(
+      failed.schemaIssues?.some((issue) =>
+        issue.path.join(".") === "decisionCode" && issue.missing),
+      true,
+    );
+    assert.equal(JSON.stringify({ events, result }).includes(sentinel), false);
+  });
+
   const httpCases = [
     { expectedCode: "MODEL_UNAVAILABLE", name: "HTTP 400", status: 400 },
     { expectedCode: "MODEL_AUTH_FAILED", name: "HTTP 401", status: 401 },

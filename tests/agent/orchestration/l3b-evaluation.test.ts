@@ -831,6 +831,12 @@ test("sanitized report validation rejects forbidden keys at any nested depth", (
     attempt: 1,
     phase: "failed",
     protocolFailure: "provider_reasoning_only",
+    schemaIssues: [{
+      category: "missing_required",
+      code: "invalid_type",
+      missing: true,
+      path: ["tasks", 0, "agentRole"],
+    }],
     safeProtocol,
   } as const;
 
@@ -867,6 +873,24 @@ test("sanitized report validation rejects forbidden keys at any nested depth", (
     },
     { ...safeProtocolAttempt, attempt: 0 },
     { ...safeProtocolAttempt, value: "SYNTHETIC_RAW_CONTENT_SENTINEL" },
+    {
+      ...safeProtocolAttempt,
+      schemaIssues: [{
+        category: "SYNTHETIC_RAW_RESPONSE_SENTINEL",
+        code: "invalid_type",
+        missing: true,
+        path: ["tasks", 0, "agentRole"],
+      }],
+    },
+    {
+      ...safeProtocolAttempt,
+      schemaIssues: [{
+        category: "missing_required",
+        code: "invalid_type",
+        missing: true,
+        path: ["SYNTHETIC_RAW_FIELD_SENTINEL"],
+      }],
+    },
   ]) {
     assert.throws(
       () => assertSanitizedL3BReport({ protocolAttempts: [invalidAttempt] }),

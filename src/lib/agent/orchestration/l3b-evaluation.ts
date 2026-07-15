@@ -290,7 +290,40 @@ const SAFE_PROTOCOL_ATTEMPT_KEYS = new Set([
   "attempt",
   "phase",
   "protocolFailure",
+  "schemaIssues",
   "safeProtocol",
+]);
+const SAFE_SCHEMA_ISSUE_CATEGORIES = new Set([
+  "missing_required",
+  "wrong_type",
+  "invalid_enum",
+  "invalid_shape",
+]);
+const SAFE_ZOD_ISSUE_CODES = new Set([
+  "invalid_type",
+  "too_big",
+  "too_small",
+  "invalid_format",
+  "not_multiple_of",
+  "unrecognized_keys",
+  "invalid_union",
+  "invalid_key",
+  "invalid_element",
+  "invalid_value",
+  "custom",
+]);
+const SAFE_ORCHESTRATOR_SCHEMA_PATHS = new Set([
+  "version",
+  "decisionCode",
+  "mode",
+  "routingSummary",
+  "tasks",
+  "id",
+  "label",
+  "intent",
+  "args",
+  "dependsOn",
+  "agentRole",
 ]);
 
 /** Exact-shape exception for the approved payload-free protocol contract. */
@@ -354,6 +387,31 @@ const isSafeProtocolAttempt = (
     || value.safeProtocol === null
     || Array.isArray(value.safeProtocol)
     || !isSafeProtocolDiagnostics(value.safeProtocol as Record<string, unknown>)
+    || !Array.isArray(value.schemaIssues)
+    || value.schemaIssues.length > 32
+    || !value.schemaIssues.every((issue) =>
+      typeof issue === "object"
+      && issue !== null
+      && !Array.isArray(issue)
+      && Object.keys(issue).length === 4
+      && Object.keys(issue).every((key) =>
+        ["category", "code", "missing", "path"].includes(key))
+      && SAFE_SCHEMA_ISSUE_CATEGORIES.has(
+        String((issue as Record<string, unknown>).category),
+      )
+      && SAFE_ZOD_ISSUE_CODES.has(
+        String((issue as Record<string, unknown>).code),
+      )
+      && typeof (issue as Record<string, unknown>).missing === "boolean"
+      && Array.isArray((issue as Record<string, unknown>).path)
+      && ((issue as Record<string, unknown>).path as unknown[]).length <= 16
+      && ((issue as Record<string, unknown>).path as unknown[]).every(
+        (segment) => typeof segment === "number"
+          ? Number.isInteger(segment) && segment >= 0
+          : typeof segment === "string"
+            ? SAFE_ORCHESTRATOR_SCHEMA_PATHS.has(segment)
+            : false,
+      ))
   ) {
     return false;
   }
@@ -586,6 +644,16 @@ export type L3BEvaluationRun = {
     attempt: number;
     phase: string;
     protocolFailure: StructuredProtocolFailure | null;
+    schemaIssues: readonly Readonly<{
+      category:
+        | "missing_required"
+        | "wrong_type"
+        | "invalid_enum"
+        | "invalid_shape";
+      code: string;
+      missing: boolean;
+      path: readonly (number | string)[];
+    }>[];
     safeProtocol: SafeProtocolDiagnostics;
   }>[];
   round: number;

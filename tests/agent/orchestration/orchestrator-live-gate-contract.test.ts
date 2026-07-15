@@ -145,6 +145,11 @@ test("diagnostics and raw payload-bearing keys stay outside authoritative denomi
   assert.match(source, /assertSanitizedL3BReport\(report\)/);
   assert.match(source, /forbiddenReportKey/);
   assert.match(source, /knownIdDiagnostics/);
+  assert.match(source, /schemaIssues: \(event\.schemaIssues/);
+  assert.match(source, /missing_required/);
+  assert.match(source, /wrong_type/);
+  assert.match(source, /invalid_enum/);
+  assert.match(source, /invalid_shape/);
   assert.match(source, /observations: runs\.map/);
   assert.doesNotMatch(source, /runs\.push\([^)]*diagnostic/);
 });

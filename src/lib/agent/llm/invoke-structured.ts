@@ -99,6 +99,7 @@ export type StructuredProviderAttemptEvent =
       reason: StructuredAttemptFailureReason;
       retryScheduled: boolean;
       protocolFailure?: StructuredProtocolFailure;
+      schemaIssues?: StructuredOutputDiagnostics["issues"];
       safeProtocol: SafeProtocolDiagnostics;
     };
 
@@ -376,6 +377,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             phase: "failed",
             reason: "provider_protocol",
             retryScheduled,
+            schemaIssues: error.issues,
             safeProtocol,
           });
           if (retryScheduled) continue;
@@ -403,6 +405,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             reason: "provider_protocol",
             retryScheduled,
             protocolFailure: protocolError.details.failure,
+            schemaIssues: protocolError.details.issues,
             safeProtocol: protocolError.details.diagnostics,
           });
           if (retryScheduled) continue;
