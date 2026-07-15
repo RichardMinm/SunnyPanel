@@ -7,6 +7,7 @@ import {
   ORCHESTRATOR_AGENT_ROLES,
   ORCHESTRATOR_DECISION_CODES,
   ORCHESTRATOR_MODES,
+  ORCHESTRATOR_TASK_ID_PATTERN,
   orchestratorOutputSchema,
   validateTaskDAG,
 } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
@@ -39,6 +40,19 @@ describe("langchain-orchestrator protocol", () => {
     for (const mode of ORCHESTRATOR_MODES) assert.match(prompt, new RegExp(`\\b${mode}\\b`));
     for (const role of ORCHESTRATOR_AGENT_ROLES) assert.match(prompt, new RegExp(`\\b${role}\\b`));
     for (const intent of ROUTER_INTENT_NAMES) assert.match(prompt, new RegExp(`\\b${intent}\\b`));
+  });
+
+  it("renders the shared task-id format and a schema-valid complete JSON example", () => {
+    const prompt = buildLangChainSystemPrompt();
+    const marker = "完整合成 JSON shape 示例：";
+    const exampleLine = prompt
+      .slice(prompt.indexOf(marker) + marker.length)
+      .split("\n", 1)[0];
+
+    assert.equal(prompt.includes(ORCHESTRATOR_TASK_ID_PATTERN.source), true);
+    assert.notEqual(prompt.indexOf(marker), -1);
+    assert.equal(orchestratorOutputSchema.safeParse(JSON.parse(exampleLine)).success, true);
+    assert.equal(JSON.parse(exampleLine).tasks[0].id, "t1");
   });
 
   it("keeps all workspace values out of the system message and marks them as untrusted user data", () => {
@@ -107,11 +121,14 @@ describe("langchain-orchestrator protocol", () => {
 
   it("freezes the R2 protocol metadata and deterministic secret-free hash", () => {
     assert.equal(L3B_EVALUATION_CONFIG.evaluationConfigVersion, "l3b-r2-provider-protocol-v1");
-    assert.equal(L3B_EVALUATION_CONFIG.promptProtocolVersion, "l3b-r1-semantic-decision-v1");
+    assert.equal(
+      L3B_EVALUATION_CONFIG.promptProtocolVersion,
+      "l3b-r2-orchestrator-id-format-v1",
+    );
     assert.equal(L3B_EVALUATION_CONFIG.resourceProtocolVersion, 2);
     assert.equal(
       L3B_EVALUATION_CONFIG_HASH,
-      "5d5e845d1afa412e9546de6abdf579f674869209540dc95e60a00761edda65dc",
+      "f33cbc43a0e9362a31b8d0d11fb66b2e932bdc49d5ff9bf5f2fedec6b5f2acb9",
     );
   });
 
@@ -456,6 +473,25 @@ describe("langchain-orchestrator (schema + mapper contracts)", () => {
       };
       const result = orchestratorOutputSchema.safeParse(output);
       assert.equal(result.success, true);
+    });
+
+    it("rejects task IDs outside the shared t-number format", () => {
+      const result = orchestratorOutputSchema.safeParse({
+        version: 2,
+        decisionCode: "pure_read_query",
+        mode: "single",
+        routingSummary: "查询进度",
+        tasks: [{
+          id: "task-1",
+          label: "查询",
+          intent: "query_progress",
+          args: {},
+          dependsOn: [],
+          agentRole: "query",
+        }],
+      });
+
+      assert.equal(result.success, false);
     });
 
     it("rejects unknown intent", () => {

@@ -144,7 +144,7 @@ test("passes a complete 99-observation matrix with all safety and performance ga
       totalTimeoutMs: 30_000,
     },
     evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
-    promptProtocolVersion: "l3b-r1-semantic-decision-v1",
+    promptProtocolVersion: "l3b-r2-orchestrator-id-format-v1",
     resourceProtocolVersion: 2,
     schemaVersion: 2,
   });

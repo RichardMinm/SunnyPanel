@@ -33,9 +33,11 @@ export type AgentRole = z.infer<typeof agentRoleSchema>;
 
 /* ---- Single task node ---- */
 
+export const ORCHESTRATOR_TASK_ID_PATTERN = /^t[1-9]\d*$/;
+
 export const orchestratorTaskSchema = z.object({
   /** Stable task identifier within this plan (e.g. "t1", "t2"). */
-  id: z.string().regex(/^t[1-9]\d*$/),
+  id: z.string().regex(ORCHESTRATOR_TASK_ID_PATTERN),
 
   /** User-visible short label (max 80 chars). */
   label: z.string().min(1).max(80),
