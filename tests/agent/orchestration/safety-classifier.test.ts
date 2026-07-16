@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { classifyIntent, classifyIntents } from "../../../src/lib/agent/orchestration/safety-classifier";
+import { classifyIntent, classifyIntents, isSemanticMatch } from "../../../src/lib/agent/orchestration/safety-classifier";
 
 describe("safety-classifier", () => {
   describe("classifyIntent", () => {
@@ -31,6 +31,12 @@ describe("safety-classifier", () => {
       const result = classifyIntents(["create_plan"]);
       assert.equal(result, "write_candidate");
       /* write_candidate is a comparison classification, NOT execute permission */
+    });
+  });
+
+  describe("scope-sensitive semantic comparison", () => {
+    it("does not treat aggregate and specific progress as equivalent", () => {
+      assert.equal(isSemanticMatch("query_progress", "query_plan_progress"), false);
     });
   });
 });

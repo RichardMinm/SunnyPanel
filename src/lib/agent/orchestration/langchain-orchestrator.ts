@@ -47,6 +47,10 @@ import {
   getResourceProtocolProjection,
   type ResourceReadinessErrorCode,
 } from "./resource-readiness-guard";
+import {
+  validateAndNormalizeOrchestratorQueryScopes,
+  type QueryScopeErrorCode,
+} from "./query-scope-contract";
 
 /* ---- Safe clarify fallback (deterministic, no model output reuse) ---- */
 
@@ -72,6 +76,7 @@ const SAFE_CLARIFY_PLAN: OrchestratorPlan = {
 export type OrchestratorFailureReason =
   | "invalid_dag"
   | "invalid_decision_consistency"
+  | "invalid_query_scope"
   | "invalid_resource_reference"
   | "provider_error"
   | "schema_failure"
@@ -92,6 +97,7 @@ export type OrchestratorInvocationResult =
     }
   | {
       decisionConsistencyError?: DecisionConsistencyErrorCode;
+      queryScopeErrorCode?: QueryScopeErrorCode;
       status: "unavailable";
       reason: OrchestratorFailureReason;
       resourceIssueCodes?: ResourceReadinessErrorCode[];
@@ -476,13 +482,35 @@ export const runLangChainOrchestratorResult = async (
     );
   }
 
+  const queryScopeResult = validateAndNormalizeOrchestratorQueryScopes({
+    context,
+    message,
+    output: result.data,
+  });
+
+  if (!queryScopeResult.valid) {
+    logAgentEvent("warn", "orchestrator.langchain.invalid_query_scope", {
+      code: queryScopeResult.code,
+    });
+
+    return {
+      queryScopeErrorCode: queryScopeResult.code,
+      reason: "invalid_query_scope",
+      safeMessage: queryScopeResult.safeMessage,
+      schemaValidDecision,
+      status: "unavailable",
+    };
+  }
+
+  const queryScopeValidatedOutput = queryScopeResult.output;
+
   /* 8. Resource Readiness Guard — validate resource references
    *    BEFORE mapping to OrchestrationPlan. Schedule/edit intents
    *    without valid existing IDs are rejected. */
   const { buildResourceIndex, validateResourceReadiness } = await import("./resource-readiness-guard");
   const resourceIndex = buildResourceIndex(context);
   const guardResult = validateResourceReadiness({
-    tasks: result.data.tasks.map((t) => ({
+    tasks: queryScopeValidatedOutput.tasks.map((t) => ({
       id: t.id,
       intent: t.intent,
       args: t.args as Record<string, unknown>,
@@ -508,7 +536,7 @@ export const runLangChainOrchestratorResult = async (
   }
 
   /* 9. Map to existing OrchestrationPlan */
-  const plan = mapStructuredOutputToPlan(result.data);
+  const plan = mapStructuredOutputToPlan(queryScopeValidatedOutput);
 
   logAgentEvent("info", "orchestrator.langchain.completed", {
     mode: plan.mode,

@@ -4,6 +4,7 @@ export const L3B_MISMATCH_CATEGORIES = [
   "match",
   "mode_mismatch",
   "not_comparable",
+  "query_scope_mismatch",
   "read_write_mismatch",
   "resource_mismatch",
   "unclassified",

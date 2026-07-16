@@ -9,7 +9,7 @@ import { renderCanonicalFactBlock } from "../../src/lib/agent/query/langchain-qu
 import { buildQueryMessages } from "../../src/lib/agent/query/prompt";
 import { projectQualitativeQueryFacts } from "../../src/lib/agent/query/qualitative-projection";
 import { resolveQueryRuntime } from "../../src/lib/agent/query/runtime-config";
-import type { AgentIntent } from "../../src/lib/agent/schemas";
+import { parseAgentIntentResult, type AgentIntent } from "../../src/lib/agent/schemas";
 import { formatProgressAssistantMessage } from "../../src/lib/agent/progress";
 import { LANGCHAIN_QUERY_INTENTS, QUERY_CONTENT_CHAR_CAP, type PlanProgressFacts } from "../../src/lib/agent/query/types";
 
@@ -74,17 +74,62 @@ test("plan facts preserve every field used by the locked Legacy formatter", asyn
   assert.match(formatPlanProgressAssistantMessage(facts), /当前进度: 60%/);
 });
 
-test("title lookup keeps the Legacy recent-ten fuzzy-first contract", async () => {
+test("title lookup requires exact normalized uniqueness across the accessible plan set", async () => {
   calls.length = 0;
   const facts = await loadPlanProgressFacts({ planTitle: "Release" }, {
     ...dependencies,
     findPlansForTitle: async (args) => {
       calls.push({ args, method: "findPlansForTitle" });
-      return { docs: [{ id: 7, priority: "high", state: "active", title: "Release 2026" }] as never[] };
+      return { docs: [
+        { id: 7, priority: "high", state: "active", title: " Release   2026 " },
+        { id: 8, priority: "high", state: "active", title: "Release" },
+      ] as never[] };
     },
   });
-  assert.equal(facts?.planId, 7);
-  assert.deepEqual(calls, [{ args: { collection: "plans", depth: 0, limit: 10, overrideAccess: true, sort: "-updatedAt" }, method: "findPlansForTitle" }]);
+  assert.equal(facts?.planId, 8);
+  assert.deepEqual(calls, [{ args: { collection: "plans", depth: 0, overrideAccess: true, pagination: false, sort: "id" }, method: "findPlansForTitle" }]);
+
+  const ambiguous = await loadPlanProgressFacts({ planTitle: "Release" }, {
+    ...dependencies,
+    findPlansForTitle: async () => ({ docs: [
+      { id: 8, priority: "high", state: "active", title: "Release" },
+      { id: 9, priority: "high", state: "active", title: "  RELEASE  " },
+    ] as never[] }),
+  });
+  assert.equal(ambiguous, null);
+
+  const partial = await loadPlanProgressFacts({ planTitle: "Release 202" }, {
+    ...dependencies,
+    findPlansForTitle: async () => ({ docs: [
+      { id: 7, priority: "high", state: "active", title: "Release 2026" },
+    ] as never[] }),
+  });
+  assert.equal(partial, null);
+});
+
+test("plan ID lookup disables Payload not-found errors and validates an accompanying title", async () => {
+  calls.length = 0;
+  const mismatch = await loadPlanProgressFacts({ planId: 7, planTitle: "Research" }, {
+    ...dependencies,
+    findPlanById: async (args) => {
+      calls.push({ args, method: "findPlanById" });
+      return { id: 7, priority: "high", state: "active", title: "Release" } as never;
+    },
+  });
+
+  assert.equal(mismatch, null);
+  assert.deepEqual(calls, [{
+    args: { collection: "plans", disableErrors: true, id: 7, overrideAccess: true },
+    method: "findPlanById",
+  }]);
+
+  calls.length = 0;
+  const missing = await loadPlanProgressFacts({ planId: 999 }, dependencies);
+  assert.equal(missing, null);
+  assert.deepEqual(calls, [{
+    args: { collection: "plans", disableErrors: true, id: 999, overrideAccess: true },
+    method: "findPlanById",
+  }]);
 });
 
 test("runtime defaults to Legacy and exact eligibility stays narrow", () => {
@@ -97,6 +142,15 @@ test("runtime defaults to Legacy and exact eligibility stays narrow", () => {
   assert.equal(classifyQueryEligibility(intent("query_plan_progress", { planId: 7 }), "langchain").eligible, true);
   assert.equal(classifyQueryEligibility(intent("query_plan_progress", { planTitle: "Release" }), "langchain").eligible, false);
   assert.equal(classifyQueryEligibility(intent("query_checklist_progress"), "langchain").eligible, false);
+  assert.deepEqual(
+    parseAgentIntentResult({ args: { planId: 7 }, intent: "query_plan_progress" }),
+    {
+      args: { planId: 7, planTitle: null },
+      confidence: undefined,
+      intent: "query_plan_progress",
+      reply: undefined,
+    },
+  );
   for (const planId of [-1, 0, Number.NaN, Number.POSITIVE_INFINITY, 1.5]) {
     assert.equal(classifyQueryEligibility(intent("query_plan_progress", { planId }), "langchain").eligible, false);
   }

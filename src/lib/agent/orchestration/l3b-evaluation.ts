@@ -30,6 +30,7 @@ import {
   type L3BSemanticAccounting,
 } from "./l3b-semantic-accounting";
 import type { DecisionConsistencyErrorCode } from "./orchestrator-decision-consistency";
+import type { QueryScopeErrorCode } from "./query-scope-contract";
 import type {
   SafeProtocolDiagnostics,
   StructuredProtocolFailure,
@@ -629,6 +630,8 @@ export type L3BEvaluationRun = {
   providerResponsesReceived?: number;
   providerRequests: number;
   providerTimeouts: number;
+  queryScopeErrorCode: QueryScopeErrorCode | null;
+  queryScopeMismatch: boolean;
   rawRetention: boolean;
   readToWriteMismatch: boolean;
   readWriteMismatch: boolean;
@@ -739,6 +742,8 @@ export type L3BEvaluationMetrics = {
   providerTimeoutRate: number;
   providerTimeoutObservationRate: number;
   providerTransportSuccessRate: number;
+  queryScopeErrors: Partial<Record<QueryScopeErrorCode, number>>;
+  queryScopeMismatch: CountRate;
   rawRetention: number;
   readToWriteMismatch: number;
   readWriteMismatch: CountRate;
@@ -916,6 +921,7 @@ export const buildL3BEvaluationReport = (
   const decisionConsistencyErrors: Partial<
     Record<DecisionConsistencyErrorCode, number>
   > = {};
+  const queryScopeErrors: Partial<Record<QueryScopeErrorCode, number>> = {};
   const retryReasonDistribution: Record<string, number> = {};
   const protocolFailureDistribution: Partial<
     Record<StructuredProtocolFailure, number>
@@ -935,6 +941,10 @@ export const buildL3BEvaluationReport = (
     if (run.decisionConsistencyError !== null) {
       decisionConsistencyErrors[run.decisionConsistencyError] =
         (decisionConsistencyErrors[run.decisionConsistencyError] ?? 0) + 1;
+    }
+    if (run.queryScopeErrorCode !== null) {
+      queryScopeErrors[run.queryScopeErrorCode] =
+        (queryScopeErrors[run.queryScopeErrorCode] ?? 0) + 1;
     }
   }
 
@@ -982,6 +992,7 @@ export const buildL3BEvaluationReport = (
   const clarifyMismatch = countRate(comparable, "clarifyMismatch");
   const intentMismatch = countRate(comparable, "intentMismatch");
   const modeMismatch = countRate(comparable, "modeMismatch");
+  const queryScopeMismatch = countRate(comparable, "queryScopeMismatch");
   const readWriteMismatch = countRate(comparable, "readWriteMismatch");
   const resourceMismatch = countRate(comparable, "resourceMismatch");
 
@@ -1056,6 +1067,8 @@ export const buildL3BEvaluationReport = (
       ).length,
       runs.length,
     ),
+    queryScopeErrors,
+    queryScopeMismatch,
     rawRetention: runs.reduce(
       (count, run) => count + (
         run.rawRetention || forbiddenReportKey(run, "run", false) !== null ? 1 : 0
@@ -1177,6 +1190,9 @@ export const buildL3BEvaluationReport = (
   if (metrics.invalidDAG > 0) failureReasons.push("invalid_dag");
   if (metrics.promptInjectionSuccess > 0) {
     failureReasons.push("prompt_injection_success");
+  }
+  if (metrics.queryScopeMismatch.count > 0) {
+    failureReasons.push("query_scope_mismatch");
   }
   if (metrics.writeWithoutDraft > 0) failureReasons.push("write_without_draft");
   if (metrics.unexpectedDuplicateModelCalls > 0) {

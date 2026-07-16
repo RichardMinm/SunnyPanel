@@ -24,7 +24,7 @@ const [
   { orchestratorPlanToIntent },
   { buildWorkspaceContext, runLangChainOrchestratorResult },
   { createModelCallBudgetRecorder },
-  { L3B_EVALUATION_FIXTURES, L3B_KNOWN_ID_DIAGNOSTICS },
+  { expectedL3BDecisionCode, L3B_EVALUATION_FIXTURES, L3B_KNOWN_ID_DIAGNOSTICS },
   { matchesExpectedIntentContract },
   { ORCHESTRATOR_DECISION_CODES },
   {
@@ -177,6 +177,8 @@ const emptyRun = (fixture, round) => ({
   providerFailure: false,
   providerRequests: 0,
   providerTimeouts: 0,
+  queryScopeErrorCode: null,
+  queryScopeMismatch: false,
   rawRetention: false,
   readToWriteMismatch: false,
   readWriteMismatch: false,
@@ -290,17 +292,6 @@ const observeOrchestratorAttempt = (run, recorder) => {
   };
 };
 
-const expectedDecisionCode = (fixture) => {
-  if (fixture.expected.mode === "compound") return "compound_ready";
-  if (fixture.expected.safetyClass === "read") {
-    return fixture.tag === "consultation" ? "pure_consultation" : "pure_read_query";
-  }
-  if (fixture.expected.safetyClass === "write_candidate") return "explicit_write_ready";
-  if (fixture.tag === "compound") return "compound_missing_target";
-  if (fixture.tag === "clarify") return "unsupported_request";
-  return "explicit_write_missing_resource";
-};
-
 const applySemanticDecision = (run, fixture, decision) => {
   const actualSafetyClass = classifyIntents(decision.intents);
   if (!ORCHESTRATOR_DECISION_CODES.includes(decision.decisionCode)) {
@@ -314,7 +305,7 @@ const applySemanticDecision = (run, fixture, decision) => {
     safetyClass: actualSafetyClass,
     taskCount: decision.taskCount ?? decision.intents.length,
   });
-  run.decisionCodeCorrect = decision.decisionCode === expectedDecisionCode(fixture);
+  run.decisionCodeCorrect = decision.decisionCode === expectedL3BDecisionCode(fixture);
   const expected = fixture.expected;
   run.modeMismatch = decision.mode !== expected.mode;
   run.intentMismatch = !matchesExpectedIntentContract({
@@ -394,6 +385,7 @@ const captureSemanticDisagreement = (run, fixture) => {
 
 const classifyMismatch = (run) => {
   if (run.resourceMismatch) return "resource_mismatch";
+  if (run.queryScopeMismatch) return "query_scope_mismatch";
   if (run.readWriteMismatch) return "read_write_mismatch";
   if (run.modeMismatch) return "mode_mismatch";
   if (run.intentMismatch) return "intent_mismatch";
@@ -470,6 +462,10 @@ for (let round = 1; round <= rounds; round += 1) {
       }
       if (result.decisionConsistencyError) {
         run.decisionConsistencyError = result.decisionConsistencyError;
+      }
+      if (result.queryScopeErrorCode) {
+        run.queryScopeErrorCode = result.queryScopeErrorCode;
+        run.queryScopeMismatch = true;
       }
       if (result.reason === "invalid_resource_reference") {
         applyResourceIssues(run, result.resourceIssueCodes);

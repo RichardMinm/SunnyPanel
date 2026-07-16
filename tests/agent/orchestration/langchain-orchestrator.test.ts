@@ -316,6 +316,98 @@ describe("langchain-orchestrator protocol", () => {
     assert.doesNotMatch(JSON.stringify(result), /planId|999|安排计划/);
   });
 
+  it("rejects a Provider-selected context plan before the compatibility mapper", async () => {
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-16T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [{ id: 101, priority: "medium", state: "active", title: "考研数学复习计划" }],
+      },
+      message: "看看我的工作计划进度",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: promptJsonModelFactory(() => ({
+        decisionCode: "pure_read_query",
+        mode: "single",
+        routingSummary: "读取具体计划进度",
+        tasks: [{
+          agentRole: "query",
+          args: { planId: 101 },
+          dependsOn: [],
+          id: "t1",
+          intent: "query_plan_progress",
+          label: "读取进度",
+        }],
+        version: 2,
+      })),
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.deepEqual(result, {
+      queryScopeErrorCode: "provider_selected_workspace_resource",
+      reason: "invalid_query_scope",
+      safeMessage: "用户没有明确选择具体计划，不能从工作区上下文隐式缩窄查询范围。",
+      schemaValidDecision: {
+        decisionCode: "pure_read_query",
+        intents: ["query_plan_progress"],
+        mode: "single",
+        taskCount: 1,
+      },
+      status: "unavailable",
+    });
+  });
+
+  it("normalizes an explicit exact title to a trusted planId before mapping", async () => {
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-16T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [{ id: 101, priority: "medium", state: "active", title: "考研数学复习计划" }],
+      },
+      message: "检查考研数学复习计划的完成情况",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: promptJsonModelFactory(() => ({
+        decisionCode: "pure_read_query",
+        mode: "single",
+        routingSummary: "读取具体计划进度",
+        tasks: [{
+          agentRole: "query",
+          args: { planId: 101 },
+          dependsOn: [],
+          id: "t1",
+          intent: "query_plan_progress",
+          label: "读取进度",
+        }],
+        version: 2,
+      })),
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.equal(result.plan.tasks[0].intent, "query_plan_progress");
+    assert.deepEqual(result.plan.tasks[0].args, { planId: 101 });
+  });
+
   it("rejects an inconsistent schema-valid decision before DAG, resources, mapping, retry, or fallback", async () => {
     let calls = 0;
     const result = await runLangChainOrchestratorResult({

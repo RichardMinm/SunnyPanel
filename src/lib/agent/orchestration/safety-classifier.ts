@@ -82,7 +82,8 @@ export const classifyIntents = (intents: string[]): SafetyClass => {
  *
  *  Groups MUST NOT mix different safety classes. */
 export const INTENT_COMPARISON_GROUPS: Record<string, string[]> = {
-  progress_query: ["query_progress", "query_plan_progress"],
+  aggregate_progress_query: ["query_progress"],
+  specific_plan_progress_query: ["query_plan_progress"],
   direct_answer: ["answer_question"],
   clarification: ["clarify"],
   plan_draft: ["compose_plan"],

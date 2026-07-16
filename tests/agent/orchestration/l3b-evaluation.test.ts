@@ -78,6 +78,8 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   providerResponsesReceived: index % 6 === 0 ? 2 : 1,
   providerRequests: index % 6 === 0 ? 2 : 1,
   providerTimeouts: 0,
+  queryScopeErrorCode: null,
+  queryScopeMismatch: false,
   rawRetention: false,
   readToWriteMismatch: false,
   readWriteMismatch: false,
@@ -298,6 +300,7 @@ test("reconciles Run 3 broad decision-code matches with exclusive semantic corre
       match: 9,
       mode_mismatch: 0,
       not_comparable: 0,
+      query_scope_mismatch: 0,
       read_write_mismatch: 5,
       resource_mismatch: 0,
       unclassified: 0,
@@ -608,6 +611,38 @@ test("resource-invalid writes remain independent unsafe semantic transitions", (
   assert.ok(report.failureReasons.includes("unexpected_write_candidate"));
 });
 
+test("keeps typed query-scope rejection as an exclusive sanitized mismatch", () => {
+  const runs = passingRuns();
+  runs[0] = {
+    ...runs[0],
+    decisionCodeCorrect: false,
+    failureEvents: 1,
+    mismatchCategory: "query_scope_mismatch",
+    orchestratorCompleted: false,
+    orchestratorUsable: false,
+    queryScopeErrorCode: "provider_selected_workspace_resource",
+    queryScopeMismatch: true,
+    typedFailureEvents: 1,
+  };
+
+  const report = buildL3BEvaluationReport(runs, { expectedFixtureIds: fixtureIds });
+
+  assert.deepEqual(report.metrics.queryScopeErrors, {
+    provider_selected_workspace_resource: 1,
+  });
+  assert.deepEqual(report.metrics.queryScopeMismatch, {
+    count: 1,
+    denominator: 99,
+    rate: 1 / 99,
+  });
+  assert.equal(
+    report.metrics.exclusiveMismatchCategories.query_scope_mismatch,
+    1,
+  );
+  assert.ok(report.failureReasons.includes("query_scope_mismatch"));
+  assert.doesNotMatch(JSON.stringify(report), /planId|workspace context|看看我的/);
+});
+
 test("every mismatch requires an explicit category", () => {
   const runs = passingRuns();
   runs[0] = {
@@ -723,7 +758,7 @@ test("keeps the original 33-fixture matrix and all high-risk segments", () => {
   );
 });
 
-test("freezes the complete pre-R1 fixture matrix with only cmp-1 expectation revised", () => {
+test("freezes the complete R3-D scope-aligned fixture matrix", () => {
   const snapshot = L3B_EVALUATION_FIXTURES.map((fixture) => ({
     context: fixture.context,
     expected: fixture.expected,
@@ -734,10 +769,14 @@ test("freezes the complete pre-R1 fixture matrix with only cmp-1 expectation rev
   }));
   const hash = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
 
-  assert.equal(hash, "ec7005b80810d9b95b374a3abe6d39573ba3802e06e0addca8d485c6ed94e7b0");
+  assert.equal(hash, "0214744ce015a4809fe0b333b002b44c90a3ab46a1f74956b197b1ede8a7d4e1");
   assert.deepEqual(
     L3B_EVALUATION_FIXTURES.find(({ id }) => id === "cmp-1")?.expected,
     { intents: ["clarify"], mode: "single", safetyClass: "clarify" },
+  );
+  assert.deepEqual(
+    L3B_EVALUATION_FIXTURES.find(({ id }) => id === "cmp-4")?.expected,
+    { intents: ["query_progress", "compose_checklist"], mode: "compound", safetyClass: "write_candidate" },
   );
 });
 
@@ -790,6 +829,7 @@ test("live harness is explicit, database-free, fixed-budget, and uses typed resu
   assert.match(source, /assertSanitizedL3BReport\(report\)/);
   assert.match(source, /writeSanitizedL3BReport/);
   assert.match(source, /buildL3BDiagnosticStatus/);
+  assert.match(source, /queryScopeErrorCode/);
   assert.match(source, /combineL3BTopLevelPass/);
   assert.match(source, /diagnosticStatus/);
   assert.match(source, /orchestrator-plan-to-intent/);

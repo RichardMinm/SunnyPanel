@@ -19,6 +19,7 @@ import {
   runLangChainOrchestratorResult,
   type OrchestratorInvocationResult,
 } from "./langchain-orchestrator";
+import { validateAndNormalizeOrchestratorPlanQueryScopes } from "./query-scope-contract";
 
 export type OrchestratorService = (
   message: string,
@@ -38,8 +39,21 @@ export const dispatchOrchestratorResult: OrchestratorService = async (
   }
 
   try {
-    return {
+    const queryScopeResult = validateAndNormalizeOrchestratorPlanQueryScopes({
+      context,
+      message,
       plan: await runLegacyOrchestrator(message, context, signal),
+    });
+    if (!queryScopeResult.valid) {
+      return {
+        queryScopeErrorCode: queryScopeResult.code,
+        reason: "invalid_query_scope",
+        safeMessage: queryScopeResult.safeMessage,
+        status: "unavailable",
+      };
+    }
+    return {
+      plan: queryScopeResult.plan,
       status: "success",
     };
   } catch {

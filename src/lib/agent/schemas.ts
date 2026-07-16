@@ -1805,6 +1805,24 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         intent: "query_progress",
         reply,
       };
+    case "query_plan_progress": {
+      const planId = getOptionalNumber(value.args.planId);
+      const planTitle = getOptionalString(value.args.planTitle);
+
+      if ((!planId || planId <= 0 || !Number.isInteger(planId)) && !planTitle) {
+        return null;
+      }
+
+      return {
+        args: {
+          planId: planId && planId > 0 && Number.isInteger(planId) ? planId : null,
+          planTitle: planTitle ?? null,
+        },
+        confidence,
+        intent: "query_plan_progress",
+        reply,
+      };
+    }
     case "evaluate_plan":
       return {
         args: {

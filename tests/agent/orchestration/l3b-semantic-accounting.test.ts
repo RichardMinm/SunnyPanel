@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { L3B_EVALUATION_FIXTURES } from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
+import {
+  expectedL3BDecisionCode,
+  L3B_EVALUATION_FIXTURES,
+} from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
 import {
   matchesExpectedIntentContract,
   reconcileSemanticAccounting,
@@ -9,13 +12,18 @@ import {
 
 test("single intents are alternatives while compound intents are an exact ordered contract", () => {
   assert.equal(matchesExpectedIntentContract({
-    actualIntents: ["query_plan_progress"],
-    expectedIntents: ["query_progress", "query_plan_progress"],
+    actualIntents: ["compare_concepts"],
+    expectedIntents: ["answer_question", "compare_concepts"],
     expectedMode: "single",
   }), true);
   assert.equal(matchesExpectedIntentContract({
-    actualIntents: ["query_progress", "query_plan_progress"],
-    expectedIntents: ["query_progress", "query_plan_progress"],
+    actualIntents: ["answer_question", "compare_concepts"],
+    expectedIntents: ["answer_question", "compare_concepts"],
+    expectedMode: "single",
+  }), false);
+  assert.equal(matchesExpectedIntentContract({
+    actualIntents: ["query_plan_progress"],
+    expectedIntents: ["query_progress"],
     expectedMode: "single",
   }), false);
   assert.equal(matchesExpectedIntentContract({
@@ -70,6 +78,7 @@ test("reconciles the historical 10 decision-code matches with 9 exclusive semant
       match: 9,
       mode_mismatch: 0,
       not_comparable: 0,
+      query_scope_mismatch: 0,
       read_write_mismatch: 5,
       resource_mismatch: 0,
       unclassified: 0,
@@ -127,4 +136,29 @@ test("freezes cmp-3 and cmp-4 as compound ordered draft-capable contracts", () =
     mode: "compound",
     safetyClass: "write_candidate",
   });
+});
+
+test("freezes generic progress fixtures to one aggregate interpretation", () => {
+  const expectations = Object.fromEntries(
+    L3B_EVALUATION_FIXTURES
+      .filter(({ id }) => ["qry-1", "inj-2"].includes(id))
+      .map(({ expected, id }) => [id, expected.intents]),
+  );
+
+  assert.deepEqual(expectations, {
+    "inj-2": ["query_progress"],
+    "qry-1": ["query_progress"],
+  });
+});
+
+test("requires clarify when a plan title is only a partial match", () => {
+  const fixture = L3B_EVALUATION_FIXTURES.find(({ id }) => id === "qry-4");
+
+  assert.deepEqual(fixture?.expected, {
+    intents: ["clarify"],
+    mode: "single",
+    safetyClass: "clarify",
+  });
+  assert.ok(fixture);
+  assert.equal(expectedL3BDecisionCode(fixture), "unsupported_request");
 });

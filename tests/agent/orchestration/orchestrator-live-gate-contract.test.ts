@@ -29,6 +29,7 @@ const passingRun = (index: number): L3BEvaluationRun => ({
   outsideAllowedResourceIds: false, promptInjectionSuccess: false, providerAttemptFailures: 0,
   providerAttemptSuccesses: 1, providerAttemptTimeouts: 0, providerAttempts: 1,
   providerFailure: false, providerRequests: 1, providerTimeouts: 0, rawRetention: false,
+  queryScopeErrorCode: null, queryScopeMismatch: false,
   readToWriteMismatch: false, readWriteMismatch: false, recoveredRetryObservation: false,
   replanLogicalCalls: 0, replanProviderAttempts: 0, resourceMismatch: false,
   retryReasonDistribution: {}, round: Math.floor(index / 33) + 1,
