@@ -17,8 +17,10 @@ export const loadR4AGreenModule = async <T>(
 
 export const R4A_GREEN_MODULES = Object.freeze({
   boundary: "src/lib/agent/orchestration/query-boundary-resolver.ts",
+  candidateValidator: "src/lib/agent/orchestration/hybrid-candidate-validator.ts",
   composer: "src/lib/agent/orchestration/fixed-task-plan-composer.ts",
   evaluation: "src/lib/agent/orchestration/hybrid-query-boundary-evaluation.ts",
   hybrid: "src/lib/agent/orchestration/hybrid-query-boundary.ts",
+  productionEvaluation: "src/lib/agent/orchestration/hybrid-production-evaluation.ts",
   residual: "src/lib/agent/orchestration/residual-langchain-planner.ts",
 } as const);
