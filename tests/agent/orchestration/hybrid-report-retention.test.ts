@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import { constants } from "node:fs";
-import { access, readFile, rm } from "node:fs/promises";
+import {
+  access,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { test } from "node:test";
 
-import type { FocusedGateReportModule } from "./fixtures/hybrid-focused-gate-contract";
+import type {
+  FocusedGatePreflightModule,
+  FocusedGateReportModule,
+} from "./fixtures/hybrid-focused-gate-contract";
 import {
   loadR4AGreenModule,
   R4A_GREEN_MODULES,
@@ -18,6 +27,7 @@ const loadReport = () =>
 test("report path guard permits only the fixed Harness-owned /tmp file", async () => {
   const {
     assertHybridFocusedGateReportPath,
+    assertHybridFocusedGateReportReady,
     HYBRID_FOCUSED_GATE_REPORT_PATH,
   } = await loadReport();
 
@@ -40,6 +50,39 @@ test("report path guard permits only the fixed Harness-owned /tmp file", async (
   await assert.rejects(
     assertHybridFocusedGateReportPath("/tmp/another-report.json"),
   );
+
+  await rm(HYBRID_FOCUSED_GATE_REPORT_PATH, { force: true });
+  assert.equal(
+    await assertHybridFocusedGateReportReady(),
+    HYBRID_FOCUSED_GATE_REPORT_PATH,
+  );
+  await writeFile(HYBRID_FOCUSED_GATE_REPORT_PATH, "occupied", {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  await assert.rejects(
+    assertHybridFocusedGateReportReady(),
+    (error: unknown) =>
+      typeof error === "object"
+      && error !== null
+      && "code" in error
+      && error.code === "REPORT_PATH_OCCUPIED",
+  );
+  await rm(HYBRID_FOCUSED_GATE_REPORT_PATH, { force: true });
+
+  await symlink(
+    "/tmp/l3b-r4a-hybrid-focused-gate-target.json",
+    HYBRID_FOCUSED_GATE_REPORT_PATH,
+  );
+  await assert.rejects(
+    assertHybridFocusedGateReportReady(),
+    (error: unknown) =>
+      typeof error === "object"
+      && error !== null
+      && "code" in error
+      && error.code === "REPORT_PATH_OCCUPIED",
+  );
+  await rm(HYBRID_FOCUSED_GATE_REPORT_PATH, { force: true });
 });
 
 test("recursive retention scan rejects nested raw keys and nested sensitive values", async () => {
@@ -62,6 +105,19 @@ test("recursive retention scan rejects nested raw keys and nested sensitive valu
     providerRequests: 4,
   });
   assert.equal(safeCounter.rawRetentionViolation, false);
+
+  const { buildHybridFocusedGatePreflight } =
+    await loadR4AGreenModule<FocusedGatePreflightModule>(
+      R4A_GREEN_MODULES.focusedGatePreflight,
+      "hybrid_preflight_retention",
+    );
+  const preflight = buildHybridFocusedGatePreflight({
+    head: "5f374b07318d3080d9adacdef1618f08f82f0cf0",
+  });
+  assert.deepEqual(scanHybridFocusedGateReport({ preflight }), {
+    rawRetentionViolation: false,
+    violationCodes: [],
+  });
 });
 
 test("writer scans before creating the fixed report and writes safe JSON exclusively", async () => {

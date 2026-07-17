@@ -21,6 +21,8 @@ export const R4A_GREEN_MODULES = Object.freeze({
   composer: "src/lib/agent/orchestration/fixed-task-plan-composer.ts",
   evaluation: "src/lib/agent/orchestration/hybrid-query-boundary-evaluation.ts",
   focusedGate: "src/lib/agent/orchestration/hybrid-focused-gate.ts",
+  focusedGatePreflight:
+    "src/lib/agent/orchestration/hybrid-focused-gate-preflight.ts",
   focusedGateReport:
     "src/lib/agent/orchestration/hybrid-focused-gate-report.ts",
   focusedGateRunner:

@@ -150,10 +150,43 @@ test("explicit Hybrid script freezes approval, clean HEAD, /tmp report, and fail
   assert.match(source, /L3B_HYBRID_PROVIDER_DATA_APPROVED/);
   assert.match(source, /L3B_HYBRID_GATE_ACCEPTED_HEAD/);
   assert.match(source, /DATABASE_URL_MUST_BE_UNSET/);
+  assert.match(source, /assertHybridFocusedGatePreflight/);
+  assert.match(source, /buildHybridFocusedGatePreflight/);
+  assert.match(source, /assertHybridFocusedGateReportReady/);
   assert.match(source, /runHybridFocusedGate/);
   assert.match(source, /writeHybridFocusedGateReport/);
   assert.match(source, /if \(!summary\.passed\) process\.exitCode = 1/);
   assert.doesNotMatch(source, /Targeted\s*15|Fresh\s*99/);
+
+  const reportReady = source.indexOf(
+    "assertHybridFocusedGateReportReady()",
+  );
+  const preflight = source.indexOf(
+    "buildHybridFocusedGatePreflight(",
+  );
+  const preflightValidation = source.indexOf(
+    "assertHybridFocusedGatePreflight(preflight)",
+  );
+  const preflightOutput = source.indexOf(
+    "process.stdout.write(`${JSON.stringify({",
+    preflightValidation,
+  );
+  const modelConfig = source.indexOf(
+    "const modelConfig = createModelConfig({",
+    preflightOutput,
+  );
+  const runner = source.indexOf("runHybridFocusedGate({");
+  const evaluation = source.indexOf(
+    "evaluateHybridProductionCase({",
+    runner,
+  );
+  assert.equal(reportReady >= 0, true);
+  assert.equal(preflight > reportReady, true);
+  assert.equal(preflightValidation > preflight, true);
+  assert.equal(preflightOutput > preflightValidation, true);
+  assert.equal(modelConfig > preflightOutput, true);
+  assert.equal(runner > modelConfig, true);
+  assert.equal(evaluation > runner, true);
 });
 
 test("production harness runs pure Query through the real dispatcher adoption gate", async () => {

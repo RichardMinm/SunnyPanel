@@ -1,0 +1,262 @@
+/**
+ * Frozen, sanitized preflight for the one-time R4 Hybrid focused gate.
+ *
+ * Hash source material is built from the real runtime contracts and is never
+ * returned, logged, or retained. This module is deterministic and performs no
+ * Provider call, database access, task execution, or business mutation.
+ */
+
+import { createHash } from "node:crypto";
+
+import {
+  HYBRID_FOCUSED_FIXTURE_IDS,
+  HYBRID_FOCUSED_ROUNDS,
+} from "./hybrid-focused-gate";
+import {
+  L3B_EVALUATION_CONFIG,
+  L3B_EVALUATION_CONFIG_HASH,
+} from "./l3b-evaluation-config";
+import {
+  L3B_EVALUATION_FIXTURES,
+  type L3BEvaluationFixture,
+} from "./l3b-evaluation-fixtures";
+import {
+  buildActorAuthorizedResourceSnapshot,
+  resolveHybridQueryBoundary,
+} from "./query-boundary-resolver";
+import {
+  buildResidualPlannerSystemPrompt,
+  hashResidualPlannerSchema,
+  RESIDUAL_PLANNER_RETRY_POLICY,
+} from "./residual-langchain-planner";
+
+export type HybridFocusedGatePreflightErrorCode =
+  | "CMP4_RESIDUAL_INPUT_INVALID"
+  | "EVALUATION_CONFIG_HASH_MISMATCH"
+  | "EVALUATION_CONFIG_INVALID"
+  | "FIXTURE_SNAPSHOT_HASH_MISMATCH"
+  | "FOCUSED_FIXTURE_SET_INVALID"
+  | "OBSERVATION_CONTRACT_MISMATCH"
+  | "QUERY_COMMENTARY_MODE_MISMATCH"
+  | "RESIDUAL_BUDGET_CONFIG_MISMATCH"
+  | "RESIDUAL_PROMPT_HASH_MISMATCH"
+  | "RESIDUAL_SCHEMA_HASH_MISMATCH";
+
+export class HybridFocusedGatePreflightError extends Error {
+  readonly code: HybridFocusedGatePreflightErrorCode;
+
+  constructor(code: HybridFocusedGatePreflightErrorCode) {
+    super(code);
+    this.code = code;
+    this.name = "HybridFocusedGatePreflightError";
+  }
+}
+
+export type HybridFocusedGatePreflight = Readonly<{
+  authorizedLogicalCallBudget: 3;
+  authorizedProviderAttemptBudget: number;
+  baseURLHost: string;
+  commentaryMode: "omitted";
+  evaluationConfigHash: string;
+  fixtureSnapshotHash: string;
+  head: string;
+  maxAttemptsPerLogicalCall: number;
+  model: string;
+  observations: 12;
+  outputBudget: number;
+  residualPromptHash: string;
+  residualSchemaHash: string;
+  schemaRetries: number;
+  temperature: number;
+  timeoutMs: number;
+  transportRetries: number;
+}>;
+
+const canonicalize = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (typeof value !== "object" || value === null) return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => [key, canonicalize(child)]),
+  );
+};
+
+const sha256 = (value: unknown): string =>
+  createHash("sha256")
+    .update(
+      typeof value === "string"
+        ? value
+        : JSON.stringify(canonicalize(value)),
+    )
+    .digest("hex");
+
+const focusedSourceFixtures = (
+  fixtures: readonly L3BEvaluationFixture[],
+): readonly L3BEvaluationFixture[] =>
+  Object.freeze(HYBRID_FOCUSED_FIXTURE_IDS.map((fixtureId) => {
+    const matches = fixtures.filter((fixture) => fixture.id === fixtureId);
+    if (matches.length !== 1 || !matches[0]) {
+      throw new HybridFocusedGatePreflightError(
+        "FOCUSED_FIXTURE_SET_INVALID",
+      );
+    }
+    return matches[0];
+  }));
+
+export const hashHybridFocusedFixtureSnapshot = (
+  fixtures: readonly L3BEvaluationFixture[] = L3B_EVALUATION_FIXTURES,
+): string => sha256(focusedSourceFixtures(fixtures).map((fixture) => ({
+  context: fixture.context,
+  expected: fixture.expected,
+  fixtureId: fixture.id,
+  message: fixture.message,
+})));
+
+const hashFocusedResidualPrompt = (
+  fixtures: readonly L3BEvaluationFixture[],
+): string => {
+  const fixture = focusedSourceFixtures(fixtures).find(
+    (candidate) => candidate.id === "cmp-4",
+  );
+  if (!fixture) {
+    throw new HybridFocusedGatePreflightError(
+      "FOCUSED_FIXTURE_SET_INVALID",
+    );
+  }
+  const snapshot = buildActorAuthorizedResourceSnapshot({
+    authenticatedActor: { collection: "users", id: 7 },
+    context: fixture.context,
+  });
+  if (!snapshot.valid) {
+    throw new HybridFocusedGatePreflightError(
+      "CMP4_RESIDUAL_INPUT_INVALID",
+    );
+  }
+  const boundary = resolveHybridQueryBoundary({
+    authorizedSnapshot: snapshot.snapshot,
+    originalRequest: fixture.message,
+  });
+  if (boundary.kind !== "compound") {
+    throw new HybridFocusedGatePreflightError(
+      "CMP4_RESIDUAL_INPUT_INVALID",
+    );
+  }
+  return sha256(buildResidualPlannerSystemPrompt(boundary.residualInput));
+};
+
+export const HYBRID_FOCUSED_GATE_FROZEN_HASHES = Object.freeze({
+  evaluationConfigHash:
+    "f33cbc43a0e9362a31b8d0d11fb66b2e932bdc49d5ff9bf5f2fedec6b5f2acb9",
+  fixtureSnapshotHash:
+    "be856ddcba4a60f65e6a1e360027c3e1e5eface66c434f40f9df298b5286966d",
+  residualPromptHash:
+    "e5a52ee406c9a9d6a5378b577314474e90a1eccf50523c22e6b5090943383a90",
+  residualSchemaHash:
+    "66228b19f488a20c481e2d8c63e81973e4f8a82030474987e0bec23cddee68eb",
+});
+
+export const buildHybridFocusedGatePreflight = (input: Readonly<{
+  fixtures?: readonly L3BEvaluationFixture[];
+  head: string;
+}>): HybridFocusedGatePreflight => {
+  const fixtures = input.fixtures ?? L3B_EVALUATION_FIXTURES;
+  let baseURLHost: string;
+  try {
+    baseURLHost = new URL(L3B_EVALUATION_CONFIG.baseURL).host;
+  } catch {
+    throw new HybridFocusedGatePreflightError(
+      "EVALUATION_CONFIG_INVALID",
+    );
+  }
+  const schemaRetries =
+    RESIDUAL_PLANNER_RETRY_POLICY.maxSchemaRetries;
+  const transportRetries =
+    RESIDUAL_PLANNER_RETRY_POLICY.maxTransportRetries;
+  const maxAttemptsPerLogicalCall =
+    (schemaRetries + 1) * (transportRetries + 1);
+  const authorizedLogicalCallBudget = 3 as const;
+
+  return Object.freeze({
+    authorizedLogicalCallBudget,
+    authorizedProviderAttemptBudget:
+      authorizedLogicalCallBudget * maxAttemptsPerLogicalCall,
+    baseURLHost,
+    commentaryMode: "omitted" as const,
+    evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
+    fixtureSnapshotHash: hashHybridFocusedFixtureSnapshot(fixtures),
+    head: input.head,
+    maxAttemptsPerLogicalCall,
+    model: L3B_EVALUATION_CONFIG.model,
+    observations: 12 as const,
+    outputBudget: L3B_EVALUATION_CONFIG.orchestratorMaxOutputTokens,
+    residualPromptHash: hashFocusedResidualPrompt(fixtures),
+    residualSchemaHash: hashResidualPlannerSchema(),
+    schemaRetries,
+    temperature: L3B_EVALUATION_CONFIG.temperature,
+    timeoutMs: L3B_EVALUATION_CONFIG.orchestratorTimeoutMs,
+    transportRetries,
+  });
+};
+
+export const assertHybridFocusedGatePreflight = (
+  preflight: HybridFocusedGatePreflight,
+): void => {
+  if (
+    preflight.fixtureSnapshotHash
+    !== HYBRID_FOCUSED_GATE_FROZEN_HASHES.fixtureSnapshotHash
+  ) {
+    throw new HybridFocusedGatePreflightError(
+      "FIXTURE_SNAPSHOT_HASH_MISMATCH",
+    );
+  }
+  if (
+    preflight.residualPromptHash
+    !== HYBRID_FOCUSED_GATE_FROZEN_HASHES.residualPromptHash
+  ) {
+    throw new HybridFocusedGatePreflightError(
+      "RESIDUAL_PROMPT_HASH_MISMATCH",
+    );
+  }
+  if (
+    preflight.residualSchemaHash
+    !== HYBRID_FOCUSED_GATE_FROZEN_HASHES.residualSchemaHash
+  ) {
+    throw new HybridFocusedGatePreflightError(
+      "RESIDUAL_SCHEMA_HASH_MISMATCH",
+    );
+  }
+  if (
+    preflight.evaluationConfigHash
+    !== HYBRID_FOCUSED_GATE_FROZEN_HASHES.evaluationConfigHash
+  ) {
+    throw new HybridFocusedGatePreflightError(
+      "EVALUATION_CONFIG_HASH_MISMATCH",
+    );
+  }
+  if (
+    preflight.observations !== 12
+    || HYBRID_FOCUSED_FIXTURE_IDS.length
+      * HYBRID_FOCUSED_ROUNDS.length !== 12
+  ) {
+    throw new HybridFocusedGatePreflightError(
+      "OBSERVATION_CONTRACT_MISMATCH",
+    );
+  }
+  if (preflight.commentaryMode !== "omitted") {
+    throw new HybridFocusedGatePreflightError(
+      "QUERY_COMMENTARY_MODE_MISMATCH",
+    );
+  }
+  if (
+    preflight.authorizedLogicalCallBudget !== 3
+    || preflight.schemaRetries !== 1
+    || preflight.transportRetries !== 1
+    || preflight.maxAttemptsPerLogicalCall !== 4
+    || preflight.authorizedProviderAttemptBudget !== 12
+  ) {
+    throw new HybridFocusedGatePreflightError(
+      "RESIDUAL_BUDGET_CONFIG_MISMATCH",
+    );
+  }
+};

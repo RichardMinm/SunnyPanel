@@ -32,6 +32,21 @@ const collectPrimitiveValues = (value) => {
     : [];
 };
 
+const safeProjectErrorCode = (error) => {
+  if (
+    !error
+    || typeof error !== "object"
+    || ![
+      "HybridFocusedGatePreflightError",
+      "HybridFocusedGateReportError",
+    ].includes(error.name)
+    || typeof error.code !== "string"
+  ) {
+    return null;
+  }
+  return error.code;
+};
+
 const main = async () => {
   requireFlag("AGENT_HYBRID_QUERY_BOUNDARY_EVAL");
   requireFlag("AGENT_LIVE_LLM_EVAL");
@@ -81,12 +96,16 @@ const main = async () => {
       HYBRID_FOCUSED_FIXTURE_IDS,
     },
     {
+      assertHybridFocusedGatePreflight,
+      buildHybridFocusedGatePreflight,
+    },
+    {
+      assertHybridFocusedGateReportReady,
       HYBRID_FOCUSED_GATE_REPORT_PATH,
       scanHybridFocusedGateReport,
       writeHybridFocusedGateReport,
     },
     {
-      assertHybridFocusedFixtureSnapshot,
       HYBRID_QUERY_COMMENTARY_OMISSION_NOTE,
       runHybridFocusedGate,
     },
@@ -96,6 +115,7 @@ const main = async () => {
   ] = await Promise.all([
     import("../src/lib/agent/llm/model-config.ts"),
     import("../src/lib/agent/orchestration/hybrid-focused-gate.ts"),
+    import("../src/lib/agent/orchestration/hybrid-focused-gate-preflight.ts"),
     import("../src/lib/agent/orchestration/hybrid-focused-gate-report.ts"),
     import("../src/lib/agent/orchestration/hybrid-focused-gate-runner.ts"),
     import("../src/lib/agent/orchestration/hybrid-production-evaluation.ts"),
@@ -103,7 +123,14 @@ const main = async () => {
     import("../src/lib/agent/orchestration/l3b-evaluation-fixtures.ts"),
   ]);
 
-  assertHybridFocusedFixtureSnapshot();
+  await assertHybridFocusedGateReportReady();
+  const preflight = buildHybridFocusedGatePreflight({
+    head: currentHead,
+  });
+  assertHybridFocusedGatePreflight(preflight);
+  process.stdout.write(`${JSON.stringify({
+    preflight,
+  })}\n`);
   const modelConfig = createModelConfig({
     apiKey,
     baseURL: L3B_EVALUATION_CONFIG.baseURL,
@@ -122,7 +149,6 @@ const main = async () => {
   if (!("apiKey" in modelConfig)) {
     throw new HybridHarnessError("MODEL_CONFIG_INVALID");
   }
-
   const focusedFixtures = new Map(
     L3B_EVALUATION_FIXTURES
       .filter((fixture) =>
@@ -159,6 +185,7 @@ const main = async () => {
         round: evaluation.round,
       });
     },
+    preflight,
   });
 
   const budget = calculateHybridFocusedGateBudget(observations);
@@ -168,6 +195,7 @@ const main = async () => {
     commentaryMode: "omitted",
     commentaryNote: HYBRID_QUERY_COMMENTARY_OMISSION_NOTE,
     observations,
+    preflight,
     summary,
   });
   const sensitiveValues = [
@@ -212,7 +240,8 @@ try {
   const errorCode =
     error instanceof HybridHarnessError
       ? error.code
-      : "HYBRID_HARNESS_FAILED";
+      : safeProjectErrorCode(error)
+      ?? "HYBRID_HARNESS_FAILED";
   process.stdout.write(`${JSON.stringify({
     errorCode,
     passed: false,

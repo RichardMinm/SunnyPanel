@@ -3,6 +3,8 @@ import { test } from "node:test";
 
 import {
   baseObservation,
+  type FocusedGatePreflight,
+  type FocusedGatePreflightModule,
   type FocusedGateRunnerModule,
   type FocusedObservation,
 } from "./fixtures/hybrid-focused-gate-contract";
@@ -10,6 +12,17 @@ import {
   loadR4AGreenModule,
   R4A_GREEN_MODULES,
 } from "./fixtures/r4a-red-module-loader";
+
+const loadPreflight = async (): Promise<FocusedGatePreflight> => {
+  const { buildHybridFocusedGatePreflight } =
+    await loadR4AGreenModule<FocusedGatePreflightModule>(
+      R4A_GREEN_MODULES.focusedGatePreflight,
+      "hybrid_focused_gate_preflight_runner",
+    );
+  return buildHybridFocusedGatePreflight({
+    head: "5f374b07318d3080d9adacdef1618f08f82f0cf0",
+  });
+};
 
 test("focused runner fixes four fixtures across three deterministic rounds", async () => {
   const { runHybridFocusedGate } =
@@ -24,6 +37,7 @@ test("focused runner fixes four fixtures across three deterministic rounds", asy
     round: number;
   }> = [];
   let residualCalls = 0;
+  const preflight = await loadPreflight();
 
   const observations = await runHybridFocusedGate({
     evaluate: async (input): Promise<FocusedObservation> => {
@@ -44,6 +58,7 @@ test("focused runner fixes four fixtures across three deterministic rounds", asy
         round: input.round,
       });
     },
+    preflight,
   });
 
   assert.equal(observations.length, 12);
@@ -82,6 +97,7 @@ test("transport attempts never become observations or a Targeted-15 denominator"
         input.fixtureId === "cmp-4" ? 4 : 0,
       round: input.round,
     }),
+    preflight: await loadPreflight(),
   });
 
   assert.equal(observations.length, 12);
@@ -93,6 +109,35 @@ test("transport attempts never become observations or a Targeted-15 denominator"
     ),
     12,
   );
+});
+
+test("frozen Preflight mismatch reaches zero evaluation callbacks", async () => {
+  const { runHybridFocusedGate } =
+    await loadR4AGreenModule<FocusedGateRunnerModule>(
+      R4A_GREEN_MODULES.focusedGateRunner,
+      "hybrid_preflight_provider_zero",
+    );
+  const preflight = await loadPreflight();
+  let evaluated = 0;
+
+  await assert.rejects(
+    runHybridFocusedGate({
+      evaluate: async () => {
+        evaluated += 1;
+        return baseObservation();
+      },
+      preflight: {
+        ...preflight,
+        residualPromptHash: "0".repeat(64),
+      },
+    }),
+    (error: unknown) =>
+      typeof error === "object"
+      && error !== null
+      && "code" in error
+      && error.code === "RESIDUAL_PROMPT_HASH_MISMATCH",
+  );
+  assert.equal(evaluated, 0);
 });
 
 test("focused runner documents that Commentary omission is evaluation-only", async () => {

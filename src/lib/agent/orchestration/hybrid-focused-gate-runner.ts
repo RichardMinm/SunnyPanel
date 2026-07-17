@@ -5,8 +5,6 @@
  * Query Commentary is intentionally omitted only within this evaluation.
  */
 
-import { createHash } from "node:crypto";
-
 import type { QualitativeCommentaryResult } from "../query/qualitative-commentary";
 import {
   HYBRID_FOCUSED_FIXTURES,
@@ -15,6 +13,10 @@ import {
   type HybridFocusedRound,
   type HybridLiveObservation,
 } from "./hybrid-focused-gate";
+import {
+  assertHybridFocusedGatePreflight,
+  type HybridFocusedGatePreflight,
+} from "./hybrid-focused-gate-preflight";
 
 export const HYBRID_QUERY_COMMENTARY_OMISSION_NOTE =
   "Query Commentary omitted to isolate Hybrid Query Boundary and Residual Planner evaluation.";
@@ -37,41 +39,13 @@ export type HybridFocusedRunnerCase = Readonly<{
   round: HybridFocusedRound;
 }>;
 
-const canonicalFixtureSnapshot = (): string => JSON.stringify(
-  HYBRID_FOCUSED_FIXTURES.map((fixture) => ({
-    expectation: {
-      boundaryResolutionKind:
-        fixture.expectation.boundaryResolutionKind,
-      finalTaskIntents: [...fixture.expectation.finalTaskIntents],
-    },
-    fixtureId: fixture.fixtureId,
-    message: fixture.message,
-  })),
-);
-
-export const HYBRID_FOCUSED_FIXTURE_SNAPSHOT_SHA256 =
-  "9bd481010f4ad295f8e4b2abf0574ebc2fc11c6d08f8150f2fad03f6b621b5a7";
-
-export const hashHybridFocusedFixtureSnapshot = (): string =>
-  createHash("sha256")
-    .update(canonicalFixtureSnapshot())
-    .digest("hex");
-
-export const assertHybridFocusedFixtureSnapshot = (): void => {
-  if (
-    hashHybridFocusedFixtureSnapshot()
-    !== HYBRID_FOCUSED_FIXTURE_SNAPSHOT_SHA256
-  ) {
-    throw new Error("Hybrid focused fixture snapshot mismatch.");
-  }
-};
-
 export const runHybridFocusedGate = async (input: Readonly<{
   evaluate: (
     evaluation: HybridFocusedRunnerCase,
   ) => Promise<HybridLiveObservation>;
+  preflight: HybridFocusedGatePreflight;
 }>): Promise<readonly HybridLiveObservation[]> => {
-  assertHybridFocusedFixtureSnapshot();
+  assertHybridFocusedGatePreflight(input.preflight);
   const observations: HybridLiveObservation[] = [];
   let observationIndex = 0;
 

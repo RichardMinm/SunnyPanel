@@ -134,6 +134,79 @@ export type FocusedGateSummary = Readonly<{
   usableResults: number;
 }>;
 
+export type FocusedGatePreflight = Readonly<{
+  authorizedLogicalCallBudget: 3;
+  authorizedProviderAttemptBudget: number;
+  baseURLHost: string;
+  commentaryMode: "omitted";
+  evaluationConfigHash: string;
+  fixtureSnapshotHash: string;
+  head: string;
+  maxAttemptsPerLogicalCall: number;
+  model: string;
+  observations: 12;
+  outputBudget: number;
+  residualPromptHash: string;
+  residualSchemaHash: string;
+  schemaRetries: number;
+  temperature: number;
+  timeoutMs: number;
+  transportRetries: number;
+}>;
+
+export type FocusedGatePreflightErrorCode =
+  | "CMP4_RESIDUAL_INPUT_INVALID"
+  | "EVALUATION_CONFIG_HASH_MISMATCH"
+  | "EVALUATION_CONFIG_INVALID"
+  | "FIXTURE_SNAPSHOT_HASH_MISMATCH"
+  | "FOCUSED_FIXTURE_SET_INVALID"
+  | "OBSERVATION_CONTRACT_MISMATCH"
+  | "QUERY_COMMENTARY_MODE_MISMATCH"
+  | "RESIDUAL_BUDGET_CONFIG_MISMATCH"
+  | "RESIDUAL_PROMPT_HASH_MISMATCH"
+  | "RESIDUAL_SCHEMA_HASH_MISMATCH";
+
+export type FocusedGatePreflightModule = Readonly<{
+  HYBRID_FOCUSED_GATE_FROZEN_HASHES: Readonly<{
+    evaluationConfigHash: string;
+    fixtureSnapshotHash: string;
+    residualPromptHash: string;
+    residualSchemaHash: string;
+  }>;
+  assertHybridFocusedGatePreflight: (
+    preflight: FocusedGatePreflight,
+  ) => void;
+  buildHybridFocusedGatePreflight: (input: Readonly<{
+    fixtures?: readonly Readonly<{
+      context: AgentPromptContext;
+      expected: Readonly<{
+        intents: readonly string[];
+        mode: "compound" | "single";
+        safetyClass: "clarify" | "read" | "write_candidate";
+      }>;
+      id: string;
+      injection: boolean;
+      message: string;
+      tag: string;
+    }>[];
+    head: string;
+  }>) => FocusedGatePreflight;
+  hashHybridFocusedFixtureSnapshot: (
+    fixtures?: readonly Readonly<{
+      context: AgentPromptContext;
+      expected: Readonly<{
+        intents: readonly string[];
+        mode: "compound" | "single";
+        safetyClass: "clarify" | "read" | "write_candidate";
+      }>;
+      id: string;
+      injection: boolean;
+      message: string;
+      tag: string;
+    }>[],
+  ) => string;
+}>;
+
 export type FocusedGateModule = Readonly<{
   aggregateHybridFocusedGate: (
     observations: readonly FocusedObservation[],
@@ -177,12 +250,14 @@ export type FocusedGateRunnerModule = Readonly<{
   HYBRID_QUERY_COMMENTARY_OMISSION_NOTE: string;
   runHybridFocusedGate: (input: Readonly<{
     evaluate: (input: FocusedRunnerCase) => Promise<FocusedObservation>;
+    preflight: FocusedGatePreflight;
   }>) => Promise<readonly FocusedObservation[]>;
 }>;
 
 export type FocusedGateReportModule = Readonly<{
   HYBRID_FOCUSED_GATE_REPORT_PATH: string;
   assertHybridFocusedGateReportPath: (path: string) => Promise<string>;
+  assertHybridFocusedGateReportReady: () => Promise<string>;
   scanHybridFocusedGateReport: (
     report: unknown,
     sensitiveValues?: readonly unknown[],

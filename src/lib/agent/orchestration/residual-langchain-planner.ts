@@ -7,6 +7,8 @@
  * repairs semantic failures, or drops an invalid task and continues.
  */
 
+import { createHash } from "node:crypto";
+
 import { z } from "zod";
 
 import {
@@ -56,6 +58,23 @@ const residualEnvelopeBaseSchema = z.object({
 const residualEnvelopeSchema = residualEnvelopeBaseSchema.strict();
 
 type ResidualEnvelope = z.infer<typeof residualEnvelopeSchema>;
+
+const canonicalizeSchema = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalizeSchema);
+  if (typeof value !== "object" || value === null) return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => [key, canonicalizeSchema(child)]),
+  );
+};
+
+export const hashResidualPlannerSchema = (): string =>
+  createHash("sha256")
+    .update(JSON.stringify(canonicalizeSchema(
+      z.toJSONSchema(residualEnvelopeSchema),
+    )))
+    .digest("hex");
 
 export type ResidualPlannerFailureCode =
   | "forbidden_intent"

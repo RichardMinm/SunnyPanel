@@ -14,6 +14,20 @@ import { dirname, resolve } from "node:path";
 export const HYBRID_FOCUSED_GATE_REPORT_PATH =
   "/tmp/l3b-r4a-hybrid-focused-gate.json";
 
+export type HybridFocusedGateReportErrorCode =
+  | "REPORT_PATH_OCCUPIED"
+  | "REPORT_PATH_UNSAFE";
+
+export class HybridFocusedGateReportError extends Error {
+  readonly code: HybridFocusedGateReportErrorCode;
+
+  constructor(code: HybridFocusedGateReportErrorCode) {
+    super(code);
+    this.code = code;
+    this.name = "HybridFocusedGateReportError";
+  }
+}
+
 const FORBIDDEN_KEYS = new Set([
   "actorid",
   "apikey",
@@ -76,13 +90,18 @@ const SAFE_NUMERIC_KEYS = new Set([
   "semanticMatches",
   "specialistLogicalCalls",
   "specialistProviderAttempts",
+  "schemaRetries",
   "strictResidualSchemaValid",
   "taskExecutions",
+  "temperature",
   "timeouts",
+  "timeoutMs",
+  "transportRetries",
   "unexpectedDuplicateModelCalls",
   "unusedAttempts",
   "usablePlans",
   "usableResults",
+  "outputBudget",
 ]);
 
 const secretPattern =
@@ -182,14 +201,14 @@ export const assertHybridFocusedGateReportPath = async (
 ): Promise<string> => {
   const resolvedPath = resolve(path);
   if (resolvedPath !== HYBRID_FOCUSED_GATE_REPORT_PATH) {
-    throw new Error("Hybrid report path is not the approved fixed path.");
+    throw new HybridFocusedGateReportError("REPORT_PATH_UNSAFE");
   }
   const [realTmp, realParent] = await Promise.all([
     realpath("/tmp"),
     realpath(dirname(resolvedPath)),
   ]);
   if (realParent !== realTmp) {
-    throw new Error("Hybrid report path escapes the approved temp root.");
+    throw new HybridFocusedGateReportError("REPORT_PATH_UNSAFE");
   }
   return resolvedPath;
 };
@@ -206,10 +225,19 @@ const assertUnoccupiedReportPath = async (path: string): Promise<void> => {
     ) {
       return;
     }
-    throw new Error("Hybrid report path inspection failed.");
+    throw new HybridFocusedGateReportError("REPORT_PATH_UNSAFE");
   }
-  throw new Error("Hybrid report path is already occupied.");
+  throw new HybridFocusedGateReportError("REPORT_PATH_OCCUPIED");
 };
+
+export const assertHybridFocusedGateReportReady =
+  async (): Promise<string> => {
+    const path = await assertHybridFocusedGateReportPath(
+      HYBRID_FOCUSED_GATE_REPORT_PATH,
+    );
+    await assertUnoccupiedReportPath(path);
+    return path;
+  };
 
 export const writeHybridFocusedGateReport = async (input: Readonly<{
   report: unknown;
@@ -226,10 +254,7 @@ export const writeHybridFocusedGateReport = async (input: Readonly<{
     throw new Error("Hybrid report retention scan failed.");
   }
   const contents = `${JSON.stringify(input.report, null, 2)}\n`;
-  const path = await assertHybridFocusedGateReportPath(
-    HYBRID_FOCUSED_GATE_REPORT_PATH,
-  );
-  await assertUnoccupiedReportPath(path);
+  const path = await assertHybridFocusedGateReportReady();
 
   let created = false;
   let handle: Awaited<ReturnType<typeof open>> | null = null;
