@@ -30,6 +30,9 @@ import {
   CONSULTATION_INTENTS,
   READ_QUERY_INTENTS,
 } from "./orchestrator-decision-consistency";
+import {
+  RESIDUAL_INTENT_FAMILY_PROTOCOL,
+} from "./orchestrator-intent-family-protocol";
 import type {
   IntentFamily,
   ResidualPlanningInput,
@@ -69,11 +72,14 @@ const canonicalizeSchema = (value: unknown): unknown => {
   );
 };
 
+export const serializeResidualPlannerJsonSchema = (): string =>
+  JSON.stringify(canonicalizeSchema(
+    z.toJSONSchema(residualEnvelopeSchema),
+  ));
+
 export const hashResidualPlannerSchema = (): string =>
   createHash("sha256")
-    .update(JSON.stringify(canonicalizeSchema(
-      z.toJSONSchema(residualEnvelopeSchema),
-    )))
+    .update(serializeResidualPlannerJsonSchema())
     .digest("hex");
 
 export type ResidualPlannerFailureCode =
@@ -230,6 +236,31 @@ const validateResidualTasks = (
   };
   if (!validateTaskDAG(dagProbe).valid) return "schema_failure";
 
+  const familyByTaskId = new Map(
+    tasks.map((task) => [task.id, intentFamily(task.intent)]),
+  );
+  const dependenciesByTaskId = new Map(
+    tasks.map((task) => [task.id, task.dependsOn]),
+  );
+  const hasConsultationAncestor = (taskId: string): boolean => {
+    const pending = [...(dependenciesByTaskId.get(taskId) ?? [])];
+    const visited = new Set<string>();
+    while (pending.length > 0) {
+      const dependencyId = pending.pop();
+      if (!dependencyId || visited.has(dependencyId)) continue;
+      visited.add(dependencyId);
+      if (familyByTaskId.get(dependencyId) === "consultation") return true;
+      pending.push(...(dependenciesByTaskId.get(dependencyId) ?? []));
+    }
+    return false;
+  };
+  if (tasks.some((task) =>
+    familyByTaskId.get(task.id) === "write_candidate"
+    && hasConsultationAncestor(task.id)
+  )) {
+    return "forbidden_intent";
+  }
+
   const resourceIndex = buildResourceIndex({
     plans: input.authorizedSnapshot.plans.map((plan) => ({
       id: plan.id,
@@ -259,12 +290,40 @@ const residualAllowedIntents = (
   });
 };
 
+export const serializeResidualPlannerPromptJsonSchema = (
+  input: ResidualPlanningInput,
+): string => {
+  const schema = JSON.parse(
+    serializeResidualPlannerJsonSchema(),
+  ) as {
+    properties?: {
+      tasks?: {
+        items?: {
+          properties?: {
+            intent?: {
+              enum?: string[];
+            };
+          };
+        };
+      };
+    };
+  };
+  const intentSchema =
+    schema.properties?.tasks?.items?.properties?.intent;
+  if (!intentSchema || !Array.isArray(intentSchema.enum)) {
+    throw new Error("Residual JSON Schema intent enum is unavailable.");
+  }
+  intentSchema.enum = residualAllowedIntents(input);
+  return JSON.stringify(canonicalizeSchema(schema));
+};
+
 export const buildResidualPlannerSystemPrompt = (
   input: ResidualPlanningInput,
 ): string => {
   const envelopeFields = Object.keys(residualEnvelopeBaseSchema.shape).join(", ");
   const taskFields = Object.keys(orchestratorTaskSchema.shape).join(", ");
   const allowedIntents = residualAllowedIntents(input);
+  const jsonSchema = serializeResidualPlannerPromptJsonSchema(input);
   const resourceProtocol = getResourceProtocolProjection()
     .map((entry) =>
       `${entry.intent}: ${entry.resourceKind} via ${entry.existingIdFields.join("|") || "none"}`
@@ -273,6 +332,9 @@ export const buildResidualPlannerSystemPrompt = (
 
   return `你是 SunnyPanel Hybrid Orchestrator 的 Residual Planner。
 确定性 Query Boundary 已经拥有 fixedTasks 中的任务。你只抽取完整原始请求中尚未满足的任务，不执行、不回答、不重复 fixed task。
+只输出一个 JSON object；不得输出协议之外的文本。
+输出必须匹配以下由当前 Zod 合同生成的 JSON Schema：
+${jsonSchema}
 
 顶层字段必须且只能是：${envelopeFields}。
 每个 task 字段必须且只能是：${taskFields}。
@@ -282,6 +344,10 @@ intent 必须来自当前合同允许列表：${allowedIntents.join(", ")}。
 允许的 intent family：${input.allowedIntentFamilies.join(", ")}。
 禁止的 intent family：${input.forbiddenIntentFamilies.join(", ")}。
 任何禁止 family、clarify、unknown intent、空 tasks、非法依赖或非法资源引用都会使整个结果不可用。
+
+${RESIDUAL_INTENT_FAMILY_PROTOCOL}
+- 已由 fixedTasks 满足的读取目标不得改写为 answer_question、其他 consultation task 或中间桥接 task；只输出尚未满足的真实目标。
+- Composer 会把没有 residual 内部依赖的根任务确定性连接到 fixed Query；不得为结果传递新增桥接 task。
 
 资源合同来自确定性 Resource Guard：
 ${resourceProtocol}

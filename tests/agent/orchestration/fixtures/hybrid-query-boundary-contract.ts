@@ -107,6 +107,13 @@ export type ResidualPlannerResult =
 
 export type ResidualPlannerModule = Readonly<{
   buildResidualPlanningInput: (input: ResidualPlanningInput) => ResidualPlanningInput;
+  buildResidualPlannerSystemPrompt: (
+    input: ResidualPlanningInput,
+  ) => string;
+  serializeResidualPlannerJsonSchema: () => string;
+  serializeResidualPlannerPromptJsonSchema: (
+    input: ResidualPlanningInput,
+  ) => string;
   runResidualPlanner: (input: Readonly<{
     input: ResidualPlanningInput;
     invoke: (

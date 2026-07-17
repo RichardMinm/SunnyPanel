@@ -103,7 +103,7 @@ test("Preflight hashes the real cmp-4 Residual Prompt and strict schema", async 
     fixtureSnapshotHash:
       "be856ddcba4a60f65e6a1e360027c3e1e5eface66c434f40f9df298b5286966d",
     residualPromptHash:
-      "e5a52ee406c9a9d6a5378b577314474e90a1eccf50523c22e6b5090943383a90",
+      "0619da530908cc99992b653bba1531b5634552a7ee4d59dae22ebfcac4072f40",
     residualSchemaHash:
       "66228b19f488a20c481e2d8c63e81973e4f8a82030474987e0bec23cddee68eb",
   });
