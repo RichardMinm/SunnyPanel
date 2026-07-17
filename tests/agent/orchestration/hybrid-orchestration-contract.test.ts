@@ -5,6 +5,7 @@ import type {
   OrchestratorOutput,
 } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
 import { createModelCallBudgetRecorder } from "../../../src/lib/agent/orchestration/model-call-budget";
+import type { HybridFailureCode } from "../../../src/lib/agent/orchestration/hybrid-query-boundary";
 import type {
   HybridOrchestrationModule,
   ResidualPlannerResult,
@@ -56,6 +57,11 @@ const runInput = (
     ...overrides,
   };
 };
+
+test("the compatibility facade retains the stable Residual timeout code", () => {
+  const failureCode: HybridFailureCode = "residual_timeout";
+  assert.equal(failureCode, "residual_timeout");
+});
 
 test("qry-1 takes the pure Query fast path without Orchestrator or Residual Planner", async () => {
   const { runHybridOrchestration } = await loadHybrid("hybrid_qry_1_fast_path");

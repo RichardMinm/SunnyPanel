@@ -45,7 +45,8 @@ export type HybridFailureCode =
   | "query_dispatcher_unavailable"
   | "residual_forbidden_intent"
   | "residual_provider_error"
-  | "residual_schema_failure";
+  | "residual_schema_failure"
+  | "residual_timeout";
 
 export type HybridOrchestrationResult = Readonly<{
   boundaryResolution:
