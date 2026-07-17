@@ -1,5 +1,6 @@
 export type ModelCallRole =
   | "orchestrator"
+  | "residual_planner"
   | "replan"
   | "conversational_answer"
   | "query_commentary"
@@ -10,6 +11,8 @@ export type L3BTurnCallAccounting = {
   answerProviderAttempts: number;
   orchestratorLogicalCalls: number;
   orchestratorProviderAttempts: number;
+  residualPlannerLogicalCalls: number;
+  residualPlannerProviderAttempts: number;
   replanLogicalCalls: number;
   replanProviderAttempts: number;
   specialistLogicalCalls: number;
@@ -24,6 +27,7 @@ export type TurnModelCallBudget = L3BTurnCallAccounting & {
   queryCommentaryCalls: number;
   queryCommentaryLogicalCalls: number;
   queryCommentaryProviderAttempts: number;
+  residualPlannerCalls: number;
   replanCalls: number;
   specialistCalls: number;
   unexpectedDuplicateCalls: number;
@@ -46,6 +50,9 @@ const emptyBudget = (): TurnModelCallBudget => ({
   queryCommentaryCalls: 0,
   queryCommentaryLogicalCalls: 0,
   queryCommentaryProviderAttempts: 0,
+  residualPlannerCalls: 0,
+  residualPlannerLogicalCalls: 0,
+  residualPlannerProviderAttempts: 0,
   replanCalls: 0,
   replanLogicalCalls: 0,
   replanProviderAttempts: 0,
@@ -61,12 +68,14 @@ const roleCounter: Record<
   | "conversationalAnswerCalls"
   | "orchestratorCalls"
   | "queryCommentaryCalls"
+  | "residualPlannerCalls"
   | "replanCalls"
   | "specialistCalls"
 > = {
   conversational_answer: "conversationalAnswerCalls",
   orchestrator: "orchestratorCalls",
   query_commentary: "queryCommentaryCalls",
+  residual_planner: "residualPlannerCalls",
   replan: "replanCalls",
   specialist: "specialistCalls",
 };
@@ -76,12 +85,14 @@ const logicalRoleCounter: Record<
   | "answerLogicalCalls"
   | "orchestratorLogicalCalls"
   | "queryCommentaryLogicalCalls"
+  | "residualPlannerLogicalCalls"
   | "replanLogicalCalls"
   | "specialistLogicalCalls"
 > = {
   conversational_answer: "answerLogicalCalls",
   orchestrator: "orchestratorLogicalCalls",
   query_commentary: "queryCommentaryLogicalCalls",
+  residual_planner: "residualPlannerLogicalCalls",
   replan: "replanLogicalCalls",
   specialist: "specialistLogicalCalls",
 };
@@ -91,12 +102,14 @@ const providerAttemptCounter: Record<
   | "answerProviderAttempts"
   | "orchestratorProviderAttempts"
   | "queryCommentaryProviderAttempts"
+  | "residualPlannerProviderAttempts"
   | "replanProviderAttempts"
   | "specialistProviderAttempts"
 > = {
   conversational_answer: "answerProviderAttempts",
   orchestrator: "orchestratorProviderAttempts",
   query_commentary: "queryCommentaryProviderAttempts",
+  residual_planner: "residualPlannerProviderAttempts",
   replan: "replanProviderAttempts",
   specialist: "specialistProviderAttempts",
 };
