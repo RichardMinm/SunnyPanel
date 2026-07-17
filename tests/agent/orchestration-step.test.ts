@@ -339,3 +339,76 @@ test("runOrchestrationStep resumes a strategy pause with alternate replan on con
   // R6-C1-D-B-Fix-3: heuristic orchestrator retired.
   assert.ok(result.outcome);
 });
+
+test("LangChain runtime resolves a pure progress query before the full Orchestrator", async () => {
+  const previousRuntime = process.env.AGENT_ORCHESTRATOR_RUNTIME;
+  process.env.AGENT_ORCHESTRATOR_RUNTIME = "langchain";
+  try {
+    const result = await runOrchestrationStep({
+      context: {
+        ...promptContext,
+        plans: [{
+          id: 101,
+          priority: "medium",
+          state: "active",
+          title: "考研数学复习计划",
+        }],
+      },
+      emitStatus: () => undefined,
+      emitToken: () => undefined,
+      message: "看看我的工作计划进度",
+      payload: {} as Payload,
+      pendingAction: null,
+      persistAgentTurn: async () => assert.fail("pure query must continue to the existing Query Dispatcher"),
+      pushTrace: () => undefined,
+      tokenUsage,
+      trace: [],
+      user: { collection: "users", id: 1 },
+    });
+
+    assert.equal(result.outcome, "continue");
+    if (result.outcome !== "continue") return;
+    assert.equal(result.data.orchestratorPlanSource, "llm");
+    assert.equal(result.data.preResolvedIntent?.intent, "query_progress");
+    assert.deepEqual(result.data.preResolvedIntent?.args, {});
+  } finally {
+    if (previousRuntime === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
+    else process.env.AGENT_ORCHESTRATOR_RUNTIME = previousRuntime;
+  }
+});
+
+test("LangChain runtime deterministically clarifies an unresolved specific title before Provider availability checks", async () => {
+  const previousRuntime = process.env.AGENT_ORCHESTRATOR_RUNTIME;
+  process.env.AGENT_ORCHESTRATOR_RUNTIME = "langchain";
+  try {
+    const result = await runOrchestrationStep({
+      context: {
+        ...promptContext,
+        plans: [{
+          id: 101,
+          priority: "medium",
+          state: "active",
+          title: "考研数学复习计划",
+        }],
+      },
+      emitStatus: () => undefined,
+      emitToken: () => undefined,
+      message: "检查一下考研数学计划的完成情况",
+      payload: {} as Payload,
+      pendingAction: null,
+      persistAgentTurn: async () => assert.fail("clarify must continue to the existing deterministic response path"),
+      pushTrace: () => undefined,
+      tokenUsage,
+      trace: [],
+      user: { collection: "users", id: 1 },
+    });
+
+    assert.equal(result.outcome, "continue");
+    if (result.outcome !== "continue") return;
+    assert.equal(result.data.preResolvedIntent?.intent, "clarify");
+    assert.ok(String(result.data.preResolvedIntent?.args.question).trim().length > 0);
+  } finally {
+    if (previousRuntime === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
+    else process.env.AGENT_ORCHESTRATOR_RUNTIME = previousRuntime;
+  }
+});

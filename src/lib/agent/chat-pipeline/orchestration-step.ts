@@ -13,7 +13,13 @@ import { runOrchestrationSubgraph } from "@/lib/agent/langgraph/orchestration-su
 import { orchestratorPlanToIntent } from "@/lib/agent/orchestrator";
 import type { runOrchestrator } from "@/lib/agent/orchestration/orchestrator";
 import { dispatchOrchestrator } from "@/lib/agent/orchestration/orchestrator-dispatcher";
+import {
+  buildActorAuthorizedResourceSnapshot,
+  isHybridQueryBoundaryEnabled,
+  resolveHybridQueryBoundary,
+} from "@/lib/agent/orchestration/query-boundary-resolver";
 import { replanAfterTaskFailure, type ReplanInput, type ReplanResult } from "@/lib/agent/orchestration/replan";
+import { resolveOrchestratorRuntimeMode } from "@/lib/agent/orchestration/runtime-config";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
 import { projectCompletedOrchestrationToPlan } from "@/lib/agent/orchestration/projection";
 import { logAgentEvent } from "@/lib/agent/logger";
@@ -127,7 +133,7 @@ export type OrchestrationStepParams = {
   terminalizeCompoundExecution?: boolean;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
-  user: { id: number };
+  user: { collection?: "users"; id: number };
 };
 
 export type OrchestrationStepResult =
@@ -622,6 +628,68 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         tokenUsage,
       },
     };
+  }
+
+  if (
+    runOrchestratorFn === dispatchOrchestrator
+    && !forcedPlan
+    && !pendingAction
+    && isHybridQueryBoundaryEnabled(resolveOrchestratorRuntimeMode())
+  ) {
+    const snapshotResult = buildActorAuthorizedResourceSnapshot({
+      authenticatedActor: user.collection === "users"
+        ? { collection: "users", id: user.id }
+        : null,
+      context,
+    });
+
+    if (snapshotResult.valid) {
+      const boundary = resolveHybridQueryBoundary({
+        authorizedSnapshot: snapshotResult.snapshot,
+        originalRequest: message,
+      });
+
+      if (boundary.kind === "pure_query") {
+        pushTrace({
+          detail: `preResolved=${boundary.preResolvedIntent.intent}`,
+          id: "hybrid-query-boundary",
+          kind: "analysis",
+          status: "done",
+          title: "已确定查询范围",
+        });
+        return {
+          outcome: "continue",
+          data: {
+            orchestratorPlanSource: "llm",
+            preResolvedIntent: boundary.preResolvedIntent,
+            tokenUsage,
+          },
+        };
+      }
+
+      if (boundary.kind === "clarify") {
+        const question = String(boundary.output.tasks[0]?.args.question ?? "").trim();
+        pushTrace({
+          detail: `reason=${boundary.reason}`,
+          id: "hybrid-query-boundary",
+          kind: "analysis",
+          status: "done",
+          title: "需要确认查询范围",
+        });
+        return {
+          outcome: "continue",
+          data: {
+            orchestratorPlanSource: "llm",
+            preResolvedIntent: {
+              args: { question },
+              confidence: 1,
+              intent: "clarify",
+            },
+            tokenUsage,
+          },
+        };
+      }
+    }
   }
 
   /* LLM unavailable (disabled or not configured) + no pending action → controlled clarify.
