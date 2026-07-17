@@ -38,6 +38,10 @@ import {
   type SafeProtocolDiagnostics,
 } from "../llm/structured-protocol";
 import type { OrchestratorPlan } from "./types";
+import type {
+  ModelCallBudgetRecorder,
+  ModelCallRole,
+} from "./model-call-budget";
 import { mapStructuredOutputToPlan } from "./orchestrator-mapper";
 import {
   validateOrchestratorDecisionConsistency,
@@ -324,6 +328,9 @@ export type LangChainOrchestratorOptions = {
     transport: number;
   };
   providerAttemptObserver?: StructuredProviderAttemptObserver;
+  modelCallRecorder?: ModelCallBudgetRecorder;
+  modelCallRole?: Extract<ModelCallRole, "orchestrator" | "replan">;
+  modelCallScopeId?: string;
 };
 
 export const runLangChainOrchestratorResult = async (
@@ -335,15 +342,26 @@ export const runLangChainOrchestratorResult = async (
     signal,
     modelConfig,
     modelFactory = createChatModel,
+    modelCallRecorder,
+    modelCallRole = "orchestrator",
+    modelCallScopeId = "orchestrator",
     structuredRetryBudget,
     providerAttemptObserver,
   } = options;
 
   let latestProviderAttempt = 0;
+  const recordedProviderAttempts = new Set<number>();
   let latestSafeProtocol: SafeProtocolDiagnostics =
     createSafeProtocolDiagnostics();
   const observeProviderAttempt: StructuredProviderAttemptObserver = (event) => {
     latestProviderAttempt = event.attempt;
+    if (
+      event.phase === "providerRequestStarted"
+      && !recordedProviderAttempts.has(event.attempt)
+    ) {
+      recordedProviderAttempts.add(event.attempt);
+      modelCallRecorder?.recordProviderAttempt(modelCallRole);
+    }
     if ("safeProtocol" in event) latestSafeProtocol = event.safeProtocol;
     try {
       providerAttemptObserver?.(event);
@@ -351,6 +369,7 @@ export const runLangChainOrchestratorResult = async (
       // Evaluation observers must never affect orchestration.
     }
   };
+  modelCallRecorder?.record(modelCallRole, modelCallScopeId);
   const emitSemanticValidation = (passed: boolean): void => {
     if (latestProviderAttempt === 0) return;
     latestSafeProtocol = advanceSafeProtocolDiagnostics(latestSafeProtocol, {

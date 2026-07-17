@@ -116,8 +116,9 @@ test("calls the specialist exactly once for an open-ended incomplete task", asyn
     intent: "compose_plan",
   } as AgentIntent;
   const definition: SpecializedAgentDefinition = {
-    enrichIntent: async () => {
+    enrichIntent: async (_intent, _context, _message, _upstream, options) => {
       enrichCalls += 1;
+      options?.onProviderAttempt?.(1);
       return enriched;
     },
     id: "plan",
@@ -154,6 +155,7 @@ test("calls the specialist exactly once for an open-ended incomplete task", asyn
   assert.equal(result.intent.intent, "compose_plan");
   assert.equal(result.disposition, "required_incomplete");
   assert.equal(recorder.snapshot().specialistCalls, 1);
+  assert.equal(recorder.snapshot().specialistProviderAttempts, 1);
   assert.equal(recorder.snapshot().unexpectedDuplicateCalls, 0);
 });
 

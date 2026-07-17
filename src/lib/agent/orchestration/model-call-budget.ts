@@ -40,6 +40,22 @@ export type ModelCallBudgetRecorder = {
   snapshot: () => TurnModelCallBudget;
 };
 
+export type ModelCallBudgetProjection = Readonly<{
+  answerLogicalCalls: number;
+  answerProviderAttempts: number;
+  fullOrchestratorLogicalCalls: number;
+  fullOrchestratorProviderAttempts: number;
+  queryCommentaryLogicalCalls: number;
+  queryCommentaryProviderAttempts: number;
+  replanLogicalCalls: number;
+  replanProviderAttempts: number;
+  residualPlannerLogicalCalls: number;
+  residualPlannerProviderAttempts: number;
+  specialistLogicalCalls: number;
+  specialistProviderAttempts: number;
+  unexpectedDuplicateModelCalls: number;
+}>;
+
 const emptyBudget = (): TurnModelCallBudget => ({
   answerLogicalCalls: 0,
   answerProviderAttempts: 0,
@@ -139,3 +155,21 @@ export const createModelCallBudgetRecorder = (): ModelCallBudgetRecorder => {
     snapshot: () => ({ ...budget }),
   };
 };
+
+export const projectModelCallBudget = (
+  budget: TurnModelCallBudget,
+): ModelCallBudgetProjection => Object.freeze({
+  answerLogicalCalls: budget.answerLogicalCalls,
+  answerProviderAttempts: budget.answerProviderAttempts,
+  fullOrchestratorLogicalCalls: budget.orchestratorLogicalCalls,
+  fullOrchestratorProviderAttempts: budget.orchestratorProviderAttempts,
+  queryCommentaryLogicalCalls: budget.queryCommentaryLogicalCalls,
+  queryCommentaryProviderAttempts: budget.queryCommentaryProviderAttempts,
+  replanLogicalCalls: budget.replanLogicalCalls,
+  replanProviderAttempts: budget.replanProviderAttempts,
+  residualPlannerLogicalCalls: budget.residualPlannerLogicalCalls,
+  residualPlannerProviderAttempts: budget.residualPlannerProviderAttempts,
+  specialistLogicalCalls: budget.specialistLogicalCalls,
+  specialistProviderAttempts: budget.specialistProviderAttempts,
+  unexpectedDuplicateModelCalls: budget.unexpectedDuplicateModelCalls,
+});

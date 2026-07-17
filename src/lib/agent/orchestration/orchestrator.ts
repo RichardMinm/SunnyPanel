@@ -4,6 +4,16 @@ import type { AgentPromptContext } from "../prompts";
 import { buildOrchestratorSystemPrompt, buildOrchestratorUserPrompt } from "../prompts/orchestrator";
 import { parseAgentIntentResult, type AgentIntent } from "../schemas";
 import type { AgentRole, OrchestratorPlan, TaskNode } from "./types";
+import type {
+  ModelCallBudgetRecorder,
+  ModelCallRole,
+} from "./model-call-budget";
+
+export type LegacyOrchestratorAccountingOptions = Readonly<{
+  modelCallRecorder?: ModelCallBudgetRecorder;
+  role?: Extract<ModelCallRole, "orchestrator" | "replan">;
+  scopeId?: string;
+}>;
 
 export { orchestratorPlanToIntent } from "./orchestrator-plan-to-intent";
 
@@ -122,7 +132,13 @@ export const runOrchestrator = async (
   message: string,
   context: AgentPromptContext,
   signal?: AbortSignal,
+  accounting: LegacyOrchestratorAccountingOptions | undefined = undefined,
 ): Promise<OrchestratorPlan> => {
+  const role = accounting?.role ?? "orchestrator";
+  accounting?.modelCallRecorder?.record(
+    role,
+    accounting?.scopeId ?? "orchestrator",
+  );
   const result = await completeStructuredStreaming({
     fallback: () => heuristicToPlan(message),
     messages: [
@@ -130,6 +146,8 @@ export const runOrchestrator = async (
       { role: "user", content: buildOrchestratorUserPrompt(message, context) },
     ],
     parse: parseOrchestratorPlan,
+    onProviderAttempt: () =>
+      accounting?.modelCallRecorder?.recordProviderAttempt(role),
     temperature: 0.2,
     signal,
   });

@@ -23,6 +23,7 @@ import {
   L3B_EVALUATION_CONFIG,
   L3B_EVALUATION_CONFIG_HASH,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation-config";
+import { createModelCallBudgetRecorder } from "../../../src/lib/agent/orchestration/model-call-budget";
 
 const promptJsonModelFactory = (
   invoke: () => unknown | Promise<unknown>,
@@ -136,6 +137,7 @@ describe("langchain-orchestrator protocol", () => {
 
   it("returns a typed schema failure without projecting a successful plan", async () => {
     let calls = 0;
+    const recorder = createModelCallBudgetRecorder();
     const result = await runLangChainOrchestratorResult({
       context: {
         checklists: [],
@@ -144,6 +146,7 @@ describe("langchain-orchestrator protocol", () => {
         plans: [],
       },
       message: "制定一个计划",
+      modelCallRecorder: recorder,
       modelConfig: {
         apiKey: "test-only",
         baseURL: "https://example.invalid",
@@ -165,6 +168,8 @@ describe("langchain-orchestrator protocol", () => {
     assert.equal(result.reason, "schema_failure");
     assert.equal("plan" in result, false);
     assert.equal(calls, 2);
+    assert.equal(recorder.snapshot().orchestratorLogicalCalls, 1);
+    assert.equal(recorder.snapshot().orchestratorProviderAttempts, 2);
   });
 
   it("allows the explicit evaluation harness to disable all retries", async () => {

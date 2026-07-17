@@ -11,6 +11,7 @@ import { renderCanonicalFactBlock } from "./langchain-query-agent";
 import { runQualitativeQueryCommentary, type QualitativeCommentaryResult } from "./qualitative-commentary";
 import { composeQueryAnswer, projectQualitativeQueryFacts } from "./qualitative-projection";
 import { QUERY_CONTENT_CHAR_CAP, type QueryAdoption, type QueryFacts, type QueryRuntime } from "./types";
+import type { ModelCallBudgetRecorder } from "../orchestration/model-call-budget";
 
 type LegacyResult = { assistantMessage: string; pendingAction: null };
 type ToResponse = (threadId: number, tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>) => AgentChatResponse;
@@ -27,6 +28,7 @@ export type DispatchPreResolvedQueryInput = {
   loadFacts?: (intent: AgentIntent) => Promise<QueryFacts | null>;
   maxProjectionChars?: number;
   message?: string;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   runLegacy?: (facts?: QueryFacts | null) => Promise<LegacyResult>;
   runCommentary?: (facts: QueryFacts) => Promise<QualitativeCommentaryResult>;
   runtime?: QueryRuntime;
@@ -112,7 +114,14 @@ export const dispatchPreResolvedQuery = async (input: DispatchPreResolvedQueryIn
     });
     return { outcome: "legacy_facts", assistantMessage: legacy.assistantMessage, modelCalls: 0, repositoryCalls: 1, toResponse: responseFactory(input, legacy.assistantMessage, input.intent.intent) };
   }
-  const commentary = await (input.runCommentary ?? ((loaded) => runQualitativeQueryCommentary({ facts: loaded })))(facts);
+  const commentary = await (
+    input.runCommentary
+    ?? ((loaded) => runQualitativeQueryCommentary({
+      callScopeId: "turn-query-commentary",
+      facts: loaded,
+      modelCallRecorder: input.modelCallRecorder,
+    }))
+  )(facts);
   const assistantMessage = composeQueryAnswer(
     canonical,
     commentary.status === "accepted" ? commentary : { status: "omitted" },

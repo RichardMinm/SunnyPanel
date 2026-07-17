@@ -20,29 +20,54 @@ import {
   type OrchestratorInvocationResult,
 } from "./langchain-orchestrator";
 import { validateAndNormalizeOrchestratorPlanQueryScopes } from "./query-scope-contract";
+import type {
+  ModelCallBudgetRecorder,
+  ModelCallRole,
+} from "./model-call-budget";
+
+export type OrchestratorCallAccountingOptions = Readonly<{
+  modelCallRecorder?: ModelCallBudgetRecorder;
+  role?: Extract<ModelCallRole, "orchestrator" | "replan">;
+  scopeId?: string;
+}>;
 
 export type OrchestratorService = (
   message: string,
   context: AgentPromptContext,
   signal?: AbortSignal,
+  accounting?: OrchestratorCallAccountingOptions,
 ) => Promise<OrchestratorInvocationResult>;
 
 export const dispatchOrchestratorResult: OrchestratorService = async (
   message,
   context,
   signal,
+  accounting = undefined,
 ) => {
   const mode = resolveOrchestratorRuntimeMode();
+  const role = accounting?.role ?? "orchestrator";
+  const scopeId = accounting?.scopeId ?? "orchestrator";
 
   if (mode === "langchain") {
-    return runLangChainOrchestratorResult({ context, message, signal });
+    return runLangChainOrchestratorResult({
+      context,
+      message,
+      modelCallRecorder: accounting?.modelCallRecorder,
+      modelCallRole: role,
+      modelCallScopeId: scopeId,
+      signal,
+    });
   }
 
   try {
     const queryScopeResult = validateAndNormalizeOrchestratorPlanQueryScopes({
       context,
       message,
-      plan: await runLegacyOrchestrator(message, context, signal),
+      plan: await runLegacyOrchestrator(message, context, signal, {
+        modelCallRecorder: accounting?.modelCallRecorder,
+        role,
+        scopeId,
+      }),
     });
     if (!queryScopeResult.valid) {
       return {
@@ -71,8 +96,14 @@ export const dispatchOrchestrator = async (
   message: string,
   context: AgentPromptContext,
   signal?: AbortSignal,
+  accounting: OrchestratorCallAccountingOptions | undefined = undefined,
 ): Promise<OrchestratorPlan> => {
-  const result = await dispatchOrchestratorResult(message, context, signal);
+  const result = await dispatchOrchestratorResult(
+    message,
+    context,
+    signal,
+    accounting,
+  );
   return result.status === "success"
     ? result.plan
     : projectOrchestratorFailureToSafePlan();

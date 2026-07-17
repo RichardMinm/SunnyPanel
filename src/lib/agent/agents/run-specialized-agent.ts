@@ -53,7 +53,16 @@ export const runSpecializedAgentForTask = async (
   }
 
   const enrichedRaw = shouldEnrich && definition.enrichIntent
-    ? (await definition.enrichIntent(baseIntent, input.promptContext, input.message, input.upstreamContext)) ?? baseIntent
+    ? (await definition.enrichIntent(
+        baseIntent,
+        input.promptContext,
+        input.message,
+        input.upstreamContext,
+        {
+          onProviderAttempt: () =>
+            input.modelCallRecorder?.recordProviderAttempt("specialist"),
+        },
+      )) ?? baseIntent
     : baseIntent;
 
   const { corrected, intent: enriched, rejectedIntent } = reconcileEnrichedIntent(

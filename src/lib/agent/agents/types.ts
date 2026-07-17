@@ -57,12 +57,17 @@ export type SpecializedAgentDefinition = {
     context: AgentPromptContext,
     message: string,
     upstreamContext?: string,
+    options?: SpecializedAgentInvocationOptions,
   ) => Promise<AgentIntent | null>;
   id: SpecializedAgentId;
   role: AgentRole;
   supportedIntents: Array<AgentIntent["intent"]>;
   systemPromptHint: string;
 };
+
+export type SpecializedAgentInvocationOptions = Readonly<{
+  onProviderAttempt?: (attempt: number) => void;
+}>;
 
 export type SpecializedAgentRunInput = {
   dryRunContext: AgentToolDryRunContext;

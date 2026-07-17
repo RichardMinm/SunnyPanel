@@ -16,6 +16,10 @@ import { buildLangGraphFailureResponse } from "@/lib/agent/langgraph/failure-res
 import { createRunProductionLangGraphAgentChatPipeline } from "@/lib/agent/langgraph/production-adapter";
 import { logAgentEvent } from "@/lib/agent/logger";
 import { runAgentLearningLoop } from "@/lib/agent/learning-loop";
+import {
+  createModelCallBudgetRecorder,
+  projectModelCallBudget,
+} from "@/lib/agent/orchestration/model-call-budget";
 import { resolveConversationState } from "@/lib/agent/conversation/conversation-state";
 import { parsePendingAction, sanitizeChatMessages } from "@/lib/agent/schemas";
 import {
@@ -259,6 +263,7 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
   const perfTimer = isPerfTraceEnabled()
     ? createPerformanceTimer(turnId)
     : null;
+  const modelCallRecorder = createModelCallBudgetRecorder();
   const pipelineDeps = {
     baseTokenUsage,
     contextPreferences,
@@ -267,6 +272,7 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     generateIntentWithAgentModel,
     intentModelEngine,
     message,
+    modelCallRecorder,
     payload: payload as unknown as Payload,
     pendingAction,
     perfTimer,
@@ -376,6 +382,10 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
         pushTrace: () => undefined,
         response,
         tokenUsage: baseTokenUsage,
+      });
+    } finally {
+      logAgentEvent("info", "chat.model_call_budget", {
+        ...projectModelCallBudget(modelCallRecorder.snapshot()),
       });
     }
   };

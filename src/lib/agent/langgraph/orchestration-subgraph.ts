@@ -1369,6 +1369,7 @@ export const runOrchestrationSubgraph = async (
                 failedObservation.message,
               failureType: "tool_error",
               message: executionOptions.message ?? "",
+              modelCallRecorder: executionOptions.modelCallRecorder,
               observations: state.outcomes.map(
                 (outcome) => outcome.observation,
               ),

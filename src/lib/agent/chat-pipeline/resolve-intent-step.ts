@@ -39,6 +39,7 @@ import type { OrchestratorPlanSource } from "@/lib/agent/orchestration/plan-sour
 import { resolveConfirmationStep } from "./confirmation-resolution-step";
 import { resolveLegacyHeuristicStep } from "./legacy-heuristic-resolution-step";
 import type { runConversationalAnswer } from "@/lib/agent/answer/runtime";
+import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 
 /* ──── Types ──── */
 
@@ -62,6 +63,7 @@ export type ResolveIntentStepParams = {
   emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void;
   intentModelEngine: AgentEngine;
   message: string;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   modelResolver: AgentModelIntentResolver;
   orchestratorPlanSource?: null | OrchestratorPlanSource;
   pendingAction: null | PendingAction;
@@ -119,6 +121,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     emitUsage,
     intentModelEngine,
     message,
+    modelCallRecorder,
     modelResolver,
     orchestratorPlanSource,
     pendingAction,
@@ -168,6 +171,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     emitUsage,
     intentModelEngine,
     message,
+    modelCallRecorder,
     modelResolver,
     orchestratorPlanSource,
     pendingAction,

@@ -13,6 +13,7 @@ import {
 } from "./qualitative-projection";
 import { resolveQueryTimeouts } from "./runtime-config";
 import type { QueryFacts } from "./types";
+import type { ModelCallBudgetRecorder } from "../orchestration/model-call-budget";
 
 export type QualitativeCommentaryResult =
   | { latencyMs: number; modelCalls: 1; status: "accepted"; text: string; ttftMs: number }
@@ -20,11 +21,13 @@ export type QualitativeCommentaryResult =
 
 export type RunQualitativeQueryCommentaryInput = {
   buildMessages?: typeof buildQueryMessages;
+  callScopeId?: string;
   emitToken?: StreamTokenCallback;
   facts: QueryFacts;
   model?: BaseChatModel;
   modelFactory?: ModelFactory;
   modelConfig?: ModelConfig;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   now?: () => number;
   timeouts?: { firstTokenMs: number; totalMs: number };
 };
@@ -88,6 +91,11 @@ export const runQualitativeQueryCommentary = async (
   try {
     const model = await resolveModel(input);
     if (!model) return omitted("provider_error");
+    input.modelCallRecorder?.record(
+      "query_commentary",
+      input.callScopeId ?? "query-commentary",
+    );
+    input.modelCallRecorder?.recordProviderAttempt("query_commentary");
     modelCalls = 1;
     const stream = await timeout(
       Promise.resolve(model.stream(messages, { signal: controller.signal })),

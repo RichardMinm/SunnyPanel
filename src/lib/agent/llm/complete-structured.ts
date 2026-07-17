@@ -10,6 +10,7 @@ export type StructuredLLMMessage = {
 export type CompleteStructuredOptions<T> = {
   fallback?: () => T | null | Promise<T | null>;
   messages: StructuredLLMMessage[];
+  onProviderAttempt?: (attempt: number) => void;
   parse: (value: unknown) => T | null;
   temperature?: number;
 };
@@ -23,6 +24,7 @@ export type StructuredLLMResult<T> = {
 export const completeStructured = async <T>({
   fallback,
   messages,
+  onProviderAttempt,
   parse,
   temperature = 0.3,
 }: CompleteStructuredOptions<T>): Promise<StructuredLLMResult<T> | null> => {
@@ -71,7 +73,7 @@ export const completeStructured = async <T>({
         "Content-Type": "application/json",
       },
       method: "POST",
-    });
+    }, { onAttempt: onProviderAttempt });
 
     if (!response.ok) {
       throw new Error(`LLM request failed: ${response.status}`);
@@ -138,6 +140,7 @@ export const completeStructuredStreaming = async <T>({
   parse,
   temperature = 0.3,
   onToken,
+  onProviderAttempt,
   signal,
 }: CompleteStructuredOptions<T> & {
   onToken?: StreamTokenCallback;
@@ -169,6 +172,7 @@ export const completeStructuredStreaming = async <T>({
         accumulated += token;
         onToken?.(token);
       },
+      onProviderAttempt,
       signal,
       temperature,
     });

@@ -10,6 +10,7 @@ import {
   loadR4AGreenModule,
   R4A_GREEN_MODULES,
 } from "./fixtures/r4a-red-module-loader";
+import { createModelCallBudgetRecorder } from "../../../src/lib/agent/orchestration/model-call-budget";
 
 const loadResidualPlanner = (contract: string) => loadR4AGreenModule<ResidualPlannerModule>(
   R4A_GREEN_MODULES.residual,
@@ -85,6 +86,7 @@ test("a residual Query intent makes the entire plan unavailable without a second
 
 test("transport retry increments attempts but not residual logical calls", async () => {
   const { runResidualPlanner } = await loadResidualPlanner("residual_transport_retry_accounting");
+  const recorder = createModelCallBudgetRecorder();
   let calls = 0;
   const result = await runResidualPlanner({
     input: residualInput(),
@@ -94,9 +96,12 @@ test("transport retry increments attempts but not residual logical calls", async
       return [residualWriteTask()];
     },
     maxTransportRetries: 1,
+    modelCallRecorder: recorder,
   });
   assert.equal(result.status, "success");
   assert.equal(result.logicalCalls, 1);
   assert.equal(result.providerAttempts, 2);
   assert.equal(calls, 2);
+  assert.equal(recorder.snapshot().residualPlannerLogicalCalls, 1);
+  assert.equal(recorder.snapshot().residualPlannerProviderAttempts, 2);
 });

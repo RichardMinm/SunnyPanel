@@ -9,6 +9,7 @@ import {
   type OrchestratorService,
   type ReplanInput,
 } from "../../src/lib/agent/orchestration/replan";
+import { createModelCallBudgetRecorder } from "../../src/lib/agent/orchestration/model-call-budget";
 
 const baseInput = (overrides: Partial<ReplanInput> = {}): ReplanInput => {
   const failedTask: ReplanInput["failedTask"] = {
@@ -142,6 +143,7 @@ test("replan module has no direct Legacy Orchestrator import", () => {
 
 test("incremental replan uses the injected authoritative service and preserves completed tasks", async () => {
   let calls = 0;
+  const recorder = createModelCallBudgetRecorder();
   const service: OrchestratorService = async () => {
     calls += 1;
     return {
@@ -162,11 +164,16 @@ test("incremental replan uses the injected authoritative service and preserves c
   };
 
   const result = await replanAfterTaskFailure(
-    baseInput({ strategyOverride: "incremental" }),
+    baseInput({
+      modelCallRecorder: recorder,
+      strategyOverride: "incremental",
+    }),
     service,
   );
 
   assert.equal(calls, 1);
+  assert.equal(recorder.snapshot().replanLogicalCalls, 1);
+  assert.equal(recorder.snapshot().unexpectedDuplicateModelCalls, 0);
   assert.equal(result.status, "success");
   if (result.status !== "success") return;
   assert.equal(result.plan.tasks[0]?.id, "task-schedule-plan");

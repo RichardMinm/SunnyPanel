@@ -6,6 +6,7 @@ import {
   type OrchestratorService,
 } from "./orchestrator-dispatcher";
 import type { OrchestratorFailureReason } from "./langchain-orchestrator";
+import type { ModelCallBudgetRecorder } from "./model-call-budget";
 import type { AgentTaskObservation, ExecutionQueueState, OrchestratorPlan, TaskNode } from "./types";
 
 export type { OrchestratorService } from "./orchestrator-dispatcher";
@@ -26,6 +27,7 @@ export type ReplanInput = {
   failureReason: string;
   failureType: "dependency_failure" | "missing_info" | "parse_error" | "timeout" | "tool_error";
   message: string;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   observations?: AgentTaskObservation[];
   originalPlan: OrchestratorPlan;
   proposals?: ProposedAgentAction[];
@@ -267,13 +269,26 @@ export const replanAfterTaskFailure = async (
   orchestratorService: OrchestratorService = dispatchOrchestratorResult,
 ): Promise<ReplanResult> => {
   const strategy = input.strategyOverride ?? decideReplanStrategy(input);
+  const scopeId = `replan:${input.failedTask.id}`;
+  const accountedService: OrchestratorService =
+    orchestratorService === dispatchOrchestratorResult
+      ? (message, context, signal) =>
+          dispatchOrchestratorResult(message, context, signal, {
+            modelCallRecorder: input.modelCallRecorder,
+            role: "replan",
+            scopeId,
+          })
+      : async (message, context, signal) => {
+          input.modelCallRecorder?.record("replan", scopeId);
+          return orchestratorService(message, context, signal);
+        };
 
   switch (strategy) {
     case "local":
       return { plan: replanLocal(input), status: "success" };
     case "incremental":
-      return replanIncremental(input, orchestratorService);
+      return replanIncremental(input, accountedService);
     case "global":
-      return replanGlobal(input, orchestratorService);
+      return replanGlobal(input, accountedService);
   }
 };

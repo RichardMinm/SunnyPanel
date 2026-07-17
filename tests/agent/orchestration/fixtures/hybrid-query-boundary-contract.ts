@@ -7,6 +7,7 @@ import type { OrchestratorRuntimeMode } from "../../../../src/lib/agent/orchestr
 import type { AgentPromptContext } from "../../../../src/lib/agent/prompts";
 import type { QueryAdoption, QueryRuntime } from "../../../../src/lib/agent/query/types";
 import type { AgentIntent } from "../../../../src/lib/agent/schemas";
+import type { ModelCallBudgetRecorder } from "../../../../src/lib/agent/orchestration/model-call-budget";
 
 export type IntentFamily = "consultation" | "query" | "write_candidate";
 
@@ -113,6 +114,7 @@ export type ResidualPlannerModule = Readonly<{
       attempt: number,
     ) => Promise<readonly OrchestratorTask[]>;
     maxTransportRetries?: number;
+    modelCallRecorder?: ModelCallBudgetRecorder;
   }>) => Promise<ResidualPlannerResult>;
 }>;
 

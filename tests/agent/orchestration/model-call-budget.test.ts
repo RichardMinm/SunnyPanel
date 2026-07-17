@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createModelCallBudgetRecorder } from "../../../src/lib/agent/orchestration/model-call-budget";
+import {
+  createModelCallBudgetRecorder,
+  projectModelCallBudget,
+} from "../../../src/lib/agent/orchestration/model-call-budget";
 
 test("records legitimate model calls by role and scope", () => {
   const recorder = createModelCallBudgetRecorder();
@@ -85,4 +88,28 @@ test("snapshot exposes counts without retaining scope identifiers", () => {
   recorder.recordProviderAttempt("specialist");
 
   assert.equal(JSON.stringify(recorder.snapshot()).includes("sensitive-task-id"), false);
+});
+
+test("terminal projection exposes every production role without compatibility counters", () => {
+  const recorder = createModelCallBudgetRecorder();
+  recorder.record("orchestrator", "turn");
+  recorder.recordProviderAttempt("orchestrator");
+  recorder.record("residual_planner", "residual");
+  recorder.recordProviderAttempt("residual_planner");
+
+  assert.deepEqual(projectModelCallBudget(recorder.snapshot()), {
+    answerLogicalCalls: 0,
+    answerProviderAttempts: 0,
+    fullOrchestratorLogicalCalls: 1,
+    fullOrchestratorProviderAttempts: 1,
+    queryCommentaryLogicalCalls: 0,
+    queryCommentaryProviderAttempts: 0,
+    replanLogicalCalls: 0,
+    replanProviderAttempts: 0,
+    residualPlannerLogicalCalls: 1,
+    residualPlannerProviderAttempts: 1,
+    specialistLogicalCalls: 0,
+    specialistProviderAttempts: 0,
+    unexpectedDuplicateModelCalls: 0,
+  });
 });

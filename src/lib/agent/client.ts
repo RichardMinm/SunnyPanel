@@ -44,11 +44,24 @@ export type StreamTokenCallback = (token: string, block?: 'thinking' | 'response
 export const fetchWithRetry = async (
   url: string,
   options: RequestInit,
-  { maxRetries = 2, timeoutMs = 60_000 }: { maxRetries?: number; timeoutMs?: number } = {},
+  {
+    maxRetries = 2,
+    onAttempt,
+    timeoutMs = 60_000,
+  }: {
+    maxRetries?: number;
+    onAttempt?: (attempt: number) => void;
+    timeoutMs?: number;
+  } = {},
 ): Promise<Response> => {
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      onAttempt?.(attempt + 1);
+    } catch {
+      // Model-call observation must never affect transport behavior.
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -527,6 +540,7 @@ export const streamChatCompletion = async ({
   messages,
   model,
   onToken,
+  onProviderAttempt,
   signal,
   temperature = 0.6,
 }: {
@@ -535,6 +549,7 @@ export const streamChatCompletion = async ({
   messages: Array<{ content: string; role: string }>;
   model: string;
   onToken: StreamTokenCallback;
+  onProviderAttempt?: (attempt: number) => void;
   signal?: AbortSignal;
   temperature?: number;
 }): Promise<{ httpStatus: number; usage: { promptTokens: number; completionTokens: number } | null }> => {
@@ -546,7 +561,7 @@ export const streamChatCompletion = async ({
     },
     method: "POST",
     signal,
-  }, { maxRetries: 3 });
+  }, { maxRetries: 3, onAttempt: onProviderAttempt });
 
   if (!response.ok || !response.body) {
     // #region agent log

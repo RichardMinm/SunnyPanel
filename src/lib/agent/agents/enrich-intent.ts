@@ -1,6 +1,7 @@
 import { completeStructured } from "../llm/complete-structured";
 import type { AgentPromptContext } from "../prompts";
 import { parseAgentIntentResult, type AgentIntent } from "../schemas";
+import type { SpecializedAgentInvocationOptions } from "./types";
 
 export const buildEnrichIntentUserPrompt = (
   intent: AgentIntent,
@@ -32,12 +33,14 @@ export const enrichIntentWithAgentPrompt = async ({
   context,
   intent,
   message,
+  onProviderAttempt,
   upstreamContext,
 }: {
   buildSystemPrompt: (context: AgentPromptContext) => string;
   context: AgentPromptContext;
   intent: AgentIntent;
   message: string;
+  onProviderAttempt?: SpecializedAgentInvocationOptions["onProviderAttempt"];
   upstreamContext?: string;
 }): Promise<AgentIntent> => {
   const result = await completeStructured({
@@ -46,6 +49,7 @@ export const enrichIntentWithAgentPrompt = async ({
       { role: "system", content: buildSystemPrompt(context) },
       { role: "user", content: buildEnrichIntentUserPrompt(intent, message, context, upstreamContext) },
     ],
+    onProviderAttempt,
     parse: (value) => parseAgentIntentResult(value),
     temperature: 0.3,
   });

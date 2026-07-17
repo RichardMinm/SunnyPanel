@@ -14,6 +14,7 @@ import { runQualitativeQueryCommentary } from "../../src/lib/agent/query/qualita
 import { dispatchPreResolvedQuery } from "../../src/lib/agent/query/dispatcher";
 import type { AgentIntent } from "../../src/lib/agent/schemas";
 import type { PlanProgressFacts, QueryFacts } from "../../src/lib/agent/query/types";
+import { createModelCallBudgetRecorder } from "../../src/lib/agent/orchestration/model-call-budget";
 
 const planFacts = (overrides: Partial<PlanProgressFacts> = {}): PlanProgressFacts => ({
   dueDate: "2026-07-20",
@@ -163,6 +164,7 @@ test("full commentary validation accepts one safe sentence and rejects unsafe fo
 
 test("provider output is fully buffered and accepted only after validation", async () => {
   const emitted: string[] = [];
+  const recorder = createModelCallBudgetRecorder();
   const model = {
     stream: async () => (async function* () {
       yield new AIMessageChunk({ content: "整体进展稳定，" });
@@ -173,6 +175,7 @@ test("provider output is fully buffered and accepted only after validation", asy
     emitToken: (value) => emitted.push(value),
     facts: planFacts(),
     model,
+    modelCallRecorder: recorder,
     now: (() => { let value = 0; return () => value += 5; })(),
     timeouts: { firstTokenMs: 100, totalMs: 100 },
   });
@@ -180,6 +183,8 @@ test("provider output is fully buffered and accepted only after validation", asy
   assert.deepEqual(emitted, []);
   assert.equal(result.status, "accepted");
   if (result.status === "accepted") assert.equal(result.text, "整体进展稳定，可继续关注临近事项。");
+  assert.equal(recorder.snapshot().queryCommentaryLogicalCalls, 1);
+  assert.equal(recorder.snapshot().queryCommentaryProviderAttempts, 1);
 });
 
 test("reasoning is ignored while numeric text and tool calls are omitted without partial output", async () => {

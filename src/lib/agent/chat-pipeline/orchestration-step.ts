@@ -24,6 +24,7 @@ import {
 import { replanAfterTaskFailure, type ReplanInput, type ReplanResult } from "@/lib/agent/orchestration/replan";
 import { runResidualPlanner } from "@/lib/agent/orchestration/residual-langchain-planner";
 import { resolveOrchestratorRuntimeMode } from "@/lib/agent/orchestration/runtime-config";
+import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
 import { projectCompletedOrchestrationToPlan } from "@/lib/agent/orchestration/projection";
 import { logAgentEvent } from "@/lib/agent/logger";
@@ -118,6 +119,7 @@ export type OrchestrationStepParams = {
   }) => Promise<unknown>;
   forcedPlan?: OrchestratorPlan;
   message: string;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   payload: Payload;
   pendingAction: null | PendingAction;
   persistAgentTurn: (args: {
@@ -209,6 +211,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     forcedPlan,
     message,
     mapStructuredOutputToPlanFn = mapStructuredOutputToPlan,
+    modelCallRecorder,
     payload,
     pendingAction,
     persistAgentTurn,
@@ -456,6 +459,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       executeRollback,
       maxTasksPerRun: ORCHESTRATION_MAX_TASKS_PER_RUN,
       message: pendingAction.originalMessage,
+      modelCallRecorder,
       orchestrationId: pendingAction.orchestrationId ?? `orch-strategy-resume-${Date.now()}-${user.id}`,
       promptContext: context,
       runnableConfig: compoundRunnableConfig,
@@ -581,6 +585,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       executeRollback,
       maxTasksPerRun: ORCHESTRATION_MAX_TASKS_PER_RUN,
       message: pendingAction.originalMessage,
+      modelCallRecorder,
       orchestrationId: pendingAction.orchestrationId ?? `orch-resume-${Date.now()}-${user.id}`,
       promptContext: context,
       runnableConfig: compoundRunnableConfig,
@@ -702,6 +707,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       if (boundary.kind === "compound") {
         const residual = await runResidualPlannerFn({
           input: boundary.residualInput,
+          modelCallRecorder,
           scopeId: "hybrid-query-boundary",
         });
         if (residual.status !== "success") {
@@ -872,7 +878,16 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
   const plan =
     forcedPlan ??
     hybridPlan ??
-    (await runOrchestratorFn(message, context));
+    (runOrchestratorFn === dispatchOrchestrator
+      ? await dispatchOrchestrator(message, context, undefined, {
+          modelCallRecorder,
+          role: "orchestrator",
+          scopeId: "turn-orchestrator",
+        })
+      : await (async () => {
+          modelCallRecorder?.record("orchestrator", "turn-orchestrator");
+          return runOrchestratorFn(message, context);
+        })());
   stream?.progress({
     detail: `${plan.mode === "compound" ? "复合" : "单一"}意图 · ${plan.tasks.length} 个子任务`,
     message: "编排计划已生成",
@@ -920,6 +935,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         executeRollback,
         maxTasksPerRun: ORCHESTRATION_MAX_TASKS_PER_RUN,
         message,
+        modelCallRecorder,
         orchestrationId,
         promptContext: context,
         runnableConfig: compoundRunnableConfig,

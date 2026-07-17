@@ -13,6 +13,7 @@ import {
 import type { ModelConfig } from "../../src/lib/agent/llm/model-config";
 import { orchestratorPlanToIntent } from "../../src/lib/agent/orchestration/orchestrator-plan-to-intent";
 import type { AgentIntent } from "../../src/lib/agent/schemas";
+import { createModelCallBudgetRecorder } from "../../src/lib/agent/orchestration/model-call-budget";
 
 const answerIntent = (answer: string): AgentIntent => ({
   args: { answer },
@@ -90,10 +91,12 @@ test("reuses a complete orchestrator answer with zero model calls", async () => 
 test("uses one model call when the orchestrator answer is missing", async () => {
   const emitted: string[] = [];
   const calls = { value: 0 };
+  const recorder = createModelCallBudgetRecorder();
   const result = await runConversationalAnswer({
     emitToken: (value) => emitted.push(value),
     intent: missingAnswerIntent,
     message: "什么是零信任？",
+    modelCallRecorder: recorder,
     model: fakeModel([
       new AIMessageChunk({ content: "零信任强调持续验证" }),
       new AIMessageChunk({ content: "，不默认信任任何请求。" }),
@@ -102,6 +105,8 @@ test("uses one model call when the orchestrator answer is missing", async () => 
   });
 
   assert.equal(calls.value, 1);
+  assert.equal(recorder.snapshot().answerLogicalCalls, 1);
+  assert.equal(recorder.snapshot().answerProviderAttempts, 1);
   assert.deepEqual(emitted, ["零信任强调持续验证", "，不默认信任任何请求。"]);
   assert.deepEqual(result, {
     answer: "零信任强调持续验证，不默认信任任何请求。",

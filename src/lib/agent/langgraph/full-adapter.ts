@@ -162,6 +162,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
     generateIntentWithAgentModel: modelResolver,
     intentModelEngine,
     message,
+    modelCallRecorder,
     payload,
     pendingAction,
     resolvedHistory,
@@ -459,6 +460,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
         plan,
         promptContext:
           context as BuildContextStepResult["context"],
+        modelCallRecorder,
       });
     const compoundDependencies: NativeOrchestrationSubgraphDependencies = {
       compensate: async ({ outcomes }) => {
@@ -569,6 +571,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
             outcome.proposal ? [outcome.proposal] : [],
           ),
           promptContext,
+          modelCallRecorder,
           queueState: summarizeExecutionQueue(
             state.plan.tasks,
             state.outcomes.map(
@@ -766,6 +769,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
           executeAction: executeOrchestrationAction,
           executeRollback: executeOrchestrationRollback,
           message: graphInput.message,
+          modelCallRecorder,
           payload,
           pendingAction: graphInput.pendingAction,
           persistAgentTurn: bufferAgentTurn,
@@ -839,6 +843,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
             emitUsage,
             intentModelEngine,
             message: graphInput.message,
+            modelCallRecorder,
             modelResolver,
             orchestratorPlanSource,
             pendingAction: graphInput.pendingAction,

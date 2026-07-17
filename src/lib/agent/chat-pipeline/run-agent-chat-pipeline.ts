@@ -31,6 +31,7 @@ import type { ContextPreferences } from "@/lib/agent/chat-pipeline/handle-agent-
 import type { UserPreferences } from "@/lib/agent/user-preferences";
 import type { AgentTurnFinalizer } from "@/lib/agent/turn-finalizer";
 import type { AgentPromptContext } from "@/lib/agent/prompts";
+import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 import {
   createAgentStreamController,
   type AgentStreamChangeEvent,
@@ -129,6 +130,7 @@ export type RunAgentChatPipelineDeps = {
   generateIntentWithAgentModel: typeof generateIntentWithAgentModel;
   intentModelEngine: AgentEngine;
   message: string;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   payload: Payload;
   pendingAction: null | PendingAction;
   /** Performance timer (null when AGENT_PERF_TRACE≠1) */
@@ -151,6 +153,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     generateIntentWithAgentModel: modelResolver,
     intentModelEngine,
     message,
+    modelCallRecorder,
     payload,
     pendingAction,
     perfTimer = null,
@@ -751,6 +754,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           emitStatus,
           emitToken,
           message,
+          modelCallRecorder,
           payload,
           pendingAction: currentPendingAction,
           persistAgentTurn,
@@ -824,6 +828,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             emitUsage,
             intentModelEngine,
             message,
+            modelCallRecorder,
             modelResolver,
             pendingAction: currentPendingAction,
             preResolvedIntent: orchestrationResult.data.preResolvedIntent,

@@ -785,6 +785,7 @@ export const executeOrchestrationGraph = async (
       failureReason: args.failureReason,
       failureType: args.failureType,
       message,
+      modelCallRecorder: options.modelCallRecorder,
       observations: [...observations],
       originalPlan: plan,
       proposals: sortedProposals,

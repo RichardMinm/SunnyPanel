@@ -50,6 +50,7 @@ import { dispatchPreResolvedQuery } from "@/lib/agent/query/dispatcher";
 import { resolveQueryAdoption, resolveQueryRuntime } from "@/lib/agent/query/runtime-config";
 import { ConversationalAnswerStreamFailure } from "@/lib/agent/answer/errors";
 import { runConversationalAnswer } from "@/lib/agent/answer/runtime";
+import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 
 /* ──── Types ──── */
 
@@ -63,6 +64,7 @@ export type LegacyResolutionParams = {
   emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void;
   intentModelEngine: AgentEngine;
   message: string;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   modelResolver: AgentModelIntentResolver;
   orchestratorPlanSource?: null | OrchestratorPlanSource;
   pendingAction: null | PendingAction;
@@ -149,6 +151,7 @@ export const resolveLegacyHeuristicStep = async (
     emitUsage: _emitUsage,
     intentModelEngine: _intentModelEngine,
     message,
+    modelCallRecorder,
     modelResolver: _modelResolver,
     orchestratorPlanSource,
     pendingAction: _pendingAction,
@@ -178,6 +181,7 @@ export const resolveLegacyHeuristicStep = async (
       emitToken,
       intent: preResolvedIntent,
       message,
+      modelCallRecorder,
       runtime: resolveQueryRuntime(),
       stream,
     });
@@ -212,6 +216,8 @@ export const resolveLegacyHeuristicStep = async (
         history: resolvedHistory,
         intent: preResolvedIntent,
         message,
+        modelCallRecorder,
+        callScopeId: "turn-answer",
         workspaceContext: JSON.stringify(context),
         emitToken,
       });
