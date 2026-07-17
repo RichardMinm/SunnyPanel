@@ -14,6 +14,7 @@ import { orchestratorPlanToIntent } from "@/lib/agent/orchestrator";
 import type { runOrchestrator } from "@/lib/agent/orchestration/orchestrator";
 import { dispatchOrchestrator } from "@/lib/agent/orchestration/orchestrator-dispatcher";
 import { composeFixedTaskPlan } from "@/lib/agent/orchestration/fixed-task-plan-composer";
+import { validateHybridOrchestrationCandidate } from "@/lib/agent/orchestration/hybrid-candidate-validator";
 import { mapStructuredOutputToPlan } from "@/lib/agent/orchestration/orchestrator-mapper";
 import {
   buildActorAuthorizedResourceSnapshot,
@@ -128,6 +129,7 @@ export type OrchestrationStepParams = {
   }) => Promise<AgentThread>;
   pushTrace: (step: AgentTraceStep) => void;
   replanTaskFailure?: (input: ReplanInput) => Promise<ReplanResult>;
+  mapStructuredOutputToPlanFn?: typeof mapStructuredOutputToPlan;
   conversationState?: import("@/lib/agent/conversation/types").AgentConversationState | null;
   resolvedHistory?: import("@/lib/agent/schemas").AgentChatMessage[];
   resolveRouterCanaryRoutingFn?: typeof resolveRouterCanaryRouting;
@@ -138,6 +140,7 @@ export type OrchestrationStepParams = {
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { collection?: "users"; id: number };
+  validateHybridCandidateFn?: typeof validateHybridOrchestrationCandidate;
 };
 
 export type OrchestrationStepResult =
@@ -205,6 +208,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     executeRollback,
     forcedPlan,
     message,
+    mapStructuredOutputToPlanFn = mapStructuredOutputToPlan,
     payload,
     pendingAction,
     persistAgentTurn,
@@ -220,6 +224,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     tokenUsage: tokenUsageIn,
     trace,
     user,
+    validateHybridCandidateFn = validateHybridOrchestrationCandidate,
   } = params;
   let tokenUsage = tokenUsageIn;
   let hybridPlan: OrchestratorPlan | null = null;
@@ -752,7 +757,38 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           };
         }
 
-        hybridPlan = mapStructuredOutputToPlan(composed.candidate.output);
+        const candidateValidation = validateHybridCandidateFn({
+          allowedResourceIds: new Set(
+            snapshotResult.snapshot.plans.map((plan) => plan.id),
+          ),
+          authorizedSnapshot: snapshotResult.snapshot,
+          candidate: composed.candidate,
+        });
+        if (candidateValidation.status !== "valid") {
+          pushTrace({
+            detail: `code=${candidateValidation.code}`,
+            id: "hybrid-query-boundary",
+            kind: "analysis",
+            status: "error",
+            title: "复合候选验证失败",
+          });
+          return {
+            outcome: "continue",
+            data: {
+              orchestratorPlanSource: "llm",
+              preResolvedIntent: {
+                args: {
+                  question: "查询范围已经确定，但后续操作未通过安全校验。请拆开说明下一步要做什么。",
+                },
+                confidence: 1,
+                intent: "clarify",
+              },
+              tokenUsage,
+            },
+          };
+        }
+
+        hybridPlan = mapStructuredOutputToPlanFn(candidateValidation.output);
         pushTrace({
           detail: `fixed=${boundary.fixedQueryTask.intent}; residual=${residual.tasks.length}`,
           id: "hybrid-query-boundary",
