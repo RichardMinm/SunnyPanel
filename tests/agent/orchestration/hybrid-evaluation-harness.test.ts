@@ -50,7 +50,7 @@ test("the R3 harness is explicitly not the R4 path because it calls the full Orc
   assert.doesNotMatch(source, /runHybridOrchestration/);
 });
 
-test("the future live harness imports the hybrid entry and never the full Orchestrator entry", () => {
+test("the R4 live harness imports the production evaluator and never a standalone planner entry", () => {
   const path = "scripts/agent-hybrid-query-boundary-eval.mjs";
   assert.equal(
     existsSync(path),
@@ -58,8 +58,11 @@ test("the future live harness imports the hybrid entry and never the full Orches
     `R4A_RED_UNIMPLEMENTED:hybrid_live_harness:${path}`,
   );
   const source = readFileSync(path, "utf8");
-  assert.match(source, /runHybridOrchestration/);
-  assert.doesNotMatch(source, /runLangChainOrchestratorResult|runLangChainOrchestrator\(/);
+  assert.match(source, /evaluateHybridProductionCase/);
+  assert.doesNotMatch(
+    source,
+    /runHybridOrchestration|runLangChainOrchestratorResult|runLangChainOrchestrator\(|runResidualPlanner|composeFixedTaskPlan/,
+  );
 });
 
 test("the hybrid evaluator records the required counters and Boundary task ownership", async () => {

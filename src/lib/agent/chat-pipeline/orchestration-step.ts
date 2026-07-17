@@ -23,6 +23,7 @@ import {
 } from "@/lib/agent/orchestration/query-boundary-resolver";
 import { replanAfterTaskFailure, type ReplanInput, type ReplanResult } from "@/lib/agent/orchestration/replan";
 import { runResidualPlanner } from "@/lib/agent/orchestration/residual-langchain-planner";
+import type { InjectedResidualInvoke } from "@/lib/agent/orchestration/residual-langchain-planner";
 import { resolveOrchestratorRuntimeMode } from "@/lib/agent/orchestration/runtime-config";
 import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
@@ -62,6 +63,26 @@ import {
 import { resolveDeleteRecordTarget } from "../tools/delete-record";
 
 const ORCHESTRATION_MAX_TASKS_PER_RUN = 10;
+
+export type HybridOrchestrationStepObservation =
+  | Readonly<{
+      boundaryResolutionKind:
+        | "clarify"
+        | "compound"
+        | "not_applicable"
+        | "pure_query";
+      fixedQueryIntent: AgentIntent["intent"] | null;
+      fixedTaskOwnership: "deterministic_query_boundary" | null;
+      type: "boundary";
+    }>
+  | Readonly<{
+      result: "rejected" | "valid";
+      type: "candidate_validation";
+    }>
+  | Readonly<{
+      reached: true;
+      type: "mapper";
+    }>;
 
 const collectRouterCanaryResources = (
   context: BuildContextStepResult["context"],
@@ -120,6 +141,9 @@ export type OrchestrationStepParams = {
   forcedPlan?: OrchestratorPlan;
   message: string;
   modelCallRecorder?: ModelCallBudgetRecorder;
+  onHybridObservation?: (
+    observation: HybridOrchestrationStepObservation,
+  ) => void;
   payload: Payload;
   pendingAction: null | PendingAction;
   persistAgentTurn: (args: {
@@ -136,6 +160,7 @@ export type OrchestrationStepParams = {
   resolvedHistory?: import("@/lib/agent/schemas").AgentChatMessage[];
   resolveRouterCanaryRoutingFn?: typeof resolveRouterCanaryRouting;
   runOrchestratorFn?: typeof runOrchestrator;
+  residualPlannerInvoke?: InjectedResidualInvoke;
   runResidualPlannerFn?: typeof runResidualPlanner;
   stream?: AgentStreamController;
   terminalizeCompoundExecution?: boolean;
@@ -212,6 +237,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     message,
     mapStructuredOutputToPlanFn = mapStructuredOutputToPlan,
     modelCallRecorder,
+    onHybridObservation,
     payload,
     pendingAction,
     persistAgentTurn,
@@ -220,6 +246,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     conversationState = null,
     resolvedHistory = [],
     resolveRouterCanaryRoutingFn = resolveRouterCanaryRouting,
+    residualPlannerInvoke,
     runOrchestratorFn = dispatchOrchestrator,
     runResidualPlannerFn = runResidualPlanner,
     stream,
@@ -231,6 +258,15 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
   } = params;
   let tokenUsage = tokenUsageIn;
   let hybridPlan: OrchestratorPlan | null = null;
+  const recordHybridObservation = (
+    observation: HybridOrchestrationStepObservation,
+  ) => {
+    try {
+      onHybridObservation?.(observation);
+    } catch {
+      // Evaluation observation must never alter production behavior.
+    }
+  };
   const graphDryRunContext = buildOrchestrationDryRunContext({
     context,
     overrides: dryRunContextOverrides,
@@ -662,6 +698,18 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         authorizedSnapshot: snapshotResult.snapshot,
         originalRequest: message,
       });
+      recordHybridObservation({
+        boundaryResolutionKind: boundary.kind,
+        fixedQueryIntent:
+          boundary.kind === "pure_query" || boundary.kind === "compound"
+            ? boundary.fixedQueryTask.intent
+            : null,
+        fixedTaskOwnership:
+          boundary.kind === "pure_query" || boundary.kind === "compound"
+            ? boundary.fixedMetadata.ownership
+            : null,
+        type: "boundary",
+      });
 
       if (boundary.kind === "pure_query") {
         pushTrace({
@@ -707,6 +755,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       if (boundary.kind === "compound") {
         const residual = await runResidualPlannerFn({
           input: boundary.residualInput,
+          invoke: residualPlannerInvoke,
           modelCallRecorder,
           scopeId: "hybrid-query-boundary",
         });
@@ -771,6 +820,10 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           candidate: composed.candidate,
         });
         if (candidateValidation.status !== "valid") {
+          recordHybridObservation({
+            result: "rejected",
+            type: "candidate_validation",
+          });
           pushTrace({
             detail: `code=${candidateValidation.code}`,
             id: "hybrid-query-boundary",
@@ -794,7 +847,15 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           };
         }
 
+        recordHybridObservation({
+          result: "valid",
+          type: "candidate_validation",
+        });
         hybridPlan = mapStructuredOutputToPlanFn(candidateValidation.output);
+        recordHybridObservation({
+          reached: true,
+          type: "mapper",
+        });
         pushTrace({
           detail: `fixed=${boundary.fixedQueryTask.intent}; residual=${residual.tasks.length}`,
           id: "hybrid-query-boundary",

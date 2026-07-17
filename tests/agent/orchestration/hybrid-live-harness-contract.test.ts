@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import type { OrchestratorTask } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
@@ -12,7 +13,9 @@ type ProductionObservation = Readonly<{
   answerLogicalCalls: number;
   answerProviderAttempts: number;
   boundaryResolutionKind: "clarify" | "compound" | "not_applicable" | "pure_query";
+  businessMutations: number;
   candidateValidationResult: "not_called" | "rejected" | "valid";
+  databaseConnections: number;
   finalDependencies: readonly Readonly<{
     dependsOn: readonly string[];
     taskId: string;
@@ -26,10 +29,13 @@ type ProductionObservation = Readonly<{
   queryCommentaryLogicalCalls: number;
   queryCommentaryProviderAttempts: number;
   queryDispatcherDecision: "adopted" | "legacy" | "not_called";
+  replanLogicalCalls: number;
+  replanProviderAttempts: number;
   residualPlannerLogicalCalls: number;
   residualPlannerProviderAttempts: number;
   specialistLogicalCalls: number;
   specialistProviderAttempts: number;
+  taskExecutions: number;
   unexpectedDuplicateModelCalls: number;
   usableStatus: "unavailable" | "usable";
 }>;
@@ -43,8 +49,28 @@ type ProductionEvaluationModule = Readonly<{
     }>;
     context: AgentPromptContext;
     fixtureId: string;
+    fullOrchestratorAdapter?: () => Promise<Readonly<{
+      mode: "single";
+      reasoning: string;
+      source: "llm";
+      tasks: readonly Readonly<{
+        agentRole: "query";
+        args: Readonly<{ answer: string }>;
+        dependsOn: readonly string[];
+        id: string;
+        intent: "answer_question";
+        label: string;
+      }>[];
+    }>>;
     message: string;
     queryAdoption: "admin" | "off";
+    queryCommentaryAdapter?: () => Promise<Readonly<{
+      latencyMs: number;
+      modelCalls: 0;
+      reason: "provider_error";
+      status: "omitted";
+      ttftMs: null;
+    }>>;
     queryRuntime: "langchain" | "legacy";
     residualInvoke: (
       attempt: number,
@@ -69,6 +95,27 @@ const loadHarness = () => loadR4AGreenModule<ProductionEvaluationModule>(
   "hybrid_production_evaluation",
 );
 
+const omitCommentary = async () => ({
+  latencyMs: 0,
+  modelCalls: 0 as const,
+  reason: "provider_error" as const,
+  status: "omitted" as const,
+  ttftMs: null,
+});
+
+test("production evaluator owns only the real production entry and Dispatcher seams", () => {
+  const source = readFileSync(
+    "src/lib/agent/orchestration/hybrid-production-evaluation.ts",
+    "utf8",
+  );
+  assert.match(source, /runOrchestrationStep\(/);
+  assert.match(source, /dispatchPreResolvedQuery\(/);
+  assert.doesNotMatch(
+    source,
+    /runHybridOrchestration|runLangChainOrchestratorResult|runResidualPlanner\(|composeFixedTaskPlan\(/,
+  );
+});
+
 test("production harness runs pure Query through the real dispatcher adoption gate", async () => {
   const { evaluateHybridProductionCase } = await loadHarness();
 
@@ -78,6 +125,7 @@ test("production harness runs pure Query through the real dispatcher adoption ga
     fixtureId: "qry-1",
     message: "看看我的工作计划进度",
     queryAdoption: "admin",
+    queryCommentaryAdapter: omitCommentary,
     queryRuntime: "langchain",
     residualInvoke: async () => assert.fail("pure Query must not call Residual"),
   });
@@ -92,6 +140,7 @@ test("production harness runs pure Query through the real dispatcher adoption ga
     fixtureId: "qry-1-off",
     message: "看看我的工作计划进度",
     queryAdoption: "off",
+    queryCommentaryAdapter: omitCommentary,
     queryRuntime: "langchain",
     residualInvoke: async () => assert.fail("pure Query must not call Residual"),
   });
@@ -103,6 +152,7 @@ test("production harness runs pure Query through the real dispatcher adoption ga
     fixtureId: "qry-1-untrusted",
     message: "看看我的工作计划进度",
     queryAdoption: "admin",
+    queryCommentaryAdapter: omitCommentary,
     queryRuntime: "langchain",
     residualInvoke: async () => assert.fail("pure Query must not call Residual"),
   });
@@ -119,6 +169,7 @@ test("production harness routes Compound through real Composer, validator, and M
     fixtureId: "cmp-4",
     message: "检查项目进度，记录未完成的作为新任务",
     queryAdoption: "admin",
+    queryCommentaryAdapter: omitCommentary,
     queryRuntime: "langchain",
     residualInvoke: async () => {
       residualAdapterCalls += 1;
@@ -137,6 +188,11 @@ test("production harness routes Compound through real Composer, validator, and M
   assert.equal(observation.boundaryResolutionKind, "compound");
   assert.equal(observation.candidateValidationResult, "valid");
   assert.equal(observation.mapperReached, true);
+  assert.equal(
+    observation.fixedTaskOwnership,
+    "deterministic_query_boundary",
+  );
+  assert.equal(observation.fixedQueryIntent, "query_progress");
   assert.deepEqual(observation.finalTaskIntents, [
     "query_progress",
     "compose_checklist",
@@ -145,6 +201,9 @@ test("production harness routes Compound through real Composer, validator, and M
   assert.equal(observation.residualPlannerLogicalCalls, 1);
   assert.equal(observation.residualPlannerProviderAttempts, 1);
   assert.equal(observation.unexpectedDuplicateModelCalls, 0);
+  assert.equal(observation.databaseConnections, 0);
+  assert.equal(observation.businessMutations, 0);
+  assert.equal(observation.taskExecutions, 0);
 });
 
 test("production observation has complete role counters and retains no raw fixture data", async () => {
@@ -159,6 +218,7 @@ test("production observation has complete role counters and retains no raw fixtu
     fixtureId: "qry-secret",
     message: "看看我的工作计划进度",
     queryAdoption: "admin",
+    queryCommentaryAdapter: omitCommentary,
     queryRuntime: "langchain",
     residualInvoke: async () => assert.fail("pure Query must not call Residual"),
   });
@@ -174,9 +234,71 @@ test("production observation has complete role counters and retains no raw fixtu
     "answerProviderAttempts",
     "specialistLogicalCalls",
     "specialistProviderAttempts",
+    "replanLogicalCalls",
+    "replanProviderAttempts",
     "unexpectedDuplicateModelCalls",
   ] as const) {
     assert.equal(typeof observation[field], "number", field);
   }
   assert.doesNotMatch(JSON.stringify(observation), new RegExp(sentinel));
+});
+
+test("production harness keeps deterministic clarify at zero model calls", async () => {
+  const { evaluateHybridProductionCase } = await loadHarness();
+  const observation = await evaluateHybridProductionCase({
+    authenticatedActor: { collection: "users", id: 1, isAdmin: true },
+    context,
+    fixtureId: "qry-invalid",
+    message: "检查不存在的计划 999 的完成情况",
+    queryAdoption: "admin",
+    queryCommentaryAdapter: omitCommentary,
+    queryRuntime: "langchain",
+    residualInvoke: async () => assert.fail("clarify must not call Residual"),
+  });
+
+  assert.equal(observation.boundaryResolutionKind, "clarify");
+  assert.equal(observation.queryDispatcherDecision, "not_called");
+  assert.equal(observation.fullOrchestratorLogicalCalls, 0);
+  assert.equal(observation.residualPlannerLogicalCalls, 0);
+  assert.equal(observation.queryCommentaryLogicalCalls, 0);
+  assert.equal(observation.answerLogicalCalls, 0);
+  assert.equal(observation.specialistLogicalCalls, 0);
+  assert.equal(observation.unexpectedDuplicateModelCalls, 0);
+});
+
+test("not-applicable production turn uses the injected Full adapter exactly once", async () => {
+  const { evaluateHybridProductionCase } = await loadHarness();
+  let fullAdapterCalls = 0;
+  const observation = await evaluateHybridProductionCase({
+    authenticatedActor: { collection: "users", id: 1, isAdmin: true },
+    context,
+    fixtureId: "full-1",
+    fullOrchestratorAdapter: async () => {
+      fullAdapterCalls += 1;
+      return {
+        mode: "single",
+        reasoning: "回答一般问题",
+        source: "llm",
+        tasks: [{
+          agentRole: "query",
+          args: { answer: "测试回答" },
+          dependsOn: [],
+          id: "t1",
+          intent: "answer_question",
+          label: "回答问题",
+        }],
+      };
+    },
+    message: "解释一下什么是任务依赖",
+    queryAdoption: "admin",
+    queryCommentaryAdapter: omitCommentary,
+    queryRuntime: "langchain",
+    residualInvoke: async () => assert.fail("full path must not call Residual"),
+  });
+
+  assert.equal(fullAdapterCalls, 1);
+  assert.equal(observation.boundaryResolutionKind, "not_applicable");
+  assert.equal(observation.fullOrchestratorLogicalCalls, 1);
+  assert.equal(observation.residualPlannerLogicalCalls, 0);
+  assert.equal(observation.unexpectedDuplicateModelCalls, 0);
 });

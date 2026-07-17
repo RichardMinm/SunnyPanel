@@ -69,11 +69,11 @@ const validate = async (
   candidate: HybridOrchestrationCandidate,
   onValidationStep?: (step: ValidationStep) => void,
 ) => {
-  const module = await loadR4AGreenModule<CandidateValidatorModule>(
+  const candidateValidatorModule = await loadR4AGreenModule<CandidateValidatorModule>(
     R4A_GREEN_MODULES.candidateValidator,
     "hybrid_candidate_validator",
   );
-  return module.validateHybridOrchestrationCandidate({
+  return candidateValidatorModule.validateHybridOrchestrationCandidate({
     allowedResourceIds: new Set([101]),
     authorizedSnapshot: snapshot,
     candidate,

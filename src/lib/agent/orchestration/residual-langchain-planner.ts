@@ -71,7 +71,7 @@ export type ResidualPlannerResult =
       status: "unavailable";
     }>;
 
-type InjectedResidualInvoke = (
+export type InjectedResidualInvoke = (
   input: ResidualPlanningInput,
   attempt: number,
 ) => Promise<readonly OrchestratorTask[]>;

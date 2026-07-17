@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 
 /**
- * Explicit deterministic R4-A Hybrid Query Boundary harness.
+ * Explicit R4 Hybrid production-entry evaluation harness.
  *
- * This entry uses injected fakes only. It makes no Provider request, opens no
- * database connection, executes no task, and prints only sanitized evaluation
- * observations.
+ * This script is never part of default CI. It enters runOrchestrationStep,
+ * uses the real Query Dispatcher gate, and leaves Residual planning on the
+ * production adapter. Output is a sanitized enum/count projection only.
  */
 
-import { evaluateHybridQueryBoundaryCase } from "../src/lib/agent/orchestration/hybrid-query-boundary-evaluation.ts";
-import { runHybridOrchestration } from "../src/lib/agent/orchestration/hybrid-query-boundary.ts";
+import { evaluateHybridProductionCase } from "../src/lib/agent/orchestration/hybrid-production-evaluation.ts";
 
 if (process.env.AGENT_HYBRID_QUERY_BOUNDARY_EVAL !== "1") {
   throw new Error(
-    "Set AGENT_HYBRID_QUERY_BOUNDARY_EVAL=1 to run the deterministic R4-A harness.",
+    "Set AGENT_HYBRID_QUERY_BOUNDARY_EVAL=1 to run the explicit R4 Hybrid harness.",
   );
 }
 
@@ -47,43 +46,37 @@ const contextFor = (fixtureId) => ({
 });
 
 const observations = [];
-for (const [fixtureId, originalRequest] of Object.entries(fixtureMessages)) {
-  observations.push(await evaluateHybridQueryBoundaryCase({
+for (const [fixtureId, message] of Object.entries(fixtureMessages)) {
+  observations.push(await evaluateHybridProductionCase({
+    authenticatedActor: {
+      collection: "users",
+      id: 7,
+      isAdmin: true,
+    },
+    context: contextFor(fixtureId),
     fixtureId,
-    runHybridPath: () => runHybridOrchestration({
-      authenticatedActor: { collection: "users", id: 7 },
-      context: contextFor(fixtureId),
-      originalRequest,
-      orchestratorRuntime: "langchain",
-      queryAdoption: "admin",
-      queryRuntime: "langchain",
-      runFullOrchestrator: async () => {
-        throw new Error("focused R4-A fixtures must not call the full Orchestrator");
-      },
-      runQueryDispatcher: async () => "adopted",
-      runResidualPlanner: async () => ({
-        logicalCalls: 1,
-        providerAttempts: 0,
-        status: "success",
-        tasks: [{
-          agentRole: "plan",
-          args: { title: "未完成任务" },
-          dependsOn: [],
-          id: "draft-original",
-          intent: "compose_checklist",
-          label: "整理未完成任务",
-        }],
-      }),
-    }),
+    message,
+    queryAdoption: "admin",
+    queryRuntime: "langchain",
   }));
 }
 
+const sum = (field) =>
+  observations.reduce(
+    (total, observation) => total + observation[field],
+    0,
+  );
+
 process.stdout.write(`${JSON.stringify({
-  databaseMutation: 0,
+  businessMutations: sum("businessMutations"),
+  databaseConnections: sum("databaseConnections"),
   observations,
-  providerRequests: 0,
-  taskExecution: 0,
-  typedFailureCategories: observations.flatMap((observation) =>
-    observation.typedFailureCategory ? [observation.typedFailureCategory] : []
-  ),
+  providerRequests:
+    sum("fullOrchestratorProviderAttempts")
+    + sum("residualPlannerProviderAttempts")
+    + sum("queryCommentaryProviderAttempts")
+    + sum("answerProviderAttempts")
+    + sum("specialistProviderAttempts")
+    + sum("replanProviderAttempts"),
+  taskExecutions: sum("taskExecutions"),
 }, null, 2)}\n`);
