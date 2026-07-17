@@ -412,3 +412,65 @@ test("LangChain runtime deterministically clarifies an unresolved specific title
     else process.env.AGENT_ORCHESTRATOR_RUNTIME = previousRuntime;
   }
 });
+
+test("LangChain runtime composes a fixed Query with an injected residual plan before the full Orchestrator", async () => {
+  const previousRuntime = process.env.AGENT_ORCHESTRATOR_RUNTIME;
+  process.env.AGENT_ORCHESTRATOR_RUNTIME = "langchain";
+  let residualCalls = 0;
+  try {
+    const result = await runOrchestrationStep({
+      context: {
+        ...promptContext,
+        plans: [{
+          id: 101,
+          priority: "medium",
+          state: "active",
+          title: "考研数学复习计划",
+        }],
+      },
+      deferCompoundExecution: true,
+      emitStatus: () => undefined,
+      emitToken: () => undefined,
+      message: "检查项目进度，记录未完成的作为新任务",
+      payload: {} as Payload,
+      pendingAction: null,
+      persistAgentTurn: async () => assert.fail("deferred hybrid plan must not persist before graph processing"),
+      pushTrace: () => undefined,
+      runResidualPlannerFn: async ({ input }) => {
+        residualCalls += 1;
+        assert.equal(input.originalRequest, "检查项目进度，记录未完成的作为新任务");
+        return {
+          logicalCalls: 1,
+          providerAttempts: 0,
+          status: "success",
+          tasks: [{
+            agentRole: "plan",
+            args: { title: "未完成任务" },
+            dependsOn: [],
+            id: "draft-original",
+            intent: "compose_checklist",
+            label: "整理未完成任务",
+          }],
+        };
+      },
+      tokenUsage,
+      trace: [],
+      user: { id: 1 },
+    });
+
+    assert.equal(result.outcome, "compound");
+    if (result.outcome !== "compound") return;
+    assert.equal(residualCalls, 1);
+    assert.deepEqual(result.data.plan.tasks.map(({ intent }) => intent), [
+      "query_progress",
+      "compose_checklist",
+    ]);
+    assert.deepEqual(result.data.plan.tasks.map(({ dependsOn }) => dependsOn), [
+      [],
+      ["t1"],
+    ]);
+  } finally {
+    if (previousRuntime === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
+    else process.env.AGENT_ORCHESTRATOR_RUNTIME = previousRuntime;
+  }
+});

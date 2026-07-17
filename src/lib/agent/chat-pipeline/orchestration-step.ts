@@ -13,12 +13,15 @@ import { runOrchestrationSubgraph } from "@/lib/agent/langgraph/orchestration-su
 import { orchestratorPlanToIntent } from "@/lib/agent/orchestrator";
 import type { runOrchestrator } from "@/lib/agent/orchestration/orchestrator";
 import { dispatchOrchestrator } from "@/lib/agent/orchestration/orchestrator-dispatcher";
+import { composeFixedTaskPlan } from "@/lib/agent/orchestration/fixed-task-plan-composer";
+import { mapStructuredOutputToPlan } from "@/lib/agent/orchestration/orchestrator-mapper";
 import {
   buildActorAuthorizedResourceSnapshot,
   isHybridQueryBoundaryEnabled,
   resolveHybridQueryBoundary,
 } from "@/lib/agent/orchestration/query-boundary-resolver";
 import { replanAfterTaskFailure, type ReplanInput, type ReplanResult } from "@/lib/agent/orchestration/replan";
+import { runResidualPlanner } from "@/lib/agent/orchestration/residual-langchain-planner";
 import { resolveOrchestratorRuntimeMode } from "@/lib/agent/orchestration/runtime-config";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
 import { projectCompletedOrchestrationToPlan } from "@/lib/agent/orchestration/projection";
@@ -129,6 +132,7 @@ export type OrchestrationStepParams = {
   resolvedHistory?: import("@/lib/agent/schemas").AgentChatMessage[];
   resolveRouterCanaryRoutingFn?: typeof resolveRouterCanaryRouting;
   runOrchestratorFn?: typeof runOrchestrator;
+  runResidualPlannerFn?: typeof runResidualPlanner;
   stream?: AgentStreamController;
   terminalizeCompoundExecution?: boolean;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -210,6 +214,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     resolvedHistory = [],
     resolveRouterCanaryRoutingFn = resolveRouterCanaryRouting,
     runOrchestratorFn = dispatchOrchestrator,
+    runResidualPlannerFn = runResidualPlanner,
     stream,
     terminalizeCompoundExecution = false,
     tokenUsage: tokenUsageIn,
@@ -217,6 +222,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     user,
   } = params;
   let tokenUsage = tokenUsageIn;
+  let hybridPlan: OrchestratorPlan | null = null;
   const graphDryRunContext = buildOrchestrationDryRunContext({
     context,
     overrides: dryRunContextOverrides,
@@ -637,9 +643,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     && isHybridQueryBoundaryEnabled(resolveOrchestratorRuntimeMode())
   ) {
     const snapshotResult = buildActorAuthorizedResourceSnapshot({
-      authenticatedActor: user.collection === "users"
-        ? { collection: "users", id: user.id }
-        : null,
+      authenticatedActor: { collection: "users", id: user.id },
       context,
     });
 
@@ -689,6 +693,74 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           },
         };
       }
+
+      if (boundary.kind === "compound") {
+        const residual = await runResidualPlannerFn({
+          input: boundary.residualInput,
+          scopeId: "hybrid-query-boundary",
+        });
+        if (residual.status !== "success") {
+          pushTrace({
+            detail: `code=${residual.code}`,
+            id: "hybrid-query-boundary",
+            kind: "analysis",
+            status: "error",
+            title: "后续任务暂时无法可靠规划",
+          });
+          return {
+            outcome: "continue",
+            data: {
+              orchestratorPlanSource: "llm",
+              preResolvedIntent: {
+                args: {
+                  question: "查询范围已经确定，但后续操作暂时无法可靠规划。请稍后重试或单独说明要创建的内容。",
+                },
+                confidence: 1,
+                intent: "clarify",
+              },
+              tokenUsage,
+            },
+          };
+        }
+
+        const composed = composeFixedTaskPlan({
+          fixedMetadata: boundary.fixedMetadata,
+          fixedQueryTask: boundary.fixedQueryTask,
+          residualTasks: residual.tasks,
+        });
+        if (composed.status !== "success") {
+          pushTrace({
+            detail: `code=${composed.code}`,
+            id: "hybrid-query-boundary",
+            kind: "analysis",
+            status: "error",
+            title: "复合任务合同校验失败",
+          });
+          return {
+            outcome: "continue",
+            data: {
+              orchestratorPlanSource: "llm",
+              preResolvedIntent: {
+                args: {
+                  question: "查询范围已经确定，但后续操作无法组成安全任务。请拆开说明下一步要做什么。",
+                },
+                confidence: 1,
+                intent: "clarify",
+              },
+              tokenUsage,
+            },
+          };
+        }
+
+        hybridPlan = mapStructuredOutputToPlan(composed.candidate.output);
+        pushTrace({
+          detail: `fixed=${boundary.fixedQueryTask.intent}; residual=${residual.tasks.length}`,
+          id: "hybrid-query-boundary",
+          kind: "analysis",
+          status: "done",
+          title: "已组合确定性查询与后续任务",
+        });
+      }
     }
   }
 
@@ -696,7 +768,11 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
    * Only gate the DEFAULT LLM path — a custom runOrchestratorFn (e.g. test mock)
    * bypasses this check so tests can verify orchestration logic independently.
    * Pending confirmation flows (confirm/cancel) are deterministic and still proceed. */
-  if (runOrchestratorFn === dispatchOrchestrator && !pendingAction) {
+  if (
+    runOrchestratorFn === dispatchOrchestrator
+    && !pendingAction
+    && !hybridPlan
+  ) {
     /* Check both: env-var disable + actual model config presence */
     let llmUnavailable = isAgentLLMDisabled();
     if (!llmUnavailable) {
@@ -759,6 +835,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
 
   const plan =
     forcedPlan ??
+    hybridPlan ??
     (await runOrchestratorFn(message, context));
   stream?.progress({
     detail: `${plan.mode === "compound" ? "复合" : "单一"}意图 · ${plan.tasks.length} 个子任务`,
