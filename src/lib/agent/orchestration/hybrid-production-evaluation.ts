@@ -23,44 +23,20 @@ import {
   createModelCallBudgetRecorder,
   projectModelCallBudget,
 } from "./model-call-budget";
-import type { InjectedResidualInvoke } from "./residual-langchain-planner";
+import {
+  classifyHybridObservation,
+  type HybridFocusedFixtureExpectation,
+  type HybridFocusedRound,
+  type HybridLiveObservation,
+} from "./hybrid-focused-gate";
+import type {
+  InjectedResidualInvoke,
+  ResidualPlannerFailureCode,
+} from "./residual-langchain-planner";
+import type { HybridCandidateValidationErrorCode } from "./hybrid-candidate-validator";
 import type { runOrchestrator } from "./orchestrator";
 
-export type HybridProductionEvaluationObservation = Readonly<{
-  answerLogicalCalls: number;
-  answerProviderAttempts: number;
-  boundaryResolutionKind:
-    | "clarify"
-    | "compound"
-    | "not_applicable"
-    | "pure_query";
-  businessMutations: number;
-  candidateValidationResult: "not_called" | "rejected" | "valid";
-  databaseConnections: number;
-  finalDependencies: readonly Readonly<{
-    dependsOn: readonly string[];
-    taskId: string;
-  }>[];
-  finalTaskIntents: readonly string[];
-  fixedQueryIntent: string | null;
-  fixedTaskOwnership: "deterministic_query_boundary" | null;
-  fixtureId: string;
-  fullOrchestratorLogicalCalls: number;
-  fullOrchestratorProviderAttempts: number;
-  mapperReached: boolean;
-  queryCommentaryLogicalCalls: number;
-  queryCommentaryProviderAttempts: number;
-  queryDispatcherDecision: "adopted" | "legacy" | "not_called";
-  replanLogicalCalls: number;
-  replanProviderAttempts: number;
-  residualPlannerLogicalCalls: number;
-  residualPlannerProviderAttempts: number;
-  specialistLogicalCalls: number;
-  specialistProviderAttempts: number;
-  taskExecutions: number;
-  unexpectedDuplicateModelCalls: number;
-  usableStatus: "unavailable" | "usable";
-}>;
+export type HybridProductionEvaluationObservation = HybridLiveObservation;
 
 export type HybridProductionEvaluationInput = Readonly<{
   authenticatedActor: Readonly<{
@@ -68,7 +44,9 @@ export type HybridProductionEvaluationInput = Readonly<{
     id: number;
     isAdmin: boolean;
   }>;
+  clock?: () => number;
   context: AgentPromptContext;
+  expectation?: HybridFocusedFixtureExpectation;
   fixtureId: string;
   fullOrchestratorAdapter?: typeof runOrchestrator;
   message: string;
@@ -78,6 +56,8 @@ export type HybridProductionEvaluationInput = Readonly<{
   ) => Promise<QualitativeCommentaryResult>;
   queryRuntime: "langchain" | "legacy";
   residualInvoke?: InjectedResidualInvoke;
+  round?: HybridFocusedRound;
+  observationIndex?: number;
 }>;
 
 const tokenUsage = (): NonNullable<AgentChatResponse["tokenUsage"]> => ({
@@ -190,14 +170,26 @@ export const evaluateHybridProductionCase = async (
 ): Promise<HybridProductionEvaluationObservation> =>
   withFrozenRuntime(input, async () => {
     const recorder = createModelCallBudgetRecorder();
+    const clock = input.clock ?? Date.now;
     const hybridState: {
       boundaryResolutionKind:
         HybridProductionEvaluationObservation["boundaryResolutionKind"];
+      candidateFailureCode: HybridCandidateValidationErrorCode | undefined;
       candidateValidationResult:
         HybridProductionEvaluationObservation["candidateValidationResult"];
+      provenanceSource:
+        HybridProductionEvaluationObservation["provenanceSource"];
+      queryScope: HybridProductionEvaluationObservation["queryScope"];
+      residualFailureCode: ResidualPlannerFailureCode | undefined;
+      residualStatus: "not_called" | "success" | "unavailable";
     } = {
       boundaryResolutionKind: "not_applicable",
+      candidateFailureCode: undefined,
       candidateValidationResult: "not_called",
+      provenanceSource: "none",
+      queryScope: "none",
+      residualFailureCode: undefined,
+      residualStatus: "not_called",
     };
     let databaseConnections = 0;
     let businessMutations = 0;
@@ -215,8 +207,15 @@ export const evaluateHybridProductionCase = async (
           observation.boundaryResolutionKind;
         fixedQueryIntent = observation.fixedQueryIntent;
         fixedTaskOwnership = observation.fixedTaskOwnership;
+        hybridState.provenanceSource = observation.provenanceSource;
+        hybridState.queryScope = observation.queryScope;
       } else if (observation.type === "candidate_validation") {
+        hybridState.candidateFailureCode =
+          observation.code ?? undefined;
         hybridState.candidateValidationResult = observation.result;
+      } else if (observation.type === "residual_planning") {
+        hybridState.residualFailureCode = observation.code ?? undefined;
+        hybridState.residualStatus = observation.status;
       } else if (observation.type === "mapper") {
         mapperReached = observation.reached;
       }
@@ -228,92 +227,162 @@ export const evaluateHybridProductionCase = async (
       },
     });
 
-    const result = await runOrchestrationStep({
-      context: input.context,
-      deferCompoundExecution: true,
-      emitStatus: () => undefined,
-      emitToken: () => undefined,
-      executeAction: async () => {
-        taskExecutions += 1;
-        throw new Error("Hybrid evaluation forbids task execution.");
-      },
-      message: input.message,
-      modelCallRecorder: recorder,
-      onHybridObservation: observeHybrid,
-      payload,
-      pendingAction: null,
-      persistAgentTurn: async () => {
-        businessMutations += 1;
-        return { id: 0 } as AgentThread;
-      },
-      pushTrace: () => undefined,
-      residualPlannerInvoke: input.residualInvoke,
-      ...(input.fullOrchestratorAdapter
-        ? { runOrchestratorFn: input.fullOrchestratorAdapter }
-        : {}),
-      tokenUsage: tokenUsage(),
-      trace: [],
-      user: {
-        collection: input.authenticatedActor.collection,
-        id: input.authenticatedActor.id,
-      },
-    });
+    let terminalFailure = false;
+    let result: Awaited<ReturnType<typeof runOrchestrationStep>> | null =
+      null;
+    const startedAt = clock();
+    try {
+      result = await runOrchestrationStep({
+        context: input.context,
+        deferCompoundExecution: true,
+        emitStatus: () => undefined,
+        emitToken: () => undefined,
+        executeAction: async () => {
+          taskExecutions += 1;
+          throw new Error("Hybrid evaluation forbids task execution.");
+        },
+        message: input.message,
+        modelCallRecorder: recorder,
+        onHybridObservation: observeHybrid,
+        payload,
+        pendingAction: null,
+        persistAgentTurn: async () => {
+          businessMutations += 1;
+          return { id: 0 } as AgentThread;
+        },
+        pushTrace: () => undefined,
+        residualPlannerInvoke: input.residualInvoke,
+        ...(input.fullOrchestratorAdapter
+          ? { runOrchestratorFn: input.fullOrchestratorAdapter }
+          : {}),
+        tokenUsage: tokenUsage(),
+        trace: [],
+        user: {
+          collection: input.authenticatedActor.collection,
+          id: input.authenticatedActor.id,
+        },
+      });
+    } catch {
+      terminalFailure = true;
+    }
+    const completedAt = clock();
 
     let queryDispatcherDecision:
       HybridProductionEvaluationObservation["queryDispatcherDecision"] =
         "not_called";
     if (
       hybridState.boundaryResolutionKind === "pure_query"
-      && result.outcome === "continue"
-      && result.data.preResolvedIntent
+      && result?.outcome === "continue"
     ) {
-      const queryResult = await dispatchPreResolvedQuery({
-        actor: { isAdmin: input.authenticatedActor.isAdmin },
-        adoption: resolveQueryAdoption(),
-        intent: result.data.preResolvedIntent,
-        loadFacts: async (intent) => loadFixtureFacts(input.context, intent),
-        message: input.message,
-        modelCallRecorder: recorder,
-        ...(input.queryCommentaryAdapter
-          ? { runCommentary: input.queryCommentaryAdapter }
-          : {}),
-        runtime: resolveQueryRuntime(),
-      });
-      queryDispatcherDecision =
-        queryResult.outcome === "legacy" ? "legacy" : "adopted";
+      if (!result.data.preResolvedIntent) {
+        queryDispatcherDecision = "ineligible";
+      } else {
+        try {
+          const queryResult = await dispatchPreResolvedQuery({
+            actor: { isAdmin: input.authenticatedActor.isAdmin },
+            adoption: resolveQueryAdoption(),
+            intent: result.data.preResolvedIntent,
+            loadFacts: async (intent) =>
+              loadFixtureFacts(input.context, intent),
+            message: input.message,
+            modelCallRecorder: recorder,
+            ...(input.queryCommentaryAdapter
+              ? { runCommentary: input.queryCommentaryAdapter }
+              : {}),
+            runtime: resolveQueryRuntime(),
+          });
+          queryDispatcherDecision =
+            queryResult.outcome === "legacy" ? "legacy" : "adopted";
+        } catch {
+          queryDispatcherDecision = "unavailable";
+        }
+      }
     }
 
-    const finalPlan = result.outcome === "compound"
+    const finalPlan = result?.outcome === "compound"
       ? result.data.plan
       : null;
+    const finalIntent = result?.outcome === "continue"
+      ? result.data.preResolvedIntent?.intent ?? null
+      : result?.outcome === "early_exit"
+        ? result.response.intent
+        : null;
+    const finalTaskIntents = Object.freeze(
+      finalPlan
+        ? finalPlan.tasks.map((task) => task.intent)
+        : finalIntent
+          ? [finalIntent]
+          : [],
+    );
+    const finalDependencies = Object.freeze(
+      finalPlan
+        ? finalPlan.tasks.map((task) => Object.freeze({
+            dependsOn: Object.freeze([...task.dependsOn]),
+            taskId: task.id,
+          }))
+        : finalIntent
+          ? [Object.freeze({
+              dependsOn: Object.freeze([] as string[]),
+              taskId: "t1",
+            })]
+          : [],
+    );
     const accounting = projectModelCallBudget(recorder.snapshot());
-    const usableStatus =
-      result.outcome === "early_exit"
-      || hybridState.candidateValidationResult === "rejected"
-        ? "unavailable"
-        : "usable";
+    const expectation = input.expectation ?? {
+      boundaryResolutionKind:
+        hybridState.boundaryResolutionKind === "not_applicable"
+          ? "pure_query"
+          : hybridState.boundaryResolutionKind,
+      finalTaskIntents,
+    };
+    const timeout = hybridState.residualFailureCode === "timeout";
+    const providerFailure =
+      hybridState.residualFailureCode === "provider_error";
+    const classification = classifyHybridObservation({
+      boundaryResolutionKind: hybridState.boundaryResolutionKind,
+      candidateFailureCode: hybridState.candidateFailureCode,
+      candidateValidationResult: hybridState.candidateValidationResult,
+      expectation,
+      finalTaskIntents,
+      mapperReached,
+      providerFailure,
+      queryDispatcherDecision,
+      residualFailureCode: hybridState.residualFailureCode,
+      terminalFailure,
+      timeout,
+    });
 
     return Object.freeze({
       ...accounting,
       boundaryResolutionKind: hybridState.boundaryResolutionKind,
       businessMutations,
       candidateValidationResult: hybridState.candidateValidationResult,
+      databaseConnection: databaseConnections > 0,
       databaseConnections,
-      finalDependencies: Object.freeze(
-        (finalPlan?.tasks ?? []).map((task) => Object.freeze({
-          dependsOn: Object.freeze([...task.dependsOn]),
-          taskId: task.id,
-        })),
-      ),
-      finalTaskIntents: Object.freeze(
-        (finalPlan?.tasks ?? []).map((task) => task.intent),
-      ),
+      databaseMutation: businessMutations > 0,
+      failureCode: classification.failureCode,
+      finalDependencies,
+      finalTaskIntents,
       fixedQueryIntent,
       fixedTaskOwnership,
       fixtureId: sanitizeFixtureId(input.fixtureId),
+      latencyMs: Math.max(0, completedAt - startedAt),
       mapperReached,
+      observationIndex: Math.max(
+        1,
+        Math.floor(input.observationIndex ?? 1),
+      ),
+      provenanceSource: hybridState.provenanceSource,
+      providerFailure,
       queryDispatcherDecision,
+      queryScope: hybridState.queryScope,
+      rawRetentionViolation: false,
+      residualSchemaValid: classification.residualSchemaValid,
+      round: input.round ?? 1,
+      semanticMatch: classification.semanticMatch,
+      taskExecution: taskExecutions > 0,
       taskExecutions,
-      usableStatus,
+      timeout,
+      usableStatus: classification.usableStatus,
     });
   });

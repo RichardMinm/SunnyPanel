@@ -14,7 +14,10 @@ import { orchestratorPlanToIntent } from "@/lib/agent/orchestrator";
 import type { runOrchestrator } from "@/lib/agent/orchestration/orchestrator";
 import { dispatchOrchestrator } from "@/lib/agent/orchestration/orchestrator-dispatcher";
 import { composeFixedTaskPlan } from "@/lib/agent/orchestration/fixed-task-plan-composer";
-import { validateHybridOrchestrationCandidate } from "@/lib/agent/orchestration/hybrid-candidate-validator";
+import {
+  validateHybridOrchestrationCandidate,
+  type HybridCandidateValidationErrorCode,
+} from "@/lib/agent/orchestration/hybrid-candidate-validator";
 import { mapStructuredOutputToPlan } from "@/lib/agent/orchestration/orchestrator-mapper";
 import {
   buildActorAuthorizedResourceSnapshot,
@@ -23,7 +26,10 @@ import {
 } from "@/lib/agent/orchestration/query-boundary-resolver";
 import { replanAfterTaskFailure, type ReplanInput, type ReplanResult } from "@/lib/agent/orchestration/replan";
 import { runResidualPlanner } from "@/lib/agent/orchestration/residual-langchain-planner";
-import type { InjectedResidualInvoke } from "@/lib/agent/orchestration/residual-langchain-planner";
+import type {
+  InjectedResidualInvoke,
+  ResidualPlannerFailureCode,
+} from "@/lib/agent/orchestration/residual-langchain-planner";
 import { resolveOrchestratorRuntimeMode } from "@/lib/agent/orchestration/runtime-config";
 import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
@@ -73,11 +79,23 @@ export type HybridOrchestrationStepObservation =
         | "pure_query";
       fixedQueryIntent: AgentIntent["intent"] | null;
       fixedTaskOwnership: "deterministic_query_boundary" | null;
+      provenanceSource:
+        | "explicit_plan_id"
+        | "none"
+        | "resolved_exact_title"
+        | "user_unspecified";
+      queryScope: "aggregate" | "none" | "specific";
       type: "boundary";
     }>
   | Readonly<{
+      code: HybridCandidateValidationErrorCode | null;
       result: "rejected" | "valid";
       type: "candidate_validation";
+    }>
+  | Readonly<{
+      code: ResidualPlannerFailureCode | null;
+      status: "success" | "unavailable";
+      type: "residual_planning";
     }>
   | Readonly<{
       reached: true;
@@ -708,6 +726,16 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           boundary.kind === "pure_query" || boundary.kind === "compound"
             ? boundary.fixedMetadata.ownership
             : null,
+        provenanceSource:
+          boundary.kind === "pure_query" || boundary.kind === "compound"
+            ? boundary.fixedMetadata.queryScopeProvenance.source
+            : "none",
+        queryScope:
+          boundary.kind === "pure_query" || boundary.kind === "compound"
+            ? boundary.fixedMetadata.queryScopeProvenance.scope === "plan"
+              ? "specific"
+              : "aggregate"
+            : "none",
         type: "boundary",
       });
 
@@ -758,6 +786,11 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           invoke: residualPlannerInvoke,
           modelCallRecorder,
           scopeId: "hybrid-query-boundary",
+        });
+        recordHybridObservation({
+          code: residual.status === "success" ? null : residual.code,
+          status: residual.status,
+          type: "residual_planning",
         });
         if (residual.status !== "success") {
           pushTrace({
@@ -821,6 +854,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         });
         if (candidateValidation.status !== "valid") {
           recordHybridObservation({
+            code: candidateValidation.code,
             result: "rejected",
             type: "candidate_validation",
           });
@@ -848,6 +882,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         }
 
         recordHybridObservation({
+          code: null,
           result: "valid",
           type: "candidate_validation",
         });

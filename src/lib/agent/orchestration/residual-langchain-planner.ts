@@ -42,6 +42,11 @@ import { classifyIntent } from "./safety-classifier";
 
 const RESIDUAL_MAX_TASKS = 7;
 
+export const RESIDUAL_PLANNER_RETRY_POLICY = Object.freeze({
+  maxSchemaRetries: 1,
+  maxTransportRetries: 1,
+});
+
 const residualEnvelopeBaseSchema = z.object({
   version: z.literal(ORCHESTRATOR_OUTPUT_SCHEMA_VERSION),
   routingSummary: z.string().min(1).max(80),
@@ -55,7 +60,8 @@ type ResidualEnvelope = z.infer<typeof residualEnvelopeSchema>;
 export type ResidualPlannerFailureCode =
   | "forbidden_intent"
   | "provider_error"
-  | "schema_failure";
+  | "schema_failure"
+  | "timeout";
 
 export type ResidualPlannerResult =
   | Readonly<{
@@ -279,11 +285,33 @@ export const buildResidualPlannerMessages = (
 });
 
 const modelFailureCode = (code: string): ResidualPlannerFailureCode =>
-  code.includes("SCHEMA")
+  code === "MODEL_TIMEOUT"
+    ? "timeout"
+    : code.includes("SCHEMA")
   || code.includes("INVALID_RESPONSE")
   || code.includes("STRUCTURED_OUTPUT")
     ? "schema_failure"
     : "provider_error";
+
+const injectedFailureCode = (
+  error: unknown,
+): "provider_error" | "timeout" => {
+  if (
+    error instanceof DOMException
+    && error.name === "TimeoutError"
+  ) {
+    return "timeout";
+  }
+  if (
+    typeof error === "object"
+    && error !== null
+    && "code" in error
+    && error.code === "MODEL_TIMEOUT"
+  ) {
+    return "timeout";
+  }
+  return "provider_error";
+};
 
 const resolveModelConfig = async (): Promise<ModelConfig | null> => {
   try {
@@ -310,7 +338,10 @@ const runInjectedPlanner = async (
 ): Promise<ResidualPlannerResult> => {
   const maxTransportRetries = Math.max(
     0,
-    Math.floor(options.maxTransportRetries ?? 1),
+    Math.floor(
+      options.maxTransportRetries
+      ?? RESIDUAL_PLANNER_RETRY_POLICY.maxTransportRetries,
+    ),
   );
   let providerAttempts = 0;
 
@@ -328,9 +359,13 @@ const runInjectedPlanner = async (
             status: "success",
             tasks: cloneResidualTasks(tasks),
           };
-    } catch {
+    } catch (error) {
+      const failureCode = injectedFailureCode(error);
+      if (failureCode === "timeout") {
+        return unavailable(failureCode, providerAttempts);
+      }
       if (providerAttempts > maxTransportRetries) {
-        return unavailable("provider_error", providerAttempts);
+        return unavailable(failureCode, providerAttempts);
       }
     }
   }
@@ -374,8 +409,10 @@ export const runResidualPlanner = async (
   };
 
   const result = await invokeStructured({
-    maxSchemaRetries: 1,
-    maxTransportRetries: options.maxTransportRetries ?? 1,
+    maxSchemaRetries: RESIDUAL_PLANNER_RETRY_POLICY.maxSchemaRetries,
+    maxTransportRetries:
+      options.maxTransportRetries
+      ?? RESIDUAL_PLANNER_RETRY_POLICY.maxTransportRetries,
     messages: buildResidualPlannerMessages(input),
     modelConfig,
     modelFactory: options.modelFactory ?? createChatModel,
