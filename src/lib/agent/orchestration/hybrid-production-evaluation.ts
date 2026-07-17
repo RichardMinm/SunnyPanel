@@ -18,6 +18,7 @@ import { resolveQueryAdoption, resolveQueryRuntime } from "../query/runtime-conf
 import type { QueryFacts } from "../query/types";
 import type { AgentPromptContext } from "../prompts";
 import type { AgentChatResponse } from "../schemas";
+import type { ModelConfig } from "../llm/model-config";
 import type { AgentThread } from "@/payload-types";
 import {
   createModelCallBudgetRecorder,
@@ -56,6 +57,7 @@ export type HybridProductionEvaluationInput = Readonly<{
   ) => Promise<QualitativeCommentaryResult>;
   queryRuntime: "langchain" | "legacy";
   residualInvoke?: InjectedResidualInvoke;
+  residualModelConfig?: ModelConfig;
   round?: HybridFocusedRound;
   observationIndex?: number;
 }>;
@@ -252,6 +254,7 @@ export const evaluateHybridProductionCase = async (
         },
         pushTrace: () => undefined,
         residualPlannerInvoke: input.residualInvoke,
+        residualPlannerModelConfig: input.residualModelConfig,
         ...(input.fullOrchestratorAdapter
           ? { runOrchestratorFn: input.fullOrchestratorAdapter }
           : {}),

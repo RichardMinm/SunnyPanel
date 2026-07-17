@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
@@ -114,6 +115,45 @@ test("production evaluator owns only the real production entry and Dispatcher se
     source,
     /runHybridOrchestration|runLangChainOrchestratorResult|runResidualPlanner\(|composeFixedTaskPlan\(/,
   );
+});
+
+test("explicit Hybrid script fails closed before imports without live approval", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      "scripts/agent-hybrid-query-boundary-eval.mjs",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        NODE_ENV: "test",
+        PATH: process.env.PATH ?? "",
+      },
+    },
+  );
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, "");
+  assert.deepEqual(JSON.parse(result.stdout.trim()), {
+    errorCode: "MISSING_AGENT_HYBRID_QUERY_BOUNDARY_EVAL",
+    passed: false,
+  });
+});
+
+test("explicit Hybrid script freezes approval, clean HEAD, /tmp report, and failed-gate exit", () => {
+  const source = readFileSync(
+    "scripts/agent-hybrid-query-boundary-eval.mjs",
+    "utf8",
+  );
+  assert.match(source, /L3B_HYBRID_PROVIDER_DATA_APPROVED/);
+  assert.match(source, /L3B_HYBRID_GATE_ACCEPTED_HEAD/);
+  assert.match(source, /DATABASE_URL_MUST_BE_UNSET/);
+  assert.match(source, /runHybridFocusedGate/);
+  assert.match(source, /writeHybridFocusedGateReport/);
+  assert.match(source, /if \(!summary\.passed\) process\.exitCode = 1/);
+  assert.doesNotMatch(source, /Targeted\s*15|Fresh\s*99/);
 });
 
 test("production harness runs pure Query through the real dispatcher adoption gate", async () => {

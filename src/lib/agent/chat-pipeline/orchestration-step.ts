@@ -54,6 +54,7 @@ import type {
 import type { AutoApprovalContext } from "@/lib/agent/safety";
 import type { AgentToolDryRunContext } from "@/lib/agent/tool-registry";
 import type { StreamTokenCallback } from "@/lib/agent/client";
+import type { ModelConfig } from "@/lib/agent/llm/model-config";
 import { isAgentLLMDisabled } from "@/lib/agent/llm-required";
 import { resolveRouterCanaryRouting } from "@/lib/agent/router/router-canary";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
@@ -179,6 +180,7 @@ export type OrchestrationStepParams = {
   resolveRouterCanaryRoutingFn?: typeof resolveRouterCanaryRouting;
   runOrchestratorFn?: typeof runOrchestrator;
   residualPlannerInvoke?: InjectedResidualInvoke;
+  residualPlannerModelConfig?: ModelConfig;
   runResidualPlannerFn?: typeof runResidualPlanner;
   stream?: AgentStreamController;
   terminalizeCompoundExecution?: boolean;
@@ -265,6 +267,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     resolvedHistory = [],
     resolveRouterCanaryRoutingFn = resolveRouterCanaryRouting,
     residualPlannerInvoke,
+    residualPlannerModelConfig,
     runOrchestratorFn = dispatchOrchestrator,
     runResidualPlannerFn = runResidualPlanner,
     stream,
@@ -785,6 +788,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           input: boundary.residualInput,
           invoke: residualPlannerInvoke,
           modelCallRecorder,
+          modelConfig: residualPlannerModelConfig,
           scopeId: "hybrid-query-boundary",
         });
         recordHybridObservation({
