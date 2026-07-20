@@ -13,6 +13,9 @@ import {
 } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
 import { ROUTER_INTENT_NAMES } from "../../../src/lib/agent/llm/schemas/router-output";
 import {
+  ORCHESTRATOR_EXPLICIT_GOAL_CLASSIFICATION_STEP,
+} from "../../../src/lib/agent/orchestration/orchestrator-intent-family-protocol";
+import {
   buildLangChainOrchestratorMessages,
   buildLangChainSystemPrompt,
   runLangChainOrchestratorResult,
@@ -139,7 +142,10 @@ describe("langchain-orchestrator protocol", () => {
 
     assert.match(prompt, /1\. 识别用户请求中所有明确目标/);
     assert.match(prompt, /2\. 将每个目标分类为只读或状态改变候选/);
-    assert.match(prompt, /3\. 把可以独立表示、共同必需或相互依赖的目标拆成任务/);
+    assert.equal(
+      prompt.includes(`3. ${ORCHESTRATOR_EXPLICIT_GOAL_CLASSIFICATION_STEP}`),
+      true,
+    );
     assert.match(prompt, /4\. 根据任务数量与依赖关系判断 single 或 compound/);
     assert.match(prompt, /5\. 对每个写入候选区分 existing-target mutation 与 new-resource task dependency/);
     assert.match(prompt, /6\. 检查是否缺少会阻止安全且明确草案的信息/);
@@ -158,12 +164,12 @@ describe("langchain-orchestrator protocol", () => {
     assert.equal(L3B_EVALUATION_CONFIG.evaluationConfigVersion, "l3b-r2-provider-protocol-v1");
     assert.equal(
       L3B_EVALUATION_CONFIG.promptProtocolVersion,
-      "l3b-resource-reference-contract-v1",
+      "l3b-query-scope-precedence-contract-v1",
     );
     assert.equal(L3B_EVALUATION_CONFIG.resourceProtocolVersion, 3);
     assert.equal(
       L3B_EVALUATION_CONFIG_HASH,
-      "aadf679dba45e95643d946f259d522fd7f66f36d632112a9d53060ebd5cbabec",
+      "4d50c829aa5dc290acfdbed050a8be36359a83ff7c299b8da9754e657a651405",
     );
   });
 

@@ -68,6 +68,42 @@ test("maps a question-only orchestrator task to a missing-answer intent", () => 
   }
 });
 
+test("canonical consultation maps to the one-call Answer role", async () => {
+  const recorder = createModelCallBudgetRecorder();
+  const intent = orchestratorPlanToIntent({
+    mode: "single",
+    reasoning: "咨询",
+    source: "llm",
+    tasks: [{
+      agentRole: "query",
+      args: { question: "什么是零信任？" },
+      dependsOn: [],
+      id: "t1",
+      intent: "answer_question",
+      label: "回答问题",
+    }],
+  });
+  assert.equal(intent?.intent, "answer_question");
+  if (!intent || intent.intent !== "answer_question") return;
+
+  const result = await runConversationalAnswer({
+    callScopeId: "cons-1:1",
+    intent,
+    message: "什么是零信任？",
+    modelCallRecorder: recorder,
+    model: fakeModel([
+      new AIMessageChunk({ content: "零信任强调持续验证。" }),
+    ]),
+    timeouts: { firstTokenMs: 100, totalMs: 200 },
+  });
+
+  assert.equal(result.status, "complete");
+  const snapshot = recorder.snapshot();
+  assert.equal(snapshot.answerLogicalCalls, 1);
+  assert.equal(snapshot.answerProviderAttempts, 1);
+  assert.equal(snapshot.unexpectedDuplicateModelCalls, 0);
+});
+
 test("reuses a complete orchestrator answer with zero model calls", async () => {
   const emitted: string[] = [];
   const calls = { value: 0 };
@@ -104,9 +140,12 @@ test("uses one model call when the orchestrator answer is missing", async () => 
     timeouts: { firstTokenMs: 100, totalMs: 200 },
   });
 
+  const snapshot = recorder.snapshot();
   assert.equal(calls.value, 1);
-  assert.equal(recorder.snapshot().answerLogicalCalls, 1);
-  assert.equal(recorder.snapshot().answerProviderAttempts, 1);
+  assert.equal(snapshot.answerLogicalCalls, 1);
+  assert.equal(snapshot.answerProviderAttempts, 1);
+  assert.equal(snapshot.orchestratorLogicalCalls, 0);
+  assert.equal(snapshot.unexpectedDuplicateModelCalls, 0);
   assert.deepEqual(emitted, ["零信任强调持续验证", "，不默认信任任何请求。"]);
   assert.deepEqual(result, {
     answer: "零信任强调持续验证，不默认信任任何请求。",

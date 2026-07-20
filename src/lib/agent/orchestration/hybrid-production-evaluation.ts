@@ -17,12 +17,15 @@ import { dispatchPreResolvedQuery } from "../query/dispatcher";
 import { resolveQueryAdoption, resolveQueryRuntime } from "../query/runtime-config";
 import type { QueryFacts } from "../query/types";
 import type { AgentPromptContext } from "../prompts";
-import type { AgentChatResponse } from "../schemas";
+import type { AgentChatResponse, AgentIntent } from "../schemas";
 import type { ModelConfig } from "../llm/model-config";
+import type { SafeAnswerErrorCode } from "../answer/types";
 import type { AgentThread } from "@/payload-types";
 import {
   createModelCallBudgetRecorder,
   projectModelCallBudget,
+  type ModelCallBudgetProjection,
+  type ModelCallBudgetRecorder,
 } from "./model-call-budget";
 import {
   classifyHybridObservation,
@@ -37,6 +40,89 @@ import type {
 } from "./residual-langchain-planner";
 import type { HybridCandidateValidationErrorCode } from "./hybrid-candidate-validator";
 import type { runOrchestrator } from "./orchestrator";
+import type { L3BEvaluationFixture } from "./l3b-evaluation-fixtures";
+import type { OrchestratorFailureReason } from "./langchain-orchestrator";
+import {
+  createProductionResidualObserver,
+  emptyProductionAnswerEvidence,
+  type ProductionAnswerAdapter,
+  type ProductionAnswerRoleEvidence,
+  type ProductionFullAdapter,
+  type ProductionResidualObserver,
+  type ProductionRoleEvidence,
+} from "./l3b-production-gate-model-adapters";
+
+export type { ProductionRoleEvidence } from "./l3b-production-gate-model-adapters";
+
+export type ProductionBranchKind =
+  | "consultation_preflight"
+  | "deterministic_clarify"
+  | "full_orchestrator"
+  | "hybrid_compound"
+  | "pure_query"
+  | "unavailable";
+
+export type ProductionGateFailureCode =
+  | `answer_${SafeAnswerErrorCode}`
+  | `full_${OrchestratorFailureReason}`
+  | `residual_${ResidualPlannerFailureCode}`
+  | "answer_incomplete"
+  | "answer_unavailable"
+  | "hybrid_candidate_unavailable"
+  | "invalid_dag"
+  | "query_dispatch_not_adopted"
+  | "query_dispatch_unavailable"
+  | "semantic_mismatch"
+  | "terminal_failure"
+  | "unsafe_side_effect";
+
+export type ProductionGateObservation = Readonly<{
+  fixtureId: string;
+  round: 1 | 2 | 3;
+  observationIndex: number;
+  branchKind: ProductionBranchKind;
+  finalMode: "compound" | "single" | null;
+  finalTaskIntents: readonly string[];
+  finalDependencies: readonly Readonly<{
+    taskId: string;
+    dependsOn: readonly string[];
+  }>[];
+  clarifyQuestionPresent: boolean;
+  semanticMatch: boolean;
+  usable: boolean;
+  failureCodes: readonly ProductionGateFailureCode[];
+  callAccounting: ModelCallBudgetProjection;
+  roleEvidence: ProductionRoleEvidence;
+  latencyMs: number;
+  taskExecutions: number;
+  taskExecutionAttempts: number;
+  databaseConnections: number;
+  databaseAccessAttempts: number;
+  databaseMutationAttempts: number;
+  draftPathsReached: number;
+  businessMutations: number;
+  businessMutationAttempts: number;
+  rawRetentionViolation: boolean;
+  writeWithoutDraftViolations: number;
+}>;
+
+export type ProductionGateEvaluationInput = Readonly<{
+  answerAdapter: ProductionAnswerAdapter;
+  authenticatedActor: Readonly<{
+    collection: "users";
+    id: number;
+    isAdmin: boolean;
+  }>;
+  clock?: () => number;
+  fixture: L3BEvaluationFixture;
+  fullOrchestratorAdapter: ProductionFullAdapter;
+  modelCallRecorder: ModelCallBudgetRecorder;
+  observationIndex?: number;
+  residualInvoke?: InjectedResidualInvoke;
+  residualModelConfig?: ModelConfig;
+  residualPlannerProviderAttemptObserver?: ProductionResidualObserver;
+  round?: 1 | 2 | 3;
+}>;
 
 export type HybridProductionEvaluationObservation = HybridLiveObservation;
 
@@ -393,5 +479,385 @@ export const evaluateHybridProductionCase = async (
       taskExecutions,
       timeout,
       usableStatus: classification.usableStatus,
+    });
+  });
+
+const omitProductionQueryCommentary =
+  async (): Promise<QualitativeCommentaryResult> => ({
+    latencyMs: 0,
+    modelCalls: 0,
+    reason: "provider_error",
+    status: "omitted",
+    ttftMs: null,
+  });
+
+const withProductionGateRuntime = async <T>(
+  run: () => Promise<T>,
+): Promise<T> => {
+  const names = [
+    "AGENT_ORCHESTRATOR_RUNTIME",
+    "AGENT_QUERY_ADOPTION",
+    "AGENT_QUERY_RUNTIME",
+  ] as const;
+  const previous = Object.fromEntries(
+    names.map((name) => [name, process.env[name]]),
+  );
+  process.env.AGENT_ORCHESTRATOR_RUNTIME = "langchain";
+  process.env.AGENT_QUERY_ADOPTION = "admin";
+  process.env.AGENT_QUERY_RUNTIME = "langchain";
+  try {
+    return await run();
+  } finally {
+    for (const name of names) {
+      const value = previous[name];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+};
+
+const hasValidDependencyGraph = (
+  dependencies: readonly Readonly<{
+    dependsOn: readonly string[];
+    taskId: string;
+  }>[],
+): boolean => {
+  const ids = new Set(dependencies.map((entry) => entry.taskId));
+  if (ids.size !== dependencies.length) return false;
+  if (dependencies.some((entry) =>
+    entry.dependsOn.some((dependency) =>
+      dependency === entry.taskId || !ids.has(dependency)
+    )
+  )) return false;
+
+  const byId = new Map(
+    dependencies.map((entry) => [entry.taskId, entry.dependsOn] as const),
+  );
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (taskId: string): boolean => {
+    if (visiting.has(taskId)) return false;
+    if (visited.has(taskId)) return true;
+    visiting.add(taskId);
+    for (const dependency of byId.get(taskId) ?? []) {
+      if (!visit(dependency)) return false;
+    }
+    visiting.delete(taskId);
+    visited.add(taskId);
+    return true;
+  };
+  return [...ids].every(visit);
+};
+
+const matchesFixtureExpectation = (
+  fixture: L3BEvaluationFixture,
+  finalMode: ProductionGateObservation["finalMode"],
+  finalTaskIntents: readonly string[],
+  clarifyQuestionPresent: boolean,
+  dagValid: boolean,
+): boolean => {
+  if (finalMode !== fixture.expected.mode || !dagValid) return false;
+  const intentsMatch = fixture.expected.mode === "compound"
+    ? finalTaskIntents.length === fixture.expected.intents.length
+      && finalTaskIntents.every(
+        (intent, index) => intent === fixture.expected.intents[index],
+      )
+    : finalTaskIntents.length === 1
+      && fixture.expected.intents.includes(finalTaskIntents[0] ?? "");
+  if (!intentsMatch) return false;
+  return finalTaskIntents[0] !== "clarify" || clarifyQuestionPresent;
+};
+
+const answerFailureEvidence = (): ProductionAnswerRoleEvidence =>
+  Object.freeze({
+    ...emptyProductionAnswerEvidence(),
+    failureCode: "provider_error",
+    status: "unavailable",
+  });
+
+/**
+ * Evaluate one frozen L3-B fixture through the same top-level orchestration
+ * step used by production. Compound execution and every mutation surface are
+ * replaced with fail-fast sentinels.
+ */
+export const evaluateProductionGateCase = async (
+  input: ProductionGateEvaluationInput,
+): Promise<ProductionGateObservation> =>
+  withProductionGateRuntime(async () => {
+    const clock = input.clock ?? Date.now;
+    const recorder = input.modelCallRecorder;
+    const residualObserver = input.residualPlannerProviderAttemptObserver
+      ?? createProductionResidualObserver({ observe: () => undefined });
+    let boundaryResolutionKind:
+      | "clarify"
+      | "compound"
+      | "not_applicable"
+      | "pure_query"
+      | null = null;
+    const gateState: {
+      candidateValidationResult: "not_called" | "rejected" | "valid";
+      residualFailureCode: ResidualPlannerFailureCode | null;
+      residualRejectionReason: ResidualRejectionReason | null;
+      residualStatus: "not_called" | "success" | "unavailable";
+    } = {
+      candidateValidationResult: "not_called",
+      residualFailureCode: null,
+      residualRejectionReason: null,
+      residualStatus: "not_called",
+    };
+    let mapperReached = false;
+    let databaseConnections = 0;
+    let businessMutations = 0;
+    let taskExecutions = 0;
+    let terminalFailure = false;
+    let queryDispatcherDecision:
+      | "complete"
+      | "not_called"
+      | "not_adopted"
+      | "unavailable" = "not_called";
+
+    const payload = new Proxy({} as Payload, {
+      get: () => {
+        databaseConnections += 1;
+        throw new Error("Production gate forbids database access.");
+      },
+    });
+    const startedAt = clock();
+    let result: Awaited<ReturnType<typeof runOrchestrationStep>> | null = null;
+    try {
+      result = await runOrchestrationStep({
+        context: input.fixture.context,
+        deferCompoundExecution: true,
+        emitStatus: () => undefined,
+        emitToken: () => undefined,
+        executeAction: async () => {
+          taskExecutions += 1;
+          throw new Error("Production gate forbids task execution.");
+        },
+        hybridBoundaryMode: "runtime",
+        message: input.fixture.message,
+        modelCallRecorder: recorder,
+        onHybridObservation: (observation) => {
+          if (observation.type === "boundary") {
+            boundaryResolutionKind = observation.boundaryResolutionKind;
+          } else if (observation.type === "candidate_validation") {
+            gateState.candidateValidationResult = observation.result;
+          } else if (observation.type === "mapper") {
+            mapperReached = observation.reached;
+          } else if (observation.type === "residual_planning") {
+            gateState.residualFailureCode = observation.code;
+            gateState.residualRejectionReason = observation.rejectionReason;
+            gateState.residualStatus = observation.status;
+          }
+        },
+        payload,
+        pendingAction: null,
+        persistAgentTurn: async () => {
+          businessMutations += 1;
+          throw new Error("Production gate forbids persistence.");
+        },
+        pushTrace: () => undefined,
+        residualPlannerInvoke: input.residualInvoke,
+        residualPlannerModelConfig: input.residualModelConfig,
+        residualPlannerProviderAttemptObserver: residualObserver,
+        runOrchestratorFn: input.fullOrchestratorAdapter,
+        tokenUsage: tokenUsage(),
+        trace: [],
+        user: {
+          collection: input.authenticatedActor.collection,
+          id: input.authenticatedActor.id,
+        },
+      });
+    } catch {
+      terminalFailure = true;
+    }
+
+    const preResolvedIntent: AgentIntent | null =
+      result?.outcome === "continue"
+        ? result.data.preResolvedIntent
+        : null;
+    if (
+      boundaryResolutionKind === "pure_query"
+      && preResolvedIntent
+    ) {
+      try {
+        const queryResult = await dispatchPreResolvedQuery({
+          actor: { isAdmin: input.authenticatedActor.isAdmin },
+          adoption: resolveQueryAdoption(),
+          intent: preResolvedIntent,
+          loadFacts: async (intent) =>
+            loadFixtureFacts(input.fixture.context, intent),
+          message: input.fixture.message,
+          modelCallRecorder: recorder,
+          runCommentary: omitProductionQueryCommentary,
+          runtime: resolveQueryRuntime(),
+        });
+        queryDispatcherDecision = queryResult.outcome === "complete"
+          ? "complete"
+          : "not_adopted";
+      } catch {
+        queryDispatcherDecision = "unavailable";
+      }
+    }
+
+    let answerEvidence = emptyProductionAnswerEvidence();
+    if (preResolvedIntent?.intent === "answer_question") {
+      try {
+        answerEvidence = await input.answerAdapter({
+          context: input.fixture.context,
+          intent: preResolvedIntent,
+          message: input.fixture.message,
+          scopeId: `${sanitizeFixtureId(input.fixture.id)}:${input.round ?? 1}:answer`,
+        });
+      } catch {
+        answerEvidence = answerFailureEvidence();
+      }
+    }
+
+    const fullEvidence = input.fullOrchestratorAdapter.getRoleEvidence();
+    const hideSafeFullFailureProjection = fullEvidence.status === "unavailable";
+    const finalPlan = !hideSafeFullFailureProjection
+      && result?.outcome === "compound"
+      ? result.data.plan
+      : null;
+    const finalIntent = hideSafeFullFailureProjection
+      ? null
+      : result?.outcome === "continue"
+        ? result.data.preResolvedIntent
+        : null;
+    const finalMode: ProductionGateObservation["finalMode"] = finalPlan
+      ? "compound"
+      : finalIntent
+        ? "single"
+        : null;
+    const finalTaskIntents = Object.freeze(
+      finalPlan
+        ? finalPlan.tasks.map((task) => task.intent)
+        : finalIntent
+          ? [finalIntent.intent]
+          : [],
+    );
+    const finalDependencies = Object.freeze(
+      finalPlan
+        ? finalPlan.tasks.map((task) => Object.freeze({
+            dependsOn: Object.freeze([...task.dependsOn]),
+            taskId: task.id,
+          }))
+        : finalIntent
+          ? [Object.freeze({
+              dependsOn: Object.freeze([] as string[]),
+              taskId: "t1",
+            })]
+          : [],
+    );
+    const clarifyQuestionPresent = finalIntent?.intent === "clarify"
+      && typeof finalIntent.args.question === "string"
+      && finalIntent.args.question.trim().length > 0;
+    const dagValid = hasValidDependencyGraph(finalDependencies);
+    const semanticMatch = matchesFixtureExpectation(
+      input.fixture,
+      finalMode,
+      finalTaskIntents,
+      clarifyQuestionPresent,
+      dagValid,
+    );
+    const branchKind: ProductionBranchKind = terminalFailure
+      || fullEvidence.status === "unavailable"
+      ? "unavailable"
+      : boundaryResolutionKind === "pure_query"
+        ? "pure_query"
+        : boundaryResolutionKind === "clarify"
+          ? "deterministic_clarify"
+          : boundaryResolutionKind === "compound"
+            ? "hybrid_compound"
+            : finalIntent?.intent === "answer_question"
+              ? "consultation_preflight"
+              : boundaryResolutionKind === "not_applicable"
+                ? "full_orchestrator"
+                : "unavailable";
+    const failureCodes: ProductionGateFailureCode[] = [];
+    if (fullEvidence.failureCode) {
+      failureCodes.push(`full_${fullEvidence.failureCode}`);
+    }
+    if (gateState.residualFailureCode) {
+      failureCodes.push(`residual_${gateState.residualFailureCode}`);
+    }
+    if (answerEvidence.status === "incomplete") {
+      failureCodes.push("answer_incomplete");
+    } else if (answerEvidence.status === "unavailable") {
+      failureCodes.push("answer_unavailable");
+    }
+    if (answerEvidence.failureCode) {
+      failureCodes.push(`answer_${answerEvidence.failureCode}`);
+    }
+    if (queryDispatcherDecision === "not_adopted") {
+      failureCodes.push("query_dispatch_not_adopted");
+    } else if (queryDispatcherDecision === "unavailable") {
+      failureCodes.push("query_dispatch_unavailable");
+    }
+    if (gateState.candidateValidationResult === "rejected") {
+      failureCodes.push("hybrid_candidate_unavailable");
+    }
+    if (!dagValid) failureCodes.push("invalid_dag");
+    if (terminalFailure) failureCodes.push("terminal_failure");
+    if (!semanticMatch) failureCodes.push("semantic_mismatch");
+    if (
+      taskExecutions > 0
+      || databaseConnections > 0
+      || businessMutations > 0
+    ) {
+      failureCodes.push("unsafe_side_effect");
+    }
+    const branchRoleUsable = branchKind === "pure_query"
+      ? queryDispatcherDecision === "complete"
+      : finalTaskIntents[0] === "answer_question"
+        ? answerEvidence.status === "complete"
+        : branchKind === "hybrid_compound"
+          ? gateState.residualStatus === "success"
+            && gateState.candidateValidationResult === "valid"
+            && mapperReached
+          : branchKind !== "unavailable";
+    const completedAt = clock();
+
+    return Object.freeze({
+      branchKind,
+      businessMutationAttempts: businessMutations,
+      businessMutations,
+      callAccounting: projectModelCallBudget(recorder.snapshot()),
+      clarifyQuestionPresent,
+      databaseAccessAttempts: databaseConnections,
+      databaseConnections,
+      databaseMutationAttempts: 0,
+      draftPathsReached: 0,
+      failureCodes: Object.freeze([...new Set(failureCodes)]),
+      finalDependencies,
+      finalMode,
+      finalTaskIntents,
+      fixtureId: sanitizeFixtureId(input.fixture.id),
+      latencyMs: Math.max(0, completedAt - startedAt),
+      observationIndex: Math.max(
+        1,
+        Math.floor(input.observationIndex ?? 1),
+      ),
+      rawRetentionViolation: false,
+      roleEvidence: Object.freeze({
+        answerRenderer: answerEvidence,
+        fullOrchestrator: fullEvidence,
+        queryCommentary: "omitted",
+        residualPlanner: Object.freeze({
+          ...residualObserver.getRoleEvidence(),
+          failureCode: gateState.residualFailureCode,
+          rejectionReason: gateState.residualRejectionReason,
+          status: gateState.residualStatus,
+        }),
+      }),
+      round: input.round ?? 1,
+      semanticMatch,
+      taskExecutionAttempts: taskExecutions,
+      taskExecutions,
+      usable: semanticMatch
+        && branchRoleUsable
+        && failureCodes.length === 0,
+      writeWithoutDraftViolations: 0,
     });
   });

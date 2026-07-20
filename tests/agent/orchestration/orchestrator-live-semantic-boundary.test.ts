@@ -1,0 +1,314 @@
+import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
+import { test } from "node:test";
+
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { AIMessageChunk } from "@langchain/core/messages";
+
+import { runConversationalAnswer } from "../../../src/lib/agent/answer/runtime";
+import type { ModelFactory } from "../../../src/lib/agent/llm/model-factory";
+import type { OrchestratorOutput } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
+import {
+  L3B_EVALUATION_FIXTURES,
+} from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
+import {
+  runLangChainOrchestratorResult,
+} from "../../../src/lib/agent/orchestration/langchain-orchestrator";
+import { createModelCallBudgetRecorder } from "../../../src/lib/agent/orchestration/model-call-budget";
+import { orchestratorPlanToIntent } from "../../../src/lib/agent/orchestration/orchestrator-plan-to-intent";
+
+const modelConfig = {
+  apiKey: "test-only",
+  baseURL: "https://example.invalid",
+  maxRetries: 0,
+  model: "fake",
+  provider: "deepseek",
+  structuredOutputMode: "provider_default",
+  temperature: 0,
+  timeoutMs: 100,
+} as const;
+
+const fakeFactory = (output: OrchestratorOutput): ModelFactory => () => ({
+  withConfig: () => ({
+    invoke: async () => ({ content: JSON.stringify(output) }),
+  }),
+}) as unknown as BaseChatModel;
+
+const fakeAnswerModel = (answer: string): BaseChatModel => ({
+  stream: async () => (async function* () {
+    yield new AIMessageChunk({ content: answer });
+  })(),
+}) as unknown as BaseChatModel;
+
+const fixture = (id: string) => {
+  const found = L3B_EVALUATION_FIXTURES.find((candidate) => candidate.id === id);
+  assert.ok(found, id);
+  return found;
+};
+
+const task = (
+  id: string,
+  intent: string,
+  args: Record<string, unknown>,
+  dependsOn: string[] = [],
+) => ({
+  agentRole: intent.startsWith("query_") ? "query" : "plan",
+  args,
+  dependsOn,
+  id,
+  intent,
+  label: intent,
+});
+
+const clarifyTask = (question: string) => ({
+  agentRole: "plan",
+  args: { question },
+  dependsOn: [],
+  id: "t1",
+  intent: "clarify",
+  label: "clarify",
+});
+
+const output = (
+  decisionCode: OrchestratorOutput["decisionCode"],
+  mode: OrchestratorOutput["mode"],
+  tasks: ReturnType<typeof task>[],
+): OrchestratorOutput => ({
+  decisionCode,
+  mode,
+  routingSummary: "sanitized regression",
+  tasks,
+  version: 2,
+}) as OrchestratorOutput;
+
+const run = (fixtureId: string, decision: OrchestratorOutput) => {
+  const selected = fixture(fixtureId);
+  return runLangChainOrchestratorResult({
+    context: selected.context,
+    message: selected.message,
+    modelConfig,
+    modelFactory: fakeFactory(decision),
+    structuredRetryBudget: { schema: 0, transport: 0 },
+  });
+};
+
+test("rejects the four observed non-canonical consultation aliases", async () => {
+  for (const [fixtureId, intent] of [
+    ["cons-1", "explain_concept"],
+    ["cons-3", "give_learning_path"],
+    ["cons-4", "explain_concept"],
+    ["cons-5", "explain_concept"],
+  ] as const) {
+    const result = await run(
+      fixtureId,
+      output("pure_consultation", "single", [
+        task("t1", intent, {}),
+      ]),
+    );
+
+    assert.equal(result.status, "unavailable", fixtureId);
+    if (result.status !== "unavailable") continue;
+    assert.equal(result.reason, "invalid_decision_consistency", fixtureId);
+    assert.equal(
+      result.decisionConsistencyError,
+      "consultation_intent_mismatch",
+      fixtureId,
+    );
+  }
+});
+
+test("rejects untrusted specific-plan reads in qry-4, wrt-1, and exr-3", async () => {
+  const qry4 = await run(
+    "qry-4",
+    output("pure_read_query", "single", [
+      task("t1", "query_plan_progress", { planId: 101 }),
+    ]),
+  );
+  assert.equal(qry4.status, "unavailable");
+  if (qry4.status === "unavailable") {
+    assert.equal(qry4.reason, "invalid_query_scope");
+    assert.equal(
+      qry4.queryScopeErrorCode,
+      "provider_selected_workspace_resource",
+    );
+  }
+
+  const wrt1 = await run(
+    "wrt-1",
+    output("compound_ready", "compound", [
+      task("t1", "query_plan_progress", {}),
+      task("t2", "compose_plan", {}, ["t1"]),
+    ]),
+  );
+  assert.equal(wrt1.status, "unavailable");
+  if (wrt1.status === "unavailable") {
+    assert.equal(wrt1.reason, "invalid_query_scope");
+    assert.equal(wrt1.queryScopeErrorCode, "specific_reference_required");
+  }
+
+  const exr3 = await run(
+    "exr-3",
+    output("pure_read_query", "single", [
+      task("t1", "query_plan_progress", {}),
+    ]),
+  );
+  assert.equal(exr3.status, "unavailable");
+  if (exr3.status === "unavailable") {
+    assert.equal(exr3.reason, "invalid_query_scope");
+    assert.equal(exr3.queryScopeErrorCode, "specific_reference_required");
+  }
+});
+
+test("rejects wrt-2 one-task compound deterministically", async () => {
+  const result = await run(
+    "wrt-2",
+    output("compound_ready", "compound", [
+      task("t1", "compose_checklist", {}),
+    ]),
+  );
+
+  assert.equal(result.status, "unavailable");
+  if (result.status !== "unavailable") return;
+  assert.equal(result.reason, "invalid_decision_consistency");
+  assert.equal(
+    result.decisionConsistencyError,
+    "compound_task_count_mismatch",
+  );
+});
+
+test("rejects cmp-1 scheduling without a pre-existing plan ID", async () => {
+  const result = await run(
+    "cmp-1",
+    output("compound_ready", "compound", [
+      task("t1", "compose_plan", {}),
+      task("t2", "schedule_plan", {}, ["t1"]),
+    ]),
+  );
+
+  assert.equal(result.status, "unavailable");
+  if (result.status !== "unavailable") return;
+  assert.equal(result.reason, "invalid_resource_reference");
+  assert.deepEqual(result.resourceIssueCodes, ["RESOURCE_ID_MISSING"]);
+});
+
+test("preserves the two supported reviewable compound shapes", async () => {
+  const compose = await run(
+    "cmp-3",
+    output("compound_ready", "compound", [
+      task("t1", "compose_plan", {}),
+      task("t2", "compose_checklist", {}, ["t1"]),
+    ]),
+  );
+  assert.equal(compose.status, "success");
+
+  const derived = await run(
+    "cmp-4",
+    output("compound_ready", "compound", [
+      task("t1", "query_progress", {}),
+      task("t2", "compose_checklist", {}, ["t1"]),
+    ]),
+  );
+  assert.equal(derived.status, "success");
+});
+
+test("accepts the five corrected Acceptance semantic shapes", async () => {
+  const qry4 = await run(
+    "qry-4",
+    output("unsupported_request", "single", [
+      clarifyTask("请提供完整且唯一的计划标题。"),
+    ]),
+  );
+  assert.equal(qry4.status, "success");
+
+  const wrt1 = await run(
+    "wrt-1",
+    output("explicit_write_ready", "single", [
+      task("t1", "compose_plan", {}),
+    ]),
+  );
+  assert.equal(wrt1.status, "success");
+
+  const wrt2 = await run(
+    "wrt-2",
+    output("explicit_write_ready", "single", [
+      task("t1", "compose_checklist", {}),
+    ]),
+  );
+  assert.equal(wrt2.status, "success");
+
+  const cmp1 = await run(
+    "cmp-1",
+    output("compound_missing_target", "single", [
+      clarifyTask("请先确认要排期的现有计划。"),
+    ]),
+  );
+  assert.equal(cmp1.status, "success");
+
+  const exr3 = await run(
+    "exr-3",
+    output("explicit_write_missing_resource", "single", [
+      clarifyTask("请提供要完成的计划与条目完整标题。"),
+    ]),
+  );
+  assert.equal(exr3.status, "success");
+});
+
+test("canonical consultation records one Orchestrator and one Answer call with separate latencies", async () => {
+  const recorder = createModelCallBudgetRecorder();
+  const selected = fixture("cons-1");
+  let orchestratorLatencyMs: number | null = null;
+  const orchestratorStartedAt = performance.now();
+  const orchestrator = await runLangChainOrchestratorResult({
+    context: selected.context,
+    message: selected.message,
+    modelCallRecorder: recorder,
+    modelCallScopeId: "cons-1:orchestrator",
+    modelConfig,
+    modelFactory: fakeFactory(output("pure_consultation", "single", [{
+      agentRole: "query",
+      args: { question: selected.message },
+      dependsOn: [],
+      id: "t1",
+      intent: "answer_question",
+      label: "answer_question",
+    }])),
+    structuredRetryBudget: { schema: 0, transport: 0 },
+  });
+  orchestratorLatencyMs = performance.now() - orchestratorStartedAt;
+
+  assert.equal(orchestrator.status, "success");
+  if (orchestrator.status !== "success") return;
+  const intent = orchestratorPlanToIntent(orchestrator.plan);
+  assert.equal(intent?.intent, "answer_question");
+  if (!intent || intent.intent !== "answer_question") return;
+
+  let answerTtftMs: number | null = null;
+  let answerTotalLatencyMs: number | null = null;
+  const answerStartedAt = performance.now();
+  const answer = await runConversationalAnswer({
+    callScopeId: "cons-1:answer",
+    emitToken: () => {
+      answerTtftMs ??= performance.now() - answerStartedAt;
+    },
+    intent,
+    message: selected.message,
+    modelCallRecorder: recorder,
+    model: fakeAnswerModel("合成回答。"),
+    timeouts: { firstTokenMs: 100, totalMs: 200 },
+  });
+  answerTotalLatencyMs = performance.now() - answerStartedAt;
+
+  assert.equal(answer.status, "complete");
+  const snapshot = recorder.snapshot();
+  assert.equal(snapshot.orchestratorLogicalCalls, 1);
+  assert.equal(snapshot.orchestratorProviderAttempts, 1);
+  assert.equal(snapshot.answerLogicalCalls, 1);
+  assert.equal(snapshot.answerProviderAttempts, 1);
+  assert.equal(snapshot.unexpectedDuplicateModelCalls, 0);
+  assert.notEqual(orchestratorLatencyMs, null);
+  assert.ok((orchestratorLatencyMs ?? -1) >= 0);
+  assert.notEqual(answerTtftMs, null);
+  assert.ok((answerTtftMs ?? -1) >= 0);
+  assert.notEqual(answerTotalLatencyMs, null);
+  assert.ok((answerTotalLatencyMs ?? -1) >= 0);
+});

@@ -207,6 +207,64 @@ test("real structured invocation retries one request-invalid intent and accepts 
   assert.equal(calls, 2);
 });
 
+test("real structured Residual emits one passing semantic event", async () => {
+  const { runResidualPlanner } = await loadResidualPlanner(
+    "residual_real_semantic_observation_pass",
+  );
+  const semanticEvents: boolean[] = [];
+  const result = await runResidualPlanner({
+    input: residualInput(),
+    maxTransportRetries: 0,
+    modelConfig: fakeDeepSeekConfig,
+    modelFactory: promptJsonModelFactory(() =>
+      residualEnvelope("compose_checklist")
+    ),
+    providerAttemptObserver: (event) => {
+      if (event.phase === "semanticValidationCompleted") {
+        semanticEvents.push(event.passed);
+      }
+    },
+  });
+
+  assert.equal(result.status, "success");
+  assert.deepEqual(semanticEvents, [true]);
+});
+
+test("real structured Residual emits one failing semantic event after strict schema", async () => {
+  const { runResidualPlanner } = await loadResidualPlanner(
+    "residual_real_semantic_observation_fail",
+  );
+  const semanticEvents: boolean[] = [];
+  const result = await runResidualPlanner({
+    input: residualInput(),
+    maxTransportRetries: 0,
+    modelConfig: fakeDeepSeekConfig,
+    modelFactory: promptJsonModelFactory(() => ({
+      ...(residualEnvelope("compose_checklist") as Record<string, unknown>),
+      tasks: [{
+        ...(residualEnvelope("compose_checklist") as {
+          tasks: Array<Record<string, unknown>>;
+        }).tasks[0],
+        dependsOn: ["t1"],
+      }],
+    })),
+    providerAttemptObserver: (event) => {
+      if (event.phase === "semanticValidationCompleted") {
+        semanticEvents.push(event.passed);
+      }
+    },
+  });
+
+  assert.deepEqual(result, {
+    code: "schema_failure",
+    logicalCalls: 1,
+    providerAttempts: 1,
+    rejectionReason: "dag_invalid",
+    status: "unavailable",
+  });
+  assert.deepEqual(semanticEvents, [false]);
+});
+
 test("repeated request-invalid intents exhaust schema retry without becoming forbidden_intent", async () => {
   const { runResidualPlanner } = await loadResidualPlanner(
     "residual_request_invalid_schema_exhaustion",
@@ -259,6 +317,27 @@ test("Residual Prompt distinguishes task drafts from memory and forbids fixed-qu
   );
 });
 
+test("keeps the full live-gate protocol out of the Residual Prompt", async () => {
+  const { buildResidualPlannerSystemPrompt } = await loadResidualPlanner(
+    "residual_full_live_gate_protocol_excluded",
+  );
+  const prompt = buildResidualPlannerSystemPrompt(residualInput());
+
+  assert.doesNotMatch(prompt, /\[orchestrator-boundary:live-gate\]/);
+});
+
+test("keeps semantic contrasts out of the Residual Prompt", async () => {
+  const { buildResidualPlannerSystemPrompt } = await loadResidualPlanner(
+    "residual_semantic_contrasts_excluded",
+  );
+  const prompt = buildResidualPlannerSystemPrompt(residualInput());
+
+  assert.doesNotMatch(
+    prompt,
+    /\[orchestrator-boundary:semantic-contrasts\]/,
+  );
+});
+
 test("Full and Residual planners render the same ordered intent-family rule body", () => {
   const ruleBody = (protocol: string): string =>
     protocol.split("\n").slice(1).join("\n");
@@ -287,6 +366,25 @@ test("the fake planner receives the full request and can retain the write intent
   if (result.status !== "success") return;
   assert.deepEqual(result.tasks.map(({ intent }) => intent), ["compose_checklist"]);
   assert.equal(result.logicalCalls, 1);
+});
+
+test("injected Residual invokes never fabricate structured semantic events", async () => {
+  const { runResidualPlanner } = await loadResidualPlanner(
+    "residual_injected_semantic_observation_absent",
+  );
+  const semanticEvents: boolean[] = [];
+  const result = await runResidualPlanner({
+    input: residualInput(),
+    invoke: async () => [residualWriteTask()],
+    providerAttemptObserver: (event) => {
+      if (event.phase === "semanticValidationCompleted") {
+        semanticEvents.push(event.passed);
+      }
+    },
+  });
+
+  assert.equal(result.status, "success");
+  assert.deepEqual(semanticEvents, []);
 });
 
 test("a consultation bridge from the fixed Query to a write fails closed without a second call", async () => {
@@ -376,4 +474,16 @@ test("transport retry increments attempts but not residual logical calls", async
   assert.equal(calls, 2);
   assert.equal(recorder.snapshot().residualPlannerLogicalCalls, 1);
   assert.equal(recorder.snapshot().residualPlannerProviderAttempts, 2);
+});
+
+test("keeps query scope precedence out of the Residual Prompt", async () => {
+  const { buildResidualPlannerSystemPrompt } = await loadResidualPlanner(
+    "residual_query_scope_precedence_excluded",
+  );
+  const prompt = buildResidualPlannerSystemPrompt(residualInput());
+
+  assert.doesNotMatch(
+    prompt,
+    /\[orchestrator-boundary:query-scope-precedence\]/,
+  );
 });

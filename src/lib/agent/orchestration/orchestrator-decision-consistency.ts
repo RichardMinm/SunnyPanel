@@ -2,6 +2,9 @@ import type {
   OrchestratorOutput,
   OrchestratorTask,
 } from "../llm/schemas/orchestrator-output";
+import {
+  ORCHESTRATOR_CANONICAL_CONSULTATION_INTENT,
+} from "./orchestrator-intent-family-protocol";
 import { classifyIntent } from "./safety-classifier";
 
 export const CONSULTATION_INTENTS = Object.freeze([
@@ -35,6 +38,7 @@ export type DecisionConsistencyErrorCode =
   | "consultation_intent_mismatch"
   | "consultation_mode_mismatch"
   | "missing_clarify_question"
+  | "missing_consultation_question"
   | "read_intent_not_allowed"
   | "read_mode_mismatch"
   | "unsupported_mode_mismatch"
@@ -46,7 +50,6 @@ export type DecisionConsistencyResult =
   | { valid: true }
   | { valid: false; code: DecisionConsistencyErrorCode };
 
-const consultationIntents = new Set<string>(CONSULTATION_INTENTS);
 const readQueryIntents = new Set<string>(READ_QUERY_INTENTS);
 
 const invalid = (
@@ -58,21 +61,32 @@ const hasNonBlankClarifyQuestion = (task: OrchestratorTask): boolean =>
   && typeof task.args.question === "string"
   && task.args.question.trim().length > 0;
 
+const isCanonicalConsultation = (task: OrchestratorTask): boolean =>
+  task.intent === ORCHESTRATOR_CANONICAL_CONSULTATION_INTENT;
+
+const hasNonBlankQuestion = (task: OrchestratorTask): boolean =>
+  typeof task.args.question === "string"
+  && task.args.question.trim().length > 0;
+
 export const validateOrchestratorDecisionConsistency = (
   output: OrchestratorOutput,
 ): DecisionConsistencyResult => {
   switch (output.decisionCode) {
-    case "pure_consultation":
+    case "pure_consultation": {
       if (output.mode !== "single") {
         return invalid("consultation_mode_mismatch");
       }
       if (
         output.tasks.length !== 1
-        || !consultationIntents.has(output.tasks[0].intent)
+        || !isCanonicalConsultation(output.tasks[0])
       ) {
         return invalid("consultation_intent_mismatch");
       }
+      if (!hasNonBlankQuestion(output.tasks[0])) {
+        return invalid("missing_consultation_question");
+      }
       return { valid: true };
+    }
 
     case "pure_read_query":
       if (output.mode !== "single") return invalid("read_mode_mismatch");

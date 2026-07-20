@@ -15,6 +15,7 @@ import {
   invokeStructured,
   type StructuredProviderAttemptObserver,
 } from "../llm/invoke-structured";
+import type { SafeProtocolDiagnostics } from "../llm/structured-protocol";
 import { buildMessages } from "../llm/message-builder";
 import type { ModelConfig } from "../llm/model-config";
 import { createChatModel, type ModelFactory } from "../llm/model-factory";
@@ -567,10 +568,20 @@ export const runResidualPlanner = async (
   const schemas = buildResidualPlannerSchemas(input);
 
   let providerAttempts = 0;
+  let latestStructuredAttempt: Readonly<{
+    attempt: number;
+    safeProtocol: SafeProtocolDiagnostics;
+  }> | null = null;
   const observeProviderAttempt: StructuredProviderAttemptObserver = (event) => {
     if (event.phase === "providerRequestStarted") {
       providerAttempts += 1;
       options.modelCallRecorder?.recordProviderAttempt("residual_planner");
+    }
+    if ("safeProtocol" in event) {
+      latestStructuredAttempt = Object.freeze({
+        attempt: event.attempt,
+        safeProtocol: event.safeProtocol,
+      });
     }
     try {
       options.providerAttemptObserver?.(event);
@@ -600,6 +611,22 @@ export const runResidualPlanner = async (
 
   const envelope = result.data;
   const failure = validateResidualTasks(envelope.tasks, input);
+  const semanticAttempt = latestStructuredAttempt as Readonly<{
+    attempt: number;
+    safeProtocol: SafeProtocolDiagnostics;
+  }> | null;
+  if (semanticAttempt) {
+    try {
+      options.providerAttemptObserver?.({
+        attempt: semanticAttempt.attempt,
+        passed: failure === null,
+        phase: "semanticValidationCompleted",
+        safeProtocol: semanticAttempt.safeProtocol,
+      });
+    } catch {
+      // Observability must not affect residual planning.
+    }
+  }
   return failure
     ? unavailable(
         failure.code,

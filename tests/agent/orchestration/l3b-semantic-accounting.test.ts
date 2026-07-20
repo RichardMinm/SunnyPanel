@@ -48,6 +48,27 @@ test("single intents are alternatives while compound intents are an exact ordere
   }), false);
 });
 
+test("rejects aggregate and specific query fallback for qry-4", () => {
+  const fixture = L3B_EVALUATION_FIXTURES.find(({ id }) => id === "qry-4");
+
+  assert.ok(fixture);
+  assert.equal(matchesExpectedIntentContract({
+    actualIntents: ["query_progress"],
+    expectedIntents: fixture.expected.intents,
+    expectedMode: fixture.expected.mode,
+  }), false);
+  assert.equal(matchesExpectedIntentContract({
+    actualIntents: ["query_plan_progress"],
+    expectedIntents: fixture.expected.intents,
+    expectedMode: fixture.expected.mode,
+  }), false);
+  assert.equal(matchesExpectedIntentContract({
+    actualIntents: ["clarify"],
+    expectedIntents: fixture.expected.intents,
+    expectedMode: fixture.expected.mode,
+  }), true);
+});
+
 test("reconciles the historical 10 decision-code matches with 9 exclusive semantic matches", () => {
   const observations = [
     ...Array.from({ length: 9 }, () => ({

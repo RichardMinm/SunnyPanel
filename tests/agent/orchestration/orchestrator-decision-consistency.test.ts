@@ -3,6 +3,9 @@ import { test } from "node:test";
 
 import type { OrchestratorOutput } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
 import {
+  ORCHESTRATOR_CANONICAL_CONSULTATION_INTENT,
+} from "../../../src/lib/agent/orchestration/orchestrator-intent-family-protocol";
+import {
   CONSULTATION_INTENTS,
   READ_QUERY_INTENTS,
   validateOrchestratorDecisionConsistency,
@@ -16,7 +19,7 @@ const task = (intent: string, args: Record<string, unknown> = {}, id = "t1") => 
   intent,
   label: intent,
 });
-const answerTask = task("answer_question");
+const answerTask = task("answer_question", { question: "解释零信任" });
 const queryTask = task("query_plan");
 const writeTask = task("compose_plan");
 const clarifyTask = (question: string) => task("clarify", { question });
@@ -52,6 +55,47 @@ test("publishes frozen consultation and read-query intent families", () => {
   ]);
   assert.equal(Object.isFrozen(CONSULTATION_INTENTS), true);
   assert.equal(Object.isFrozen(READ_QUERY_INTENTS), true);
+});
+
+test("pure consultation accepts only the canonical question-linked task", () => {
+  assert.equal(
+    ORCHESTRATOR_CANONICAL_CONSULTATION_INTENT,
+    "answer_question",
+  );
+  assert.deepEqual(
+    validateOrchestratorDecisionConsistency(
+      output("pure_consultation", "single", [
+        task("answer_question", { question: "解释零信任" }),
+      ]),
+    ),
+    { valid: true },
+  );
+
+  for (const intent of [
+    "compare_concepts",
+    "explain_concept",
+    "give_examples",
+    "give_learning_path",
+  ]) {
+    assert.deepEqual(
+      validateOrchestratorDecisionConsistency(
+        output("pure_consultation", "single", [task(intent)]),
+      ),
+      { code: "consultation_intent_mismatch", valid: false },
+      intent,
+    );
+  }
+
+  for (const question of [undefined, null, "", "  \n\t"]) {
+    assert.deepEqual(
+      validateOrchestratorDecisionConsistency(
+        output("pure_consultation", "single", [
+          task("answer_question", { question }),
+        ]),
+      ),
+      { code: "missing_consultation_question", valid: false },
+    );
+  }
 });
 
 test("accepts every valid decision mapping without mutating input", () => {

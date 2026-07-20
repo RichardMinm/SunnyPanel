@@ -2,11 +2,21 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { Payload } from "payload";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import {
   runOrchestrationStep,
   type OrchestrationStepParams,
 } from "../../../src/lib/agent/chat-pipeline/orchestration-step";
+import type { ModelFactory } from "../../../src/lib/agent/llm/model-factory";
+import {
+  evaluateProductionGateCase,
+} from "../../../src/lib/agent/orchestration/hybrid-production-evaluation";
+import { L3B_EVALUATION_FIXTURES } from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
+import {
+  createProductionAnswerAdapter,
+  createProductionFullAdapter,
+} from "../../../src/lib/agent/orchestration/l3b-production-gate-model-adapters";
 import { createModelCallBudgetRecorder } from "../../../src/lib/agent/orchestration/model-call-budget";
 import type { AgentChatResponse } from "../../../src/lib/agent/schemas";
 import type { AgentThread } from "../../../src/payload-types";
@@ -21,6 +31,25 @@ const tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]> = {
   source: "estimate",
   totalTokens: 2,
 };
+
+const modelConfig = {
+  apiKey: "test-only",
+  baseURL: "https://example.invalid",
+  maxRetries: 0,
+  model: "fake",
+  provider: "deepseek",
+  structuredOutputMode: "provider_default",
+  temperature: 0,
+  timeoutMs: 100,
+} as const;
+
+const promptJsonModelFactory = (
+  invoke: () => unknown | Promise<unknown>,
+): ModelFactory => () => ({
+  withConfig: () => ({
+    invoke: async () => ({ content: JSON.stringify(await invoke()) }),
+  }),
+}) as unknown as BaseChatModel;
 
 test("production compound turn shares its recorder with the Residual Planner", async () => {
   const previousRuntime = process.env.AGENT_ORCHESTRATOR_RUNTIME;
@@ -159,4 +188,59 @@ test("clarify production turn leaves every model role at zero", async () => {
       process.env.AGENT_ORCHESTRATOR_RUNTIME = previousRuntime;
     }
   }
+});
+
+test("production Full retries count attempts without duplicating the logical call or observation", async () => {
+  const selected = L3B_EVALUATION_FIXTURES.find(
+    (candidate) => candidate.id === "wrt-1",
+  );
+  assert.ok(selected);
+  const recorder = createModelCallBudgetRecorder();
+  let attempts = 0;
+  const fullOrchestratorAdapter = createProductionFullAdapter({
+    modelConfig,
+    modelFactory: promptJsonModelFactory(() => {
+      attempts += 1;
+      return attempts === 1
+        ? { version: 1 }
+        : {
+            decisionCode: "explicit_write_ready",
+            mode: "single",
+            routingSummary: "bounded retry result",
+            tasks: [{
+              agentRole: "plan",
+              args: { goal: "synthetic", title: "synthetic" },
+              dependsOn: [],
+              id: "t1",
+              intent: "compose_plan",
+              label: "bounded retry task",
+            }],
+            version: 2,
+          };
+    }),
+    observe: () => undefined,
+    recorder,
+    retryBudget: { schema: 1, transport: 0 },
+  });
+  const answerAdapter = createProductionAnswerAdapter({
+    modelConfig,
+    observe: () => undefined,
+    recorder,
+  });
+
+  const observation = await evaluateProductionGateCase({
+    answerAdapter,
+    authenticatedActor: { collection: "users", id: 1, isAdmin: true },
+    fixture: selected,
+    fullOrchestratorAdapter,
+    modelCallRecorder: recorder,
+    residualInvoke: async () => assert.fail("Full path cannot call Residual"),
+    round: 1,
+  });
+
+  assert.equal(attempts, 2);
+  assert.equal(observation.callAccounting.fullOrchestratorLogicalCalls, 1);
+  assert.equal(observation.callAccounting.fullOrchestratorProviderAttempts, 2);
+  assert.equal(observation.observationIndex, 1);
+  assert.equal(observation.callAccounting.unexpectedDuplicateModelCalls, 0);
 });

@@ -5,6 +5,15 @@ import { test } from "node:test";
 
 import { buildLangChainOrchestratorMessages, buildLangChainSystemPrompt } from "../../../src/lib/agent/orchestration/langchain-orchestrator";
 import { L3B_EVALUATION_FIXTURES } from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
+import {
+  ORCHESTRATOR_CANONICAL_CONSULTATION_INTENT,
+  ORCHESTRATOR_EXPLICIT_GOAL_CLASSIFICATION_STEP,
+  ORCHESTRATOR_LIVE_GATE_PROTOCOL,
+  ORCHESTRATOR_LIVE_GATE_RULES,
+  ORCHESTRATOR_NEW_RESOURCE_DEPENDENCY_PROTOCOL,
+  ORCHESTRATOR_SUPPORTED_NEW_RESOURCE_DEPENDENCIES,
+  ORCHESTRATOR_UNSUPPORTED_RUNTIME_OUTPUT_DEPENDENCIES,
+} from "../../../src/lib/agent/orchestration/orchestrator-intent-family-protocol";
 
 const EXISTING_TARGET_MARKER = "[compound-boundary:existing-target-mutation]";
 const NEW_RESOURCE_MARKER = "[compound-boundary:new-resource-dependency]";
@@ -30,7 +39,7 @@ test("decomposes goals before checking existing-target readiness", () => {
   const orderedMarkers = [
     "1. 识别用户请求中所有明确目标",
     "2. 将每个目标分类为只读或状态改变候选",
-    "3. 把可以独立表示、共同必需或相互依赖的目标拆成任务",
+    `3. ${ORCHESTRATOR_EXPLICIT_GOAL_CLASSIFICATION_STEP}`,
     "4. 根据任务数量与依赖关系判断 single 或 compound",
     "5. 对每个写入候选区分 existing-target mutation 与 new-resource task dependency",
     "6. 检查是否缺少会阻止安全且明确草案的信息",
@@ -40,7 +49,64 @@ test("decomposes goals before checking existing-target readiness", () => {
   const positions = orderedMarkers.map((marker) => prompt.indexOf(marker));
   assert.equal(positions.every((position) => position >= 0), true);
   assert.deepEqual([...positions].sort((left, right) => left - right), positions);
-  assert.ok(prompt.indexOf("3. 把可以独立表示") < prompt.indexOf(EXISTING_TARGET_MARKER));
+  assert.ok(
+    prompt.indexOf(`3. ${ORCHESTRATOR_EXPLICIT_GOAL_CLASSIFICATION_STEP}`)
+    < prompt.indexOf(EXISTING_TARGET_MARKER),
+  );
+});
+
+test("renders the approved semantic boundary from shared full-only sources", () => {
+  const prompt = buildLangChainSystemPrompt();
+
+  assert.equal(
+    prompt.includes(ORCHESTRATOR_LIVE_GATE_PROTOCOL),
+    true,
+  );
+  assert.match(
+    prompt,
+    new RegExp(
+      `pure_consultation[^\\n]*${ORCHESTRATOR_CANONICAL_CONSULTATION_INTENT}`
+      + "[^\\n]*args\\.question",
+    ),
+  );
+  assert.equal(
+    prompt.includes(`3. ${ORCHESTRATOR_EXPLICIT_GOAL_CLASSIFICATION_STEP}`),
+    true,
+  );
+
+  for (const rule of Object.values(ORCHESTRATOR_LIVE_GATE_RULES)) {
+    assert.equal(prompt.includes(rule), true, rule);
+  }
+  for (const [producer, consumer] of
+    ORCHESTRATOR_SUPPORTED_NEW_RESOURCE_DEPENDENCIES) {
+    assert.match(prompt, new RegExp(`${producer}\\s*->\\s*${consumer}`));
+  }
+  for (const [producer, consumer] of
+    ORCHESTRATOR_UNSUPPORTED_RUNTIME_OUTPUT_DEPENDENCIES) {
+    assert.match(prompt, new RegExp(`${producer}\\s*->\\s*${consumer}`));
+  }
+});
+
+test("does not permit invented reads or runtime-output scheduling", () => {
+  const prompt = buildLangChainSystemPrompt();
+  const boundary = sectionBetween(
+    prompt,
+    NEW_RESOURCE_MARKER,
+    BLOCKING_CLARIFY_MARKER,
+  );
+
+  assert.match(prompt, /不得添加用户未要求的辅助读取/);
+  assert.match(prompt, /workspace.*只有一个计划.*不代表用户选择/i);
+  assert.match(prompt, /标题.*精确.*唯一/);
+  assert.match(prompt, /模糊|部分标题/);
+  assert.equal(
+    boundary.includes(ORCHESTRATOR_NEW_RESOURCE_DEPENDENCY_PROTOCOL),
+    true,
+  );
+  assert.match(boundary, /compose_plan\s*->\s*compose_checklist.*(?:支持|可用)/);
+  assert.match(boundary, /query_progress\s*->\s*compose_checklist.*(?:支持|可用)/);
+  assert.match(boundary, /compose_plan\s*->\s*schedule_plan.*不支持/);
+  assert.match(boundary, /缺少.*planId.*compound_missing_target.*clarify/);
 });
 
 test("keeps cmp-3 as a draft-capable ordered compound without copying its fixture text", () => {
@@ -53,10 +119,10 @@ test("keeps cmp-3 as a draft-capable ordered compound without copying its fixtur
     mode: "compound",
     safetyClass: "write_candidate",
   });
-  assert.match(boundary, /新资源.*尚无 ID.*不是 missing target/);
-  assert.match(boundary, /compound_ready/);
+  assert.match(boundary, /新资源.*不需要.*运行时输出.*可用/);
+  assert.match(boundary, /compose_plan\s*->\s*compose_checklist.*可用/);
   assert.match(boundary, /dependsOn/);
-  assert.match(boundary, /不得仅因.*尚无 ID.*clarify/);
+  assert.match(boundary, /不得把前一 task 的运行结果放入后续 task 的 args/);
   assert.equal(cmp3 === undefined ? false : prompt.includes(cmp3.message), false);
 });
 
@@ -116,7 +182,7 @@ test("still clarifies a mutation whose existing target cannot be uniquely locate
   });
 
   assert.match(existingTarget, /修改|追加|完成|排期|取消|删除/);
-  assert.match(existingTarget, /唯一.*已有.*ID/);
+  assert.match(existingTarget, /唯一资源引用/);
   assert.match(existingTarget, /无法唯一定位.*clarify/);
   assert.equal(messages[0]?.role, "system");
   assert.equal(messages[0]?.content.includes("给那个计划追加一个任务。"), false);

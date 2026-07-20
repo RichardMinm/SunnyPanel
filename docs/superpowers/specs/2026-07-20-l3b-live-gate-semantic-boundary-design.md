@@ -2,7 +2,7 @@
 
 Date: 2026-07-20
 
-Status: design approved; implementation pending
+Status: deterministic implementation complete; live Provider gates pending
 
 Branch: `phase/l3b-r4a-query-boundary`
 
@@ -21,8 +21,8 @@ existing deterministic validation order:
 structured Provider output
 -> Zod schema
 -> decision consistency
--> query scope provenance
 -> DAG validation
+-> query scope provenance
 -> resource readiness
 -> compatibility mapping
 ```

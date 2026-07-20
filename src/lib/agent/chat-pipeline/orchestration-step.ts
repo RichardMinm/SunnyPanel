@@ -56,6 +56,7 @@ import type { AutoApprovalContext } from "@/lib/agent/safety";
 import type { AgentToolDryRunContext } from "@/lib/agent/tool-registry";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import type { ModelConfig } from "@/lib/agent/llm/model-config";
+import type { StructuredProviderAttemptObserver } from "@/lib/agent/llm/invoke-structured";
 import { isAgentLLMDisabled } from "@/lib/agent/llm-required";
 import { resolveRouterCanaryRouting } from "@/lib/agent/router/router-canary";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
@@ -71,6 +72,8 @@ import {
 import { resolveDeleteRecordTarget } from "../tools/delete-record";
 
 const ORCHESTRATION_MAX_TASKS_PER_RUN = 10;
+
+export type HybridBoundaryMode = "disabled" | "runtime";
 
 export type HybridOrchestrationStepObservation =
   | Readonly<{
@@ -160,6 +163,7 @@ export type OrchestrationStepParams = {
     rollbackPayload: unknown;
   }) => Promise<unknown>;
   forcedPlan?: OrchestratorPlan;
+  hybridBoundaryMode?: HybridBoundaryMode;
   message: string;
   modelCallRecorder?: ModelCallBudgetRecorder;
   onHybridObservation?: (
@@ -183,6 +187,7 @@ export type OrchestrationStepParams = {
   runOrchestratorFn?: typeof runOrchestrator;
   residualPlannerInvoke?: InjectedResidualInvoke;
   residualPlannerModelConfig?: ModelConfig;
+  residualPlannerProviderAttemptObserver?: StructuredProviderAttemptObserver;
   runResidualPlannerFn?: typeof runResidualPlanner;
   stream?: AgentStreamController;
   terminalizeCompoundExecution?: boolean;
@@ -256,6 +261,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     executeAction,
     executeRollback,
     forcedPlan,
+    hybridBoundaryMode = "runtime",
     message,
     mapStructuredOutputToPlanFn = mapStructuredOutputToPlan,
     modelCallRecorder,
@@ -270,6 +276,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     resolveRouterCanaryRoutingFn = resolveRouterCanaryRouting,
     residualPlannerInvoke,
     residualPlannerModelConfig,
+    residualPlannerProviderAttemptObserver,
     runOrchestratorFn = dispatchOrchestrator,
     runResidualPlannerFn = runResidualPlanner,
     stream,
@@ -705,12 +712,13 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     };
   }
 
-  if (
-    runOrchestratorFn === dispatchOrchestrator
+  const hybridBoundaryEnabled =
+    hybridBoundaryMode === "runtime"
     && !forcedPlan
     && !pendingAction
-    && isHybridQueryBoundaryEnabled(resolveOrchestratorRuntimeMode())
-  ) {
+    && isHybridQueryBoundaryEnabled(resolveOrchestratorRuntimeMode());
+
+  if (hybridBoundaryEnabled) {
     const snapshotResult = buildActorAuthorizedResourceSnapshot({
       authenticatedActor: { collection: "users", id: user.id },
       context,
@@ -791,6 +799,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           invoke: residualPlannerInvoke,
           modelCallRecorder,
           modelConfig: residualPlannerModelConfig,
+          providerAttemptObserver: residualPlannerProviderAttemptObserver,
           scopeId: "hybrid-query-boundary",
         });
         recordHybridObservation({
