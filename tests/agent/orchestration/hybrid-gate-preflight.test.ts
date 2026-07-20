@@ -102,11 +102,11 @@ test("Preflight hashes the real cmp-4 Residual Prompt and strict schema", async 
   assert.equal(preflight.evaluationConfigHash, L3B_EVALUATION_CONFIG_HASH);
   assert.deepEqual(HYBRID_FOCUSED_GATE_FROZEN_HASHES, {
     evaluationConfigHash:
-      "f33cbc43a0e9362a31b8d0d11fb66b2e932bdc49d5ff9bf5f2fedec6b5f2acb9",
+      "aadf679dba45e95643d946f259d522fd7f66f36d632112a9d53060ebd5cbabec",
     fixtureSnapshotHash:
       "be856ddcba4a60f65e6a1e360027c3e1e5eface66c434f40f9df298b5286966d",
     residualPromptHash:
-      "93f8b25dbdf2a311142b5a2830b5235cdf93179a06ea9717435102540fb8b866",
+      "46cc533b94aa5ceb46a7e3e4e6193cfa056399371d03c8fd72b87b70c3800005",
     residualSchemaHash:
       "44d6ee2304cfb3b4eeaa178253a69b6dfde98c1055d3684bdc8a42f6fc98665c",
   });

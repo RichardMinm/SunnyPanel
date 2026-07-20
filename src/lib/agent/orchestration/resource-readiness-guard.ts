@@ -9,6 +9,7 @@
  * Pure function: no DB, no model, no executor, no side effects.
  */
 
+import type { AgentIntent } from "../schemas";
 import { isUsableResourceId } from "./safety-classifier";
 
 /* ---- Types ---- */
@@ -18,13 +19,21 @@ export type ResourceKind = "checklist" | "plan" | "schedule_item" | "timeline_ev
 export interface ResourceRequirement {
   resourceKind: ResourceKind;
   existingIdFields: string[];
+  existingTitleFields: string[];
   outputRefFields: string[];
   allowedProducerIntents: string[];
 }
 
+type IntentArgs<TIntent extends AgentIntent["intent"]> =
+  Extract<AgentIntent, { intent: TIntent }>["args"];
+
+type IntentArgumentField<TIntent extends AgentIntent["intent"]> =
+  Extract<keyof IntentArgs<TIntent>, string>;
+
 export type ResourceProtocolEntry = Readonly<{
   allowedProducerIntents: readonly string[];
   existingIdFields: readonly string[];
+  existingTitleFields: readonly string[];
   intent: string;
   outputRefFields: readonly string[];
   resourceKind: ResourceKind;
@@ -35,6 +44,8 @@ export type ResourceReadinessErrorCode =
   | "RESOURCE_ID_PLACEHOLDER"
   | "RESOURCE_ID_NOT_IN_CONTEXT"
   | "RESOURCE_TITLE_CONFLICT"
+  | "RESOURCE_TITLE_NOT_IN_CONTEXT"
+  | "RESOURCE_TITLE_AMBIGUOUS"
   | "RESOURCE_OUTPUT_REF_UNSUPPORTED"
   | "RESOURCE_REF_MISSING"
   | "RESOURCE_OUTPUT_REF_INVALID"
@@ -56,52 +67,78 @@ export type ResourceReadinessResult =
 
 /* ---- Resource Requirement Map ---- */
 
-const RESOURCE_REQUIREMENTS: Record<string, ResourceRequirement> = {
-  schedule_plan: {
-    resourceKind: "plan",
-    existingIdFields: ["planId"],
+const defineResourceRequirement = <TIntent extends AgentIntent["intent"]>(
+  intent: TIntent,
+  requirement: Omit<
+    ResourceRequirement,
+    "existingIdFields" | "existingTitleFields"
+  > & {
+    existingIdFields: IntentArgumentField<TIntent>[];
+    existingTitleFields: IntentArgumentField<TIntent>[];
+  },
+) => [intent, requirement] as const;
+
+const RESOURCE_REQUIREMENTS = Object.fromEntries([
+  defineResourceRequirement("add_completion_note", {
+    resourceKind: "checklist",
+    existingIdFields: [],
+    existingTitleFields: ["checklistTitle"],
     outputRefFields: [],
     allowedProducerIntents: [],
-  },
-  append_plan_item: {
+  }),
+  defineResourceRequirement("schedule_plan", {
     resourceKind: "plan",
     existingIdFields: ["planId"],
+    existingTitleFields: [],
     outputRefFields: [],
     allowedProducerIntents: [],
-  },
-  complete_plan_item: {
-    resourceKind: "plan",
-    existingIdFields: ["planId"],
+  }),
+  defineResourceRequirement("append_plan_item", {
+    resourceKind: "checklist",
+    existingIdFields: [],
+    existingTitleFields: ["checklistTitle"],
     outputRefFields: [],
     allowedProducerIntents: [],
-  },
-  reschedule_item: {
+  }),
+  defineResourceRequirement("complete_plan_item", {
+    resourceKind: "checklist",
+    existingIdFields: [],
+    existingTitleFields: ["checklistTitle"],
+    outputRefFields: [],
+    allowedProducerIntents: [],
+  }),
+  defineResourceRequirement("reschedule_item", {
     resourceKind: "schedule_item",
-    existingIdFields: ["scheduleItemId"],
+    existingIdFields: ["itemId"],
+    existingTitleFields: [],
     outputRefFields: [],
     allowedProducerIntents: [],
-  },
-  cancel_schedule_item: {
+  }),
+  defineResourceRequirement("cancel_schedule_item", {
     resourceKind: "schedule_item",
-    existingIdFields: ["scheduleItemId"],
+    existingIdFields: ["itemId"],
+    existingTitleFields: [],
     outputRefFields: [],
     allowedProducerIntents: [],
-  },
-};
+  }),
+]) as Readonly<Record<string, ResourceRequirement | undefined>>;
 
 /** Sanitized Prompt projection derived from the deterministic guard contract. */
 export const getResourceProtocolProjection = (): readonly ResourceProtocolEntry[] =>
   Object.freeze(
-    Object.entries(RESOURCE_REQUIREMENTS).map(([intent, requirement]) =>
-      Object.freeze({
-        allowedProducerIntents: Object.freeze([
-          ...requirement.allowedProducerIntents,
-        ]),
-        existingIdFields: Object.freeze([...requirement.existingIdFields]),
-        intent,
-        outputRefFields: Object.freeze([...requirement.outputRefFields]),
-        resourceKind: requirement.resourceKind,
-      }),
+    Object.entries(RESOURCE_REQUIREMENTS).flatMap(([intent, requirement]) =>
+      requirement
+        ? [Object.freeze({
+            allowedProducerIntents: Object.freeze([
+              ...requirement.allowedProducerIntents,
+            ]),
+            existingIdFields: Object.freeze([...requirement.existingIdFields]),
+            existingTitleFields: Object.freeze([...requirement.existingTitleFields]),
+            intent,
+            outputRefFields: Object.freeze([...requirement.outputRefFields]),
+            resourceKind: requirement.resourceKind,
+          })]
+        : [],
     ),
   );
 
@@ -136,9 +173,11 @@ const buildTitleMap = (
 export const buildResourceIndex = (context: {
   plans?: Array<{ id?: number | string | null; title?: string | null }>;
   checklists?: Array<{ id?: number | string | null; title?: string | null }>;
+  schedules?: Array<{ id?: number | string | null; title?: string | null }>;
 }): OrchestrationResourceIndex => {
   const plans = context.plans ?? [];
   const checklists = context.checklists ?? [];
+  const schedules = context.schedules ?? [];
   return {
     planIds: new Set(
       plans
@@ -152,7 +191,11 @@ export const buildResourceIndex = (context: {
       .filter((id): id is string => id !== null && isUsableResourceId(id)),
     ),
     checklistTitlesById: buildTitleMap(checklists),
-    scheduleItemIds: new Set(),
+    scheduleItemIds: new Set(
+      schedules
+      .map((item) => (item.id != null ? String(item.id) : null))
+      .filter((id): id is string => id !== null && isUsableResourceId(id)),
+    ),
   };
 };
 
@@ -270,12 +313,46 @@ export const validateResourceReadiness = (params: {
       continue;
     }
 
+    /* Try an exact normalized title when the runtime intent is title-based.
+     * A title is accepted only when it resolves to exactly one context resource. */
+    const existingTitle = req.existingTitleFields
+      .map((field) => normalizeResourceTitle(task.args[field]))
+      .find((title): title is string => title !== null);
+
+    if (existingTitle !== undefined) {
+      const titleMap = kind === "plan"
+        ? params.resourceIndex.planTitlesById
+        : kind === "checklist"
+          ? params.resourceIndex.checklistTitlesById
+          : new Map<string, string>();
+      const matches = [...titleMap.values()].filter((title) => title === existingTitle);
+
+      if (matches.length === 1) {
+        continue;
+      }
+
+      issues.push({
+        taskId: task.id,
+        intent: task.intent,
+        resourceKind: kind,
+        code: matches.length === 0
+          ? "RESOURCE_TITLE_NOT_IN_CONTEXT"
+          : "RESOURCE_TITLE_AMBIGUOUS",
+        safeMessage: matches.length === 0
+          ? `${task.intent} 引用的资源标题不在当前上下文中。`
+          : `${task.intent} 引用的资源标题无法唯一定位，请确认后重试。`,
+      });
+      continue;
+    }
+
     /* No valid resource reference at all */
     issues.push({
       taskId: task.id,
       intent: task.intent,
       resourceKind: kind,
-      code: "RESOURCE_ID_MISSING",
+      code: req.existingTitleFields.length > 0
+        ? "RESOURCE_REF_MISSING"
+        : "RESOURCE_ID_MISSING",
       safeMessage: `${task.intent} 缺少有效的资源引用，无法安全执行。`,
     });
   }

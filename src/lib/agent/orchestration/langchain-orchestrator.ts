@@ -145,7 +145,7 @@ export const buildLangChainSystemPrompt = (): string => {
   const resourceProtocol = getResourceProtocolProjection()
     .map(
       (entry) =>
-        `${entry.intent}: kind=${entry.resourceKind}; existing=${entry.existingIdFields.join("|") || "none"}`,
+        `${entry.intent}: kind=${entry.resourceKind}; ids=${entry.existingIdFields.join("|") || "none"}; titles=${entry.existingTitleFields.join("|") || "none"}`,
     )
     .join("\n");
   const syntheticProtocolExample: OrchestratorOutput = {
@@ -200,7 +200,7 @@ decisionCode 与输出形状：
 ${ORCHESTRATOR_INTENT_FAMILY_PROTOCOL}
 
 [compound-boundary:existing-target-mutation]
-- 修改、追加、完成、排期、取消或删除一个必须已经存在的资源时，需要唯一可定位的已有资源 ID。
+- 修改、追加、完成、排期、取消或删除一个必须已经存在的资源时，需要满足下方 Resource Guard 合同的唯一资源引用。
 - 用户与 workspace context 无法唯一定位该已有目标时，选择对应 missing decision 并 clarify；不得创建猜测性的 mutation。
 
 [compound-boundary:new-resource-dependency]
@@ -217,15 +217,16 @@ ${ORCHESTRATOR_INTENT_FAMILY_PROTOCOL}
 资源引用规则（非常重要）：
 - 资源合同来自确定性 Resource Guard：
 ${resourceProtocol}
-- 对必须引用已有资源的 mutation，标题本身不是资源引用；标题存在但没有可用 ID 时必须澄清
+- 只有合同 ids 中列出的字段可作为 ID 引用；只有合同 titles 中列出的字段可作为标题引用
+- 标题引用只有在 workspace context 中规范化后精确且唯一匹配时才有效；不得模糊匹配或从唯一上下文资源推断用户选择
 - 上下文明确提供的 ID 必须原样复制，禁止推断、替换或变形
-- 用户同时提供 ID 和标题时，两者都必须原样复制到 task args
-- 当schedule_plan等写入任务需要已有计划时，只有上下文中明确存在的有效ID才能直接引用
-- 标题存在但ID为"?"、空值或缺失时，不得视为已有资源
-- 缺少有效planId时，不得输出schedule_plan、append_plan_item、complete_plan_item
+- 当 schedule_plan 需要已有计划时，只有上下文中明确存在的有效 planId 才能直接引用
+- 对 ids 合同，ID 为"?"、空值或缺失时不得视为已有资源
+- 缺少有效planId时，不得输出schedule_plan
+- append_plan_item 与 complete_plan_item 必须提供 checklistTitle 和 itemTitle；checklistTitle 必须在上下文中精确且唯一匹配
 - 禁止在 task args 中引用其他 task 的运行时产出；依赖顺序只能使用 dependsOn
-- 用户要求操作已有资源但上下文缺少有效 ID 时，选择对应 missing decision 并澄清，不得提前生成查询或写入候选
-- 直接修改已有未完成项目等集合却没有精确目标 ID 时，必须选择 compound_missing_target 并输出 question 非空的 clarify；将读取结果整理为新的草案不属于已有目标 mutation
+- 用户要求操作已有资源但上下文缺少合同要求的有效引用时，选择对应 missing decision 并澄清，不得提前生成查询或写入候选
+- 直接修改已有未完成项目等集合却没有精确目标引用时，必须选择 compound_missing_target 并输出 question 非空的 clarify；将读取结果整理为新的草案不属于已有目标 mutation
 
 对照组一（只读类别）：知识咨询 → pure_consultation；读取工作区状态 → pure_read_query。二者都只能 single 且不得写入。
 对照组二（单写类别）：资源与目标可信就绪 → explicit_write_ready；缺少、占位或不可信 → explicit_write_missing_resource，且只输出 clarify。
@@ -268,6 +269,20 @@ export const buildWorkspaceContext = (context: AgentPromptContext): string => {
     parts.push("\n## 当前清单");
     for (const cl of context.checklists.slice(0, 8)) {
       parts.push(`- ${cl.title ?? "未命名清单"} (id=${cl.id ?? "?"})`);
+    }
+  }
+
+  if (context.schedules && context.schedules.length > 0) {
+    parts.push("\n## 当前日程");
+    for (const item of context.schedules.slice(0, 8)) {
+      const time = [item.startTime, item.endTime].filter(Boolean).join("-");
+      const metadata = [
+        `id=${item.id}`,
+        item.date ? `date=${item.date}` : null,
+        time ? `time=${time}` : null,
+        item.status ? `status=${item.status}` : null,
+      ].filter(Boolean).join(" | ");
+      parts.push(`- ${item.title ?? "未命名日程"} (${metadata})`);
     }
   }
 

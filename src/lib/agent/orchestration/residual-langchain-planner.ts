@@ -407,7 +407,7 @@ export const buildResidualPlannerSystemPrompt = (
   const jsonSchema = serializeResidualPlannerJsonSchema(input);
   const resourceProtocol = getResourceProtocolProjection()
     .map((entry) =>
-      `${entry.intent}: ${entry.resourceKind} via ${entry.existingIdFields.join("|") || "none"}`
+      `${entry.intent}: ${entry.resourceKind}; ids=${entry.existingIdFields.join("|") || "none"}; titles=${entry.existingTitleFields.join("|") || "none"}`
     )
     .join("\n");
 

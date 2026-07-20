@@ -78,6 +78,31 @@ describe("langchain-orchestrator protocol", () => {
     assert.match(workspaceMessages[0]?.content ?? "", /UNTRUSTED user data/);
   });
 
+  it("projects schedule item IDs only into untrusted workspace data", () => {
+    const messages = buildLangChainOrchestratorMessages("把数学复习改到明天", {
+      checklists: [],
+      now: "2026-07-20T12:00:00.000+08:00",
+      pendingAction: null,
+      plans: [],
+      schedules: [{
+        date: "2026-07-20",
+        id: 77,
+        status: "planned",
+        title: "数学复习",
+      }],
+    });
+    const system = messages.find((message) => message.role === "system")?.content ?? "";
+    const workspace = messages.find(
+      (message) => message.role === "user"
+        && message.content.includes("UNTRUSTED user data"),
+    )?.content ?? "";
+
+    assert.doesNotMatch(system, /数学复习|id=77/);
+    assert.match(workspace, /当前日程/);
+    assert.match(workspace, /数学复习/);
+    assert.match(workspace, /id=77/);
+  });
+
   it("forbids execution artifacts and raw reasoning in the protocol", () => {
     const prompt = buildLangChainSystemPrompt();
 
@@ -95,10 +120,17 @@ describe("langchain-orchestrator protocol", () => {
       for (const field of entry.existingIdFields) {
         assert.match(prompt, new RegExp(`\\b${field}\\b`));
       }
+      for (const field of entry.existingTitleFields) {
+        assert.match(prompt, new RegExp(`\\b${field}\\b`));
+      }
     }
-    assert.match(prompt, /标题.*不是.*资源引用/);
+    assert.match(prompt, /标题.*规范化后精确且唯一/);
     assert.match(prompt, /上下文.*ID.*原样复制/);
-    assert.match(prompt, /已有.*未完成项目.*精确目标 ID/);
+    assert.match(prompt, /缺少有效planId时，不得输出schedule_plan/);
+    assert.doesNotMatch(
+      prompt,
+      /缺少有效planId时，不得输出schedule_plan、append_plan_item、complete_plan_item/,
+    );
     assert.doesNotMatch(prompt, /taskOutput/i);
   });
 
@@ -122,16 +154,16 @@ describe("langchain-orchestrator protocol", () => {
     }
   });
 
-  it("freezes the R2 protocol metadata and deterministic secret-free hash", () => {
+  it("freezes the resource-reference protocol metadata and deterministic secret-free hash", () => {
     assert.equal(L3B_EVALUATION_CONFIG.evaluationConfigVersion, "l3b-r2-provider-protocol-v1");
     assert.equal(
       L3B_EVALUATION_CONFIG.promptProtocolVersion,
-      "l3b-r2-orchestrator-id-format-v1",
+      "l3b-resource-reference-contract-v1",
     );
-    assert.equal(L3B_EVALUATION_CONFIG.resourceProtocolVersion, 2);
+    assert.equal(L3B_EVALUATION_CONFIG.resourceProtocolVersion, 3);
     assert.equal(
       L3B_EVALUATION_CONFIG_HASH,
-      "f33cbc43a0e9362a31b8d0d11fb66b2e932bdc49d5ff9bf5f2fedec6b5f2acb9",
+      "aadf679dba45e95643d946f259d522fd7f66f36d632112a9d53060ebd5cbabec",
     );
   });
 

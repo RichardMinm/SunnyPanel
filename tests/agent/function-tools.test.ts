@@ -17,6 +17,33 @@ test("buildAgentFunctionTools exposes writable intents", () => {
   assert.ok(tools.some((tool) => tool.function.name === "compose_plan"));
 });
 
+test("existing-resource function tools share the AgentIntent argument contract", () => {
+  const tools = buildAgentFunctionTools([
+    "append_plan_item",
+    "complete_plan_item",
+    "reschedule_item",
+    "cancel_schedule_item",
+  ]);
+  const byName = new Map(tools.map((tool) => [tool.function.name, tool.function]));
+
+  for (const intent of ["append_plan_item", "complete_plan_item"] as const) {
+    const definition = byName.get(intent);
+    assert.deepEqual(definition?.parameters.required, [
+      "checklistTitle",
+      "itemTitle",
+    ]);
+    assert.equal("checklistTitle" in (definition?.parameters.properties ?? {}), true);
+    assert.equal("planId" in (definition?.parameters.properties ?? {}), false);
+  }
+
+  for (const intent of ["reschedule_item", "cancel_schedule_item"] as const) {
+    const definition = byName.get(intent);
+    assert.deepEqual(definition?.parameters.required, ["itemId"]);
+    assert.equal("itemId" in (definition?.parameters.properties ?? {}), true);
+    assert.equal("scheduleItemId" in (definition?.parameters.properties ?? {}), false);
+  }
+});
+
 test("intentFromFunctionCall parses tool arguments", () => {
   const intent = intentFromFunctionCall("save_memory", JSON.stringify({ title: "偏好", content: "晚上写作" }));
 

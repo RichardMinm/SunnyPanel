@@ -156,6 +156,169 @@ describe("resource-readiness-guard", () => {
       assert.deepEqual(r1, r2);
       assert.equal(r1.ready, false);
     });
+
+    it("reschedule_item and cancel_schedule_item use the AgentIntent itemId contract", () => {
+      const scheduleIndex = {
+        ...idx(),
+        scheduleItemIds: new Set(["77"]),
+      };
+
+      for (const intent of ["reschedule_item", "cancel_schedule_item"] as const) {
+        const result = validateResourceReadiness({
+          tasks: [{
+            id: "t1",
+            intent,
+            args: { itemId: 77 },
+            dependsOn: [],
+          }],
+          resourceIndex: scheduleIndex,
+        });
+
+        assert.equal(result.ready, true, intent);
+      }
+    });
+
+    it("does not accept the stale scheduleItemId field from the retired function-tool contract", () => {
+      const result = validateResourceReadiness({
+        tasks: [{
+          id: "t1",
+          intent: "cancel_schedule_item",
+          args: { scheduleItemId: 77 },
+          dependsOn: [],
+        }],
+        resourceIndex: {
+          ...idx(),
+          scheduleItemIds: new Set(["77"]),
+        },
+      });
+
+      assert.equal(result.ready, false);
+      assert.equal(result.issues[0]?.code, "RESOURCE_ID_MISSING");
+    });
+
+    it("append and complete accept an exact unique checklistTitle from AgentIntent", () => {
+      const checklistIndex = buildResourceIndex({
+        checklists: [{ id: 201, title: "  本周   任务  " }],
+        plans: [],
+      });
+
+      for (const intent of ["append_plan_item", "complete_plan_item"] as const) {
+        const result = validateResourceReadiness({
+          tasks: [{
+            id: "t1",
+            intent,
+            args: {
+              checklistTitle: "本周 任务",
+              itemTitle: "完成复盘",
+            },
+            dependsOn: [],
+          }],
+          resourceIndex: checklistIndex,
+        });
+
+        assert.equal(result.ready, true, intent);
+      }
+    });
+
+    it("add_completion_note requires the same exact unique checklistTitle contract", () => {
+      const checklistIndex = buildResourceIndex({
+        checklists: [{ id: 201, title: "本周任务" }],
+        plans: [],
+      });
+      const valid = validateResourceReadiness({
+        tasks: [{
+          id: "t1",
+          intent: "add_completion_note",
+          args: {
+            checklistTitle: "本周任务",
+            completionNote: "按计划完成",
+            itemTitle: "完成复盘",
+          },
+          dependsOn: [],
+        }],
+        resourceIndex: checklistIndex,
+      });
+      const invalid = validateResourceReadiness({
+        tasks: [{
+          id: "t1",
+          intent: "add_completion_note",
+          args: {
+            checklistTitle: "不存在的清单",
+            completionNote: "按计划完成",
+            itemTitle: "完成复盘",
+          },
+          dependsOn: [],
+        }],
+        resourceIndex: checklistIndex,
+      });
+
+      assert.equal(valid.ready, true);
+      assert.equal(invalid.ready, false);
+      assert.equal(invalid.issues[0]?.code, "RESOURCE_TITLE_NOT_IN_CONTEXT");
+    });
+
+    it("rejects a checklist title that is absent from context", () => {
+      const result = validateResourceReadiness({
+        tasks: [{
+          id: "t1",
+          intent: "append_plan_item",
+          args: {
+            checklistTitle: "不存在的清单",
+            itemTitle: "完成复盘",
+          },
+          dependsOn: [],
+        }],
+        resourceIndex: buildResourceIndex({
+          checklists: [{ id: 201, title: "本周任务" }],
+          plans: [],
+        }),
+      });
+
+      assert.equal(result.ready, false);
+      assert.equal(result.issues[0]?.code, "RESOURCE_TITLE_NOT_IN_CONTEXT");
+    });
+
+    it("rejects an ambiguous normalized checklist title", () => {
+      const result = validateResourceReadiness({
+        tasks: [{
+          id: "t1",
+          intent: "complete_plan_item",
+          args: {
+            checklistTitle: "本周任务",
+            itemTitle: "完成复盘",
+          },
+          dependsOn: [],
+        }],
+        resourceIndex: buildResourceIndex({
+          checklists: [
+            { id: 201, title: "本周任务" },
+            { id: 202, title: "  本周任务  " },
+          ],
+          plans: [],
+        }),
+      });
+
+      assert.equal(result.ready, false);
+      assert.equal(result.issues[0]?.code, "RESOURCE_TITLE_AMBIGUOUS");
+    });
+
+    it("rejects the stale planId shape when checklistTitle is missing", () => {
+      const result = validateResourceReadiness({
+        tasks: [{
+          id: "t1",
+          intent: "append_plan_item",
+          args: { itemTitle: "完成复盘", planId: 42 },
+          dependsOn: [],
+        }],
+        resourceIndex: buildResourceIndex({
+          checklists: [{ id: 201, title: "本周任务" }],
+          plans: [{ id: 42, title: "复习计划" }],
+        }),
+      });
+
+      assert.equal(result.ready, false);
+      assert.equal(result.issues[0]?.code, "RESOURCE_REF_MISSING");
+    });
   });
 
   describe("buildResourceIndex", () => {
@@ -177,6 +340,19 @@ describe("resource-readiness-guard", () => {
       assert.equal(idx.planTitlesById.get("p1"), "study plan");
       assert.equal(idx.planTitlesById.get("42"), "考研数学复习计划");
     });
+
+    it("indexes valid schedule item IDs from prompt context", () => {
+      const idx = buildResourceIndex({
+        checklists: [],
+        plans: [],
+        schedules: [
+          { id: 77, title: "数学复习" },
+          { id: 88, title: "英语复习" },
+        ],
+      });
+
+      assert.deepEqual([...idx.scheduleItemIds], ["77", "88"]);
+    });
   });
 
   describe("resource protocol projection", () => {
@@ -188,6 +364,7 @@ describe("resource-readiness-guard", () => {
         {
           allowedProducerIntents: [],
           existingIdFields: ["planId"],
+          existingTitleFields: [],
           intent: "schedule_plan",
           outputRefFields: [],
           resourceKind: "plan",
@@ -196,6 +373,43 @@ describe("resource-readiness-guard", () => {
       assert.equal(Object.isFrozen(projection), true);
       assert.equal(Object.isFrozen(projection[0]), true);
       assert.equal(Object.isFrozen(projection[0]?.existingIdFields), true);
+    });
+
+    it("publishes itemId for schedule mutations from the same guard contract", () => {
+      const projection = getResourceProtocolProjection();
+
+      for (const intent of ["reschedule_item", "cancel_schedule_item"] as const) {
+        assert.deepEqual(
+          projection.find((entry) => entry.intent === intent)?.existingIdFields,
+          ["itemId"],
+        );
+      }
+    });
+
+    it("publishes checklistTitle for append and complete from the guard contract", () => {
+      const projection = getResourceProtocolProjection() as ReadonlyArray<
+        Record<string, unknown>
+      >;
+
+      for (const intent of ["append_plan_item", "complete_plan_item"] as const) {
+        assert.deepEqual(
+          projection.find((entry) => entry.intent === intent)?.existingTitleFields,
+          ["checklistTitle"],
+        );
+        assert.deepEqual(
+          projection.find((entry) => entry.intent === intent)?.existingIdFields,
+          [],
+        );
+      }
+    });
+
+    it("publishes checklistTitle for completion-note mutation", () => {
+      const entry = getResourceProtocolProjection()
+        .find((candidate) => candidate.intent === "add_completion_note");
+
+      assert.deepEqual(entry?.existingIdFields, []);
+      assert.deepEqual(entry?.existingTitleFields, ["checklistTitle"]);
+      assert.equal(entry?.resourceKind, "checklist");
     });
   });
 });

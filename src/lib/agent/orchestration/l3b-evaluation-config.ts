@@ -9,8 +9,8 @@ import {
 } from "../answer/config";
 
 export const L3B_EVALUATION_CONFIG_VERSION = "l3b-r2-provider-protocol-v1";
-export const L3B_PROMPT_PROTOCOL_VERSION = "l3b-r2-orchestrator-id-format-v1";
-export const L3B_RESOURCE_PROTOCOL_VERSION = 2;
+export const L3B_PROMPT_PROTOCOL_VERSION = "l3b-resource-reference-contract-v1";
+export const L3B_RESOURCE_PROTOCOL_VERSION = 3;
 
 export type L3BEvaluationConfig = Readonly<{
   answerFirstTokenTimeoutMs: number;

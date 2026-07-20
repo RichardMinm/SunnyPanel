@@ -152,8 +152,8 @@ test("passes a complete 99-observation matrix with all safety and performance ga
       totalTimeoutMs: 30_000,
     },
     evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
-    promptProtocolVersion: "l3b-r2-orchestrator-id-format-v1",
-    resourceProtocolVersion: 2,
+    promptProtocolVersion: "l3b-resource-reference-contract-v1",
+    resourceProtocolVersion: 3,
     schemaVersion: 2,
   });
 });
