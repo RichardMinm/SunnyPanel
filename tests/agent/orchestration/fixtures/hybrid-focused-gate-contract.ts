@@ -63,6 +63,13 @@ export type FocusedObservation = Readonly<{
   replanProviderAttempts: number;
   residualPlannerLogicalCalls: number;
   residualPlannerProviderAttempts: number;
+  residualRejectionReason:
+    | "consultation_write_bridge"
+    | "dag_invalid"
+    | "family_forbidden"
+    | "intent_not_in_policy"
+    | "resource_invalid"
+    | null;
   residualSchemaValid: boolean | null;
   round: FocusedRound;
   semanticMatch: boolean;
@@ -390,6 +397,7 @@ export const baseObservation = (
   replanProviderAttempts: 0,
   residualPlannerLogicalCalls: 0,
   residualPlannerProviderAttempts: 0,
+  residualRejectionReason: null,
   residualSchemaValid: null,
   round: 1,
   semanticMatch: true,

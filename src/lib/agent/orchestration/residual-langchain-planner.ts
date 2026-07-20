@@ -33,6 +33,9 @@ import {
 import {
   RESIDUAL_INTENT_FAMILY_PROTOCOL,
 } from "./orchestrator-intent-family-protocol";
+import {
+  QUERY_RESULT_TO_CHECKLIST_DRAFT_POLICY,
+} from "./residual-intent-policy";
 import type {
   IntentFamily,
   ResidualPlanningInput,
@@ -52,15 +55,44 @@ export const RESIDUAL_PLANNER_RETRY_POLICY = Object.freeze({
   maxTransportRetries: 1,
 });
 
-const residualEnvelopeBaseSchema = z.object({
+const residualEnvelopeShape = {
   version: z.literal(ORCHESTRATOR_OUTPUT_SCHEMA_VERSION),
   routingSummary: z.string().min(1).max(80),
-  tasks: z.array(orchestratorTaskSchema).min(1).max(RESIDUAL_MAX_TASKS),
-});
+} as const;
 
-const residualEnvelopeSchema = residualEnvelopeBaseSchema.strict();
+const assertResidualIntentPolicy = (
+  input: ResidualPlanningInput,
+): void => {
+  const reviewedPolicy = QUERY_RESULT_TO_CHECKLIST_DRAFT_POLICY;
+  if (
+    input.intentPolicy.kind !== reviewedPolicy.kind
+    || input.intentPolicy.allowedIntents.length
+      !== reviewedPolicy.allowedIntents.length
+    || input.intentPolicy.allowedIntents.some(
+      (intent, index) =>
+        intent !== reviewedPolicy.allowedIntents[index],
+    )
+  ) {
+    throw new Error("Residual intent policy is not supported.");
+  }
+};
 
-type ResidualEnvelope = z.infer<typeof residualEnvelopeSchema>;
+export const buildResidualPlannerSchemas = (
+  rawInput: ResidualPlanningInput,
+) => {
+  const input = buildResidualPlanningInput(rawInput);
+  const taskSchema = orchestratorTaskSchema.extend({
+    intent: z.enum(input.intentPolicy.allowedIntents),
+  });
+  const base = z.object({
+    ...residualEnvelopeShape,
+    tasks: z.array(taskSchema).min(1).max(RESIDUAL_MAX_TASKS),
+  });
+  return Object.freeze({
+    base,
+    strict: base.strict(),
+  });
+};
 
 const canonicalizeSchema = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(canonicalizeSchema);
@@ -72,14 +104,17 @@ const canonicalizeSchema = (value: unknown): unknown => {
   );
 };
 
-export const serializeResidualPlannerJsonSchema = (): string =>
-  JSON.stringify(canonicalizeSchema(
-    z.toJSONSchema(residualEnvelopeSchema),
-  ));
+export const serializeResidualPlannerJsonSchema = (
+  input: ResidualPlanningInput,
+): string => JSON.stringify(canonicalizeSchema(
+  z.toJSONSchema(buildResidualPlannerSchemas(input).strict),
+));
 
-export const hashResidualPlannerSchema = (): string =>
+export const hashResidualPlannerSchema = (
+  input: ResidualPlanningInput,
+): string =>
   createHash("sha256")
-    .update(serializeResidualPlannerJsonSchema())
+    .update(serializeResidualPlannerJsonSchema(input))
     .digest("hex");
 
 export type ResidualPlannerFailureCode =
@@ -87,6 +122,13 @@ export type ResidualPlannerFailureCode =
   | "provider_error"
   | "schema_failure"
   | "timeout";
+
+export type ResidualRejectionReason =
+  | "consultation_write_bridge"
+  | "dag_invalid"
+  | "family_forbidden"
+  | "intent_not_in_policy"
+  | "resource_invalid";
 
 export type ResidualPlannerResult =
   | Readonly<{
@@ -99,6 +141,7 @@ export type ResidualPlannerResult =
       code: ResidualPlannerFailureCode;
       logicalCalls: 1;
       providerAttempts: number;
+      rejectionReason?: ResidualRejectionReason;
       status: "unavailable";
     }>;
 
@@ -158,6 +201,12 @@ const freezeInput = (
     Object.freeze({ ...task })
   )),
   forbiddenIntentFamilies: Object.freeze([...input.forbiddenIntentFamilies]),
+  intentPolicy: Object.freeze({
+    allowedIntents: Object.freeze([
+      ...input.intentPolicy.allowedIntents,
+    ]) as readonly ["compose_checklist"],
+    kind: input.intentPolicy.kind,
+  }),
   originalRequest: input.originalRequest,
   satisfiedIntentFamilies: Object.freeze([...input.satisfiedIntentFamilies]),
 });
@@ -169,6 +218,7 @@ const freezeInput = (
 export const buildResidualPlanningInput = (
   input: ResidualPlanningInput,
 ): ResidualPlanningInput => {
+  assertResidualIntentPolicy(input);
   const satisfied = new Set(normalizeFamilies(input.satisfiedIntentFamilies));
   const forbidden = new Set(normalizeFamilies(input.forbiddenIntentFamilies));
   const allowed = new Set(normalizeFamilies(input.allowedIntentFamilies));
@@ -178,6 +228,20 @@ export const buildResidualPlanningInput = (
     satisfied.add(fixedTask.family);
     forbidden.add(fixedTask.family);
     allowed.delete(fixedTask.family);
+  }
+
+  for (const intent of input.intentPolicy.allowedIntents) {
+    const family = intentFamily(intent);
+    if (
+      !family
+      || !allowed.has(family)
+      || forbidden.has(family)
+      || satisfied.has(family)
+    ) {
+      throw new Error(
+        "Residual intent policy conflicts with the family contract.",
+      );
+    }
   }
 
   return freezeInput({
@@ -191,10 +255,12 @@ export const buildResidualPlanningInput = (
 const unavailable = (
   code: ResidualPlannerFailureCode,
   providerAttempts: number,
+  rejectionReason?: ResidualRejectionReason,
 ): ResidualPlannerResult => ({
   code,
   logicalCalls: 1,
   providerAttempts,
+  ...(rejectionReason ? { rejectionReason } : {}),
   status: "unavailable",
 });
 
@@ -211,18 +277,31 @@ const cloneResidualTasks = (
 const validateResidualTasks = (
   tasks: readonly OrchestratorTask[],
   input: ResidualPlanningInput,
-): ResidualPlannerFailureCode | null => {
-  if (tasks.length === 0) return "schema_failure";
+): Readonly<{
+  code: ResidualPlannerFailureCode;
+  rejectionReason: ResidualRejectionReason;
+}> | null => {
+  if (tasks.length === 0) {
+    return {
+      code: "schema_failure",
+      rejectionReason: "dag_invalid",
+    };
+  }
 
   const allowed = new Set<IntentFamily>(input.allowedIntentFamilies);
   const forbidden = new Set<IntentFamily>(input.forbiddenIntentFamilies);
+  const allowedIntents = new Set<string>(
+    input.intentPolicy.allowedIntents,
+  );
 
-  for (const task of tasks) {
-    const family = intentFamily(task.intent);
-    if (!family) return "schema_failure";
-    if (forbidden.has(family) || !allowed.has(family)) {
-      return "forbidden_intent";
-    }
+  const familyByTaskId = new Map(
+    tasks.map((task) => [task.id, intentFamily(task.intent)]),
+  );
+  if ([...familyByTaskId.values()].some((family) => family === null)) {
+    return {
+      code: "schema_failure",
+      rejectionReason: "intent_not_in_policy",
+    };
   }
 
   const dagProbe: OrchestratorOutput = {
@@ -234,11 +313,13 @@ const validateResidualTasks = (
     tasks: [...tasks],
     version: ORCHESTRATOR_OUTPUT_SCHEMA_VERSION,
   };
-  if (!validateTaskDAG(dagProbe).valid) return "schema_failure";
+  if (!validateTaskDAG(dagProbe).valid) {
+    return {
+      code: "schema_failure",
+      rejectionReason: "dag_invalid",
+    };
+  }
 
-  const familyByTaskId = new Map(
-    tasks.map((task) => [task.id, intentFamily(task.intent)]),
-  );
   const dependenciesByTaskId = new Map(
     tasks.map((task) => [task.id, task.dependsOn]),
   );
@@ -258,7 +339,28 @@ const validateResidualTasks = (
     familyByTaskId.get(task.id) === "write_candidate"
     && hasConsultationAncestor(task.id)
   )) {
-    return "forbidden_intent";
+    return {
+      code: "forbidden_intent",
+      rejectionReason: "consultation_write_bridge",
+    };
+  }
+
+  for (const task of tasks) {
+    const family = familyByTaskId.get(task.id);
+    if (!family || !allowedIntents.has(task.intent)) {
+      return {
+        code: knownIntents.has(task.intent)
+          ? "forbidden_intent"
+          : "schema_failure",
+        rejectionReason: "intent_not_in_policy",
+      };
+    }
+    if (forbidden.has(family) || !allowed.has(family)) {
+      return {
+        code: "forbidden_intent",
+        rejectionReason: "family_forbidden",
+      };
+    }
   }
 
   const resourceIndex = buildResourceIndex({
@@ -276,54 +378,33 @@ const validateResidualTasks = (
       intent: task.intent,
     })),
   });
-  return resources.ready ? null : "schema_failure";
+  return resources.ready
+    ? null
+    : {
+        code: "schema_failure",
+        rejectionReason: "resource_invalid",
+      };
 };
 
 const residualAllowedIntents = (
   input: ResidualPlanningInput,
 ): string[] => {
-  const allowed = new Set<IntentFamily>(input.allowedIntentFamilies);
-  const forbidden = new Set<IntentFamily>(input.forbiddenIntentFamilies);
-  return ROUTER_INTENT_NAMES.filter((intent) => {
-    const family = intentFamily(intent);
-    return family !== null && allowed.has(family) && !forbidden.has(family);
-  });
+  assertResidualIntentPolicy(input);
+  return [...input.intentPolicy.allowedIntents];
 };
 
 export const serializeResidualPlannerPromptJsonSchema = (
   input: ResidualPlanningInput,
-): string => {
-  const schema = JSON.parse(
-    serializeResidualPlannerJsonSchema(),
-  ) as {
-    properties?: {
-      tasks?: {
-        items?: {
-          properties?: {
-            intent?: {
-              enum?: string[];
-            };
-          };
-        };
-      };
-    };
-  };
-  const intentSchema =
-    schema.properties?.tasks?.items?.properties?.intent;
-  if (!intentSchema || !Array.isArray(intentSchema.enum)) {
-    throw new Error("Residual JSON Schema intent enum is unavailable.");
-  }
-  intentSchema.enum = residualAllowedIntents(input);
-  return JSON.stringify(canonicalizeSchema(schema));
-};
+): string => serializeResidualPlannerJsonSchema(input);
 
 export const buildResidualPlannerSystemPrompt = (
   input: ResidualPlanningInput,
 ): string => {
-  const envelopeFields = Object.keys(residualEnvelopeBaseSchema.shape).join(", ");
+  const schemas = buildResidualPlannerSchemas(input);
+  const envelopeFields = Object.keys(schemas.base.shape).join(", ");
   const taskFields = Object.keys(orchestratorTaskSchema.shape).join(", ");
   const allowedIntents = residualAllowedIntents(input);
-  const jsonSchema = serializeResidualPlannerPromptJsonSchema(input);
+  const jsonSchema = serializeResidualPlannerJsonSchema(input);
   const resourceProtocol = getResourceProtocolProjection()
     .map((entry) =>
       `${entry.intent}: ${entry.resourceKind} via ${entry.existingIdFields.join("|") || "none"}`
@@ -437,7 +518,11 @@ const runInjectedPlanner = async (
       const tasks = await options.invoke(input, providerAttempts);
       const failure = validateResidualTasks(tasks, input);
       return failure
-        ? unavailable(failure, providerAttempts)
+        ? unavailable(
+            failure.code,
+            providerAttempts,
+            failure.rejectionReason,
+          )
         : {
             logicalCalls: 1,
             providerAttempts,
@@ -479,6 +564,7 @@ export const runResidualPlanner = async (
 
   const modelConfig = options.modelConfig ?? await resolveModelConfig();
   if (!modelConfig) return unavailable("provider_error", 0);
+  const schemas = buildResidualPlannerSchemas(input);
 
   let providerAttempts = 0;
   const observeProviderAttempt: StructuredProviderAttemptObserver = (event) => {
@@ -501,9 +587,9 @@ export const runResidualPlanner = async (
     messages: buildResidualPlannerMessages(input),
     modelConfig,
     modelFactory: options.modelFactory ?? createChatModel,
-    modelSchema: residualEnvelopeBaseSchema,
+    modelSchema: schemas.base,
     providerAttemptObserver: observeProviderAttempt,
-    schema: residualEnvelopeSchema,
+    schema: schemas.strict,
     schemaName: "ResidualOrchestratorEnvelope",
     signal: options.signal,
   });
@@ -512,10 +598,14 @@ export const runResidualPlanner = async (
     return unavailable(modelFailureCode(result.error.code), providerAttempts);
   }
 
-  const envelope: ResidualEnvelope = result.data;
+  const envelope = result.data;
   const failure = validateResidualTasks(envelope.tasks, input);
   return failure
-    ? unavailable(failure, providerAttempts)
+    ? unavailable(
+        failure.code,
+        providerAttempts,
+        failure.rejectionReason,
+      )
     : {
         logicalCalls: 1,
         providerAttempts,

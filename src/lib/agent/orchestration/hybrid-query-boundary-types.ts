@@ -29,11 +29,17 @@ export type FixedTaskMetadata = Readonly<{
   taskId: string;
 }>;
 
+export type ResidualIntentPolicy = Readonly<{
+  allowedIntents: readonly ["compose_checklist"];
+  kind: "query_result_to_checklist_draft";
+}>;
+
 export type ResidualPlanningInput = Readonly<{
   allowedIntentFamilies: readonly IntentFamily[];
   authorizedSnapshot: ActorAuthorizedResourceSnapshot;
   fixedTasks: readonly FixedTaskSummary[];
   forbiddenIntentFamilies: readonly IntentFamily[];
+  intentPolicy: ResidualIntentPolicy;
   originalRequest: string;
   satisfiedIntentFamilies: readonly IntentFamily[];
 }>;

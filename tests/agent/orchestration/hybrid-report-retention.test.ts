@@ -105,6 +105,16 @@ test("recursive retention scan rejects nested raw keys and nested sensitive valu
     providerRequests: 4,
   });
   assert.equal(safeCounter.rawRetentionViolation, false);
+  const safeRejectionReasons = scanHybridFocusedGateReport({
+    observations: [
+      "consultation_write_bridge",
+      "dag_invalid",
+      "family_forbidden",
+      "intent_not_in_policy",
+      "resource_invalid",
+    ].map((residualRejectionReason) => ({ residualRejectionReason })),
+  });
+  assert.equal(safeRejectionReasons.rawRetentionViolation, false);
 
   const { buildHybridFocusedGatePreflight } =
     await loadR4AGreenModule<FocusedGatePreflightModule>(

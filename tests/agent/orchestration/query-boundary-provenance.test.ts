@@ -96,6 +96,52 @@ test("qry-4 cannot fuzzy-match the only Context plan and deterministically clari
   assert.ok(String(result.output.tasks[0].args.question).trim().length > 0);
 });
 
+test("cmp-4 carries the closed checklist-draft residual policy", async () => {
+  const { resolveHybridQueryBoundary } = await loadBoundary(
+    "cmp4_closed_residual_intent_policy",
+  );
+  const fixture = focusedFixture("cmp-4");
+  const result = resolveHybridQueryBoundary({
+    authorizedSnapshot: actorAuthorizedSnapshot(),
+    originalRequest: fixture.message,
+  });
+
+  assert.equal(result.kind, "compound");
+  if (result.kind !== "compound") return;
+  assert.deepEqual(result.residualInput.intentPolicy, {
+    allowedIntents: ["compose_checklist"],
+    kind: "query_result_to_checklist_draft",
+  });
+  assert.deepEqual(result.residualInput.allowedIntentFamilies, [
+    "write_candidate",
+  ]);
+});
+
+test("an independent consultation plus mutation is not claimed by the closed policy", async () => {
+  const { resolveHybridQueryBoundary } = await loadBoundary(
+    "compound_consultation_uses_full_orchestrator",
+  );
+  const result = resolveHybridQueryBoundary({
+    authorizedSnapshot: actorAuthorizedSnapshot(),
+    originalRequest:
+      "检查项目进度，解释为什么落后，并把未完成项记录为新任务",
+  });
+
+  assert.deepEqual(result, { kind: "not_applicable" });
+});
+
+test("an unsupported Query mutation stays on the Full Orchestrator path", async () => {
+  const { resolveHybridQueryBoundary } = await loadBoundary(
+    "unsupported_query_mutation_uses_full_orchestrator",
+  );
+  const result = resolveHybridQueryBoundary({
+    authorizedSnapshot: actorAuthorizedSnapshot(),
+    originalRequest: "检查项目进度并取消当前计划",
+  });
+
+  assert.deepEqual(result, { kind: "not_applicable" });
+});
+
 test("the provenance sidecar is stripped before Mapper output and task args", async () => {
   const { composeFixedTaskPlan } = await loadR4AGreenModule<FixedTaskPlanComposerModule>(
     R4A_GREEN_MODULES.composer,

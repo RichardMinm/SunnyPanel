@@ -10,6 +10,7 @@ import { L3B_EVALUATION_FIXTURES } from "./l3b-evaluation-fixtures";
 import {
   RESIDUAL_PLANNER_RETRY_POLICY,
   type ResidualPlannerFailureCode,
+  type ResidualRejectionReason,
 } from "./residual-langchain-planner";
 import type { HybridCandidateValidationErrorCode } from "./hybrid-candidate-validator";
 
@@ -132,6 +133,7 @@ export type HybridLiveObservation = Readonly<{
   replanProviderAttempts: number;
   residualPlannerLogicalCalls: number;
   residualPlannerProviderAttempts: number;
+  residualRejectionReason: ResidualRejectionReason | null;
   residualSchemaValid: boolean | null;
   round: HybridFocusedRound;
   semanticMatch: boolean;

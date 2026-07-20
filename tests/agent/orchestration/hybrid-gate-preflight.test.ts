@@ -95,7 +95,10 @@ test("Preflight hashes the real cmp-4 Residual Prompt and strict schema", async 
     preflight.residualPromptHash,
     sha256(buildResidualPlannerSystemPrompt(boundary.residualInput)),
   );
-  assert.equal(preflight.residualSchemaHash, hashResidualPlannerSchema());
+  assert.equal(
+    preflight.residualSchemaHash,
+    hashResidualPlannerSchema(boundary.residualInput),
+  );
   assert.equal(preflight.evaluationConfigHash, L3B_EVALUATION_CONFIG_HASH);
   assert.deepEqual(HYBRID_FOCUSED_GATE_FROZEN_HASHES, {
     evaluationConfigHash:
@@ -103,10 +106,39 @@ test("Preflight hashes the real cmp-4 Residual Prompt and strict schema", async 
     fixtureSnapshotHash:
       "be856ddcba4a60f65e6a1e360027c3e1e5eface66c434f40f9df298b5286966d",
     residualPromptHash:
-      "0619da530908cc99992b653bba1531b5634552a7ee4d59dae22ebfcac4072f40",
+      "93f8b25dbdf2a311142b5a2830b5235cdf93179a06ea9717435102540fb8b866",
     residualSchemaHash:
-      "66228b19f488a20c481e2d8c63e81973e4f8a82030474987e0bec23cddee68eb",
+      "44d6ee2304cfb3b4eeaa178253a69b6dfde98c1055d3684bdc8a42f6fc98665c",
   });
+});
+
+test("Preflight schema hashing rejects an unreviewed residual intent policy", () => {
+  const fixture = L3B_EVALUATION_FIXTURES.find(
+    (candidate) => candidate.id === "cmp-4",
+  );
+  assert.ok(fixture);
+  const snapshot = buildActorAuthorizedResourceSnapshot({
+    authenticatedActor: { collection: "users", id: 7 },
+    context: fixture.context,
+  });
+  assert.equal(snapshot.valid, true);
+  if (!snapshot.valid) return;
+  const boundary = resolveHybridQueryBoundary({
+    authorizedSnapshot: snapshot.snapshot,
+    originalRequest: fixture.message,
+  });
+  assert.equal(boundary.kind, "compound");
+  if (boundary.kind !== "compound") return;
+
+  assert.throws(() =>
+    hashResidualPlannerSchema({
+      ...boundary.residualInput,
+      intentPolicy: {
+        allowedIntents: ["compose_checklist", "save_memory"],
+        kind: "query_result_to_checklist_draft",
+      },
+    } as unknown as typeof boundary.residualInput)
+  );
 });
 
 test("Preflight exposes only the reviewed sanitized contract", async () => {

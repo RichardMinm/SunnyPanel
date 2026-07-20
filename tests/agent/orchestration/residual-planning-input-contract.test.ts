@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import type { ResidualPlannerModule } from "./fixtures/hybrid-query-boundary-contract";
 import {
@@ -15,11 +16,44 @@ import {
   ORCHESTRATOR_INTENT_FAMILY_PROTOCOL,
   RESIDUAL_INTENT_FAMILY_PROTOCOL,
 } from "../../../src/lib/agent/orchestration/orchestrator-intent-family-protocol";
+import type { ModelFactory } from "../../../src/lib/agent/llm/model-factory";
 
 const loadResidualPlanner = (contract: string) => loadR4AGreenModule<ResidualPlannerModule>(
   R4A_GREEN_MODULES.residual,
   contract,
 );
+
+const residualEnvelope = (intent: string): unknown => ({
+  routingSummary: "整理查询结果",
+  tasks: [{
+    agentRole: "plan",
+    args: { title: "未完成任务" },
+    dependsOn: [],
+    id: "t1",
+    intent,
+    label: "整理未完成任务",
+  }],
+  version: 2,
+});
+
+const promptJsonModelFactory = (
+  invoke: () => unknown | Promise<unknown>,
+): ModelFactory => () => ({
+  withConfig: () => ({
+    invoke: async () => ({ content: JSON.stringify(await invoke()) }),
+  }),
+}) as unknown as BaseChatModel;
+
+const fakeDeepSeekConfig = {
+  apiKey: "test-only",
+  baseURL: "https://example.invalid",
+  maxRetries: 0,
+  model: "fake",
+  provider: "deepseek",
+  structuredOutputMode: "provider_default",
+  temperature: 0,
+  timeoutMs: 100,
+} as const;
 
 test("ResidualPlanningInput preserves the complete original request and has no remainingRequest", async () => {
   const { buildResidualPlanningInput } = await loadResidualPlanner("residual_full_original_request");
@@ -42,6 +76,26 @@ test("a satisfied fixed Query family is also forbidden to the Residual Planner",
   assert.equal(input.allowedIntentFamilies.includes("query"), false);
 });
 
+test("a policy intent must remain in an allowed and unsatisfied family", async () => {
+  const { buildResidualPlanningInput } = await loadResidualPlanner(
+    "residual_policy_family_consistency",
+  );
+  const input = residualInput();
+  assert.throws(() =>
+    buildResidualPlanningInput({
+      ...input,
+      allowedIntentFamilies: [],
+      forbiddenIntentFamilies: ["query", "write_candidate"],
+    })
+  );
+  assert.throws(() =>
+    buildResidualPlanningInput({
+      ...input,
+      satisfiedIntentFamilies: ["query", "write_candidate"],
+    })
+  );
+});
+
 test("Residual Prompt explicitly requests one JSON object for DeepSeek JSON mode", async () => {
   const { buildResidualPlannerSystemPrompt } = await loadResidualPlanner(
     "residual_deepseek_json_mode_prompt",
@@ -53,6 +107,7 @@ test("Residual Prompt explicitly requests one JSON object for DeepSeek JSON mode
 
 test("Residual Prompt narrows its schema-derived intent enum to the current allowlist", async () => {
   const {
+    buildResidualPlannerSchemas,
     buildResidualPlannerSystemPrompt,
     serializeResidualPlannerJsonSchema,
     serializeResidualPlannerPromptJsonSchema,
@@ -60,7 +115,7 @@ test("Residual Prompt narrows its schema-derived intent enum to the current allo
   const input = residualInput();
   const prompt = buildResidualPlannerSystemPrompt(input);
   const structuralSchema = JSON.parse(
-    serializeResidualPlannerJsonSchema(),
+    serializeResidualPlannerJsonSchema(input),
   ) as {
     additionalProperties?: unknown;
     properties?: {
@@ -89,6 +144,7 @@ test("Residual Prompt narrows its schema-derived intent enum to the current allo
   )?.[1]?.split(", ");
 
   assert.ok(prompt.includes(serializedPromptSchema));
+  assert.equal(serializedPromptSchema, serializeResidualPlannerJsonSchema(input));
   assert.equal(promptSchema.additionalProperties, false);
   assert.deepEqual(
     promptSchema.properties?.tasks?.items?.properties?.agentRole?.enum,
@@ -99,14 +155,80 @@ test("Residual Prompt narrows its schema-derived intent enum to the current allo
     ["id", "label", "intent", "args", "dependsOn", "agentRole"],
   );
   assert.deepEqual(promptIntentEnum, renderedAllowlist);
-  assert.ok(promptIntentEnum?.includes("compose_checklist"));
-  assert.equal(promptIntentEnum?.includes("query_progress"), false);
-  assert.equal(promptIntentEnum?.includes("clarify"), false);
+  assert.deepEqual(promptIntentEnum, ["compose_checklist"]);
   assert.ok(
     promptIntentEnum?.every((intent) =>
       structuralIntentEnum?.includes(intent)
     ),
   );
+
+  const schemas = buildResidualPlannerSchemas(input);
+  assert.equal(schemas.base.safeParse(residualEnvelope("compose_checklist")).success, true);
+  assert.equal(schemas.strict.safeParse(residualEnvelope("compose_checklist")).success, true);
+  for (const forbiddenIntent of [
+    "answer_question",
+    "save_memory",
+    "query_progress",
+    "clarify",
+  ]) {
+    assert.equal(
+      schemas.base.safeParse(residualEnvelope(forbiddenIntent)).success,
+      false,
+      `${forbiddenIntent} must fail the model-facing schema`,
+    );
+    assert.equal(
+      schemas.strict.safeParse(residualEnvelope(forbiddenIntent)).success,
+      false,
+      `${forbiddenIntent} must fail the strict schema`,
+    );
+  }
+});
+
+test("real structured invocation retries one request-invalid intent and accepts the second valid envelope", async () => {
+  const { runResidualPlanner } = await loadResidualPlanner(
+    "residual_request_invalid_schema_retry",
+  );
+  let calls = 0;
+  const result = await runResidualPlanner({
+    input: residualInput(),
+    maxTransportRetries: 0,
+    modelConfig: fakeDeepSeekConfig,
+    modelFactory: promptJsonModelFactory(() => {
+      calls += 1;
+      return residualEnvelope(
+        calls === 1 ? "answer_question" : "compose_checklist",
+      );
+    }),
+  });
+
+  assert.equal(result.status, "success");
+  assert.equal(result.logicalCalls, 1);
+  assert.equal(result.providerAttempts, 2);
+  assert.equal(calls, 2);
+});
+
+test("repeated request-invalid intents exhaust schema retry without becoming forbidden_intent", async () => {
+  const { runResidualPlanner } = await loadResidualPlanner(
+    "residual_request_invalid_schema_exhaustion",
+  );
+  let calls = 0;
+  const result = await runResidualPlanner({
+    input: residualInput(),
+    maxTransportRetries: 0,
+    modelConfig: fakeDeepSeekConfig,
+    modelFactory: promptJsonModelFactory(() => {
+      calls += 1;
+      return residualEnvelope("answer_question");
+    }),
+  });
+
+  assert.deepEqual(result, {
+    code: "schema_failure",
+    logicalCalls: 1,
+    providerAttempts: 2,
+    status: "unavailable",
+  });
+  assert.equal(calls, 2);
 });
 
 test("Residual Prompt distinguishes task drafts from memory and forbids fixed-query bridge tasks", async () => {
@@ -201,6 +323,7 @@ test("a consultation bridge from the fixed Query to a write fails closed without
     code: "forbidden_intent",
     logicalCalls: 1,
     providerAttempts: 1,
+    rejectionReason: "consultation_write_bridge",
     status: "unavailable",
   });
   assert.equal(calls, 1);
@@ -227,6 +350,7 @@ test("a residual Query intent makes the entire plan unavailable without a second
     code: "forbidden_intent",
     logicalCalls: 1,
     providerAttempts: 1,
+    rejectionReason: "intent_not_in_policy",
     status: "unavailable",
   });
   assert.equal(calls, 1);

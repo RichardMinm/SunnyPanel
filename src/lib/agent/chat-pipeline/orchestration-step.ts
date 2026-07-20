@@ -29,6 +29,7 @@ import { runResidualPlanner } from "@/lib/agent/orchestration/residual-langchain
 import type {
   InjectedResidualInvoke,
   ResidualPlannerFailureCode,
+  ResidualRejectionReason,
 } from "@/lib/agent/orchestration/residual-langchain-planner";
 import { resolveOrchestratorRuntimeMode } from "@/lib/agent/orchestration/runtime-config";
 import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
@@ -95,6 +96,7 @@ export type HybridOrchestrationStepObservation =
     }>
   | Readonly<{
       code: ResidualPlannerFailureCode | null;
+      rejectionReason: ResidualRejectionReason | null;
       status: "success" | "unavailable";
       type: "residual_planning";
     }>
@@ -793,6 +795,10 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         });
         recordHybridObservation({
           code: residual.status === "success" ? null : residual.code,
+          rejectionReason:
+            residual.status === "success"
+              ? null
+              : residual.rejectionReason ?? null,
           status: residual.status,
           type: "residual_planning",
         });

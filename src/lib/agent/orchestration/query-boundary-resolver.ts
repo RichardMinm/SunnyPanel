@@ -16,8 +16,10 @@ import type {
   FixedTaskMetadata,
   HybridQueryBoundaryResolution,
   QueryBoundaryClarifyReason,
+  ResidualIntentPolicy,
   ResidualPlanningInput,
 } from "./hybrid-query-boundary-types";
+import { resolveResidualIntentPolicy } from "./residual-intent-policy";
 
 export type SnapshotBuildResult =
   | Readonly<{ snapshot: ActorAuthorizedResourceSnapshot; valid: true }>
@@ -193,8 +195,9 @@ const residualInput = (
   originalRequest: string,
   authorizedSnapshot: ActorAuthorizedResourceSnapshot,
   task: OrchestratorTask,
+  intentPolicy: ResidualIntentPolicy,
 ): ResidualPlanningInput => ({
-  allowedIntentFamilies: ["consultation", "write_candidate"],
+  allowedIntentFamilies: ["write_candidate"],
   authorizedSnapshot,
   fixedTasks: [{
     family: "query",
@@ -202,6 +205,7 @@ const residualInput = (
     taskId: task.id,
   }],
   forbiddenIntentFamilies: ["query"],
+  intentPolicy,
   originalRequest,
   satisfiedIntentFamilies: ["query"],
 });
@@ -213,7 +217,8 @@ const resolvedQuery = (input: {
   task: OrchestratorTask;
 }): HybridQueryBoundaryResolution => {
   const metadata = fixedMetadata(input.task.id, input.provenance);
-  if (RESIDUAL_WRITE_CUE.test(input.originalRequest)) {
+  const intentPolicy = resolveResidualIntentPolicy(input.originalRequest);
+  if (intentPolicy) {
     return {
       fixedMetadata: metadata,
       fixedQueryTask: input.task,
@@ -222,8 +227,12 @@ const resolvedQuery = (input: {
         input.originalRequest,
         input.authorizedSnapshot,
         input.task,
+        intentPolicy,
       ),
     };
+  }
+  if (RESIDUAL_WRITE_CUE.test(input.originalRequest)) {
+    return { kind: "not_applicable" };
   }
   return {
     fixedMetadata: metadata,

@@ -33,6 +33,7 @@ import {
 import type {
   InjectedResidualInvoke,
   ResidualPlannerFailureCode,
+  ResidualRejectionReason,
 } from "./residual-langchain-planner";
 import type { HybridCandidateValidationErrorCode } from "./hybrid-candidate-validator";
 import type { runOrchestrator } from "./orchestrator";
@@ -183,6 +184,7 @@ export const evaluateHybridProductionCase = async (
         HybridProductionEvaluationObservation["provenanceSource"];
       queryScope: HybridProductionEvaluationObservation["queryScope"];
       residualFailureCode: ResidualPlannerFailureCode | undefined;
+      residualRejectionReason: ResidualRejectionReason | null;
       residualStatus: "not_called" | "success" | "unavailable";
     } = {
       boundaryResolutionKind: "not_applicable",
@@ -191,6 +193,7 @@ export const evaluateHybridProductionCase = async (
       provenanceSource: "none",
       queryScope: "none",
       residualFailureCode: undefined,
+      residualRejectionReason: null,
       residualStatus: "not_called",
     };
     let databaseConnections = 0;
@@ -217,6 +220,8 @@ export const evaluateHybridProductionCase = async (
         hybridState.candidateValidationResult = observation.result;
       } else if (observation.type === "residual_planning") {
         hybridState.residualFailureCode = observation.code ?? undefined;
+        hybridState.residualRejectionReason =
+          observation.rejectionReason;
         hybridState.residualStatus = observation.status;
       } else if (observation.type === "mapper") {
         mapperReached = observation.reached;
@@ -380,6 +385,7 @@ export const evaluateHybridProductionCase = async (
       queryDispatcherDecision,
       queryScope: hybridState.queryScope,
       rawRetentionViolation: false,
+      residualRejectionReason: hybridState.residualRejectionReason,
       residualSchemaValid: classification.residualSchemaValid,
       round: input.round ?? 1,
       semanticMatch: classification.semanticMatch,

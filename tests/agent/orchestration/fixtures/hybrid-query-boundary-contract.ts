@@ -2,6 +2,9 @@ import type {
   OrchestratorOutput,
   OrchestratorTask,
 } from "../../../../src/lib/agent/llm/schemas/orchestrator-output";
+import type { StructuredProviderAttemptObserver } from "../../../../src/lib/agent/llm/invoke-structured";
+import type { ModelConfig } from "../../../../src/lib/agent/llm/model-config";
+import type { ModelFactory } from "../../../../src/lib/agent/llm/model-factory";
 import type { QueryScopeProvenance } from "../../../../src/lib/agent/orchestration/query-scope-contract";
 import type { OrchestratorRuntimeMode } from "../../../../src/lib/agent/orchestration/runtime-config";
 import type { AgentPromptContext } from "../../../../src/lib/agent/prompts";
@@ -36,6 +39,10 @@ export type ResidualPlanningInput = Readonly<{
   authorizedSnapshot: ActorAuthorizedResourceSnapshot;
   fixedTasks: readonly FixedTaskSummary[];
   forbiddenIntentFamilies: readonly IntentFamily[];
+  intentPolicy: Readonly<{
+    allowedIntents: readonly ["compose_checklist"];
+    kind: "query_result_to_checklist_draft";
+  }>;
   originalRequest: string;
   satisfiedIntentFamilies: readonly IntentFamily[];
 }>;
@@ -102,26 +109,41 @@ export type ResidualPlannerResult =
       code: "forbidden_intent" | "provider_error" | "schema_failure";
       logicalCalls: 1;
       providerAttempts: number;
+      rejectionReason?:
+        | "consultation_write_bridge"
+        | "dag_invalid"
+        | "family_forbidden"
+        | "intent_not_in_policy"
+        | "resource_invalid";
       status: "unavailable";
     }>;
 
 export type ResidualPlannerModule = Readonly<{
+  buildResidualPlannerSchemas: (input: ResidualPlanningInput) => Readonly<{
+    base: { safeParse: (value: unknown) => { success: boolean } };
+    strict: { safeParse: (value: unknown) => { success: boolean } };
+  }>;
   buildResidualPlanningInput: (input: ResidualPlanningInput) => ResidualPlanningInput;
   buildResidualPlannerSystemPrompt: (
     input: ResidualPlanningInput,
   ) => string;
-  serializeResidualPlannerJsonSchema: () => string;
+  serializeResidualPlannerJsonSchema: (
+    input: ResidualPlanningInput,
+  ) => string;
   serializeResidualPlannerPromptJsonSchema: (
     input: ResidualPlanningInput,
   ) => string;
   runResidualPlanner: (input: Readonly<{
     input: ResidualPlanningInput;
-    invoke: (
+    invoke?: (
       input: ResidualPlanningInput,
       attempt: number,
     ) => Promise<readonly OrchestratorTask[]>;
     maxTransportRetries?: number;
     modelCallRecorder?: ModelCallBudgetRecorder;
+    modelConfig?: ModelConfig;
+    modelFactory?: ModelFactory;
+    providerAttemptObserver?: StructuredProviderAttemptObserver;
   }>) => Promise<ResidualPlannerResult>;
 }>;
 
@@ -243,10 +265,14 @@ export const actorAuthorizedSnapshot = (): ActorAuthorizedResourceSnapshot => ({
 export const residualInput = (
   originalRequest = "检查项目进度，记录未完成的作为新任务",
 ): ResidualPlanningInput => ({
-  allowedIntentFamilies: ["consultation", "write_candidate"],
+  allowedIntentFamilies: ["write_candidate"],
   authorizedSnapshot: actorAuthorizedSnapshot(),
   fixedTasks: [{ family: "query", intent: "query_progress", taskId: "query-original" }],
   forbiddenIntentFamilies: ["query"],
+  intentPolicy: {
+    allowedIntents: ["compose_checklist"],
+    kind: "query_result_to_checklist_draft",
+  },
   originalRequest,
   satisfiedIntentFamilies: ["query"],
 });

@@ -148,6 +148,37 @@ test("not-applicable requests use at most one full Orchestrator logical call", a
   assert.equal(fixture.context.plans.length, 1);
 });
 
+test("unsupported Query mutations use the Full Orchestrator without a Residual call", async () => {
+  const { runHybridOrchestration } = await loadHybrid(
+    "hybrid_unsupported_query_mutation_full_orchestrator",
+  );
+  let fullCalls = 0;
+  let residualCalls = 0;
+  const result = await runHybridOrchestration({
+    ...runInput("cmp-4"),
+    originalRequest: "检查项目进度并取消当前计划",
+    runFullOrchestrator: async () => {
+      fullCalls += 1;
+      return singleOutput("answer_question");
+    },
+    runResidualPlanner: async () => {
+      residualCalls += 1;
+      return {
+        code: "provider_error",
+        logicalCalls: 1,
+        providerAttempts: 0,
+        status: "unavailable",
+      };
+    },
+  });
+
+  assert.equal(result.boundaryResolution, "not_applicable");
+  assert.equal(result.callAccounting.fullOrchestratorLogicalCalls, 1);
+  assert.equal(result.callAccounting.residualPlannerLogicalCalls, 0);
+  assert.equal(fullCalls, 1);
+  assert.equal(residualCalls, 0);
+});
+
 test("Legacy Orchestrator Runtime bypasses the Boundary and preserves the existing path", async () => {
   const { runHybridOrchestration } = await loadHybrid("hybrid_legacy_runtime_bypass");
   let fullCalls = 0;

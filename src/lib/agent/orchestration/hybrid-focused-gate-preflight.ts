@@ -29,6 +29,9 @@ import {
   hashResidualPlannerSchema,
   RESIDUAL_PLANNER_RETRY_POLICY,
 } from "./residual-langchain-planner";
+import type {
+  ResidualPlanningInput,
+} from "./hybrid-query-boundary-types";
 
 export type HybridFocusedGatePreflightErrorCode =
   | "CMP4_RESIDUAL_INPUT_INVALID"
@@ -113,9 +116,9 @@ export const hashHybridFocusedFixtureSnapshot = (
   message: fixture.message,
 })));
 
-const hashFocusedResidualPrompt = (
+const focusedResidualInput = (
   fixtures: readonly L3BEvaluationFixture[],
-): string => {
+): ResidualPlanningInput => {
   const fixture = focusedSourceFixtures(fixtures).find(
     (candidate) => candidate.id === "cmp-4",
   );
@@ -142,7 +145,7 @@ const hashFocusedResidualPrompt = (
       "CMP4_RESIDUAL_INPUT_INVALID",
     );
   }
-  return sha256(buildResidualPlannerSystemPrompt(boundary.residualInput));
+  return boundary.residualInput;
 };
 
 export const HYBRID_FOCUSED_GATE_FROZEN_HASHES = Object.freeze({
@@ -151,9 +154,9 @@ export const HYBRID_FOCUSED_GATE_FROZEN_HASHES = Object.freeze({
   fixtureSnapshotHash:
     "be856ddcba4a60f65e6a1e360027c3e1e5eface66c434f40f9df298b5286966d",
   residualPromptHash:
-    "0619da530908cc99992b653bba1531b5634552a7ee4d59dae22ebfcac4072f40",
+    "93f8b25dbdf2a311142b5a2830b5235cdf93179a06ea9717435102540fb8b866",
   residualSchemaHash:
-    "66228b19f488a20c481e2d8c63e81973e4f8a82030474987e0bec23cddee68eb",
+    "44d6ee2304cfb3b4eeaa178253a69b6dfde98c1055d3684bdc8a42f6fc98665c",
 });
 
 export const buildHybridFocusedGatePreflight = (input: Readonly<{
@@ -176,6 +179,7 @@ export const buildHybridFocusedGatePreflight = (input: Readonly<{
   const maxAttemptsPerLogicalCall =
     (schemaRetries + 1) * (transportRetries + 1);
   const authorizedLogicalCallBudget = 3 as const;
+  const residualInput = focusedResidualInput(fixtures);
 
   return Object.freeze({
     authorizedLogicalCallBudget,
@@ -190,8 +194,10 @@ export const buildHybridFocusedGatePreflight = (input: Readonly<{
     model: L3B_EVALUATION_CONFIG.model,
     observations: 12 as const,
     outputBudget: L3B_EVALUATION_CONFIG.orchestratorMaxOutputTokens,
-    residualPromptHash: hashFocusedResidualPrompt(fixtures),
-    residualSchemaHash: hashResidualPlannerSchema(),
+    residualPromptHash: sha256(
+      buildResidualPlannerSystemPrompt(residualInput),
+    ),
+    residualSchemaHash: hashResidualPlannerSchema(residualInput),
     schemaRetries,
     temperature: L3B_EVALUATION_CONFIG.temperature,
     timeoutMs: L3B_EVALUATION_CONFIG.orchestratorTimeoutMs,

@@ -46,6 +46,41 @@ test("production observation includes stable index, scope, provenance, and clock
   assert.equal(observation.databaseConnection, false);
   assert.equal(observation.databaseMutation, false);
   assert.equal(observation.rawRetentionViolation, false);
+  assert.equal(observation.residualRejectionReason, null);
+});
+
+test("deterministic residual rejection exposes only a bounded safe reason", async () => {
+  const { evaluateHybridProductionCase } =
+    await loadR4AGreenModule<ProductionEvaluationModule>(
+      R4A_GREEN_MODULES.productionEvaluation,
+      "hybrid_residual_rejection_reason",
+    );
+  const observation = await evaluateHybridProductionCase({
+    authenticatedActor: { collection: "users", id: 7, isAdmin: true },
+    context: focusedContext(),
+    expectation: focusedExpectations["cmp-4"],
+    fixtureId: "cmp-4",
+    message: "检查项目进度，记录未完成的作为新任务",
+    observationIndex: 4,
+    queryAdoption: "admin",
+    queryCommentaryAdapter: omitFocusedCommentary,
+    queryRuntime: "langchain",
+    residualInvoke: async () => [{
+      agentRole: "query",
+      args: {},
+      dependsOn: [],
+      id: "provider-query",
+      intent: "query_progress",
+      label: "重复读取进度",
+    }],
+    round: 1,
+  });
+
+  assert.equal(observation.residualRejectionReason, "intent_not_in_policy");
+  assert.doesNotMatch(
+    JSON.stringify(observation),
+    /重复读取进度|provider-query/u,
+  );
 });
 
 test("observation projection retains no raw fixture or actor data", async () => {
