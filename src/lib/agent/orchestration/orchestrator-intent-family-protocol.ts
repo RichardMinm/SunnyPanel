@@ -75,6 +75,123 @@ export const ORCHESTRATOR_LIVE_GATE_PROTOCOL = [
   ORCHESTRATOR_LIVE_GATE_RULES.runtimeOutputDependencies,
 ].join("\n");
 
+export const ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_MARKER =
+  "[orchestrator-boundary:plan-schedule-reference]" as const;
+
+export type OrchestratorPlanScheduleReferenceCase = Readonly<{
+  admitted: Readonly<{
+    decisionCode: OrchestratorDecisionCode;
+    intents: readonly RouterIntentName[];
+    mode: OrchestratorOutput["mode"];
+  }>;
+  condition: string;
+  forbiddenDecisionCodes: readonly OrchestratorDecisionCode[];
+  forbiddenIntents: readonly RouterIntentName[];
+  id:
+    | "trusted_existing_plan_id"
+    | "untrusted_existing_plan_reference"
+    | "new_plan_schedule_dependency";
+  reason: string;
+}>;
+
+const planScheduleReferenceCase = (
+  input: OrchestratorPlanScheduleReferenceCase,
+): OrchestratorPlanScheduleReferenceCase => Object.freeze({
+  ...input,
+  admitted: Object.freeze({
+    ...input.admitted,
+    intents: Object.freeze([...input.admitted.intents]),
+  }),
+  forbiddenDecisionCodes: Object.freeze([
+    ...input.forbiddenDecisionCodes,
+  ]),
+  forbiddenIntents: Object.freeze([...input.forbiddenIntents]),
+});
+
+export const ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_CASES = Object.freeze([
+  planScheduleReferenceCase({
+    admitted: {
+      decisionCode: "explicit_write_ready",
+      intents: ["schedule_plan"],
+      mode: "single",
+    },
+    condition:
+      "one existing-plan scheduling goal; the user supplies a positive planId; "
+      + "the actor-authorized workspace context contains the same planId; "
+      + "any supplied full title exactly matches that plan",
+    forbiddenDecisionCodes: [
+      "compound_missing_target",
+      "explicit_write_missing_resource",
+    ],
+    forbiddenIntents: ["clarify"],
+    id: "trusted_existing_plan_id",
+    reason:
+      "这是对已存在计划的一次排期写入候选，不是新建计划，也不是复合任务。"
+      + "必须原样复制可信 planId；不得因为时间细节仍可在后续草案中收口而提前澄清。",
+  }),
+  planScheduleReferenceCase({
+    admitted: {
+      decisionCode: "explicit_write_missing_resource",
+      intents: ["clarify"],
+      mode: "single",
+    },
+    condition:
+      "one existing-plan scheduling goal; the plan reference is missing, "
+      + "placeholder, outside the actor-authorized workspace context, "
+      + "or has a title conflict",
+    forbiddenDecisionCodes: [
+      "compound_missing_target",
+      "explicit_write_ready",
+    ],
+    forbiddenIntents: ["schedule_plan"],
+    id: "untrusted_existing_plan_reference",
+    reason:
+      "用户请求只有一个已有计划排期目标，因此不能标记为 compound。"
+      + "引用不可信时必须澄清，不能选择或编造 workspace 资源。",
+  }),
+  planScheduleReferenceCase({
+    admitted: {
+      decisionCode: "compound_missing_target",
+      intents: ["clarify"],
+      mode: "single",
+    },
+    condition:
+      "the user explicitly requests creating a new plan and scheduling that "
+      + "new plan, whose planId would only exist as runtime output",
+    forbiddenDecisionCodes: [
+      "compound_ready",
+      "explicit_write_ready",
+    ],
+    forbiddenIntents: ["schedule_plan"],
+    id: "new_plan_schedule_dependency",
+    reason:
+      "新计划的 planId 在当前调用中不存在，且禁止把前置任务运行时产出写入 args。"
+      + "该不支持的复合依赖必须整体澄清。",
+  }),
+]);
+
+const renderPlanScheduleReferenceCase = (
+  contractCase: OrchestratorPlanScheduleReferenceCase,
+): string => {
+  const forbiddenDecisionCodes =
+    contractCase.forbiddenDecisionCodes.join(",");
+  const forbiddenIntents = contractCase.forbiddenIntents.join(",");
+  return `- [${contractCase.id}] condition=${contractCase.condition}.`
+    + ` 唯一允许的完整输出：decisionCode=${contractCase.admitted.decisionCode};`
+    + ` mode=${contractCase.admitted.mode};`
+    + ` intents=${contractCase.admitted.intents.join(",")}.`
+    + ` 禁止 decisionCode=${forbiddenDecisionCodes};`
+    + ` 禁止 intents=${forbiddenIntents}. ${contractCase.reason}`;
+};
+
+export const ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_PROTOCOL = [
+  ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_MARKER,
+  "- 以下三种排期引用条件互斥；先匹配引用条件，再选择唯一允许的 decision tuple。",
+  ...ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_CASES.map(
+    renderPlanScheduleReferenceCase,
+  ),
+].join("\n");
+
 export const ORCHESTRATOR_SEMANTIC_CONTRAST_MARKER =
   "[orchestrator-boundary:semantic-contrasts]" as const;
 

@@ -10,6 +10,7 @@ import {
 } from "../../../src/lib/agent/llm/schemas/router-output";
 import {
   L3B_EVALUATION_FIXTURES,
+  L3B_KNOWN_ID_DIAGNOSTICS,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
 import {
   buildLangChainSystemPrompt,
@@ -19,6 +20,9 @@ import {
   ORCHESTRATOR_SEMANTIC_CONTRAST_MARKER,
   ORCHESTRATOR_SEMANTIC_CONTRAST_PROTOCOL,
   ORCHESTRATOR_SEMANTIC_CONTRASTS,
+  ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_CASES,
+  ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_MARKER,
+  ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_PROTOCOL,
 } from "../../../src/lib/agent/orchestration/orchestrator-intent-family-protocol";
 
 const expectedIds = [
@@ -81,8 +85,79 @@ test("renders every semantic contrast only from the shared Full protocol", () =>
 test("uses neutral contrasts rather than copying evaluation fixture messages", () => {
   const prompt = buildLangChainSystemPrompt();
 
-  for (const fixture of L3B_EVALUATION_FIXTURES) {
+  for (const fixture of [
+    ...L3B_EVALUATION_FIXTURES,
+    ...L3B_KNOWN_ID_DIAGNOSTICS,
+  ]) {
     assert.equal(prompt.includes(fixture.message), false, fixture.id);
+  }
+});
+
+test("renders the exclusive existing-plan scheduling reference contract", () => {
+  assert.equal(
+    ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_MARKER,
+    "[orchestrator-boundary:plan-schedule-reference]",
+  );
+  assert.deepEqual(
+    ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_CASES.map(({ id }) => id),
+    [
+      "trusted_existing_plan_id",
+      "untrusted_existing_plan_reference",
+      "new_plan_schedule_dependency",
+    ],
+  );
+
+  const [trusted, untrusted, newPlan] =
+    ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_CASES;
+  assert.deepEqual(trusted.admitted, {
+    decisionCode: "explicit_write_ready",
+    intents: ["schedule_plan"],
+    mode: "single",
+  });
+  assert.deepEqual(untrusted.admitted, {
+    decisionCode: "explicit_write_missing_resource",
+    intents: ["clarify"],
+    mode: "single",
+  });
+  assert.deepEqual(newPlan.admitted, {
+    decisionCode: "compound_missing_target",
+    intents: ["clarify"],
+    mode: "single",
+  });
+  assert.equal(
+    trusted.forbiddenDecisionCodes.includes("compound_missing_target"),
+    true,
+  );
+  assert.match(trusted.condition, /positive planId/u);
+  assert.match(trusted.condition, /actor-authorized workspace context/u);
+  assert.match(untrusted.condition, /placeholder/u);
+  assert.match(untrusted.condition, /outside/u);
+  assert.match(untrusted.condition, /title conflict/u);
+  assert.match(newPlan.condition, /new plan/u);
+  assert.match(newPlan.condition, /runtime output/u);
+
+  const prompt = buildLangChainSystemPrompt();
+  assert.equal(
+    prompt.includes(ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_MARKER),
+    true,
+  );
+  assert.equal(
+    prompt.includes(ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_PROTOCOL),
+    true,
+  );
+  for (const contractCase of ORCHESTRATOR_PLAN_SCHEDULE_REFERENCE_CASES) {
+    assert.match(prompt, new RegExp(`\\[${contractCase.id}\\]`, "u"));
+    assert.match(
+      prompt,
+      new RegExp(
+        `decisionCode=${contractCase.admitted.decisionCode}`,
+        "u",
+      ),
+    );
+    assert.match(
+      prompt,
+      new RegExp(`intents=${contractCase.admitted.intents.join(",")}`, "u"),
+    );
   }
 });
 

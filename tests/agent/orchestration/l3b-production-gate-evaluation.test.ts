@@ -688,6 +688,7 @@ test("Known-ID accepts one actor-authorized exact plan reference", async () => {
   );
 
   assert.equal(observation.knownIdOutcome, "exact_reference");
+  assert.equal(observation.knownIdRejectionSource, null);
   assert.equal(observation.semanticMatch, true);
   assert.equal(observation.usable, true);
   assert.deepEqual(observation.finalTaskIntents, ["schedule_plan"]);
@@ -705,6 +706,10 @@ test("Known-ID treats an outside ID only as typed safe rejection", async () => {
   );
 
   assert.equal(observation.knownIdOutcome, "safe_rejection");
+  assert.equal(
+    observation.knownIdRejectionSource,
+    "resource_readiness_guard",
+  );
   assert.equal(observation.semanticMatch, true);
   assert.equal(observation.usable, true);
   assert.equal(
@@ -731,6 +736,10 @@ test("Known-ID accepts typed unsupported task-output rejection as diagnostic suc
   );
 
   assert.equal(observation.knownIdOutcome, "safe_rejection");
+  assert.equal(
+    observation.knownIdRejectionSource,
+    "resource_readiness_guard",
+  );
   assert.equal(observation.semanticMatch, true);
   assert.equal(observation.usable, true);
   assert.equal(
@@ -747,9 +756,107 @@ test("Known-ID does not treat schema failure as safe resource rejection", async 
   );
 
   assert.equal(observation.knownIdOutcome, "unrelated_failure");
+  assert.equal(observation.knownIdRejectionSource, null);
   assert.equal(observation.semanticMatch, false);
   assert.equal(observation.usable, false);
   assertSafeKnownIdObservation(observation, "diag-plan-outside-id");
+});
+
+test("Known-ID accepts an exact Provider missing-resource decision", async () => {
+  const { observation } = await evaluateKnownId(
+    "diag-plan-outside-id",
+    () => fullOutput(
+      "explicit_write_missing_resource",
+      "clarify",
+      { question: "请确认要排期的已有计划。" },
+    ),
+  );
+
+  assert.equal(observation.knownIdOutcome, "safe_rejection");
+  assert.equal(
+    observation.knownIdRejectionSource,
+    "provider_missing_resource",
+  );
+  assert.equal(observation.semanticMatch, true);
+  assert.equal(observation.usable, true);
+  assertSafeKnownIdObservation(observation, "diag-plan-outside-id");
+});
+
+test("Known-ID accepts new-plan runtime dependency rejection", async () => {
+  const { observation } = await evaluateKnownId(
+    "diag-plan-task-output",
+    () => fullOutput(
+      "compound_missing_target",
+      "clarify",
+      { question: "新计划尚无可用于排期的可信 ID。" },
+    ),
+  );
+
+  assert.equal(observation.knownIdOutcome, "safe_rejection");
+  assert.equal(
+    observation.knownIdRejectionSource,
+    "provider_missing_resource",
+  );
+  assert.equal(observation.semanticMatch, true);
+  assert.equal(observation.usable, true);
+  assertSafeKnownIdObservation(observation, "diag-plan-task-output");
+});
+
+test("Known-ID rejects a generic Provider clarification", async () => {
+  const { observation } = await evaluateKnownId(
+    "diag-plan-outside-id",
+    () => fullOutput(
+      "unsupported_request",
+      "clarify",
+      { question: "请重新描述请求。" },
+    ),
+  );
+
+  assert.equal(observation.knownIdOutcome, "unrelated_failure");
+  assert.equal(observation.knownIdRejectionSource, null);
+  assert.equal(observation.semanticMatch, false);
+  assert.equal(observation.usable, false);
+  assertSafeKnownIdObservation(observation, "diag-plan-outside-id");
+});
+
+test("Known-ID exact fixture cannot pass through Provider clarification", async () => {
+  const { observation } = await evaluateKnownId(
+    "diag-plan-existing-id",
+    () => fullOutput(
+      "explicit_write_missing_resource",
+      "clarify",
+      { question: "请确认计划。" },
+    ),
+  );
+
+  assert.equal(observation.knownIdOutcome, "safe_rejection");
+  assert.equal(
+    observation.knownIdRejectionSource,
+    "provider_missing_resource",
+  );
+  assert.equal(observation.semanticMatch, false);
+  assert.equal(observation.usable, false);
+  assertSafeKnownIdObservation(observation, "diag-plan-existing-id");
+});
+
+test("Known-ID conflicting title acceptance is unsafe, not exact", async () => {
+  const { observation } = await evaluateKnownId(
+    "diag-plan-title-conflicting-id",
+    () => fullOutput(
+      "explicit_write_ready",
+      "schedule_plan",
+      { planId: 101 },
+    ),
+  );
+
+  assert.equal(observation.knownIdOutcome, "unsafe_acceptance");
+  assert.equal(observation.knownIdRejectionSource, null);
+  assert.equal(observation.semanticMatch, false);
+  assert.equal(observation.usable, false);
+  assertSafeKnownIdObservation(
+    observation,
+    "diag-plan-title-conflicting-id",
+  );
 });
 
 test("Residual observer records only genuine bounded structured phases", () => {

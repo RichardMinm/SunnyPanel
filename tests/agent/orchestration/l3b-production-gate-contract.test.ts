@@ -168,7 +168,7 @@ test("settles Provider attempts in finally and retains the Known-ID outcome", ()
   );
   const evaluation = source.indexOf("await evaluateProductionGateCase({");
   const settlement = source.indexOf(
-    "providerAttemptCount(recorder.snapshot())",
+    "providerAttemptCount(projectModelCallBudget(recorder.snapshot()))",
     evaluation,
   );
   const finallyBlock = source.lastIndexOf("finally", settlement);
@@ -178,11 +178,19 @@ test("settles Provider attempts in finally and retains the Known-ID outcome", ()
   assert.ok(settlement > finallyBlock);
   assert.doesNotMatch(
     source,
-    /providerAttemptCount\(observation\.callAccounting\)/u,
+    /providerAttemptCount\(recorder\.snapshot\(\)\)/u,
   );
   assert.match(
     source,
     /knownIdOutcome:\s*observation\.knownIdOutcome/u,
+  );
+  assert.match(
+    source,
+    /knownIdRejectionSource:\s*observation\.knownIdRejectionSource/u,
+  );
+  assert.match(
+    source,
+    /createModelCallBudgetRecorder,\s*projectModelCallBudget/u,
   );
 });
 
@@ -207,7 +215,7 @@ test("fails typed for missing, duplicate, extra, and reordered fixture IDs", () 
 });
 
 test("the production-seam CLI reaches the canonical Known-ID preflight without a Provider key", () => {
-  const reportPath = "/tmp/l3b-r8-production-known-id.json";
+  const reportPath = "/tmp/l3b-r8-production-known-id-v2.json";
   const reportExistedBefore = existsSync(reportPath);
   const reportBefore = reportExistedBefore
     ? statSync(reportPath)

@@ -61,6 +61,7 @@ const observation = (
   fixtureId,
   latencyMs: 1,
   knownIdOutcome: null,
+  knownIdRejectionSource: null,
   observationIndex,
   rawRetentionViolation: false,
   roleEvidence: {
@@ -154,6 +155,11 @@ const knownIdObservations = (): ProductionGateObservation[] =>
             ? []
             : ["clarify"],
         knownIdOutcome: exact ? "exact_reference" : "safe_rejection",
+        knownIdRejectionSource: exact
+          ? null
+          : unavailable
+            ? "resource_readiness_guard"
+            : "provider_missing_resource",
         roleEvidence: {
           ...observation(fixtureId, round, index + 1).roleEvidence,
           fullOrchestrator: {

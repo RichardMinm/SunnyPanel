@@ -73,6 +73,10 @@ export type ProductionKnownIdOutcome =
   | "unsafe_acceptance"
   | "unrelated_failure";
 
+export type ProductionKnownIdRejectionSource =
+  | "provider_missing_resource"
+  | "resource_readiness_guard";
+
 export type ProductionGateFailureCode =
   | `answer_${SafeAnswerErrorCode}`
   | `full_${OrchestratorFailureReason}`
@@ -106,6 +110,7 @@ export type ProductionGateObservation = Readonly<{
   roleEvidence: ProductionRoleEvidence;
   latencyMs: number;
   knownIdOutcome: ProductionKnownIdOutcome | null;
+  knownIdRejectionSource: ProductionKnownIdRejectionSource | null;
   taskExecutions: number;
   taskExecutionAttempts: number;
   databaseConnections: number;
@@ -587,12 +592,20 @@ const isKnownIdDiagnostic = (
 
 const classifyKnownIdOutcome = (input: Readonly<{
   context: AgentPromptContext;
+  expected: L3BKnownIdDiagnostic["expected"];
   finalIntent: AgentIntent | null;
   finalTaskIntents: readonly string[];
   fullEvidence: ProductionFullRoleEvidence;
   terminalFailure: boolean;
-}>): ProductionKnownIdOutcome => {
-  if (input.terminalFailure) return "unrelated_failure";
+}>): Readonly<{
+  outcome: ProductionKnownIdOutcome;
+  rejectionSource: ProductionKnownIdRejectionSource | null;
+}> => {
+  const classified = (
+    outcome: ProductionKnownIdOutcome,
+    rejectionSource: ProductionKnownIdRejectionSource | null = null,
+  ) => Object.freeze({ outcome, rejectionSource });
+  if (input.terminalFailure) return classified("unrelated_failure");
 
   const safetyClass = classifyIntents([...input.finalTaskIntents]);
   const acceptedWrite =
@@ -601,6 +614,8 @@ const classifyKnownIdOutcome = (input: Readonly<{
     ? input.finalIntent.args.planId
     : null;
   const exactReference =
+    input.expected === "accept_exact_reference"
+    &&
     input.fullEvidence.status === "success"
     && exactPlanId !== null
     && input.context.plans.some(
@@ -608,7 +623,7 @@ const classifyKnownIdOutcome = (input: Readonly<{
         typeof plan.id === "number"
         && plan.id === exactPlanId,
     );
-  if (exactReference) return "exact_reference";
+  if (exactReference) return classified("exact_reference");
 
   const resourceEvidence =
     input.fullEvidence.resourceIssueCodes.length > 0;
@@ -624,9 +639,27 @@ const classifyKnownIdOutcome = (input: Readonly<{
         && input.fullEvidence.failureCode === "invalid_resource_reference"
       )
     );
-  if (typedResourceRejection && !acceptedWrite) return "safe_rejection";
-  if (acceptedWrite) return "unsafe_acceptance";
-  return "unrelated_failure";
+  if (typedResourceRejection && !acceptedWrite) {
+    return classified("safe_rejection", "resource_readiness_guard");
+  }
+
+  const providerDecisionCode =
+    input.fullEvidence.semanticProjection?.decisionCode;
+  const providerMissingResourceRejection =
+    input.fullEvidence.status === "success"
+    && input.finalTaskIntents.length === 1
+    && input.finalIntent?.intent === "clarify"
+    && typeof input.finalIntent.args.question === "string"
+    && input.finalIntent.args.question.trim().length > 0
+    && (
+      providerDecisionCode === "explicit_write_missing_resource"
+      || providerDecisionCode === "compound_missing_target"
+    );
+  if (providerMissingResourceRejection && !acceptedWrite) {
+    return classified("safe_rejection", "provider_missing_resource");
+  }
+  if (acceptedWrite) return classified("unsafe_acceptance");
+  return classified("unrelated_failure");
 };
 
 const answerFailureEvidence = (): ProductionAnswerRoleEvidence =>
@@ -817,15 +850,19 @@ export const evaluateProductionGateCase = async (
       && typeof finalIntent.args.question === "string"
       && finalIntent.args.question.trim().length > 0;
     const dagValid = hasValidDependencyGraph(finalDependencies);
-    const knownIdOutcome = isKnownIdDiagnostic(input.fixture)
+    const knownIdClassification = isKnownIdDiagnostic(input.fixture)
       ? classifyKnownIdOutcome({
           context: input.fixture.context,
+          expected: input.fixture.expected,
           finalIntent,
           finalTaskIntents,
           fullEvidence,
           terminalFailure,
         })
       : null;
+    const knownIdOutcome = knownIdClassification?.outcome ?? null;
+    const knownIdRejectionSource =
+      knownIdClassification?.rejectionSource ?? null;
     const semanticMatch = isKnownIdDiagnostic(input.fixture)
       ? input.fixture.expected === "accept_exact_reference"
         ? knownIdOutcome === "exact_reference"
@@ -925,6 +962,7 @@ export const evaluateProductionGateCase = async (
       fixtureId: sanitizeFixtureId(input.fixture.id),
       latencyMs: Math.max(0, completedAt - startedAt),
       knownIdOutcome,
+      knownIdRejectionSource,
       observationIndex: Math.max(
         1,
         Math.floor(input.observationIndex ?? 1),

@@ -22,7 +22,7 @@ class ProductionSeamGateError extends Error {
 const REPORT_PATHS = Object.freeze({
   acceptance: "/tmp/l3b-r8-production-acceptance.json",
   focused: "/tmp/l3b-r8-production-focused.json",
-  known_id: "/tmp/l3b-r8-production-known-id.json",
+  known_id: "/tmp/l3b-r8-production-known-id-v2.json",
   stability: "/tmp/l3b-r8-production-stability.json",
 });
 const STAGES = new Set(Object.keys(REPORT_PATHS));
@@ -129,6 +129,7 @@ const projectObservation = (observation) => Object.freeze({
   finalMode: observation.finalMode,
   fixtureId: observation.fixtureId,
   knownIdOutcome: observation.knownIdOutcome,
+  knownIdRejectionSource: observation.knownIdRejectionSource,
   latencyMs: observation.latencyMs,
   roleEvidence: projectRoleEvidence(observation.roleEvidence),
   round: observation.round,
@@ -216,7 +217,10 @@ const main = async () => {
       L3B_EVALUATION_CONFIG,
       L3B_EVALUATION_CONFIG_HASH,
     },
-    { createModelCallBudgetRecorder },
+    {
+      createModelCallBudgetRecorder,
+      projectModelCallBudget,
+    },
     { RESIDUAL_PLANNER_RETRY_POLICY },
   ] = await Promise.all([
     import("../src/lib/agent/llm/model-config.ts"),
@@ -363,7 +367,7 @@ const main = async () => {
         round: entry.round,
       });
     } finally {
-      actualProviderAttempts += providerAttemptCount(recorder.snapshot());
+      actualProviderAttempts += providerAttemptCount(projectModelCallBudget(recorder.snapshot()));
       if (actualProviderAttempts > authorizedMaximum) {
         fail("LIVE_CALL_BUDGET_EXCEEDED");
       }
