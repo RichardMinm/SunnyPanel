@@ -1,6 +1,10 @@
 import type { OrchestratorOutput } from "../llm/schemas/orchestrator-output";
 import type { AgentPromptContext } from "../prompts";
 import { normalizePlanTitle } from "../query/plan-title";
+import {
+  analyzePlanReferenceEvidence,
+  isPositivePlanId,
+} from "./plan-reference-evidence";
 import type { OrchestratorPlan } from "./types";
 
 export type QueryScopeProvenance =
@@ -89,44 +93,6 @@ const invalid = (
   valid: false,
 });
 
-const isPositiveInteger = (value: unknown): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value > 0;
-
-const collectExplicitPlanIds = (message: string): number[] => {
-  const normalized = message.normalize("NFKC");
-  const ids = new Set<number>();
-  const patterns = [
-    /(?:plan\s*id|planid)\s*[:=#]?\s*(\d+)/giu,
-    /计划\s*(?:id|编号|#)\s*[:=#：]?\s*(\d+)/giu,
-    /计划\s*[:：#]?\s+(\d+)/gu,
-  ];
-
-  for (const pattern of patterns) {
-    for (const match of normalized.matchAll(pattern)) {
-      const value = Number(match[1]);
-      if (isPositiveInteger(value)) ids.add(value);
-    }
-  }
-
-  return [...ids];
-};
-
-const trustedContextPlans = (context: AgentPromptContext) =>
-  context.plans.filter(
-    (plan): plan is typeof plan & { id: number } => isPositiveInteger(plan.id),
-  );
-
-const explicitTitlePlans = (
-  message: string,
-  context: AgentPromptContext,
-) => {
-  const normalizedMessage = normalizePlanTitle(message);
-  return trustedContextPlans(context).filter((plan) => {
-    const normalizedTitle = normalizePlanTitle(plan.title);
-    return normalizedTitle.length > 0 && normalizedMessage.includes(normalizedTitle);
-  });
-};
-
 const hasOnlyKeys = (
   value: Record<string, unknown>,
   allowed: readonly string[],
@@ -159,7 +125,10 @@ const resolveExactTitle = (params: {
   | Extract<ValidatedTasks<QueryTask>, { valid: false }> => {
   const normalizedTitle = normalizePlanTitle(params.planTitle);
   const normalizedMessage = normalizePlanTitle(params.message);
-  const matches = trustedContextPlans(params.context).filter(
+  const matches = analyzePlanReferenceEvidence({
+    context: params.context,
+    message: params.message,
+  }).trustedPlans.filter(
     (plan) => normalizePlanTitle(plan.title) === normalizedTitle,
   );
 
@@ -208,17 +177,21 @@ const validatePlanTask = (params: {
   const planTitle = typeof args.planTitle === "string" && args.planTitle.trim()
     ? args.planTitle
     : null;
-  const explicitIds = collectExplicitPlanIds(params.message);
-  const contextPlans = trustedContextPlans(params.context);
+  const evidence = analyzePlanReferenceEvidence({
+    context: params.context,
+    message: params.message,
+  });
+  const explicitIds = evidence.explicitPlanIds;
+  const contextPlans = evidence.trustedPlans;
 
-  if (planId !== undefined && planId !== null && !isPositiveInteger(planId)) {
+  if (planId !== undefined && planId !== null && !isPositivePlanId(planId)) {
     return invalid(
       "specific_reference_required",
       "查询具体计划进度需要用户明确提供计划 ID 或完整标题。",
     );
   }
 
-  if (isPositiveInteger(planId) && explicitIds.includes(planId)) {
+  if (isPositivePlanId(planId) && explicitIds.includes(planId)) {
     const selectedPlan = contextPlans.find((plan) => plan.id === planId);
     if (!selectedPlan) {
       return invalid(
@@ -255,7 +228,7 @@ const validatePlanTask = (params: {
       planTitle,
     });
     if (!titleResult.valid) return titleResult;
-    if (isPositiveInteger(planId) && titleResult.planId !== planId) {
+    if (isPositivePlanId(planId) && titleResult.planId !== planId) {
       return invalid(
         "id_title_conflict",
         "计划 ID 与标题指向不同资源，请确认要查询的计划。",
@@ -273,8 +246,8 @@ const validatePlanTask = (params: {
     };
   }
 
-  if (isPositiveInteger(planId)) {
-    const titleMatches = explicitTitlePlans(params.message, params.context);
+  if (isPositivePlanId(planId)) {
+    const titleMatches = evidence.exactTitlePlans;
     if (titleMatches.length > 1) {
       return invalid(
         "title_ambiguous",
@@ -316,8 +289,12 @@ const validateTasks = <T extends QueryTask>(params: {
   message: string;
   tasks: T[];
 }): ValidatedTasks<T> => {
-  const explicitIds = collectExplicitPlanIds(params.message);
-  const selectedTitles = explicitTitlePlans(params.message, params.context);
+  const evidence = analyzePlanReferenceEvidence({
+    context: params.context,
+    message: params.message,
+  });
+  const explicitIds = evidence.explicitPlanIds;
+  const selectedTitles = evidence.exactTitlePlans;
   const provenances: Array<{
     provenance: QueryScopeProvenance;
     taskId: string;
