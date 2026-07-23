@@ -82,6 +82,7 @@ const observation = (
       outputTokens: null,
       providerAttempts: 0,
       providerLatenciesMs: [],
+      clarificationSource: null,
       queryScopeErrorCode: null,
       resourceIssueCodes: [],
       semanticProjection: null,

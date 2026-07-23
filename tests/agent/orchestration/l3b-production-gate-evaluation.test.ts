@@ -289,6 +289,11 @@ test("exr-3 exposes deterministic clarify while preserving bounded Provider devi
   assert.equal(observation.semanticMatch, true);
   assert.equal(observation.usable, true);
   assert.equal(observation.roleEvidence.fullOrchestrator.status, "clarified");
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator.clarificationSource,
+    "resource_readiness",
+  );
+  assert.equal(observation.roleEvidence.fullOrchestrator.queryScopeErrorCode, null);
   assert.equal(observation.roleEvidence.fullOrchestrator.failureCode, null);
   assert.deepEqual(
     observation.roleEvidence.fullOrchestrator.semanticProjection?.intents,
@@ -300,6 +305,51 @@ test("exr-3 exposes deterministic clarify while preserving bounded Provider devi
   );
   assert.equal(observation.failureCodes.length, 0);
   assertSafeObservation(observation, "exr-3", [missingChecklistTitle]);
+});
+
+test("exr-3 exposes query-scope clarification as bounded final observation evidence", async () => {
+  const { observation } = await evaluate("exr-3", {
+    fullInvoke: async () => fullOutput(
+      "pure_read_query",
+      "query_plan_progress",
+      {},
+    ),
+    residualInvoke: async () => assert.fail("Full path cannot call Residual"),
+  });
+
+  assert.equal(observation.branchKind, "deterministic_clarify");
+  assert.equal(observation.finalMode, "single");
+  assert.deepEqual(observation.finalTaskIntents, ["clarify"]);
+  assert.equal(observation.clarifyQuestionPresent, true);
+  assert.equal(observation.semanticMatch, true);
+  assert.equal(observation.usable, true);
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator.clarificationSource,
+    "query_scope",
+  );
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator.queryScopeErrorCode,
+    "specific_reference_required",
+  );
+  assert.deepEqual(
+    observation.roleEvidence.fullOrchestrator.semanticProjection?.intents,
+    ["query_plan_progress"],
+  );
+  assert.deepEqual(
+    observation.roleEvidence.fullOrchestrator.resourceIssueCodes,
+    [],
+  );
+  assert.equal(observation.failureCodes.length, 0);
+  assert.equal(observation.taskExecutionAttempts, 0);
+  assert.equal(observation.databaseAccessAttempts, 0);
+  assert.equal(observation.businessMutationAttempts, 0);
+  assertSafeObservation(observation, "exr-3", [
+    "bounded test decision",
+    "sunnypanel-agent-test-secret-2026",
+  ]);
+  const serialized = JSON.stringify(observation);
+  assert.doesNotMatch(serialized, /"args"/u);
+  assert.doesNotMatch(serialized, /"(?:error|rawResponse|reasoning|stack)"/u);
 });
 
 test("Acceptance read and checklist intents survive the compatibility mapper", async () => {
@@ -472,6 +522,8 @@ test("Full evidence preserves bounded query-scope and resource categories", asyn
   });
   await queryAdapter("现在有哪些计划？", fixture("qry-1").context);
   const queryEvidence = queryAdapter.getRoleEvidence();
+  assert.equal(queryEvidence.status, "clarified");
+  assert.equal(queryEvidence.clarificationSource, "query_scope");
   assert.equal(queryEvidence.queryScopeErrorCode, "provider_selected_workspace_resource");
   assert.deepEqual(queryEvidence.resourceIssueCodes, []);
   assert.deepEqual(queryEvidence.semanticProjection, {
@@ -495,6 +547,8 @@ test("Full evidence preserves bounded query-scope and resource categories", asyn
   });
   await resourceAdapter("把计划 999 安排到下周", fixture("qry-1").context);
   const resourceEvidence = resourceAdapter.getRoleEvidence();
+  assert.equal(resourceEvidence.status, "clarified");
+  assert.equal(resourceEvidence.clarificationSource, "resource_readiness");
   assert.equal(resourceEvidence.queryScopeErrorCode, null);
   assert.deepEqual(resourceEvidence.resourceIssueCodes, [
     "RESOURCE_ID_NOT_IN_CONTEXT",

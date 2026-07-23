@@ -68,6 +68,7 @@ export type SanitizedRoleEvent = Readonly<{
 
 export type ProductionFullRoleEvidence = Readonly<{
   completedResponses: number;
+  clarificationSource: "query_scope" | "resource_readiness" | null;
   decisionConsistencyError: DecisionConsistencyErrorCode | null;
   failureCode: OrchestratorFailureReason | null;
   inputTokens: number | null;
@@ -136,6 +137,7 @@ const observeSafely = (
 
 const emptyFullEvidence = (): ProductionFullRoleEvidence => Object.freeze({
   completedResponses: 0,
+  clarificationSource: null,
   decisionConsistencyError: null,
   failureCode: null,
   inputTokens: null,
@@ -368,6 +370,10 @@ export const createProductionFullAdapter = (input: Readonly<{
     const latencyMs = Math.max(0, clock() - startedAt);
     evidence = Object.freeze({
       completedResponses,
+      clarificationSource:
+        result.status === "clarified"
+          ? result.clarificationSource
+          : null,
       decisionConsistencyError:
         result.status === "unavailable"
           ? result.decisionConsistencyError ?? null
@@ -383,7 +389,9 @@ export const createProductionFullAdapter = (input: Readonly<{
           .map(([, value]) => value),
       ),
       queryScopeErrorCode:
-        result.status === "unavailable" ? result.queryScopeErrorCode ?? null : null,
+        "queryScopeErrorCode" in result
+          ? result.queryScopeErrorCode ?? null
+          : null,
       resourceIssueCodes: Object.freeze(
         "resourceIssueCodes" in result
           ? [...(result.resourceIssueCodes ?? [])]
