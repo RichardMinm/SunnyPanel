@@ -33,7 +33,7 @@ export type QueryScopeClarificationProjection = Readonly<{
 export const projectQueryScopeErrorToClarification = (
   code: QueryScopeErrorCode,
 ): QueryScopeClarificationProjection | null => {
-  if (!PROJECTABLE_QUERY_SCOPE_CLARIFICATION_CODES.has(code)) return null;
+  if (!Object.hasOwn(questionByCode, code)) return null;
 
   const task = Object.freeze({
     agentRole: "query" as const,

@@ -35,6 +35,9 @@ test("projects every current query scope error to an immutable clarification pla
     );
     assert.equal(Object.isFrozen(result), true);
     assert.equal(Object.isFrozen(result.plan), true);
+    assert.equal(Object.isFrozen(result.plan.tasks), true);
+    assert.equal(Object.isFrozen(result.plan.tasks[0]), true);
+    assert.equal(Object.isFrozen(result.plan.tasks[0]?.args), true);
   }
 });
 
@@ -52,6 +55,18 @@ test("fails closed for a future query scope error code", () => {
     ),
     null,
   );
+});
+
+test("fails closed when the exported diagnostics set is externally mutated", () => {
+  const futureCode = "future_query_scope_code" as QueryScopeErrorCode;
+  const mutableCodes = PROJECTABLE_QUERY_SCOPE_CLARIFICATION_CODES as Set<QueryScopeErrorCode>;
+  mutableCodes.add(futureCode);
+
+  try {
+    assert.equal(projectQueryScopeErrorToClarification(futureCode), null);
+  } finally {
+    mutableCodes.delete(futureCode);
+  }
 });
 
 test("projects no Provider or workspace payload into a clarification plan", () => {
