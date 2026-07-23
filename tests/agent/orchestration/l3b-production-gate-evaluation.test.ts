@@ -267,6 +267,24 @@ test("wrt-1 falls through to one bounded Full Orchestrator call", async () => {
   assertSafeObservation(observation, "wrt-1");
 });
 
+test("an unexpected consultation result fails semantically without spending an Answer call", async () => {
+  const { observation } = await evaluate("wrt-1", {
+    fullInvoke: async () => fullOutput(
+      "pure_consultation",
+      "answer_question",
+      { question: fixture("wrt-1").message },
+    ),
+  });
+
+  assert.deepEqual(observation.finalTaskIntents, ["answer_question"]);
+  assert.equal(observation.semanticMatch, false);
+  assert.equal(observation.usable, false);
+  assert.equal(observation.callAccounting.fullOrchestratorLogicalCalls, 1);
+  assert.equal(observation.callAccounting.answerLogicalCalls, 0);
+  assert.equal(observation.callAccounting.answerProviderAttempts, 0);
+  assertSafeObservation(observation, "wrt-1");
+});
+
 test("cons-1 separates consultation preflight from the Answer Renderer call", async () => {
   const { observation } = await evaluate("cons-1", {
     fullInvoke: async () => fullOutput(

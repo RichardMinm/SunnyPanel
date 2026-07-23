@@ -15,6 +15,7 @@ import {
   L3B_PRODUCTION_GATE_PROTOCOL_VERSION,
   L3B_PRODUCTION_STAGE_CONTRACTS,
 } from "../../../src/lib/agent/orchestration/l3b-production-gate-contract";
+import { calculateProductionStageAuthorizedBudget } from "../../../src/lib/agent/orchestration/l3b-production-gate-budget";
 
 const hash = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -47,6 +48,38 @@ test("freezes the production gate protocol, exact stage sizes, and Focused order
     "wrt-1": "full_orchestrator",
     "cmp-1": "full_orchestrator",
   });
+});
+
+test("derives Provider authorization from the one reachable production branch per fixture", () => {
+  const retryLimits = {
+    answerAttemptsPerObservation: 1,
+    fullSchemaRetries: 0,
+    fullTransportRetries: 1,
+    residualSchemaRetries: 1,
+    residualTransportRetries: 1,
+  } as const;
+  const authenticatedActor = {
+    collection: "users",
+    id: 1,
+    isAdmin: true,
+  } as const;
+
+  assert.deepEqual(
+    calculateProductionStageAuthorizedBudget({
+      authenticatedActor,
+      retryLimits,
+      stage: "focused",
+    }),
+    { logicalCalls: 9, providerAttempts: 24 },
+  );
+  assert.deepEqual(
+    calculateProductionStageAuthorizedBudget({
+      authenticatedActor,
+      retryLimits,
+      stage: "acceptance",
+    }),
+    { logicalCalls: 34, providerAttempts: 65 },
+  );
 });
 
 test("derives every stage case from the canonical fixture objects by identity", () => {

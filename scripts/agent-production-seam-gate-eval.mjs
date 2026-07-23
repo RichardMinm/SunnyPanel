@@ -201,10 +201,10 @@ const main = async () => {
     { evaluateProductionGateCase },
     {
       getL3BProductionStageCases,
-      L3B_PRODUCTION_EXPECTED_BRANCHES,
       L3B_PRODUCTION_GATE_PROTOCOL_VERSION,
     },
     { aggregateProductionGate },
+    { calculateProductionStageAuthorizedBudget },
     {
       createProductionAnswerAdapter,
       createProductionFullAdapter,
@@ -221,6 +221,7 @@ const main = async () => {
     import("../src/lib/agent/orchestration/hybrid-production-evaluation.ts"),
     import("../src/lib/agent/orchestration/l3b-production-gate-contract.ts"),
     import("../src/lib/agent/orchestration/l3b-production-gate.ts"),
+    import("../src/lib/agent/orchestration/l3b-production-gate-budget.ts"),
     import("../src/lib/agent/orchestration/l3b-production-gate-model-adapters.ts"),
     import("../src/lib/agent/orchestration/l3b-evaluation-config.ts"),
     import("../src/lib/agent/orchestration/model-call-budget.ts"),
@@ -240,41 +241,16 @@ const main = async () => {
     residualTransportRetries:
       RESIDUAL_PLANNER_RETRY_POLICY.maxTransportRetries,
   });
-  const fullAttemptsPerObservation =
-    (retryLimits.fullSchemaRetries + 1)
-    * (retryLimits.fullTransportRetries + 1);
-  const residualAttemptsPerObservation =
-    (retryLimits.residualSchemaRetries + 1)
-    * (retryLimits.residualTransportRetries + 1);
   const conservativeAttemptsPerObservation = retryLimits.answerAttemptsPerObservation
-    + fullAttemptsPerObservation
-    + residualAttemptsPerObservation;
-  const focusedBudget = (entry) => {
-    const branch = L3B_PRODUCTION_EXPECTED_BRANCHES[entry.fixtureId];
-    if (branch === "hybrid_compound") {
-      return { logicalCalls: 1, providerAttempts: residualAttemptsPerObservation };
-    }
-    if (branch === "full_orchestrator") {
-      return { logicalCalls: 1, providerAttempts: fullAttemptsPerObservation };
-    }
-    return { logicalCalls: 0, providerAttempts: 0 };
-  };
-  const stageBudget = stage === "focused"
-    ? cases.reduce(
-        (total, entry) => {
-          const entryBudget = focusedBudget(entry);
-          return {
-            logicalCalls: total.logicalCalls + entryBudget.logicalCalls,
-            providerAttempts:
-              total.providerAttempts + entryBudget.providerAttempts,
-          };
-        },
-        { logicalCalls: 0, providerAttempts: 0 },
-      )
-    : {
-        logicalCalls: cases.length * 3,
-        providerAttempts: cases.length * conservativeAttemptsPerObservation,
-      };
+    + (retryLimits.fullSchemaRetries + 1)
+      * (retryLimits.fullTransportRetries + 1)
+    + (retryLimits.residualSchemaRetries + 1)
+      * (retryLimits.residualTransportRetries + 1);
+  const stageBudget = calculateProductionStageAuthorizedBudget({
+    authenticatedActor: ACTOR,
+    retryLimits,
+    stage,
+  });
   const authorizedMaximum = stageBudget.providerAttempts;
   const currentHead = git("rev-parse", "HEAD");
   const budget = Object.freeze({

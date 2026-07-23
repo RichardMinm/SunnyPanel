@@ -701,7 +701,10 @@ export const evaluateProductionGateCase = async (
     }
 
     let answerEvidence = emptyProductionAnswerEvidence();
-    if (preResolvedIntent?.intent === "answer_question") {
+    const answerExpected = input.fixture.expected.intents.includes(
+      "answer_question",
+    );
+    if (answerExpected && preResolvedIntent?.intent === "answer_question") {
       try {
         answerEvidence = await input.answerAdapter({
           context: input.fixture.context,
