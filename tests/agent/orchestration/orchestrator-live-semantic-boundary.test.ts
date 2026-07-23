@@ -209,6 +209,8 @@ test("clarifies cmp-1 scheduling without a pre-existing plan ID", async () => {
 
   assert.equal(result.status, "clarified");
   if (result.status !== "clarified") return;
+  assert.equal(result.clarificationSource, "resource_readiness");
+  if (result.clarificationSource !== "resource_readiness") return;
   assert.deepEqual(result.plan.tasks.map(({ intent }) => intent), ["clarify"]);
   assert.deepEqual(result.resourceIssueCodes, ["RESOURCE_ID_MISSING"]);
 });

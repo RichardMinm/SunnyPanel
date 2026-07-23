@@ -35,10 +35,13 @@ export const projectQueryScopeErrorToClarification = (
 ): QueryScopeClarificationProjection | null => {
   if (!Object.hasOwn(questionByCode, code)) return null;
 
+  const dependsOn: string[] = [];
+  Object.freeze(dependsOn);
+
   const task = Object.freeze({
     agentRole: "query" as const,
     args: Object.freeze({ question: questionByCode[code] }),
-    dependsOn: Object.freeze([]) as string[],
+    dependsOn,
     id: "t1",
     intent: "clarify" as const,
     label: "确认查询范围",
