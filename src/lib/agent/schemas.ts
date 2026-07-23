@@ -1552,6 +1552,26 @@ const parseScheduleProposal = (value: unknown): undefined | ScheduleProposal => 
   };
 };
 
+const parseComposeChecklistItems = (
+  value: unknown,
+): ComposeChecklistArgs["items"] => {
+  if (!Array.isArray(value)) return undefined;
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const title = getRequiredString(item.title);
+    if (!title) return [];
+    return [{
+      description: getOptionalString(item.description) ?? null,
+      priority: getOptionalEnum(
+        item.priority,
+        ["high", "low", "medium"] as const,
+      ) ?? null,
+      title,
+    }];
+  });
+};
+
 export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
   // 兼容主 prompt 的仲裁包装 {decision, intent:{...}}：当 intent 字段本身是对象时解包内层意图，
   // 使主链路与子 Agent（输出扁平 intent）共用一套解析，避免编排链路因格式漂移而丢意图。
@@ -1707,6 +1727,17 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         intent: "compose_plan",
         reply,
       };
+    case "compose_checklist":
+      return {
+        args: {
+          goal: getOptionalString(value.args.goal) ?? null,
+          items: parseComposeChecklistItems(value.args.items),
+          title: getOptionalString(value.args.title) ?? null,
+        },
+        confidence,
+        intent: "compose_checklist",
+        reply,
+      };
     case "compose_schedule_item":
       return {
         args: {
@@ -1805,6 +1836,38 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         intent: "query_progress",
         reply,
       };
+    case "query_checklist_progress":
+      return {
+        args: {
+          checklistTitle: getOptionalString(value.args.checklistTitle) ?? null,
+          scope: "checklists",
+        },
+        confidence,
+        intent: "query_checklist_progress",
+        reply,
+      };
+    case "query_memory":
+      return {
+        args: {
+          answer: getOptionalString(value.args.answer) ?? "",
+          learningContext: null,
+          openDomainTopic: null,
+          suggestAction: null,
+        },
+        confidence,
+        intent: "query_memory",
+        reply,
+      };
+    case "query_plan":
+      return {
+        args: {
+          checklistTitle: getOptionalString(value.args.checklistTitle) ?? null,
+          scope: "plans",
+        },
+        confidence,
+        intent: "query_plan",
+        reply,
+      };
     case "query_plan_progress": {
       const planId = getOptionalNumber(value.args.planId);
       const planTitle = getOptionalString(value.args.planTitle);
@@ -1820,6 +1883,24 @@ export const parseAgentIntentResult = (value: unknown): AgentIntent | null => {
         },
         confidence,
         intent: "query_plan_progress",
+        reply,
+      };
+    }
+    case "query_schedule": {
+      const limit = getOptionalNumber(value.args.limit);
+      return {
+        args: {
+          endDate: getOptionalDateString(value.args.endDate) ?? null,
+          limit:
+            limit && limit > 0 && Number.isInteger(limit) ? limit : null,
+          range: getOptionalEnum(
+            value.args.range,
+            ["next_week", "this_week", "today", "tomorrow", "upcoming"] as const,
+          ) ?? null,
+          startDate: getOptionalDateString(value.args.startDate) ?? null,
+        },
+        confidence,
+        intent: "query_schedule",
         reply,
       };
     }

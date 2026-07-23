@@ -6,6 +6,7 @@ export const AGENT_WRITE_INTENT_NAMES = [
   "append_plan_item",
   "cancel_schedule_item",
   "complete_plan_item",
+  "compose_checklist",
   "compose_plan",
   "compose_schedule_item",
   "compose_timeline_event",
@@ -28,6 +29,7 @@ export const isAgentWriteIntent = (intent: AgentIntent["intent"]): intent is Age
 
 /** 编排冲突检测用的写入 intent 子集（含 delete/modify）。 */
 export const ORCHESTRATION_WRITE_INTENTS = new Set([
+  "compose_checklist",
   "compose_plan",
   "create_plan",
   "create_checklist",

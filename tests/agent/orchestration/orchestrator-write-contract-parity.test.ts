@@ -54,6 +54,10 @@ const writeCases = [
     checklistTitle: "本周任务",
     itemTitle: "完成复盘",
   }, "plan"],
+  ["compose_checklist", {
+    goal: "整理本周工作",
+    title: "本周工作清单",
+  }, "plan"],
   ["compose_plan", { goal: "完成复习", title: "复习计划" }, "plan"],
   ["compose_schedule_item", {
     date: "2026-07-21",
@@ -145,6 +149,7 @@ describe("orchestrator write contract parity", () => {
         "append_plan_item",
         "cancel_schedule_item",
         "complete_plan_item",
+        "compose_checklist",
         "reschedule_item",
         "schedule_plan",
       ].includes(candidate)

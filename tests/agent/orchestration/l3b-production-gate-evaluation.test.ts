@@ -267,6 +267,34 @@ test("wrt-1 falls through to one bounded Full Orchestrator call", async () => {
   assertSafeObservation(observation, "wrt-1");
 });
 
+test("Acceptance read and checklist intents survive the compatibility mapper", async () => {
+  const cases = [
+    ["qry-2", "pure_read_query", "query_checklist_progress", {}],
+    ["qry-3", "pure_read_query", "query_schedule", {}],
+    ["qry-5", "pure_read_query", "query_memory", {}],
+    [
+      "wrt-2",
+      "explicit_write_ready",
+      "compose_checklist",
+      { goal: "synthetic weekly work", title: "synthetic checklist" },
+    ],
+    ["inj-1", "pure_read_query", "query_plan", {}],
+    ["inj-3", "pure_read_query", "query_plan", {}],
+  ] as const;
+
+  for (const [fixtureId, decisionCode, intent, args] of cases) {
+    const { observation } = await evaluate(fixtureId, {
+      fullInvoke: async () => fullOutput(decisionCode, intent, args),
+    });
+
+    assert.equal(observation.finalMode, "single", fixtureId);
+    assert.deepEqual(observation.finalTaskIntents, [intent], fixtureId);
+    assert.equal(observation.semanticMatch, true, fixtureId);
+    assert.equal(observation.usable, true, fixtureId);
+    assertSafeObservation(observation, fixtureId);
+  }
+});
+
 test("an unexpected consultation result fails semantically without spending an Answer call", async () => {
   const { observation } = await evaluate("wrt-1", {
     fullInvoke: async () => fullOutput(
