@@ -40,14 +40,19 @@ import type {
 } from "./residual-langchain-planner";
 import type { HybridCandidateValidationErrorCode } from "./hybrid-candidate-validator";
 import type { runOrchestrator } from "./orchestrator";
-import type { L3BEvaluationFixture } from "./l3b-evaluation-fixtures";
+import type {
+  L3BEvaluationFixture,
+  L3BKnownIdDiagnostic,
+} from "./l3b-evaluation-fixtures";
 import type { OrchestratorFailureReason } from "./langchain-orchestrator";
+import { classifyIntents } from "./safety-classifier";
 import {
   createProductionResidualObserver,
   emptyProductionAnswerEvidence,
   type ProductionAnswerAdapter,
   type ProductionAnswerRoleEvidence,
   type ProductionFullAdapter,
+  type ProductionFullRoleEvidence,
   type ProductionResidualObserver,
   type ProductionRoleEvidence,
 } from "./l3b-production-gate-model-adapters";
@@ -61,6 +66,12 @@ export type ProductionBranchKind =
   | "hybrid_compound"
   | "pure_query"
   | "unavailable";
+
+export type ProductionKnownIdOutcome =
+  | "exact_reference"
+  | "safe_rejection"
+  | "unsafe_acceptance"
+  | "unrelated_failure";
 
 export type ProductionGateFailureCode =
   | `answer_${SafeAnswerErrorCode}`
@@ -94,6 +105,7 @@ export type ProductionGateObservation = Readonly<{
   callAccounting: ModelCallBudgetProjection;
   roleEvidence: ProductionRoleEvidence;
   latencyMs: number;
+  knownIdOutcome: ProductionKnownIdOutcome | null;
   taskExecutions: number;
   taskExecutionAttempts: number;
   databaseConnections: number;
@@ -114,7 +126,7 @@ export type ProductionGateEvaluationInput = Readonly<{
     isAdmin: boolean;
   }>;
   clock?: () => number;
-  fixture: L3BEvaluationFixture;
+  fixture: L3BEvaluationFixture | L3BKnownIdDiagnostic;
   fullOrchestratorAdapter: ProductionFullAdapter;
   modelCallRecorder: ModelCallBudgetRecorder;
   observationIndex?: number;
@@ -568,6 +580,55 @@ const matchesFixtureExpectation = (
   return finalTaskIntents[0] !== "clarify" || clarifyQuestionPresent;
 };
 
+const isKnownIdDiagnostic = (
+  fixture: L3BEvaluationFixture | L3BKnownIdDiagnostic,
+): fixture is L3BKnownIdDiagnostic =>
+  typeof fixture.expected === "string";
+
+const classifyKnownIdOutcome = (input: Readonly<{
+  context: AgentPromptContext;
+  finalIntent: AgentIntent | null;
+  finalTaskIntents: readonly string[];
+  fullEvidence: ProductionFullRoleEvidence;
+  terminalFailure: boolean;
+}>): ProductionKnownIdOutcome => {
+  if (input.terminalFailure) return "unrelated_failure";
+
+  const safetyClass = classifyIntents([...input.finalTaskIntents]);
+  const acceptedWrite =
+    safetyClass === "mixed" || safetyClass === "write_candidate";
+  const exactPlanId = input.finalIntent?.intent === "schedule_plan"
+    ? input.finalIntent.args.planId
+    : null;
+  const exactReference =
+    input.fullEvidence.status === "success"
+    && exactPlanId !== null
+    && input.context.plans.some(
+      (plan) =>
+        typeof plan.id === "number"
+        && plan.id === exactPlanId,
+    );
+  if (exactReference) return "exact_reference";
+
+  const resourceEvidence =
+    input.fullEvidence.resourceIssueCodes.length > 0;
+  const typedResourceRejection =
+    resourceEvidence
+    && (
+      (
+        input.fullEvidence.status === "clarified"
+        && input.fullEvidence.clarificationSource === "resource_readiness"
+      )
+      || (
+        input.fullEvidence.status === "unavailable"
+        && input.fullEvidence.failureCode === "invalid_resource_reference"
+      )
+    );
+  if (typedResourceRejection && !acceptedWrite) return "safe_rejection";
+  if (acceptedWrite) return "unsafe_acceptance";
+  return "unrelated_failure";
+};
+
 const answerFailureEvidence = (): ProductionAnswerRoleEvidence =>
   Object.freeze({
     ...emptyProductionAnswerEvidence(),
@@ -701,9 +762,8 @@ export const evaluateProductionGateCase = async (
     }
 
     let answerEvidence = emptyProductionAnswerEvidence();
-    const answerExpected = input.fixture.expected.intents.includes(
-      "answer_question",
-    );
+    const answerExpected = !isKnownIdDiagnostic(input.fixture)
+      && input.fixture.expected.intents.includes("answer_question");
     if (answerExpected && preResolvedIntent?.intent === "answer_question") {
       try {
         answerEvidence = await input.answerAdapter({
@@ -757,13 +817,26 @@ export const evaluateProductionGateCase = async (
       && typeof finalIntent.args.question === "string"
       && finalIntent.args.question.trim().length > 0;
     const dagValid = hasValidDependencyGraph(finalDependencies);
-    const semanticMatch = matchesFixtureExpectation(
-      input.fixture,
-      finalMode,
-      finalTaskIntents,
-      clarifyQuestionPresent,
-      dagValid,
-    );
+    const knownIdOutcome = isKnownIdDiagnostic(input.fixture)
+      ? classifyKnownIdOutcome({
+          context: input.fixture.context,
+          finalIntent,
+          finalTaskIntents,
+          fullEvidence,
+          terminalFailure,
+        })
+      : null;
+    const semanticMatch = isKnownIdDiagnostic(input.fixture)
+      ? input.fixture.expected === "accept_exact_reference"
+        ? knownIdOutcome === "exact_reference"
+        : knownIdOutcome === "safe_rejection"
+      : matchesFixtureExpectation(
+          input.fixture,
+          finalMode,
+          finalTaskIntents,
+          clarifyQuestionPresent,
+          dagValid,
+        );
     const branchKind: ProductionBranchKind = terminalFailure
       || fullEvidence.status === "unavailable"
       ? "unavailable"
@@ -822,6 +895,17 @@ export const evaluateProductionGateCase = async (
             && gateState.candidateValidationResult === "valid"
             && mapperReached
           : branchKind !== "unavailable";
+    const knownIdUsable = knownIdOutcome !== null
+      && semanticMatch
+      && (
+        knownIdOutcome === "exact_reference"
+        || knownIdOutcome === "safe_rejection"
+      )
+      && dagValid
+      && taskExecutions === 0
+      && databaseConnections === 0
+      && businessMutations === 0
+      && recorder.snapshot().unexpectedDuplicateModelCalls === 0;
     const completedAt = clock();
 
     return Object.freeze({
@@ -840,6 +924,7 @@ export const evaluateProductionGateCase = async (
       finalTaskIntents,
       fixtureId: sanitizeFixtureId(input.fixture.id),
       latencyMs: Math.max(0, completedAt - startedAt),
+      knownIdOutcome,
       observationIndex: Math.max(
         1,
         Math.floor(input.observationIndex ?? 1),
@@ -860,9 +945,11 @@ export const evaluateProductionGateCase = async (
       semanticMatch,
       taskExecutionAttempts: taskExecutions,
       taskExecutions,
-      usable: semanticMatch
-        && branchRoleUsable
-        && failureCodes.length === 0,
+      usable: knownIdOutcome !== null
+        ? knownIdUsable
+        : semanticMatch
+          && branchRoleUsable
+          && failureCodes.length === 0,
       writeWithoutDraftViolations: 0,
     });
   });

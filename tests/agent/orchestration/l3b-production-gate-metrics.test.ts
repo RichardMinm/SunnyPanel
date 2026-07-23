@@ -60,6 +60,7 @@ const observation = (
   finalTaskIntents: fixtureId === "qry-4" ? ["clarify"] : ["query_progress"],
   fixtureId,
   latencyMs: 1,
+  knownIdOutcome: null,
   observationIndex,
   rawRetentionViolation: false,
   roleEvidence: {
@@ -125,6 +126,60 @@ const observation = (
 const stabilityObservations = (): ProductionGateObservation[] =>
   getL3BProductionStageCases("stability").map(
     ({ fixtureId, round }, index) => observation(fixtureId, round, index + 1),
+  );
+
+const knownIdObservations = (): ProductionGateObservation[] =>
+  getL3BProductionStageCases("known_id").map(
+    ({ fixtureId, round, source }, index) => {
+      assert.equal(typeof source.expected, "string");
+      const exact = source.expected === "accept_exact_reference";
+      const unavailable = fixtureId === "diag-plan-task-output";
+      const base = observation(fixtureId, round, index + 1, {
+        branchKind: exact
+          ? "full_orchestrator"
+          : unavailable
+            ? "unavailable"
+            : "deterministic_clarify",
+        clarifyQuestionPresent: !exact && !unavailable,
+        failureCodes: unavailable
+          ? ["full_invalid_resource_reference"]
+          : [],
+        finalDependencies: exact || !unavailable
+          ? [{ dependsOn: [], taskId: "t1" }]
+          : [],
+        finalMode: unavailable ? null : "single",
+        finalTaskIntents: exact
+          ? ["schedule_plan"]
+          : unavailable
+            ? []
+            : ["clarify"],
+        knownIdOutcome: exact ? "exact_reference" : "safe_rejection",
+        roleEvidence: {
+          ...observation(fixtureId, round, index + 1).roleEvidence,
+          fullOrchestrator: {
+            ...observation(fixtureId, round, index + 1).roleEvidence
+              .fullOrchestrator,
+            clarificationSource: exact || unavailable
+              ? null
+              : "resource_readiness",
+            failureCode: unavailable
+              ? "invalid_resource_reference"
+              : null,
+            resourceIssueCodes: exact
+              ? []
+              : unavailable
+                ? ["RESOURCE_OUTPUT_REF_UNSUPPORTED"]
+                : ["RESOURCE_ID_NOT_IN_CONTEXT"],
+            status: exact
+              ? "success"
+              : unavailable
+                ? "unavailable"
+                : "clarified",
+          },
+        },
+      });
+      return base;
+    },
   );
 
 const safeProtocol = (latencyMs: number) => ({
@@ -365,6 +420,122 @@ test("renders empty applicable Provider denominators as null and N/A", () => {
   }
   assert.equal(summary.metrics.provider.costUsd, null);
   assert.equal(summary.metrics.provider.renderedCostUsd, "N/A");
+});
+
+test("Known-ID passes exact references and typed safe rejections as diagnostic outcomes", () => {
+  const summary = aggregateProductionGate({
+    observations: knownIdObservations(),
+    providerEvents: [],
+    stage: "known_id",
+  });
+
+  assert.equal(summary.passed, true);
+  assert.deepEqual(summary.failedGates, []);
+  assert.equal(summary.metrics.business.semanticMatches.rendered, "6/6");
+  assert.equal(summary.metrics.business.usableResults.rendered, "6/6");
+  assert.equal(
+    summary.metrics.zeroTolerance.invalidResourceReferences,
+    0,
+  );
+  assert.equal(
+    summary.metrics.zeroTolerance.unexpectedWriteCandidates,
+    0,
+  );
+});
+
+test("Known-ID unsafe acceptance remains a semantic and zero-tolerance failure", () => {
+  const observations = knownIdObservations();
+  const index = observations.findIndex(
+    ({ fixtureId }) => fixtureId === "diag-plan-outside-id",
+  );
+  assert.notEqual(index, -1);
+  const selected = observations[index];
+  observations[index] = observation(
+    selected.fixtureId,
+    selected.round,
+    selected.observationIndex,
+    {
+      ...selected,
+      branchKind: "full_orchestrator",
+      clarifyQuestionPresent: false,
+      failureCodes: ["semantic_mismatch"],
+      finalDependencies: [{ dependsOn: [], taskId: "t1" }],
+      finalMode: "single",
+      finalTaskIntents: ["schedule_plan"],
+      knownIdOutcome: "unsafe_acceptance",
+      roleEvidence: {
+        ...selected.roleEvidence,
+        fullOrchestrator: {
+          ...selected.roleEvidence.fullOrchestrator,
+          clarificationSource: null,
+          failureCode: null,
+          resourceIssueCodes: [],
+          status: "success",
+        },
+      },
+      semanticMatch: false,
+      usable: false,
+    },
+  );
+
+  const summary = aggregateProductionGate({
+    observations,
+    providerEvents: [],
+    stage: "known_id",
+  });
+
+  assert.equal(summary.passed, false);
+  assert.equal(
+    summary.metrics.zeroTolerance.unexpectedWriteCandidates,
+    1,
+  );
+  assert.equal(
+    summary.failedGates.includes("semantic_match_rate"),
+    true,
+  );
+  assert.equal(
+    summary.failedGates.includes("usable_result_rate"),
+    true,
+  );
+  assert.equal(
+    summary.failedGates.includes("unexpected_write_candidate"),
+    true,
+  );
+});
+
+test("Known-ID safe-rejection exemption never applies to an ordinary stage", () => {
+  const observations = stabilityObservations();
+  const selected = observations[0];
+  observations[0] = observation(
+    selected.fixtureId,
+    selected.round,
+    selected.observationIndex,
+    {
+      ...selected,
+      failureCodes: ["full_invalid_resource_reference"],
+      knownIdOutcome: "safe_rejection",
+      roleEvidence: {
+        ...selected.roleEvidence,
+        fullOrchestrator: {
+          ...selected.roleEvidence.fullOrchestrator,
+          failureCode: "invalid_resource_reference",
+          resourceIssueCodes: ["RESOURCE_OUTPUT_REF_UNSUPPORTED"],
+          status: "unavailable",
+        },
+      },
+    },
+  );
+
+  const summary = aggregateProductionGate({
+    observations,
+    providerEvents: [],
+    stage: "stability",
+  });
+
+  assert.equal(
+    summary.metrics.zeroTolerance.invalidResourceReferences,
+    1,
+  );
 });
 
 test("keeps injected Residual call accounting outside structured Provider denominators", () => {

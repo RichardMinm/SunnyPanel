@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { test } from "node:test";
 
 import {
@@ -158,6 +158,31 @@ test("uses deterministic round-major stage order", () => {
     [1, 2, 3].flatMap((round) =>
       L3B_PRODUCTION_FOCUSED_FIXTURE_IDS.map((id) => `${round}:${id}`)
     ),
+  );
+});
+
+test("settles Provider attempts in finally and retains the Known-ID outcome", () => {
+  const source = readFileSync(
+    "scripts/agent-production-seam-gate-eval.mjs",
+    "utf8",
+  );
+  const evaluation = source.indexOf("await evaluateProductionGateCase({");
+  const settlement = source.indexOf(
+    "providerAttemptCount(recorder.snapshot())",
+    evaluation,
+  );
+  const finallyBlock = source.lastIndexOf("finally", settlement);
+
+  assert.notEqual(evaluation, -1);
+  assert.ok(finallyBlock > evaluation);
+  assert.ok(settlement > finallyBlock);
+  assert.doesNotMatch(
+    source,
+    /providerAttemptCount\(observation\.callAccounting\)/u,
+  );
+  assert.match(
+    source,
+    /knownIdOutcome:\s*observation\.knownIdOutcome/u,
   );
 });
 

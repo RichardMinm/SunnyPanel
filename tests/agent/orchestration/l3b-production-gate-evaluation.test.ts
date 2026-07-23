@@ -11,7 +11,10 @@ import {
   evaluateProductionGateCase,
   type ProductionGateObservation,
 } from "../../../src/lib/agent/orchestration/hybrid-production-evaluation";
-import { L3B_EVALUATION_FIXTURES } from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
+import {
+  L3B_EVALUATION_FIXTURES,
+  L3B_KNOWN_ID_DIAGNOSTICS,
+} from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
 import {
   createProductionAnswerAdapter,
   createProductionFullAdapter,
@@ -33,6 +36,14 @@ const modelConfig = {
 
 const fixture = (id: string) => {
   const selected = L3B_EVALUATION_FIXTURES.find((candidate) => candidate.id === id);
+  assert.ok(selected, id);
+  return selected;
+};
+
+const knownIdDiagnostic = (id: string) => {
+  const selected = L3B_KNOWN_ID_DIAGNOSTICS.find(
+    (candidate) => candidate.id === id,
+  );
   assert.ok(selected, id);
   return selected;
 };
@@ -69,7 +80,9 @@ const fullOutput = (
       ? "plan"
       : intent === "save_memory"
         ? "memory"
-        : "query",
+        : intent === "schedule_plan"
+          ? "schedule"
+          : "query",
     args,
     dependsOn: [],
     id: "t1",
@@ -123,6 +136,40 @@ const evaluate = async (
   return { events, observation };
 };
 
+const evaluateKnownId = async (
+  fixtureId: string,
+  fullInvoke: () => unknown | Promise<unknown>,
+) => {
+  const recorder = createModelCallBudgetRecorder();
+  const events: SanitizedRoleEvent[] = [];
+  const fullOrchestratorAdapter = createProductionFullAdapter({
+    modelConfig,
+    modelFactory: promptJsonModelFactory(fullInvoke),
+    observe: (event) => events.push(event),
+    recorder,
+    retryBudget: { schema: 0, transport: 0 },
+  });
+  const answerAdapter = createProductionAnswerAdapter({
+    model: streamingModel([
+      new AIMessageChunk({ content: "answer must remain unused" }),
+    ]),
+    modelConfig,
+    observe: (event) => events.push(event),
+    recorder,
+    timeouts: { firstTokenMs: 100, totalMs: 200 },
+  });
+  const observation = await evaluateProductionGateCase({
+    answerAdapter,
+    authenticatedActor: { collection: "users", id: 7, isAdmin: true },
+    fixture: knownIdDiagnostic(fixtureId),
+    fullOrchestratorAdapter,
+    modelCallRecorder: recorder,
+    observationIndex: 1,
+    round: 1,
+  });
+  return { events, observation };
+};
+
 const assertSafeObservation = (
   observation: ProductionGateObservation,
   fixtureId: string,
@@ -138,6 +185,31 @@ const assertSafeObservation = (
     assert.doesNotMatch(serialized, new RegExp(value));
   }
   assert.doesNotMatch(serialized, /rawProvider|rawResponse|stack|reasoning_content/u);
+  assert.equal(observation.rawRetentionViolation, false);
+  assert.equal(observation.databaseAccessAttempts, 0);
+  assert.equal(observation.databaseConnections, 0);
+  assert.equal(observation.databaseMutationAttempts, 0);
+  assert.equal(observation.businessMutationAttempts, 0);
+  assert.equal(observation.businessMutations, 0);
+  assert.equal(observation.draftPathsReached, 0);
+  assert.equal(observation.taskExecutionAttempts, 0);
+  assert.equal(observation.taskExecutions, 0);
+  assert.equal(observation.writeWithoutDraftViolations, 0);
+};
+
+const assertSafeKnownIdObservation = (
+  observation: ProductionGateObservation,
+  fixtureId: string,
+) => {
+  const selected = knownIdDiagnostic(fixtureId);
+  const serialized = JSON.stringify(observation);
+  assert.equal(serialized.includes(selected.message), false);
+  assert.equal(serialized.includes("考研数学复习计划"), false);
+  assert.equal(serialized.includes("\"planId\""), false);
+  assert.doesNotMatch(
+    serialized,
+    /rawProvider|rawResponse|stack|reasoning_content/u,
+  );
   assert.equal(observation.rawRetentionViolation, false);
   assert.equal(observation.databaseAccessAttempts, 0);
   assert.equal(observation.databaseConnections, 0);
@@ -603,6 +675,81 @@ test("Full evidence preserves bounded query-scope and resource categories", asyn
   ]);
   assert.equal(resourceEvidence.decisionConsistencyError, null);
   assert.equal(JSON.stringify(resourceEvidence).includes("999"), false);
+});
+
+test("Known-ID accepts one actor-authorized exact plan reference", async () => {
+  const { observation } = await evaluateKnownId(
+    "diag-plan-existing-id",
+    () => fullOutput(
+      "explicit_write_ready",
+      "schedule_plan",
+      { planId: 101, startDate: "2026-07-21" },
+    ),
+  );
+
+  assert.equal(observation.knownIdOutcome, "exact_reference");
+  assert.equal(observation.semanticMatch, true);
+  assert.equal(observation.usable, true);
+  assert.deepEqual(observation.finalTaskIntents, ["schedule_plan"]);
+  assertSafeKnownIdObservation(observation, "diag-plan-existing-id");
+});
+
+test("Known-ID treats an outside ID only as typed safe rejection", async () => {
+  const { observation } = await evaluateKnownId(
+    "diag-plan-outside-id",
+    () => fullOutput(
+      "explicit_write_ready",
+      "schedule_plan",
+      { planId: 999, startDate: "2026-07-21" },
+    ),
+  );
+
+  assert.equal(observation.knownIdOutcome, "safe_rejection");
+  assert.equal(observation.semanticMatch, true);
+  assert.equal(observation.usable, true);
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator.clarificationSource,
+    "resource_readiness",
+  );
+  assertSafeKnownIdObservation(observation, "diag-plan-outside-id");
+});
+
+test("Known-ID accepts typed unsupported task-output rejection as diagnostic success", async () => {
+  const { observation } = await evaluateKnownId(
+    "diag-plan-task-output",
+    () => fullOutput(
+      "explicit_write_ready",
+      "schedule_plan",
+      {
+        planId: {
+          field: "planId",
+          taskId: "create-plan",
+          type: "taskOutput",
+        },
+      },
+    ),
+  );
+
+  assert.equal(observation.knownIdOutcome, "safe_rejection");
+  assert.equal(observation.semanticMatch, true);
+  assert.equal(observation.usable, true);
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator.failureCode,
+    "invalid_resource_reference",
+  );
+  assertSafeKnownIdObservation(observation, "diag-plan-task-output");
+});
+
+test("Known-ID does not treat schema failure as safe resource rejection", async () => {
+  const { observation } = await evaluateKnownId(
+    "diag-plan-outside-id",
+    () => ({ invalid: true }),
+  );
+
+  assert.equal(observation.knownIdOutcome, "unrelated_failure");
+  assert.equal(observation.semanticMatch, false);
+  assert.equal(observation.usable, false);
+  assertSafeKnownIdObservation(observation, "diag-plan-outside-id");
 });
 
 test("Residual observer records only genuine bounded structured phases", () => {

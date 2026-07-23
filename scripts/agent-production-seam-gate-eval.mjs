@@ -128,6 +128,7 @@ const projectObservation = (observation) => Object.freeze({
   finalIntents: Object.freeze([...observation.finalTaskIntents]),
   finalMode: observation.finalMode,
   fixtureId: observation.fixtureId,
+  knownIdOutcome: observation.knownIdOutcome,
   latencyMs: observation.latencyMs,
   roleEvidence: projectRoleEvidence(observation.roleEvidence),
   round: observation.round,
@@ -348,22 +349,26 @@ const main = async () => {
         totalMs: L3B_EVALUATION_CONFIG.answerTotalTimeoutMs,
       },
     });
-    const observation = await evaluateProductionGateCase({
-      answerAdapter,
-      authenticatedActor: ACTOR,
-      fixture: entry.source,
-      fullOrchestratorAdapter,
-      modelCallRecorder: recorder,
-      observationIndex: index + 1,
-      residualModelConfig: fullModelConfig,
-      residualPlannerProviderAttemptObserver: residualObserver,
-      round: entry.round,
-    });
-    observations.push(observation);
-    actualProviderAttempts += providerAttemptCount(observation.callAccounting);
-    if (actualProviderAttempts > authorizedMaximum) {
-      fail("LIVE_CALL_BUDGET_EXCEEDED");
+    let observation;
+    try {
+      observation = await evaluateProductionGateCase({
+        answerAdapter,
+        authenticatedActor: ACTOR,
+        fixture: entry.source,
+        fullOrchestratorAdapter,
+        modelCallRecorder: recorder,
+        observationIndex: index + 1,
+        residualModelConfig: fullModelConfig,
+        residualPlannerProviderAttemptObserver: residualObserver,
+        round: entry.round,
+      });
+    } finally {
+      actualProviderAttempts += providerAttemptCount(recorder.snapshot());
+      if (actualProviderAttempts > authorizedMaximum) {
+        fail("LIVE_CALL_BUDGET_EXCEEDED");
+      }
     }
+    observations.push(observation);
   }
 
   const summary = aggregateProductionGate({
