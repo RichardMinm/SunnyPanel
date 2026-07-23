@@ -767,6 +767,8 @@ export const evaluateProductionGateCase = async (
     const branchKind: ProductionBranchKind = terminalFailure
       || fullEvidence.status === "unavailable"
       ? "unavailable"
+      : fullEvidence.status === "clarified"
+        ? "deterministic_clarify"
       : boundaryResolutionKind === "pure_query"
         ? "pure_query"
         : boundaryResolutionKind === "clarify"

@@ -267,6 +267,41 @@ test("wrt-1 falls through to one bounded Full Orchestrator call", async () => {
   assertSafeObservation(observation, "wrt-1");
 });
 
+test("exr-3 exposes deterministic clarify while preserving bounded Provider deviation evidence", async () => {
+  const missingChecklistTitle =
+    "SYNTHETIC_MISSING_CHECKLIST_TITLE_MUST_NOT_BE_RETAINED";
+  const { observation } = await evaluate("exr-3", {
+    fullInvoke: async () => fullOutput(
+      "explicit_write_ready",
+      "complete_plan_item",
+      {
+        checklistTitle: missingChecklistTitle,
+        itemTitle: "synthetic completion item",
+      },
+    ),
+    residualInvoke: async () => assert.fail("Full path cannot call Residual"),
+  });
+
+  assert.equal(observation.branchKind, "deterministic_clarify");
+  assert.equal(observation.finalMode, "single");
+  assert.deepEqual(observation.finalTaskIntents, ["clarify"]);
+  assert.equal(observation.clarifyQuestionPresent, true);
+  assert.equal(observation.semanticMatch, true);
+  assert.equal(observation.usable, true);
+  assert.equal(observation.roleEvidence.fullOrchestrator.status, "clarified");
+  assert.equal(observation.roleEvidence.fullOrchestrator.failureCode, null);
+  assert.deepEqual(
+    observation.roleEvidence.fullOrchestrator.semanticProjection?.intents,
+    ["complete_plan_item"],
+  );
+  assert.deepEqual(
+    observation.roleEvidence.fullOrchestrator.resourceIssueCodes,
+    ["RESOURCE_TITLE_NOT_IN_CONTEXT"],
+  );
+  assert.equal(observation.failureCodes.length, 0);
+  assertSafeObservation(observation, "exr-3", [missingChecklistTitle]);
+});
+
 test("Acceptance read and checklist intents survive the compatibility mapper", async () => {
   const cases = [
     ["qry-2", "pure_read_query", "query_checklist_progress", {}],

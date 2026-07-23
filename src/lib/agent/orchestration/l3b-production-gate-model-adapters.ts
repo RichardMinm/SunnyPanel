@@ -385,7 +385,9 @@ export const createProductionFullAdapter = (input: Readonly<{
       queryScopeErrorCode:
         result.status === "unavailable" ? result.queryScopeErrorCode ?? null : null,
       resourceIssueCodes: Object.freeze(
-        result.status === "unavailable" ? [...(result.resourceIssueCodes ?? [])] : [],
+        "resourceIssueCodes" in result
+          ? [...(result.resourceIssueCodes ?? [])]
+          : [],
       ),
       semanticProjection: result.schemaValidDecision
         ? Object.freeze({
@@ -414,9 +416,9 @@ export const createProductionFullAdapter = (input: Readonly<{
       status: result.status,
       totalTokens: null,
     }));
-    return result.status === "success"
-      ? result.plan
-      : projectOrchestratorFailureToSafePlan();
+    return result.status === "unavailable"
+      ? projectOrchestratorFailureToSafePlan()
+      : result.plan;
   };
 
   return Object.assign(adapter, {

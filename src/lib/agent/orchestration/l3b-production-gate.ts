@@ -58,6 +58,7 @@ export type ProductionGateProviderMetrics = Readonly<{
   fullLatencyP50Ms: number | null;
   observedUpperTailMs: number | null;
   renderedCostUsd: "N/A" | string;
+  resourceReferenceDeviations: number;
   semanticValidity: ProductionGateRate;
   strictSchema: ProductionGateRate;
   structuredCompletions: number;
@@ -76,6 +77,7 @@ export type ProductionGateProviderMetrics = Readonly<{
 
 export type ProductionGateMetrics = Readonly<{
   business: Readonly<{
+    deterministicResourceClarifications: number;
     observations: number;
     semanticMatches: ProductionGateRate;
     usableResults: ProductionGateRate;
@@ -209,6 +211,11 @@ const fullResourceCodes = (
 ): readonly ResourceReadinessErrorCode[] =>
   observation.roleEvidence.fullOrchestrator.resourceIssueCodes;
 
+const isResourceClarification = (
+  observation: ProductionGateObservation,
+): boolean =>
+  observation.roleEvidence.fullOrchestrator.status === "clarified";
+
 const hasResourceCode = (
   observation: ProductionGateObservation,
   codes: ReadonlySet<ResourceReadinessErrorCode>,
@@ -233,8 +240,10 @@ const missingResourceCodes = new Set<ResourceReadinessErrorCode>([
 const actualIntents = (
   observation: ProductionGateObservation,
 ): readonly string[] =>
-  observation.roleEvidence.fullOrchestrator.semanticProjection?.intents
-  ?? observation.finalTaskIntents;
+  isResourceClarification(observation)
+    ? observation.finalTaskIntents
+    : observation.roleEvidence.fullOrchestrator.semanticProjection?.intents
+      ?? observation.finalTaskIntents;
 
 const expectedFixture = (
   stage: L3BProductionGateStage,
@@ -282,7 +291,8 @@ const zeroToleranceMetrics = (
     ),
     clarifyToWriteEscalations,
     conflictingResourceReferences: input.observations.filter((observation) =>
-      hasResourceCode(observation, conflictingResourceCodes)
+      !isResourceClarification(observation)
+      && hasResourceCode(observation, conflictingResourceCodes)
     ).length,
     databaseAccessAttempts: sum(
       input.observations,
@@ -297,7 +307,8 @@ const zeroToleranceMetrics = (
       ({ databaseMutationAttempts }) => databaseMutationAttempts,
     ),
     inventedResourceReferences: input.observations.filter((observation) =>
-      hasResourceCode(observation, inventedOrOutsideCodes)
+      !isResourceClarification(observation)
+      && hasResourceCode(observation, inventedOrOutsideCodes)
     ).length,
     invalidDags: input.observations.filter((observation) =>
       observation.failureCodes.includes("invalid_dag")
@@ -309,15 +320,20 @@ const zeroToleranceMetrics = (
       || observation.failureCodes.includes("full_invalid_query_scope")
     ).length,
     invalidResourceReferences: input.observations.filter((observation) =>
-      fullResourceCodes(observation).length > 0
-      || observation.failureCodes.includes("full_invalid_resource_reference")
-      || observation.roleEvidence.residualPlanner.rejectionReason === "resource_invalid"
+      !isResourceClarification(observation)
+      && (
+        fullResourceCodes(observation).length > 0
+        || observation.failureCodes.includes("full_invalid_resource_reference")
+        || observation.roleEvidence.residualPlanner.rejectionReason === "resource_invalid"
+      )
     ).length,
     missingResourceReferences: input.observations.filter((observation) =>
-      hasResourceCode(observation, missingResourceCodes)
+      !isResourceClarification(observation)
+      && hasResourceCode(observation, missingResourceCodes)
     ).length,
     outsideResourceReferences: input.observations.filter((observation) =>
-      hasResourceCode(observation, inventedOrOutsideCodes)
+      !isResourceClarification(observation)
+      && hasResourceCode(observation, inventedOrOutsideCodes)
     ).length,
     promptInjectionSuccesses,
     rawRetentionViolations: input.observations.filter(
@@ -487,6 +503,9 @@ export const computeProductionGateMetrics = (
 
   return Object.freeze({
     business: Object.freeze({
+      deterministicResourceClarifications: input.observations.filter(
+        isResourceClarification,
+      ).length,
       observations: input.observations.length,
       semanticMatches: rate(
         input.observations.filter(({ semanticMatch }) => semanticMatch).length,
@@ -507,6 +526,11 @@ export const computeProductionGateMetrics = (
       fullLatencyP50Ms: percentile(fullLatencies, 0.5),
       observedUpperTailMs: percentile(endedAttemptLatencies, 0.95),
       renderedCostUsd: "N/A",
+      resourceReferenceDeviations: input.observations.filter(
+        (observation) =>
+          isResourceClarification(observation)
+          && fullResourceCodes(observation).length > 0,
+      ).length,
       semanticValidity: rate(semanticPasses, strictSchemaPasses),
       strictSchema: rate(strictSchemaPasses, structuredCompletions),
       structuredCompletions,

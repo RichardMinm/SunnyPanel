@@ -10,6 +10,7 @@ import {
 } from "../../../src/lib/agent/orchestration/l3b-production-gate-contract";
 import {
   aggregateProductionGate,
+  computeProductionGateMetrics,
   evaluateProductionGateThresholds,
   type ProductionGateFailureReason,
   type ProductionGateMetrics,
@@ -528,6 +529,101 @@ test("requires exact Stability semantic and usable rates without rounding", () =
       true,
     );
   }
+});
+
+test("separates deterministic resource clarification from Provider deviation diagnostics", () => {
+  const base = observation("exr-3", 1, 1);
+  const clarified = observation("exr-3", 1, 1, {
+    branchKind: "deterministic_clarify",
+    clarifyQuestionPresent: true,
+    finalDependencies: [{ dependsOn: [], taskId: "t1" }],
+    finalMode: "single",
+    finalTaskIntents: ["clarify"],
+    roleEvidence: {
+      ...base.roleEvidence,
+      fullOrchestrator: {
+        ...base.roleEvidence.fullOrchestrator,
+        completedResponses: 1,
+        providerAttempts: 1,
+        resourceIssueCodes: ["RESOURCE_TITLE_NOT_IN_CONTEXT"],
+        semanticProjection: {
+          decisionCode: "explicit_write_ready",
+          intents: ["complete_plan_item"],
+          mode: "single",
+          taskCount: 1,
+        },
+        semanticValidationPasses: 1,
+        semanticValidationsCompleted: 1,
+        status: "clarified",
+        strictSchemaPasses: 1,
+      },
+    },
+    semanticMatch: true,
+    usable: true,
+  });
+
+  const metrics = computeProductionGateMetrics({
+    observations: [clarified],
+    providerEvents: [],
+    stage: "acceptance",
+  });
+
+  assert.equal(metrics.business.deterministicResourceClarifications, 1);
+  assert.equal(metrics.provider.resourceReferenceDeviations, 1);
+  assert.equal(metrics.zeroTolerance.clarifyToWriteEscalations, 0);
+  assert.equal(metrics.zeroTolerance.unexpectedWriteCandidates, 0);
+  assert.equal(metrics.zeroTolerance.inventedResourceReferences, 0);
+  assert.equal(metrics.zeroTolerance.outsideResourceReferences, 0);
+  assert.equal(metrics.zeroTolerance.invalidResourceReferences, 0);
+  assert.equal(metrics.zeroTolerance.missingResourceReferences, 0);
+});
+
+test("keeps non-projectable resource failures in zero-tolerance gates", () => {
+  const base = observation("exr-3", 1, 1);
+  const unavailable = observation("exr-3", 1, 1, {
+    branchKind: "unavailable",
+    clarifyQuestionPresent: false,
+    failureCodes: ["full_invalid_resource_reference"],
+    finalDependencies: [],
+    finalMode: null,
+    finalTaskIntents: [],
+    roleEvidence: {
+      ...base.roleEvidence,
+      fullOrchestrator: {
+        ...base.roleEvidence.fullOrchestrator,
+        completedResponses: 1,
+        failureCode: "invalid_resource_reference",
+        providerAttempts: 1,
+        resourceIssueCodes: ["RESOURCE_OUTPUT_REF_UNSUPPORTED"],
+        semanticProjection: {
+          decisionCode: "explicit_write_ready",
+          intents: ["compose_plan"],
+          mode: "single",
+          taskCount: 1,
+        },
+        semanticValidationPasses: 1,
+        semanticValidationsCompleted: 1,
+        status: "unavailable",
+        strictSchemaPasses: 1,
+      },
+    },
+    semanticMatch: false,
+    usable: false,
+  });
+
+  const metrics = computeProductionGateMetrics({
+    observations: [unavailable],
+    providerEvents: [],
+    stage: "acceptance",
+  });
+
+  assert.equal(metrics.zeroTolerance.invalidResourceReferences, 1);
+  assert.equal(
+    evaluateProductionGateThresholds(metrics).includes(
+      "invalid_resource_reference",
+    ),
+    true,
+  );
 });
 
 test("enforces strict, semantic, transport, Answer, timeout, and latency boundaries", () => {
