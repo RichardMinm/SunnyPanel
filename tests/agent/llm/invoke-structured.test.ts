@@ -67,6 +67,34 @@ const fakeModelFactory = (opts: {
     return model as unknown as BaseChatModel;
   };
 
+const sequentialFactory = (
+  outputs: readonly unknown[],
+  capturedMessages: unknown[][],
+  callCount?: { value: number },
+): ModelFactory => () => {
+  let index = 0;
+  return {
+    withStructuredOutput: () => ({
+      invoke: async (messages: unknown[]) => {
+        if (callCount) callCount.value += 1;
+        capturedMessages.push([...messages]);
+        const output = outputs[index];
+        index += 1;
+        return output;
+      },
+    }),
+  } as unknown as BaseChatModel;
+};
+
+const lastMessageText = (messages: unknown[]): string => {
+  const message = messages.at(-1);
+  if (typeof message !== "object" || message === null || !("content" in message)) {
+    return "";
+  }
+  const content = (message as { content: unknown }).content;
+  return typeof content === "string" ? content : "";
+};
+
 describe("invokeStructured (L1-A contract)", () => {
   /* ─── 1. Success path ─── */
   describe("success", () => {
@@ -134,6 +162,123 @@ describe("invokeStructured (L1-A contract)", () => {
 
   /* ─── 2. Schema failure ─── */
   describe("schema failure", () => {
+    it("adds sanitized repair guidance only to the native schema retry", async () => {
+      const callCount = { value: 0 };
+      const capturedMessages: unknown[][] = [];
+      const receivedIssues: unknown[] = [];
+      const runtimeSchema = z.object({
+        args: z.object({ content: z.string().trim().min(1) }),
+      });
+      const factory = sequentialFactory([
+        { args: { unexpected: "RAW_SENTINEL" } },
+        { args: { content: "remember this" } },
+      ], capturedMessages, callCount);
+
+      const result = await invokeStructured({
+        maxSchemaRetries: 1,
+        messages: testMessages,
+        modelConfig: makeConfig(),
+        modelFactory: factory,
+        schema: runtimeSchema,
+        schemaName: "RepairOutput",
+        schemaRepairInstruction: (issues) => {
+          receivedIssues.push(issues);
+          return `Repair only: ${issues.map(({ path }) => path.join(".")).join(",")}`;
+        },
+      });
+
+      assert.equal(result.ok, true);
+      assert.equal(callCount.value, 2);
+      assert.equal(capturedMessages[0].length, testMessages.length);
+      assert.equal(capturedMessages[1].length, testMessages.length + 1);
+      assert.match(lastMessageText(capturedMessages[1]), /args\.content/u);
+      assert.doesNotMatch(lastMessageText(capturedMessages[1]), /RAW_SENTINEL/u);
+      assert.equal(JSON.stringify(receivedIssues).includes("RAW_SENTINEL"), false);
+    });
+
+    it("does not call the repair callback when no schema retry is allowed", async () => {
+      const callCount = { value: 0 };
+      let callbackCalls = 0;
+      const result = await invokeStructured({
+        maxSchemaRetries: 0,
+        maxTransportRetries: 0,
+        messages: testMessages,
+        modelConfig: makeConfig(),
+        modelFactory: fakeModelFactory({
+          callCount,
+          onSuccess: { args: {} },
+        }),
+        schema: z.object({ args: z.object({ content: z.string().min(1) }) }),
+        schemaName: "RepairOutput",
+        schemaRepairInstruction: () => {
+          callbackCalls += 1;
+          return "must not be used";
+        },
+      });
+
+      assert.equal(result.ok, false);
+      assert.equal(callCount.value, 1);
+      assert.equal(callbackCalls, 0);
+    });
+
+    it("bounds schema repair retries and reports retry scheduling", async () => {
+      const callCount = { value: 0 };
+      const events: StructuredProviderAttemptEvent[] = [];
+      const result = await invokeStructured({
+        maxSchemaRetries: 1,
+        maxTransportRetries: 0,
+        messages: testMessages,
+        modelConfig: makeConfig(),
+        modelFactory: fakeModelFactory({
+          callCount,
+          onSuccess: { args: {} },
+        }),
+        providerAttemptObserver: (event) => events.push(event),
+        schema: z.object({ args: z.object({ content: z.string().min(1) }) }),
+        schemaName: "RepairOutput",
+        schemaRepairInstruction: () => "Repair only: args.content",
+      });
+
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.equal(result.error.code, "STRUCTURED_OUTPUT_RETRY_EXHAUSTED");
+      }
+      assert.equal(callCount.value, 2);
+      assert.deepEqual(events.filter((event) => event.phase === "failed").map((event) => ({
+        attempt: event.attempt,
+        reason: event.reason,
+        retryScheduled: event.retryScheduled,
+      })), [
+        { attempt: 1, reason: "provider_protocol", retryScheduled: true },
+        { attempt: 2, reason: "provider_protocol", retryScheduled: false },
+      ]);
+    });
+
+    it("falls back to the original messages when the repair callback throws", async () => {
+      const callCount = { value: 0 };
+      const capturedMessages: unknown[][] = [];
+      const factory = sequentialFactory([
+        { args: {} },
+        { args: { content: "remember this" } },
+      ], capturedMessages, callCount);
+      const result = await invokeStructured({
+        maxSchemaRetries: 1,
+        maxTransportRetries: 0,
+        messages: testMessages,
+        modelConfig: makeConfig(),
+        modelFactory: factory,
+        schema: z.object({ args: z.object({ content: z.string().min(1) }) }),
+        schemaName: "RepairOutput",
+        schemaRepairInstruction: () => {
+          throw new Error("callback failure");
+        },
+      });
+
+      assert.equal(result.ok, true);
+      assert.equal(callCount.value, 2);
+      assert.equal(capturedMessages[1].length, testMessages.length);
+    });
+
     it("returns error on Zod validation failure after retries", async () => {
       const callCount = { value: 0 };
       const factory = fakeModelFactory({

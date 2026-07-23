@@ -58,6 +58,9 @@ export type InvokeStructuredOptions<TSchema extends z.ZodType> = {
    */
   modelSchema?: z.ZodType;
   providerAttemptObserver?: StructuredProviderAttemptObserver;
+  schemaRepairInstruction?: (
+    issues: StructuredOutputDiagnostics["issues"],
+  ) => null | string;
 };
 
 export type StructuredRetryReason =
@@ -154,6 +157,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     maxSchemaRetries = 1,
     modelSchema,
     providerAttemptObserver,
+    schemaRepairInstruction,
   } = options;
 
   const capabilities = getProviderCapabilities(modelConfig.provider);
@@ -246,6 +250,19 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
   }
 
   let lastStructuredOutputDiagnostics: StructuredOutputDiagnostics | undefined;
+  let schemaRepairMessage: string | null = null;
+
+  const scheduleRepairMessage = (
+    issues: StructuredOutputDiagnostics["issues"],
+  ): void => {
+    if (!schemaRepairInstruction) return;
+    try {
+      const candidate = schemaRepairInstruction(issues)?.trim() ?? "";
+      schemaRepairMessage = candidate.length > 0 ? candidate : null;
+    } catch {
+      schemaRepairMessage = null;
+    }
+  };
 
   for (
     let transportAttempt = 0;
@@ -257,6 +274,9 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
       schemaAttempt <= maxSchemaRetries;
       schemaAttempt += 1
     ) {
+      const attemptMessages = schemaRepairMessage
+        ? [...lcMessages, new SystemMessage(schemaRepairMessage)]
+        : lcMessages;
       const controller = new AbortController();
       const timeoutId = setTimeout(
         () => controller.abort(new DOMException("Timeout", "TimeoutError")),
@@ -280,7 +300,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             outputVersion: "v0",
             response_format: { type: "json_object" },
           } as unknown as Parameters<typeof model.withConfig>[0]);
-          const message = await jsonModel.invoke(lcMessages, {
+          const message = await jsonModel.invoke(attemptMessages, {
             signal: controller.signal,
             tags,
           });
@@ -291,7 +311,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             safeProtocol: () => safeProtocol,
           });
         } else {
-          const parsed = await structuredRunnable!.invoke(lcMessages, {
+          const parsed = await structuredRunnable!.invoke(attemptMessages, {
             signal: controller.signal,
             tags,
           });
@@ -380,7 +400,10 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             schemaIssues: error.issues,
             safeProtocol,
           });
-          if (retryScheduled) continue;
+          if (retryScheduled) {
+            scheduleRepairMessage(error.issues);
+            continue;
+          }
           return {
             ok: false,
             error: structuredOutputRetryExhausted(
@@ -408,7 +431,10 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             schemaIssues: protocolError.details.issues,
             safeProtocol: protocolError.details.diagnostics,
           });
-          if (retryScheduled) continue;
+          if (retryScheduled) {
+            scheduleRepairMessage(protocolError.details.issues);
+            continue;
+          }
           return {
             ok: false,
             error: structuredOutputRetryExhausted(
@@ -433,7 +459,10 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
             stage: "provider_protocol",
             issues: [],
           };
-          if (retryScheduled) continue;
+          if (retryScheduled) {
+            scheduleRepairMessage([]);
+            continue;
+          }
           return {
             ok: false,
             error: structuredOutputRetryExhausted(

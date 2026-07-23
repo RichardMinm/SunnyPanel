@@ -12,6 +12,9 @@ import { invokeStructured } from "../../../src/lib/agent/llm/invoke-structured";
 import { createModelConfig } from "../../../src/lib/agent/llm/model-config";
 import { isModelError } from "../../../src/lib/agent/llm/model-errors";
 import {
+  orchestratorOutputWithTaskArgsSchema,
+} from "../../../src/lib/agent/orchestration/orchestrator-task-args-contract";
+import {
   orchestratorOutputBaseSchema,
   orchestratorOutputSchema,
 } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
@@ -308,6 +311,71 @@ describe("invokeStructured real Provider envelope contract", () => {
       thinking: "disabled",
       toolsPresent: false,
     });
+  });
+
+  it("adds sanitized repair guidance only to a DeepSeek prompt-JSON retry", async () => {
+    const sentinel = "RAW_SENTINEL";
+    const requestBodies: Record<string, unknown>[] = [];
+    let responseIndex = 0;
+    const outputs = [
+      {
+        decisionCode: "explicit_write_ready",
+        mode: "single",
+        routingSummary: "保存一条长期记忆",
+        tasks: [{
+          agentRole: "memory",
+          args: { raw: sentinel },
+          dependsOn: [],
+          id: "t1",
+          intent: "save_memory",
+          label: "保存长期记忆",
+        }],
+        version: 2,
+      },
+      {
+        decisionCode: "explicit_write_ready",
+        mode: "single",
+        routingSummary: "保存一条长期记忆",
+        tasks: [{
+          agentRole: "memory",
+          args: { content: "用户希望默认简洁回答。" },
+          dependsOn: [],
+          id: "t1",
+          intent: "save_memory",
+          label: "保存长期记忆",
+        }],
+        version: 2,
+      },
+    ] as const;
+
+    const result = await withSyntheticFetch(async (_input, init) => {
+      requestBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      const output = outputs[responseIndex];
+      responseIndex += 1;
+      return responseFor(completionEnvelope({ content: JSON.stringify(output) }));
+    }, () => invokeStructured({
+      maxSchemaRetries: 1,
+      maxTransportRetries: 0,
+      messages: SYNTHETIC_MESSAGES,
+      modelConfig: makeConfig(),
+      modelSchema: orchestratorOutputBaseSchema,
+      schema: orchestratorOutputWithTaskArgsSchema,
+      schemaName: "OrchestratorOutput",
+      schemaRepairInstruction: (issues) =>
+        `Repair only: ${issues.map(({ path }) => path.join(".")).join(",")}`,
+    }));
+
+    assert.equal(result.ok, true);
+    assert.equal(requestBodies.length, 2);
+    for (const body of requestBodies) {
+      assert.equal(
+        (body.response_format as { type?: unknown } | undefined)?.type,
+        "json_object",
+      );
+    }
+    assert.doesNotMatch(JSON.stringify(requestBodies[0]), /args\.content/u);
+    assert.match(JSON.stringify(requestBodies[1]), /args\.content/u);
+    assert.doesNotMatch(JSON.stringify(requestBodies[1]), /RAW_SENTINEL/u);
   });
 
   const protocolFailures: readonly {
