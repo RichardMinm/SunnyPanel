@@ -61,6 +61,9 @@ import {
   type ResourceReadinessErrorCode,
 } from "./resource-readiness-guard";
 import {
+  projectResourceIssuesToClarification,
+} from "./resource-clarification-projector";
+import {
   validateAndNormalizeOrchestratorQueryScopes,
   type QueryScopeErrorCode,
 } from "./query-scope-contract";
@@ -107,6 +110,13 @@ export type OrchestratorInvocationResult =
       status: "success";
       plan: OrchestratorPlan;
       schemaValidDecision?: OrchestratorDecisionProjection;
+    }
+  | {
+      clarificationSource: "resource_readiness";
+      plan: OrchestratorPlan;
+      resourceIssueCodes: ResourceReadinessErrorCode[];
+      schemaValidDecision: OrchestratorDecisionProjection;
+      status: "clarified";
     }
   | {
       decisionConsistencyError?: DecisionConsistencyErrorCode;
@@ -567,6 +577,19 @@ export const runLangChainOrchestratorResult = async (
       issues: guardResult.issues.map((i) => i.code),
     });
 
+    const clarification = projectResourceIssuesToClarification(
+      guardResult.issues,
+    );
+    if (clarification) {
+      return {
+        clarificationSource: "resource_readiness",
+        plan: clarification.plan,
+        resourceIssueCodes: [...clarification.resourceIssueCodes],
+        schemaValidDecision,
+        status: "clarified",
+      };
+    }
+
     return {
       reason: "invalid_resource_reference",
       resourceIssueCodes: guardResult.issues.map((issue) => issue.code),
@@ -593,7 +616,7 @@ export const runLangChainOrchestrator = async (
   options: LangChainOrchestratorOptions,
 ): Promise<OrchestratorPlan> => {
   const result = await runLangChainOrchestratorResult(options);
-  return result.status === "success"
-    ? result.plan
-    : projectOrchestratorFailureToSafePlan();
+  return result.status === "unavailable"
+    ? projectOrchestratorFailureToSafePlan()
+    : result.plan;
 };

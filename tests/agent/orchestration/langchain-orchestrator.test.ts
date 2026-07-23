@@ -308,7 +308,7 @@ describe("langchain-orchestrator protocol", () => {
     }
   });
 
-  it("returns sanitized resource issue codes for evaluation without retaining model output", async () => {
+  it("returns typed resource clarification with sanitized Provider deviation evidence", async () => {
     const result = await runLangChainOrchestratorResult({
       context: {
         checklists: [],
@@ -344,19 +344,69 @@ describe("langchain-orchestrator protocol", () => {
       structuredRetryBudget: { schema: 0, transport: 0 },
     });
 
-    assert.deepEqual(result, {
-      reason: "invalid_resource_reference",
-      resourceIssueCodes: ["RESOURCE_ID_NOT_IN_CONTEXT"],
-      safeMessage: "schedule_plan 引用的资源 ID 不在当前上下文中。",
-      schemaValidDecision: {
-        decisionCode: "explicit_write_ready",
-        intents: ["schedule_plan"],
-        mode: "single",
-        taskCount: 1,
-      },
-      status: "unavailable",
+    assert.equal(result.status, "clarified");
+    if (result.status !== "clarified") return;
+    assert.equal(result.clarificationSource, "resource_readiness");
+    assert.deepEqual(result.resourceIssueCodes, [
+      "RESOURCE_ID_NOT_IN_CONTEXT",
+    ]);
+    assert.deepEqual(result.plan.tasks.map(({ intent }) => intent), ["clarify"]);
+    assert.deepEqual(result.schemaValidDecision, {
+      decisionCode: "explicit_write_ready",
+      intents: ["schedule_plan"],
+      mode: "single",
+      taskCount: 1,
     });
     assert.doesNotMatch(JSON.stringify(result), /planId|999|安排计划/);
+  });
+
+  it("keeps unsupported task-output resource references unavailable", async () => {
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-14T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [],
+      },
+      message: "创建计划",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: promptJsonModelFactory(() => ({
+        decisionCode: "explicit_write_ready",
+        mode: "single",
+        routingSummary: "创建计划",
+        tasks: [{
+          agentRole: "plan",
+          args: {
+            unsupportedReference: {
+              taskId: "t0",
+              type: "taskOutput",
+            },
+          },
+          dependsOn: [],
+          id: "t1",
+          intent: "compose_plan",
+          label: "创建计划",
+        }],
+        version: 2,
+      })),
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.equal(result.status, "unavailable");
+    if (result.status !== "unavailable") return;
+    assert.equal(result.reason, "invalid_resource_reference");
+    assert.deepEqual(result.resourceIssueCodes, [
+      "RESOURCE_OUTPUT_REF_UNSUPPORTED",
+    ]);
   });
 
   it("rejects a Provider-selected context plan before the compatibility mapper", async () => {

@@ -176,7 +176,7 @@ test("rejects wrt-2 one-task compound deterministically", async () => {
   );
 });
 
-test("rejects cmp-1 scheduling without a pre-existing plan ID", async () => {
+test("clarifies cmp-1 scheduling without a pre-existing plan ID", async () => {
   const result = await run(
     "cmp-1",
     output("compound_ready", "compound", [
@@ -185,9 +185,9 @@ test("rejects cmp-1 scheduling without a pre-existing plan ID", async () => {
     ]),
   );
 
-  assert.equal(result.status, "unavailable");
-  if (result.status !== "unavailable") return;
-  assert.equal(result.reason, "invalid_resource_reference");
+  assert.equal(result.status, "clarified");
+  if (result.status !== "clarified") return;
+  assert.deepEqual(result.plan.tasks.map(({ intent }) => intent), ["clarify"]);
   assert.deepEqual(result.resourceIssueCodes, ["RESOURCE_ID_MISSING"]);
 });
 
@@ -251,6 +251,38 @@ test("accepts the five corrected Acceptance semantic shapes", async () => {
     ]),
   );
   assert.equal(exr3.status, "success");
+});
+
+test("projects exr-3 missing checklist target to typed deterministic clarify", async () => {
+  const result = await run(
+    "exr-3",
+    output("explicit_write_ready", "single", [
+      task("t1", "complete_plan_item", {
+        checklistTitle: "不存在的清单",
+        itemTitle: "完成这一项",
+      }),
+    ]),
+  );
+
+  assert.equal(result.status, "clarified");
+  if (result.status !== "clarified") return;
+  assert.equal(result.clarificationSource, "resource_readiness");
+  assert.deepEqual(result.resourceIssueCodes, [
+    "RESOURCE_TITLE_NOT_IN_CONTEXT",
+  ]);
+  assert.deepEqual(
+    result.plan.tasks.map(({ intent }) => intent),
+    ["clarify"],
+  );
+  assert.equal(
+    typeof result.plan.tasks[0]?.args.question === "string"
+      && result.plan.tasks[0].args.question.trim().length > 0,
+    true,
+  );
+  assert.deepEqual(result.schemaValidDecision.intents, [
+    "complete_plan_item",
+  ]);
+  assert.doesNotMatch(JSON.stringify(result), /不存在的清单|完成这一项/u);
 });
 
 test("canonical consultation records one Orchestrator and one Answer call with separate latencies", async () => {

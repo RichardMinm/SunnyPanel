@@ -62,7 +62,7 @@ export type SanitizedRoleEvent = Readonly<{
     missing: boolean;
     path: readonly (number | string)[];
   }>[];
-  status?: "success" | "unavailable";
+  status?: "clarified" | "success" | "unavailable";
   totalTokens: number | null;
 }>;
 
@@ -80,7 +80,7 @@ export type ProductionFullRoleEvidence = Readonly<{
   semanticProjection: OrchestratorDecisionProjection | null;
   semanticValidationPasses: number;
   semanticValidationsCompleted: number;
-  status: "not_called" | "success" | "unavailable";
+  status: "clarified" | "not_called" | "success" | "unavailable";
   strictSchemaPasses: number;
   timeoutAttempts: number;
   totalTokens: number | null;

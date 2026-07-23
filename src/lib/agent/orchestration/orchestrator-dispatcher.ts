@@ -104,9 +104,9 @@ export const dispatchOrchestrator = async (
     signal,
     accounting,
   );
-  return result.status === "success"
-    ? result.plan
-    : projectOrchestratorFailureToSafePlan();
+  return result.status === "unavailable"
+    ? projectOrchestratorFailureToSafePlan()
+    : result.plan;
 };
 
 /** Re-export for convenience — the mode that was actually used. */
