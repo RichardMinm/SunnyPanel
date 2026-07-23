@@ -16,6 +16,9 @@ import {
   ORCHESTRATOR_EXPLICIT_GOAL_CLASSIFICATION_STEP,
 } from "../../../src/lib/agent/orchestration/orchestrator-intent-family-protocol";
 import {
+  SAVE_MEMORY_ORCHESTRATOR_ARGS_CONTRACT,
+} from "../../../src/lib/agent/orchestration/orchestrator-task-args-contract";
+import {
   buildLangChainOrchestratorMessages,
   buildLangChainSystemPrompt,
   runLangChainOrchestratorResult,
@@ -44,6 +47,19 @@ describe("langchain-orchestrator protocol", () => {
     for (const mode of ORCHESTRATOR_MODES) assert.match(prompt, new RegExp(`\\b${mode}\\b`));
     for (const role of ORCHESTRATOR_AGENT_ROLES) assert.match(prompt, new RegExp(`\\b${role}\\b`));
     for (const intent of ROUTER_INTENT_NAMES) assert.match(prompt, new RegExp(`\\b${intent}\\b`));
+  });
+
+  it("renders the shared save_memory args contract into the trusted protocol", () => {
+    const system = buildLangChainSystemPrompt();
+
+    assert.match(system, /save_memory.*args\.content.*required.*non-empty string/u);
+    assert.equal(
+      system.includes(
+        SAVE_MEMORY_ORCHESTRATOR_ARGS_CONTRACT
+          .requiredNonEmptyStringFields[0],
+      ),
+      true,
+    );
   });
 
   it("renders the shared task-id format and a schema-valid complete JSON example", () => {
@@ -242,6 +258,47 @@ describe("langchain-orchestrator protocol", () => {
 
     assert.equal(result.status, "unavailable");
     assert.equal(calls, 1);
+  });
+
+  it("returns a schema failure for save_memory without required content", async () => {
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-23T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [],
+      },
+      message: "记住复盘偏好",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: promptJsonModelFactory(() => ({
+        decisionCode: "explicit_write_ready",
+        mode: "single",
+        routingSummary: "保存复盘偏好",
+        tasks: [{
+          agentRole: "memory",
+          args: { title: "复盘偏好" },
+          dependsOn: [],
+          id: "t1",
+          intent: "save_memory",
+          label: "保存长期记忆",
+        }],
+        version: 2,
+      })),
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.equal(result.status, "unavailable");
+    if (result.status !== "unavailable") return;
+    assert.equal(result.reason, "schema_failure");
   });
 
   it("forwards the sanitized Provider attempt observer", async () => {

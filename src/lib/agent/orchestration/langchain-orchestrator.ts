@@ -23,7 +23,6 @@ import {
   ORCHESTRATOR_OUTPUT_SCHEMA_VERSION,
   ORCHESTRATOR_TASK_ID_PATTERN,
   orchestratorOutputBaseSchema,
-  orchestratorOutputSchema,
   orchestratorTaskSchema,
   type OrchestratorDecisionCode,
   type OrchestratorOutput,
@@ -56,6 +55,10 @@ import {
   ORCHESTRATOR_QUERY_SCOPE_PRECEDENCE_PROTOCOL,
   ORCHESTRATOR_SEMANTIC_CONTRAST_PROTOCOL,
 } from "./orchestrator-intent-family-protocol";
+import {
+  orchestratorOutputWithTaskArgsSchema,
+  renderOrchestratorTaskArgsProtocol,
+} from "./orchestrator-task-args-contract";
 import {
   getResourceProtocolProjection,
   type ResourceReadinessErrorCode,
@@ -224,6 +227,8 @@ decisionCode 与输出形状：
 - unsupported_request: single；恰好一个 clarify task；args.question 必须是非空字符串；不得输出写入候选。
 
 ${ORCHESTRATOR_INTENT_FAMILY_PROTOCOL}
+
+${renderOrchestratorTaskArgsProtocol()}
 
 ${ORCHESTRATOR_LIVE_GATE_PROTOCOL}
 
@@ -484,7 +489,7 @@ export const runLangChainOrchestratorResult = async (
 
   /* 5. Invoke with structured output */
   const result = await invokeStructured({
-    schema: orchestratorOutputSchema,
+    schema: orchestratorOutputWithTaskArgsSchema,
     modelSchema: orchestratorOutputBaseSchema,
     schemaName: "OrchestratorOutput",
     messages,
