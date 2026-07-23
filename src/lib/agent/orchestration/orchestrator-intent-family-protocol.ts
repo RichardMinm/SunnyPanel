@@ -87,6 +87,7 @@ export type OrchestratorSemanticContrast = Readonly<{
   forbiddenDecisionCodes: readonly OrchestratorDecisionCode[];
   forbiddenIntents: readonly RouterIntentName[];
   id:
+    | "plan_inventory_query"
     | "single_plan_draft"
     | "natural_language_checklist_draft"
     | "partial_title_query"
@@ -111,6 +112,20 @@ const semanticContrast = (
 });
 
 export const ORCHESTRATOR_SEMANTIC_CONTRASTS = Object.freeze([
+  semanticContrast({
+    admitted: {
+      decisionCode: "pure_read_query",
+      intents: ["query_plan"],
+      mode: "single",
+    },
+    forbiddenDecisionCodes: [],
+    forbiddenIntents: ["query_progress", "query_plan_progress"],
+    id: "plan_inventory_query",
+    reason:
+      "列出计划回答资源清单，不计算总体完成度，也不缩窄到某个具体计划。",
+    requestPattern:
+      "中性示例：用户只询问当前有哪些工作计划，没有询问进度或完成度。",
+  }),
   semanticContrast({
     admitted: {
       decisionCode: "explicit_write_ready",
@@ -306,7 +321,7 @@ export const ORCHESTRATOR_INTENT_FAMILY_RULES = Object.freeze({
   directPersistence:
     "- create_plan 与 create_checklist 只用于用户已经提供完整结构化数据、可直接形成持久化候选的情况；Orchestrator 本身仍不得执行持久化。",
   queryScope:
-    "- query_progress 用于全局或通用进度读取；query_plan_progress 只用于用户明确且唯一定位一个具体计划的读取。",
+    "- query_plan 用于列出计划、查看有哪些计划或读取计划清单；query_progress 只用于全局或通用进度、完成度读取；query_plan_progress 只用于用户明确且唯一定位一个具体计划的进度读取。",
   taskDraftVsMemory:
     "- save_memory 只用于长期记忆、偏好、事实或工作流规则，不得用于记录新任务；把读取结果整理为新任务或清单草案时选择 compose_checklist。",
 });

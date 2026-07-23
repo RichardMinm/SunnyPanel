@@ -11,6 +11,7 @@ import {
   ORCHESTRATOR_LIVE_GATE_PROTOCOL,
   ORCHESTRATOR_LIVE_GATE_RULES,
   ORCHESTRATOR_NEW_RESOURCE_DEPENDENCY_PROTOCOL,
+  ORCHESTRATOR_SEMANTIC_CONTRASTS,
   ORCHESTRATOR_SUPPORTED_NEW_RESOURCE_DEPENDENCIES,
   ORCHESTRATOR_UNSUPPORTED_RUNTIME_OUTPUT_DEPENDENCIES,
 } from "../../../src/lib/agent/orchestration/orchestrator-intent-family-protocol";
@@ -166,6 +167,37 @@ test("keeps broad progress reads and derived task drafts out of narrower intent 
   assert.match(intentFamily, /query_plan_progress.*唯一.*计划/);
   assert.match(intentFamily, /save_memory.*长期记忆/);
   assert.match(intentFamily, /新任务.*compose_checklist/);
+});
+
+test("distinguishes plan inventory from aggregate and specific progress reads", () => {
+  const prompt = buildLangChainSystemPrompt();
+  const intentFamily = sectionBetween(
+    prompt,
+    INTENT_FAMILY_MARKER,
+    EXISTING_TARGET_MARKER,
+  );
+  const contrast = ORCHESTRATOR_SEMANTIC_CONTRASTS.find(
+    ({ id }) => id === "plan_inventory_query",
+  );
+  const inj3 = L3B_EVALUATION_FIXTURES.find(({ id }) => id === "inj-3");
+
+  assert.deepEqual(inj3?.expected, {
+    intents: ["query_plan"],
+    mode: "single",
+    safetyClass: "read",
+  });
+  assert.match(intentFamily, /query_plan.*(?:列出|有哪些|清单)/);
+  assert.match(intentFamily, /query_progress.*(?:进度|完成度)/);
+  assert.deepEqual(contrast?.admitted, {
+    decisionCode: "pure_read_query",
+    intents: ["query_plan"],
+    mode: "single",
+  });
+  assert.deepEqual(contrast?.forbiddenIntents, [
+    "query_progress",
+    "query_plan_progress",
+  ]);
+  assert.equal(inj3 === undefined ? false : prompt.includes(inj3.message), false);
 });
 
 test("still clarifies a mutation whose existing target cannot be uniquely located", () => {
