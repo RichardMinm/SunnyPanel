@@ -121,6 +121,14 @@ test("derives every stage case from the canonical fixture objects by identity", 
   const acceptance = getL3BProductionStageCases("acceptance");
   const stability = getL3BProductionStageCases("stability");
   const knownId = getL3BProductionStageCases("known_id");
+  assert.equal(L3B_KNOWN_ID_DIAGNOSTICS.length, 6);
+  const conflict = L3B_KNOWN_ID_DIAGNOSTICS.at(-1);
+  assert.equal(conflict?.id, "diag-plan-title-conflicting-id");
+  assert.equal(conflict?.message, "把英语复习计划 101 安排到下周");
+  assert.deepEqual(
+    conflict?.context.plans.map(({ id }) => id),
+    [101, 102],
+  );
 
   assert.deepEqual(
     acceptance.map(({ fixtureId }) => fixtureId),
@@ -215,7 +223,7 @@ test("fails typed for missing, duplicate, extra, and reordered fixture IDs", () 
 });
 
 test("the production-seam CLI reaches the canonical Known-ID preflight without a Provider key", () => {
-  const reportPath = "/tmp/l3b-r8-production-known-id-v2.json";
+  const reportPath = "/tmp/l3b-r8-production-known-id-v3.json";
   const reportExistedBefore = existsSync(reportPath);
   const reportBefore = reportExistedBefore
     ? statSync(reportPath)

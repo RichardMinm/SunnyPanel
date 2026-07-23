@@ -87,6 +87,7 @@ const observation = (
       clarificationSource: null,
       queryScopeErrorCode: null,
       resourceIssueCodes: [],
+      schedulePlanReferenceErrorCode: null,
       semanticProjection: null,
       semanticValidationPasses: 0,
       semanticValidationsCompleted: 0,
@@ -135,6 +136,8 @@ const knownIdObservations = (): ProductionGateObservation[] =>
       assert.equal(typeof source.expected, "string");
       const exact = source.expected === "accept_exact_reference";
       const unavailable = fixtureId === "diag-plan-task-output";
+      const titleConflict =
+        fixtureId === "diag-plan-title-conflicting-id";
       const base = observation(fixtureId, round, index + 1, {
         branchKind: exact
           ? "full_orchestrator"
@@ -157,17 +160,21 @@ const knownIdObservations = (): ProductionGateObservation[] =>
         knownIdOutcome: exact ? "exact_reference" : "safe_rejection",
         knownIdRejectionSource: exact
           ? null
-          : unavailable
-            ? "resource_readiness_guard"
-            : "provider_missing_resource",
+          : titleConflict
+            ? "schedule_plan_reference_contract"
+            : unavailable
+              ? "resource_readiness_guard"
+              : "provider_missing_resource",
         roleEvidence: {
           ...observation(fixtureId, round, index + 1).roleEvidence,
           fullOrchestrator: {
             ...observation(fixtureId, round, index + 1).roleEvidence
               .fullOrchestrator,
-            clarificationSource: exact || unavailable
-              ? null
-              : "resource_readiness",
+            clarificationSource: titleConflict
+              ? "schedule_plan_reference"
+              : exact || unavailable
+                ? null
+                : "resource_readiness",
             failureCode: unavailable
               ? "invalid_resource_reference"
               : null,
@@ -175,7 +182,12 @@ const knownIdObservations = (): ProductionGateObservation[] =>
               ? []
               : unavailable
                 ? ["RESOURCE_OUTPUT_REF_UNSUPPORTED"]
-                : ["RESOURCE_ID_NOT_IN_CONTEXT"],
+                : titleConflict
+                  ? []
+                  : ["RESOURCE_ID_NOT_IN_CONTEXT"],
+            schedulePlanReferenceErrorCode: titleConflict
+              ? "plan_id_title_conflict"
+              : null,
             status: exact
               ? "success"
               : unavailable

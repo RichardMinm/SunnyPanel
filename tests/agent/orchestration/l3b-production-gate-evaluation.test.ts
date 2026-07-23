@@ -627,7 +627,7 @@ test("thrown Answer errors retain only a typed safe code", async () => {
   assertSafeObservation(observation, "cons-1", [thrownErrorMessage]);
 });
 
-test("Full evidence preserves bounded query-scope and resource categories", async () => {
+test("Full evidence preserves bounded query-scope and schedule-reference categories", async () => {
   const queryRecorder = createModelCallBudgetRecorder();
   const queryAdapter = createProductionFullAdapter({
     modelConfig,
@@ -668,11 +668,16 @@ test("Full evidence preserves bounded query-scope and resource categories", asyn
   await resourceAdapter("把计划 999 安排到下周", fixture("qry-1").context);
   const resourceEvidence = resourceAdapter.getRoleEvidence();
   assert.equal(resourceEvidence.status, "clarified");
-  assert.equal(resourceEvidence.clarificationSource, "resource_readiness");
+  assert.equal(
+    resourceEvidence.clarificationSource,
+    "schedule_plan_reference",
+  );
   assert.equal(resourceEvidence.queryScopeErrorCode, null);
-  assert.deepEqual(resourceEvidence.resourceIssueCodes, [
-    "RESOURCE_ID_NOT_IN_CONTEXT",
-  ]);
+  assert.deepEqual(resourceEvidence.resourceIssueCodes, []);
+  assert.equal(
+    resourceEvidence.schedulePlanReferenceErrorCode,
+    "explicit_plan_id_not_in_context",
+  );
   assert.equal(resourceEvidence.decisionConsistencyError, null);
   assert.equal(JSON.stringify(resourceEvidence).includes("999"), false);
 });
@@ -708,13 +713,18 @@ test("Known-ID treats an outside ID only as typed safe rejection", async () => {
   assert.equal(observation.knownIdOutcome, "safe_rejection");
   assert.equal(
     observation.knownIdRejectionSource,
-    "resource_readiness_guard",
+    "schedule_plan_reference_contract",
   );
   assert.equal(observation.semanticMatch, true);
   assert.equal(observation.usable, true);
   assert.equal(
     observation.roleEvidence.fullOrchestrator.clarificationSource,
-    "resource_readiness",
+    "schedule_plan_reference",
+  );
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator
+      .schedulePlanReferenceErrorCode,
+    "explicit_plan_id_not_in_context",
   );
   assertSafeKnownIdObservation(observation, "diag-plan-outside-id");
 });
@@ -738,13 +748,18 @@ test("Known-ID accepts typed unsupported task-output rejection as diagnostic suc
   assert.equal(observation.knownIdOutcome, "safe_rejection");
   assert.equal(
     observation.knownIdRejectionSource,
-    "resource_readiness_guard",
+    "schedule_plan_reference_contract",
   );
   assert.equal(observation.semanticMatch, true);
   assert.equal(observation.usable, true);
   assert.equal(
-    observation.roleEvidence.fullOrchestrator.failureCode,
-    "invalid_resource_reference",
+    observation.roleEvidence.fullOrchestrator.clarificationSource,
+    "schedule_plan_reference",
+  );
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator
+      .schedulePlanReferenceErrorCode,
+    "explicit_plan_id_required",
   );
   assertSafeKnownIdObservation(observation, "diag-plan-task-output");
 });
@@ -839,7 +854,7 @@ test("Known-ID exact fixture cannot pass through Provider clarification", async 
   assertSafeKnownIdObservation(observation, "diag-plan-existing-id");
 });
 
-test("Known-ID conflicting title acceptance is unsafe, not exact", async () => {
+test("Known-ID conflicting title is rejected by the schedule reference contract", async () => {
   const { observation } = await evaluateKnownId(
     "diag-plan-title-conflicting-id",
     () => fullOutput(
@@ -849,13 +864,35 @@ test("Known-ID conflicting title acceptance is unsafe, not exact", async () => {
     ),
   );
 
-  assert.equal(observation.knownIdOutcome, "unsafe_acceptance");
-  assert.equal(observation.knownIdRejectionSource, null);
-  assert.equal(observation.semanticMatch, false);
-  assert.equal(observation.usable, false);
+  assert.equal(observation.knownIdOutcome, "safe_rejection");
+  assert.equal(
+    observation.knownIdRejectionSource,
+    "schedule_plan_reference_contract",
+  );
+  assert.equal(observation.semanticMatch, true);
+  assert.equal(observation.usable, true);
+  assert.deepEqual(observation.finalTaskIntents, ["clarify"]);
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator.clarificationSource,
+    "schedule_plan_reference",
+  );
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator
+      .schedulePlanReferenceErrorCode,
+    "plan_id_title_conflict",
+  );
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator
+      .semanticProjection?.intents[0],
+    "schedule_plan",
+  );
   assertSafeKnownIdObservation(
     observation,
     "diag-plan-title-conflicting-id",
+  );
+  assert.doesNotMatch(
+    JSON.stringify(observation),
+    /planId|考研数学复习计划|英语复习计划|把英语/u,
   );
 });
 

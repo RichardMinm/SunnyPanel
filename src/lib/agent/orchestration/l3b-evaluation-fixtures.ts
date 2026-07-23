@@ -170,6 +170,37 @@ const diagnostic = (
   resourceKind: "plan",
 });
 
+const knownIdTitleConflictContext = (): AgentPromptContext => {
+  const base = context({ plan: true });
+  return {
+    ...base,
+    plans: [
+      ...base.plans,
+      {
+        id: 102,
+        priority: "medium",
+        state: "active",
+        title: "英语复习计划",
+        visibility: "private",
+      },
+    ],
+  };
+};
+
+const diagnosticWithContext = (
+  id: string,
+  message: string,
+  fixtureContext: AgentPromptContext,
+  expected: L3BKnownIdDiagnostic["expected"],
+): L3BKnownIdDiagnostic => Object.freeze({
+  context: fixtureContext,
+  expected,
+  gating: false,
+  id,
+  message,
+  resourceKind: "plan",
+});
+
 /** Plan-only Provider diagnostics. Never included in L3-B gating denominators. */
 export const L3B_KNOWN_ID_DIAGNOSTICS: readonly L3BKnownIdDiagnostic[] =
   Object.freeze([
@@ -178,5 +209,10 @@ export const L3B_KNOWN_ID_DIAGNOSTICS: readonly L3BKnownIdDiagnostic[] =
     diagnostic("diag-plan-outside-id", "把计划 999 安排到下周早上", { plan: true }, "reject_invalid_reference"),
     diagnostic("diag-plan-placeholder", "把 planId=? 的计划安排到下周", { plan: "title_only" }, "reject_invalid_reference"),
     diagnostic("diag-plan-title-valid-id", "把考研数学复习计划 101 安排到下周", { plan: true }, "accept_exact_reference"),
-    diagnostic("diag-plan-title-conflicting-id", "把另一个计划 101 安排到下周", { plan: true }, "reject_invalid_reference"),
+    diagnosticWithContext(
+      "diag-plan-title-conflicting-id",
+      "把英语复习计划 101 安排到下周",
+      knownIdTitleConflictContext(),
+      "reject_invalid_reference",
+    ),
   ]);

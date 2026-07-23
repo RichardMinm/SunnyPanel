@@ -42,6 +42,7 @@ import type {
   ResidualRejectionReason,
 } from "./residual-langchain-planner";
 import type { ResourceReadinessErrorCode } from "./resource-readiness-guard";
+import type { SchedulePlanReferenceErrorCode } from "./schedule-plan-reference-contract";
 
 export type SanitizedRoleEvent = Readonly<{
   answerStatus?: "complete" | "incomplete" | "unavailable";
@@ -68,7 +69,11 @@ export type SanitizedRoleEvent = Readonly<{
 
 export type ProductionFullRoleEvidence = Readonly<{
   completedResponses: number;
-  clarificationSource: "query_scope" | "resource_readiness" | null;
+  clarificationSource:
+    | "query_scope"
+    | "resource_readiness"
+    | "schedule_plan_reference"
+    | null;
   decisionConsistencyError: DecisionConsistencyErrorCode | null;
   failureCode: OrchestratorFailureReason | null;
   inputTokens: number | null;
@@ -78,6 +83,7 @@ export type ProductionFullRoleEvidence = Readonly<{
   providerLatenciesMs: readonly number[];
   queryScopeErrorCode: QueryScopeErrorCode | null;
   resourceIssueCodes: readonly ResourceReadinessErrorCode[];
+  schedulePlanReferenceErrorCode: SchedulePlanReferenceErrorCode | null;
   semanticProjection: OrchestratorDecisionProjection | null;
   semanticValidationPasses: number;
   semanticValidationsCompleted: number;
@@ -147,6 +153,7 @@ const emptyFullEvidence = (): ProductionFullRoleEvidence => Object.freeze({
   providerLatenciesMs: Object.freeze([]),
   queryScopeErrorCode: null,
   resourceIssueCodes: Object.freeze([]),
+  schedulePlanReferenceErrorCode: null,
   semanticProjection: null,
   semanticValidationPasses: 0,
   semanticValidationsCompleted: 0,
@@ -397,6 +404,10 @@ export const createProductionFullAdapter = (input: Readonly<{
           ? [...(result.resourceIssueCodes ?? [])]
           : [],
       ),
+      schedulePlanReferenceErrorCode:
+        "schedulePlanReferenceErrorCode" in result
+          ? result.schedulePlanReferenceErrorCode ?? null
+          : null,
       semanticProjection: result.schemaValidDecision
         ? Object.freeze({
             ...result.schemaValidDecision,

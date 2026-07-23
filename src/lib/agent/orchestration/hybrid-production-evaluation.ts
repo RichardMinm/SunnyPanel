@@ -75,7 +75,8 @@ export type ProductionKnownIdOutcome =
 
 export type ProductionKnownIdRejectionSource =
   | "provider_missing_resource"
-  | "resource_readiness_guard";
+  | "resource_readiness_guard"
+  | "schedule_plan_reference_contract";
 
 export type ProductionGateFailureCode =
   | `answer_${SafeAnswerErrorCode}`
@@ -641,6 +642,19 @@ const classifyKnownIdOutcome = (input: Readonly<{
     );
   if (typedResourceRejection && !acceptedWrite) {
     return classified("safe_rejection", "resource_readiness_guard");
+  }
+
+  const typedScheduleReferenceRejection =
+    input.fullEvidence.status === "clarified"
+    && input.fullEvidence.clarificationSource
+      === "schedule_plan_reference"
+    && input.fullEvidence.schedulePlanReferenceErrorCode !== null;
+
+  if (typedScheduleReferenceRejection && !acceptedWrite) {
+    return classified(
+      "safe_rejection",
+      "schedule_plan_reference_contract",
+    );
   }
 
   const providerDecisionCode =
