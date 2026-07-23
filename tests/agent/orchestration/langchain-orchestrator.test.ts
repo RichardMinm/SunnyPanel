@@ -507,7 +507,7 @@ describe("langchain-orchestrator protocol", () => {
     }
   });
 
-  it("returns typed resource clarification with sanitized Provider deviation evidence", async () => {
+  it("returns typed schedule-reference clarification with sanitized Provider deviation evidence", async () => {
     const result = await runLangChainOrchestratorResult({
       context: {
         checklists: [],
@@ -545,10 +545,11 @@ describe("langchain-orchestrator protocol", () => {
 
     assert.equal(result.status, "clarified");
     if (result.status !== "clarified") return;
-    assert.equal(result.clarificationSource, "resource_readiness");
-    assert.deepEqual(result.resourceIssueCodes, [
-      "RESOURCE_ID_NOT_IN_CONTEXT",
-    ]);
+    assert.equal(result.clarificationSource, "schedule_plan_reference");
+    assert.equal(
+      result.schedulePlanReferenceErrorCode,
+      "explicit_plan_id_required",
+    );
     assert.deepEqual(result.plan.tasks.map(({ intent }) => intent), ["clarify"]);
     assert.deepEqual(result.schemaValidDecision, {
       decisionCode: "explicit_write_ready",
@@ -557,6 +558,130 @@ describe("langchain-orchestrator protocol", () => {
       taskCount: 1,
     });
     assert.doesNotMatch(JSON.stringify(result), /planId|999|安排计划/);
+  });
+
+  it("clarifies a genuine schedule plan ID/title conflict before mapping", async () => {
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-23T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [
+          {
+            id: 101,
+            priority: "medium",
+            state: "active",
+            title: "考研数学复习计划",
+          },
+          {
+            id: 102,
+            priority: "medium",
+            state: "active",
+            title: "英语复习计划",
+          },
+        ],
+      },
+      message: "把英语复习计划 101 安排到下周",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: promptJsonModelFactory(() => ({
+        decisionCode: "explicit_write_ready",
+        mode: "single",
+        routingSummary: "schedule selected plan",
+        tasks: [{
+          agentRole: "schedule",
+          args: { planId: 101 },
+          dependsOn: [],
+          id: "t1",
+          intent: "schedule_plan",
+          label: "schedule selected plan",
+        }],
+        version: 2,
+      })),
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.equal(result.status, "clarified");
+    if (result.status !== "clarified") return;
+    assert.equal(
+      result.clarificationSource,
+      "schedule_plan_reference",
+    );
+    assert.equal(
+      result.schedulePlanReferenceErrorCode,
+      "plan_id_title_conflict",
+    );
+    assert.deepEqual(
+      result.plan.tasks.map(({ intent }) => intent),
+      ["clarify"],
+    );
+    assert.deepEqual(result.schemaValidDecision, {
+      decisionCode: "explicit_write_ready",
+      intents: ["schedule_plan"],
+      mode: "single",
+      taskCount: 1,
+    });
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /101|102|考研|英语|planId/u,
+    );
+  });
+
+  it("keeps a generic descriptor plus exact authorized ID as schedule_plan", async () => {
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-23T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [{
+          id: 101,
+          priority: "medium",
+          state: "active",
+          title: "考研数学复习计划",
+        }],
+      },
+      message: "把另一个计划 101 安排到下周",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: promptJsonModelFactory(() => ({
+        decisionCode: "explicit_write_ready",
+        mode: "single",
+        routingSummary: "schedule selected plan",
+        tasks: [{
+          agentRole: "schedule",
+          args: { planId: 101 },
+          dependsOn: [],
+          id: "t1",
+          intent: "schedule_plan",
+          label: "schedule selected plan",
+        }],
+        version: 2,
+      })),
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.deepEqual(
+      result.plan.tasks.map(({ intent }) => intent),
+      ["schedule_plan"],
+    );
   });
 
   it("keeps unsupported task-output resource references unavailable", async () => {

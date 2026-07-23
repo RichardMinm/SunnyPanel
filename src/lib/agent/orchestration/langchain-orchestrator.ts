@@ -75,6 +75,13 @@ import {
   validateAndNormalizeOrchestratorQueryScopes,
   type QueryScopeErrorCode,
 } from "./query-scope-contract";
+import {
+  validateSchedulePlanReferences,
+  type SchedulePlanReferenceErrorCode,
+} from "./schedule-plan-reference-contract";
+import {
+  projectSchedulePlanReferenceErrorToClarification,
+} from "./schedule-plan-reference-clarification-projector";
 
 /* ---- Safe clarify fallback (deterministic, no model output reuse) ---- */
 
@@ -130,6 +137,13 @@ export type OrchestratorInvocationResult =
       clarificationSource: "query_scope";
       plan: OrchestratorPlan;
       queryScopeErrorCode: QueryScopeErrorCode;
+      schemaValidDecision: OrchestratorDecisionProjection;
+      status: "clarified";
+    }
+  | {
+      clarificationSource: "schedule_plan_reference";
+      plan: OrchestratorPlan;
+      schedulePlanReferenceErrorCode: SchedulePlanReferenceErrorCode;
       schemaValidDecision: OrchestratorDecisionProjection;
       status: "clarified";
     }
@@ -590,13 +604,41 @@ export const runLangChainOrchestratorResult = async (
 
   const queryScopeValidatedOutput = queryScopeResult.output;
 
+  const scheduleReferenceResult = validateSchedulePlanReferences({
+    context,
+    message,
+    output: queryScopeValidatedOutput,
+  });
+
+  if (!scheduleReferenceResult.valid) {
+    logAgentEvent(
+      "warn",
+      "orchestrator.langchain.invalid_schedule_plan_reference",
+      { code: scheduleReferenceResult.code },
+    );
+
+    const clarification = projectSchedulePlanReferenceErrorToClarification(
+      scheduleReferenceResult.code,
+    );
+    return {
+      clarificationSource: "schedule_plan_reference",
+      plan: clarification.plan,
+      schedulePlanReferenceErrorCode:
+        clarification.schedulePlanReferenceErrorCode,
+      schemaValidDecision,
+      status: "clarified",
+    };
+  }
+
+  const scheduleReferenceValidatedOutput = scheduleReferenceResult.output;
+
   /* 8. Resource Readiness Guard — validate resource references
    *    BEFORE mapping to OrchestrationPlan. Schedule/edit intents
    *    without valid existing IDs are rejected. */
   const { buildResourceIndex, validateResourceReadiness } = await import("./resource-readiness-guard");
   const resourceIndex = buildResourceIndex(context);
   const guardResult = validateResourceReadiness({
-    tasks: queryScopeValidatedOutput.tasks.map((t) => ({
+    tasks: scheduleReferenceValidatedOutput.tasks.map((t) => ({
       id: t.id,
       intent: t.intent,
       args: t.args as Record<string, unknown>,
@@ -635,7 +677,7 @@ export const runLangChainOrchestratorResult = async (
   }
 
   /* 9. Map to existing OrchestrationPlan */
-  const plan = mapStructuredOutputToPlan(queryScopeValidatedOutput);
+  const plan = mapStructuredOutputToPlan(scheduleReferenceValidatedOutput);
 
   logAgentEvent("info", "orchestrator.langchain.completed", {
     mode: plan.mode,
