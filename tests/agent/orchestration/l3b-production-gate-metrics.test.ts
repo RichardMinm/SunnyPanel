@@ -544,6 +544,7 @@ test("separates deterministic resource clarification from Provider deviation dia
       ...base.roleEvidence,
       fullOrchestrator: {
         ...base.roleEvidence.fullOrchestrator,
+        clarificationSource: "resource_readiness",
         completedResponses: 1,
         providerAttempts: 1,
         resourceIssueCodes: ["RESOURCE_TITLE_NOT_IN_CONTEXT"],
@@ -569,7 +570,9 @@ test("separates deterministic resource clarification from Provider deviation dia
     stage: "acceptance",
   });
 
+  assert.equal(metrics.business.deterministicQueryScopeClarifications, 0);
   assert.equal(metrics.business.deterministicResourceClarifications, 1);
+  assert.equal(metrics.provider.queryScopeDeviations, 0);
   assert.equal(metrics.provider.resourceReferenceDeviations, 1);
   assert.equal(metrics.zeroTolerance.clarifyToWriteEscalations, 0);
   assert.equal(metrics.zeroTolerance.unexpectedWriteCandidates, 0);
@@ -577,6 +580,104 @@ test("separates deterministic resource clarification from Provider deviation dia
   assert.equal(metrics.zeroTolerance.outsideResourceReferences, 0);
   assert.equal(metrics.zeroTolerance.invalidResourceReferences, 0);
   assert.equal(metrics.zeroTolerance.missingResourceReferences, 0);
+});
+
+test("separates deterministic query-scope clarification from Provider deviation diagnostics", () => {
+  const base = observation("exr-3", 1, 1);
+  const clarified = observation("exr-3", 1, 1, {
+    branchKind: "deterministic_clarify",
+    clarifyQuestionPresent: true,
+    finalDependencies: [{ dependsOn: [], taskId: "t1" }],
+    finalMode: "single",
+    finalTaskIntents: ["clarify"],
+    roleEvidence: {
+      ...base.roleEvidence,
+      fullOrchestrator: {
+        ...base.roleEvidence.fullOrchestrator,
+        clarificationSource: "query_scope",
+        completedResponses: 1,
+        providerAttempts: 1,
+        queryScopeErrorCode: "specific_reference_required",
+        semanticProjection: {
+          decisionCode: "pure_read_query",
+          intents: ["query_plan_progress"],
+          mode: "single",
+          taskCount: 1,
+        },
+        semanticValidationPasses: 1,
+        semanticValidationsCompleted: 1,
+        status: "clarified",
+        strictSchemaPasses: 1,
+      },
+    },
+    semanticMatch: true,
+    usable: true,
+  });
+
+  const metrics = computeProductionGateMetrics({
+    observations: [clarified],
+    providerEvents: [],
+    stage: "acceptance",
+  });
+
+  assert.equal(metrics.business.deterministicQueryScopeClarifications, 1);
+  assert.equal(metrics.business.deterministicResourceClarifications, 0);
+  assert.equal(metrics.provider.queryScopeDeviations, 1);
+  assert.equal(metrics.provider.resourceReferenceDeviations, 0);
+  assert.equal(metrics.zeroTolerance.invalidQueryScopeProvenance, 0);
+  assert.equal(metrics.zeroTolerance.clarifyToWriteEscalations, 0);
+  assert.equal(metrics.zeroTolerance.unexpectedWriteCandidates, 0);
+});
+
+test("keeps unhandled query-scope failures in the zero-tolerance gate", () => {
+  const base = observation("exr-3", 1, 1);
+  const unavailable = observation("exr-3", 1, 1, {
+    branchKind: "unavailable",
+    clarifyQuestionPresent: false,
+    failureCodes: ["full_invalid_query_scope"],
+    finalDependencies: [],
+    finalMode: null,
+    finalTaskIntents: [],
+    roleEvidence: {
+      ...base.roleEvidence,
+      fullOrchestrator: {
+        ...base.roleEvidence.fullOrchestrator,
+        clarificationSource: null,
+        completedResponses: 1,
+        failureCode: "invalid_query_scope",
+        providerAttempts: 1,
+        queryScopeErrorCode: "specific_reference_required",
+        semanticProjection: {
+          decisionCode: "pure_read_query",
+          intents: ["query_plan_progress"],
+          mode: "single",
+          taskCount: 1,
+        },
+        semanticValidationPasses: 1,
+        semanticValidationsCompleted: 1,
+        status: "unavailable",
+        strictSchemaPasses: 1,
+      },
+    },
+    semanticMatch: false,
+    usable: false,
+  });
+
+  const metrics = computeProductionGateMetrics({
+    observations: [unavailable],
+    providerEvents: [],
+    stage: "acceptance",
+  });
+
+  assert.equal(metrics.business.deterministicQueryScopeClarifications, 0);
+  assert.equal(metrics.provider.queryScopeDeviations, 0);
+  assert.equal(metrics.zeroTolerance.invalidQueryScopeProvenance, 1);
+  assert.equal(
+    evaluateProductionGateThresholds(metrics).includes(
+      "invalid_query_scope_provenance",
+    ),
+    true,
+  );
 });
 
 test("keeps non-projectable resource failures in zero-tolerance gates", () => {

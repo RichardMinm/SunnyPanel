@@ -57,6 +57,7 @@ export type ProductionGateProviderMetrics = Readonly<{
   costUsd: number | null;
   fullLatencyP50Ms: number | null;
   observedUpperTailMs: number | null;
+  queryScopeDeviations: number;
   renderedCostUsd: "N/A" | string;
   resourceReferenceDeviations: number;
   semanticValidity: ProductionGateRate;
@@ -77,6 +78,7 @@ export type ProductionGateProviderMetrics = Readonly<{
 
 export type ProductionGateMetrics = Readonly<{
   business: Readonly<{
+    deterministicQueryScopeClarifications: number;
     deterministicResourceClarifications: number;
     observations: number;
     semanticMatches: ProductionGateRate;
@@ -211,10 +213,24 @@ const fullResourceCodes = (
 ): readonly ResourceReadinessErrorCode[] =>
   observation.roleEvidence.fullOrchestrator.resourceIssueCodes;
 
-const isResourceClarification = (
+const isFullClarification = (
   observation: ProductionGateObservation,
 ): boolean =>
   observation.roleEvidence.fullOrchestrator.status === "clarified";
+
+const isQueryScopeClarification = (
+  observation: ProductionGateObservation,
+): boolean =>
+  isFullClarification(observation)
+  && observation.roleEvidence.fullOrchestrator.clarificationSource
+    === "query_scope";
+
+const isResourceClarification = (
+  observation: ProductionGateObservation,
+): boolean =>
+  isFullClarification(observation)
+  && observation.roleEvidence.fullOrchestrator.clarificationSource
+    === "resource_readiness";
 
 const hasResourceCode = (
   observation: ProductionGateObservation,
@@ -240,7 +256,7 @@ const missingResourceCodes = new Set<ResourceReadinessErrorCode>([
 const actualIntents = (
   observation: ProductionGateObservation,
 ): readonly string[] =>
-  isResourceClarification(observation)
+  isFullClarification(observation)
     ? observation.finalTaskIntents
     : observation.roleEvidence.fullOrchestrator.semanticProjection?.intents
       ?? observation.finalTaskIntents;
@@ -316,8 +332,11 @@ const zeroToleranceMetrics = (
       || observation.roleEvidence.residualPlanner.rejectionReason === "dag_invalid"
     ).length,
     invalidQueryScopeProvenance: input.observations.filter((observation) =>
-      observation.roleEvidence.fullOrchestrator.queryScopeErrorCode !== null
-      || observation.failureCodes.includes("full_invalid_query_scope")
+      !isQueryScopeClarification(observation)
+      && (
+        observation.roleEvidence.fullOrchestrator.queryScopeErrorCode !== null
+        || observation.failureCodes.includes("full_invalid_query_scope")
+      )
     ).length,
     invalidResourceReferences: input.observations.filter((observation) =>
       !isResourceClarification(observation)
@@ -503,6 +522,9 @@ export const computeProductionGateMetrics = (
 
   return Object.freeze({
     business: Object.freeze({
+      deterministicQueryScopeClarifications: input.observations.filter(
+        isQueryScopeClarification,
+      ).length,
       deterministicResourceClarifications: input.observations.filter(
         isResourceClarification,
       ).length,
@@ -525,6 +547,11 @@ export const computeProductionGateMetrics = (
       costUsd: null,
       fullLatencyP50Ms: percentile(fullLatencies, 0.5),
       observedUpperTailMs: percentile(endedAttemptLatencies, 0.95),
+      queryScopeDeviations: input.observations.filter(
+        (observation) =>
+          isQueryScopeClarification(observation)
+          && observation.roleEvidence.fullOrchestrator.queryScopeErrorCode !== null,
+      ).length,
       renderedCostUsd: "N/A",
       resourceReferenceDeviations: input.observations.filter(
         (observation) =>
