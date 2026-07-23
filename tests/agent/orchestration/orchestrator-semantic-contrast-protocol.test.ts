@@ -21,6 +21,7 @@ import {
 } from "../../../src/lib/agent/orchestration/orchestrator-intent-family-protocol";
 
 const expectedIds = [
+  "plan_inventory_query",
   "single_plan_draft",
   "natural_language_checklist_draft",
   "partial_title_query",
@@ -28,7 +29,7 @@ const expectedIds = [
   "new_plan_schedule",
 ] as const;
 
-test("freezes the five schema-typed semantic contrasts", () => {
+test("freezes the six schema-typed semantic contrasts", () => {
   assert.deepEqual(
     ORCHESTRATOR_SEMANTIC_CONTRASTS.map(({ id }) => id),
     expectedIds,
@@ -82,4 +83,32 @@ test("uses neutral contrasts rather than copying evaluation fixture messages", (
   for (const fixture of L3B_EVALUATION_FIXTURES) {
     assert.equal(prompt.includes(fixture.message), false, fixture.id);
   }
+});
+
+test("closes imperative completion against read and untrusted write branches", () => {
+  const contrast = ORCHESTRATOR_SEMANTIC_CONTRASTS.find(
+    ({ id }) => id === "imperative_completion_mutation",
+  );
+
+  assert.ok(contrast);
+  assert.deepEqual(contrast.admitted, {
+    decisionCode: "explicit_write_missing_resource",
+    intents: ["clarify"],
+    mode: "single",
+  });
+  assert.deepEqual(
+    contrast.forbiddenDecisionCodes,
+    ["pure_read_query", "explicit_write_ready"],
+  );
+  assert.deepEqual(
+    contrast.forbiddenIntents,
+    ["query_plan_progress", "complete_plan_item"],
+  );
+  assert.match(contrast.reason, /计划标题不能替代清单标题/);
+  assert.match(contrast.reason, /精确且唯一/);
+
+  const prompt = buildLangChainSystemPrompt();
+  assert.match(prompt, /禁止 decisionCode=pure_read_query,explicit_write_ready/);
+  assert.match(prompt, /禁止 intents=query_plan_progress,complete_plan_item/);
+  assert.match(prompt, /计划标题不能替代清单标题/);
 });

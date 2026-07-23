@@ -174,13 +174,19 @@ export const ORCHESTRATOR_SEMANTIC_CONTRASTS = Object.freeze([
       intents: ["clarify"],
       mode: "single",
     },
-    forbiddenDecisionCodes: ["pure_read_query"],
-    forbiddenIntents: ["query_plan_progress"],
+    forbiddenDecisionCodes: [
+      "pure_read_query",
+      "explicit_write_ready",
+    ],
+    forbiddenIntents: [
+      "query_plan_progress",
+      "complete_plan_item",
+    ],
     id: "imperative_completion_mutation",
     reason:
-      "祈使完成或标记完成是 mutation；目标不可信时澄清，不能改写成完成情况查询。",
+      "祈使完成或标记完成是 mutation；complete_plan_item 只能操作已有清单项。计划标题不能替代清单标题，workspace 中存在计划也不证明清单存在；没有 actor-authorized context 中精确且唯一的 checklistTitle 时，必须选择 explicit_write_missing_resource 并澄清。",
     requestPattern:
-      "中性示例：用户命令完成某计划中的一个条目，但只提供部分计划标题。",
+      "中性示例：workspace 只有一份课程计划，没有匹配清单；用户命令完成该计划中的一个条目。",
   }),
   semanticContrast({
     admitted: {
