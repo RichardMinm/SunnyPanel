@@ -15,6 +15,7 @@ import {
   buildLangChainSystemPrompt,
 } from "../../../src/lib/agent/orchestration/langchain-orchestrator";
 import {
+  ORCHESTRATOR_SEMANTIC_CONTRAST_MATCH_POLICY,
   ORCHESTRATOR_SEMANTIC_CONTRAST_MARKER,
   ORCHESTRATOR_SEMANTIC_CONTRAST_PROTOCOL,
   ORCHESTRATOR_SEMANTIC_CONTRASTS,
@@ -111,4 +112,40 @@ test("closes imperative completion against read and untrusted write branches", (
   assert.match(prompt, /禁止 decisionCode=pure_read_query,explicit_write_ready/);
   assert.match(prompt, /禁止 intents=query_plan_progress,complete_plan_item/);
   assert.match(prompt, /计划标题不能替代清单标题/);
+});
+
+test("treats every matching contrast as an exclusive admitted tuple", () => {
+  assert.equal(ORCHESTRATOR_SEMANTIC_CONTRAST_MATCH_POLICY, "exclusive_tuple");
+
+  const prompt = buildLangChainSystemPrompt();
+  assert.match(prompt, /matchPolicy=exclusive_tuple/);
+  assert.match(
+    prompt,
+    /所有其他 decisionCode、mode、intent 序列、task 数量或 task shape 均禁止/,
+  );
+
+  for (const contrast of ORCHESTRATOR_SEMANTIC_CONTRASTS) {
+    const line = ORCHESTRATOR_SEMANTIC_CONTRAST_PROTOCOL
+      .split("\n")
+      .find((candidate) => candidate.includes(`[${contrast.id}]`));
+
+    assert.ok(line, contrast.id);
+    assert.match(line, /唯一允许的完整输出：/, contrast.id);
+    assert.match(
+      line,
+      new RegExp(`decisionCode=${contrast.admitted.decisionCode}`),
+      contrast.id,
+    );
+    assert.match(
+      line,
+      new RegExp(`mode=${contrast.admitted.mode}`),
+      contrast.id,
+    );
+    assert.match(
+      line,
+      new RegExp(`intents=${contrast.admitted.intents.join(",")}`),
+      contrast.id,
+    );
+    assert.match(line, /已知错误示例：/, contrast.id);
+  }
 });

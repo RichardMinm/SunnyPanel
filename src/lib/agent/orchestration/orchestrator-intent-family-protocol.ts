@@ -78,6 +78,9 @@ export const ORCHESTRATOR_LIVE_GATE_PROTOCOL = [
 export const ORCHESTRATOR_SEMANTIC_CONTRAST_MARKER =
   "[orchestrator-boundary:semantic-contrasts]" as const;
 
+export const ORCHESTRATOR_SEMANTIC_CONTRAST_MATCH_POLICY =
+  "exclusive_tuple" as const;
+
 export type OrchestratorSemanticContrast = Readonly<{
   admitted: Readonly<{
     decisionCode: OrchestratorDecisionCode;
@@ -216,15 +219,16 @@ const renderContrast = (
     : contrast.forbiddenIntents.join(",");
 
   return `- [${contrast.id}] ${contrast.requestPattern}`
-    + ` 正确：decisionCode=${contrast.admitted.decisionCode};`
+    + ` 唯一允许的完整输出：decisionCode=${contrast.admitted.decisionCode};`
     + ` mode=${contrast.admitted.mode};`
     + ` intents=${contrast.admitted.intents.join(",")}.`
-    + ` 禁止 decisionCode=${forbiddenDecisionCodes};`
+    + ` 已知错误示例：禁止 decisionCode=${forbiddenDecisionCodes};`
     + ` 禁止 intents=${forbiddenIntents}. ${contrast.reason}`;
 };
 
 export const ORCHESTRATOR_SEMANTIC_CONTRAST_PROTOCOL = [
   ORCHESTRATOR_SEMANTIC_CONTRAST_MARKER,
+  `- matchPolicy=${ORCHESTRATOR_SEMANTIC_CONTRAST_MATCH_POLICY}；当一个 case 条件匹配时，admitted decisionCode、mode 与有序 intents 是唯一允许的完整输出；所有其他 decisionCode、mode、intent 序列、task 数量或 task shape 均禁止。`,
   ...ORCHESTRATOR_SEMANTIC_CONTRASTS.map(renderContrast),
 ].join("\n");
 
