@@ -22,6 +22,7 @@ class ProductionSeamGateError extends Error {
 const REPORT_PATHS = Object.freeze({
   acceptance: "/tmp/l3b-r8-production-acceptance.json",
   focused: "/tmp/l3b-r8-production-focused.json",
+  known_id: "/tmp/l3b-r8-production-known-id.json",
   stability: "/tmp/l3b-r8-production-stability.json",
 });
 const STAGES = new Set(Object.keys(REPORT_PATHS));
