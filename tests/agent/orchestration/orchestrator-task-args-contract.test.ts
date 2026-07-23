@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { OrchestratorOutput } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
 import {
   SAVE_MEMORY_ORCHESTRATOR_ARGS_CONTRACT,
+  buildOrchestratorTaskArgsRepairInstruction,
   orchestratorOutputWithTaskArgsSchema,
   renderOrchestratorTaskArgsProtocol,
   validateOrchestratorTaskArgs,
@@ -100,5 +101,41 @@ describe("orchestrator task args contract", () => {
     assert.match(protocol, /non-empty string/u);
     assert.doesNotMatch(protocol, /每周五复盘|title|question/u);
     assert.equal((protocol.match(/args\.content/gu) ?? []).length, 1);
+  });
+
+  it("builds a bounded path-only repair instruction for save_memory content", () => {
+    const instruction = buildOrchestratorTaskArgsRepairInstruction([{
+      code: "custom",
+      missing: true,
+      path: ["tasks", 0, "args", "content"],
+    }]);
+
+    assert.equal(
+      instruction,
+      [
+        "[orchestrator-task-args-repair:v1]",
+        "Required non-empty string fields: tasks.0.args.content.",
+        "Return the complete Orchestrator JSON object again.",
+      ].join("\n"),
+    );
+    assert.doesNotMatch(
+      instruction,
+      /RAW_SENTINEL|workspace|reasoning|execute|receipt|rollback/u,
+    );
+  });
+
+  it("uses generic value-free repair guidance for empty or outside paths", () => {
+    const expected = [
+      "[orchestrator-task-args-repair:v1]",
+      "The previous object violated the Structured Output schema.",
+      "Return the complete Orchestrator JSON object again.",
+    ].join("\n");
+
+    assert.equal(buildOrchestratorTaskArgsRepairInstruction([]), expected);
+    assert.equal(buildOrchestratorTaskArgsRepairInstruction([{
+      code: "custom",
+      missing: false,
+      path: ["tasks", 0, "args", "title"],
+    }]), expected);
   });
 });

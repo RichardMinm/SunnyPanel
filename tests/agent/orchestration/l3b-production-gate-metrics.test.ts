@@ -281,6 +281,70 @@ test("keeps 99 business observations separate from actual Provider denominators"
   assert.equal(qry4.callAccounting.answerProviderAttempts, 0);
 });
 
+test("counts schema repair attempts without hiding the first strict-schema miss", () => {
+  const observations = stabilityObservations();
+  const index = observations.findIndex(({ fixtureId, round }) =>
+    fixtureId === "wrt-3" && round === 1
+  );
+  assert.notEqual(index, -1);
+  const selected = observations[index];
+  observations[index] = observation(
+    selected.fixtureId,
+    selected.round,
+    selected.observationIndex,
+    {
+      callAccounting: {
+        ...selected.callAccounting,
+        fullOrchestratorLogicalCalls: 1,
+        fullOrchestratorProviderAttempts: 2,
+      },
+      roleEvidence: {
+        ...selected.roleEvidence,
+        fullOrchestrator: {
+          ...selected.roleEvidence.fullOrchestrator,
+          completedResponses: 2,
+          latencyMs: 20,
+          providerAttempts: 2,
+          providerLatenciesMs: [10, 20],
+          semanticValidationPasses: 1,
+          semanticValidationsCompleted: 1,
+          status: "success",
+          strictSchemaPasses: 1,
+        },
+      },
+    },
+  );
+  const events: SanitizedRoleEvent[] = [
+    {
+      attempt: 1,
+      failureReason: "provider_protocol",
+      inputTokens: null,
+      latencyMs: 10,
+      outputTokens: null,
+      phase: "failed",
+      retryScheduled: true,
+      role: "full_orchestrator",
+      safeProtocol: safeProtocol(10),
+      schemaIssues: [{
+        code: "custom",
+        missing: true,
+        path: ["tasks", 0, "args", "content"],
+      }],
+      totalTokens: null,
+    },
+    ...fullSuccessEvents(2, 20),
+  ];
+
+  const metrics = aggregateProductionGate({
+    observations,
+    providerEvents: events,
+    stage: "stability",
+  }).metrics;
+
+  assert.equal(metrics.provider.schemaRepairAttempts, 1);
+  assert.equal(metrics.provider.strictSchema.rendered, "1/2");
+});
+
 test("renders empty applicable Provider denominators as null and N/A", () => {
   const summary = aggregateProductionGate({
     observations: stabilityObservations(),

@@ -31,6 +31,8 @@ import {
   hashL3BEvaluationConfig,
   L3B_EVALUATION_CONFIG,
   L3B_EVALUATION_CONFIG_HASH,
+  L3B_EVALUATION_CONFIG_VERSION,
+  L3B_PROMPT_PROTOCOL_VERSION,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation-config";
 
 const fixtureIds = Array.from({ length: 33 }, (_, index) => `fixture-${index + 1}`);
@@ -152,7 +154,7 @@ test("passes a complete 99-observation matrix with all safety and performance ga
       totalTimeoutMs: 30_000,
     },
     evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
-    promptProtocolVersion: "l3b-query-scope-precedence-contract-v1",
+    promptProtocolVersion: L3B_PROMPT_PROTOCOL_VERSION,
     resourceProtocolVersion: 3,
     schemaVersion: 2,
   });
@@ -443,13 +445,29 @@ test("freezes and hashes the exact secret-free evaluation configuration", () => 
   assert.equal(L3B_EVALUATION_CONFIG.orchestratorThinkingMode, "disabled");
   assert.equal(
     L3B_EVALUATION_CONFIG.evaluationConfigVersion,
-    "l3b-r2-provider-protocol-v1",
+    L3B_EVALUATION_CONFIG_VERSION,
   );
   assert.equal(L3B_EVALUATION_CONFIG.transportRetries, 1);
-  assert.equal(L3B_EVALUATION_CONFIG.schemaRetries, 0);
+  assert.equal(L3B_EVALUATION_CONFIG.schemaRetries, 1);
   assert.equal(L3B_EVALUATION_CONFIG.semanticRetries, 0);
+  assert.equal(
+    L3B_EVALUATION_CONFIG_VERSION,
+    "l3b-save-memory-args-repair-v1",
+  );
+  assert.equal(
+    L3B_PROMPT_PROTOCOL_VERSION,
+    "l3b-save-memory-args-contract-v1",
+  );
   assert.doesNotMatch(JSON.stringify(L3B_EVALUATION_CONFIG), /apiKey|secret|sk-/i);
   assert.match(L3B_EVALUATION_CONFIG_HASH, /^[a-f0-9]{64}$/);
+  assert.notEqual(
+    L3B_EVALUATION_CONFIG_HASH,
+    "4d50c829aa5dc290acfdbed050a8be36359a83ff7c299b8da9754e657a651405",
+  );
+  assert.equal(
+    L3B_EVALUATION_CONFIG_HASH,
+    "e8b1bc6ca6580f446b3d8cdaa886c5143f72dc17067cf9733ca702e19121f108",
+  );
 
   const reversed = Object.fromEntries(
     Object.entries(L3B_EVALUATION_CONFIG).reverse(),

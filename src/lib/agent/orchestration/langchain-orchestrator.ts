@@ -56,6 +56,7 @@ import {
   ORCHESTRATOR_SEMANTIC_CONTRAST_PROTOCOL,
 } from "./orchestrator-intent-family-protocol";
 import {
+  buildOrchestratorTaskArgsRepairInstruction,
   orchestratorOutputWithTaskArgsSchema,
   renderOrchestratorTaskArgsProtocol,
 } from "./orchestrator-task-args-contract";
@@ -499,6 +500,7 @@ export const runLangChainOrchestratorResult = async (
     maxTransportRetries: structuredRetryBudget?.transport ?? 1,
     maxSchemaRetries: structuredRetryBudget?.schema ?? 1,
     providerAttemptObserver: observeProviderAttempt,
+    schemaRepairInstruction: buildOrchestratorTaskArgsRepairInstruction,
   });
 
   /* 6. Handle failure — safe clarify, no legacy fallback */

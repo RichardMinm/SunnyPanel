@@ -60,6 +60,7 @@ export type ProductionGateProviderMetrics = Readonly<{
   queryScopeDeviations: number;
   renderedCostUsd: "N/A" | string;
   resourceReferenceDeviations: number;
+  schemaRepairAttempts: number;
   semanticValidity: ProductionGateRate;
   strictSchema: ProductionGateRate;
   structuredCompletions: number;
@@ -557,6 +558,11 @@ export const computeProductionGateMetrics = (
         (observation) =>
           isResourceClarification(observation)
           && fullResourceCodes(observation).length > 0,
+      ).length,
+      schemaRepairAttempts: input.providerEvents.filter((event) =>
+        event.phase === "failed"
+        && event.failureReason === "provider_protocol"
+        && event.retryScheduled === true
       ).length,
       semanticValidity: rate(semanticPasses, strictSchemaPasses),
       strictSchema: rate(strictSchemaPasses, structuredCompletions),

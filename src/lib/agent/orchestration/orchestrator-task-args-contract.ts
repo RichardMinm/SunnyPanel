@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { StructuredOutputDiagnostics } from "../llm/model-errors";
 import {
   orchestratorOutputSchema,
   type OrchestratorOutput,
@@ -66,5 +67,34 @@ export const renderOrchestratorTaskArgsProtocol = (): string => {
   return [
     "[orchestrator-task-args-contract:v1]",
     `- ${SAVE_MEMORY_ORCHESTRATOR_ARGS_CONTRACT.intent}: args.${field} is required and must be a non-empty string.`,
+  ].join("\n");
+};
+
+const isSaveMemoryContentPath = (
+  path: readonly (number | string)[],
+): path is readonly ["tasks", number, "args", "content"] =>
+  path.length === 4
+  && path[0] === "tasks"
+  && typeof path[1] === "number"
+  && path[2] === "args"
+  && path[3]
+    === SAVE_MEMORY_ORCHESTRATOR_ARGS_CONTRACT
+      .requiredNonEmptyStringFields[0];
+
+export const buildOrchestratorTaskArgsRepairInstruction = (
+  issues: StructuredOutputDiagnostics["issues"],
+): string => {
+  const paths = issues
+    .map(({ path }) => path)
+    .filter(isSaveMemoryContentPath)
+    .map((path) => path.join("."));
+  const uniquePaths = [...new Set(paths)];
+  const detail = uniquePaths.length > 0
+    ? `Required non-empty string fields: ${uniquePaths.join(", ")}.`
+    : "The previous object violated the Structured Output schema.";
+  return [
+    "[orchestrator-task-args-repair:v1]",
+    detail,
+    "Return the complete Orchestrator JSON object again.",
   ].join("\n");
 };

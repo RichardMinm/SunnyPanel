@@ -65,7 +65,11 @@ const fullOutput = (
   mode: "single",
   routingSummary: "bounded test decision",
   tasks: [{
-    agentRole: intent === "compose_plan" ? "plan" : "query",
+    agentRole: intent === "compose_plan"
+      ? "plan"
+      : intent === "save_memory"
+        ? "memory"
+        : "query",
     args,
     dependsOn: [],
     id: "t1",
@@ -80,6 +84,7 @@ const evaluate = async (
   options: Readonly<{
     answerChunks?: readonly (AIMessageChunk | Error)[];
     fullInvoke?: () => unknown | Promise<unknown>;
+    fullRetryBudget?: { schema: number; transport: number };
     residualInvoke?: Parameters<typeof evaluateProductionGateCase>[0]["residualInvoke"];
   }> = {},
 ) => {
@@ -93,7 +98,7 @@ const evaluate = async (
     ),
     observe: (event) => events.push(event),
     recorder,
-    retryBudget: { schema: 0, transport: 0 },
+    retryBudget: options.fullRetryBudget ?? { schema: 0, transport: 0 },
   });
   const answerAdapter = createProductionAnswerAdapter({
     model: streamingModel(
@@ -265,6 +270,49 @@ test("wrt-1 falls through to one bounded Full Orchestrator call", async () => {
   assert.equal(observation.semanticMatch, true);
   assert.equal(observation.usable, true);
   assertSafeObservation(observation, "wrt-1");
+});
+
+test("wrt-3 repairs missing memory content without erasing the first schema miss", async () => {
+  let providerAttempts = 0;
+  const { events, observation } = await evaluate("wrt-3", {
+    fullInvoke: async () => {
+      providerAttempts += 1;
+      return fullOutput(
+        "explicit_write_ready",
+        "save_memory",
+        providerAttempts === 1
+          ? { title: "RAW_TITLE_SENTINEL" }
+          : { content: "每周五复盘", title: "RAW_TITLE_SENTINEL" },
+      );
+    },
+    fullRetryBudget: { schema: 1, transport: 0 },
+    residualInvoke: async () => assert.fail("Full path cannot call Residual"),
+  });
+
+  assert.deepEqual(observation.finalTaskIntents, ["save_memory"]);
+  assert.equal(observation.callAccounting.fullOrchestratorLogicalCalls, 1);
+  assert.equal(observation.callAccounting.fullOrchestratorProviderAttempts, 2);
+  assert.equal(observation.roleEvidence.fullOrchestrator.completedResponses, 2);
+  assert.equal(observation.roleEvidence.fullOrchestrator.strictSchemaPasses, 1);
+  assert.equal(observation.roleEvidence.fullOrchestrator.status, "success");
+  const failure = events.find((event) =>
+    event.phase === "failed" && event.attempt === 1
+  );
+  assert.equal(failure?.failureReason, "provider_protocol");
+  assert.equal(failure?.retryScheduled, true);
+  assert.deepEqual(failure?.schemaIssues, [{
+    code: "custom",
+    missing: true,
+    path: ["tasks", 0, "args", "content"],
+  }]);
+  assert.doesNotMatch(
+    JSON.stringify({ events, observation }),
+    /RAW_TITLE_SENTINEL|每周五复盘/u,
+  );
+  assertSafeObservation(observation, "wrt-3", [
+    "RAW_TITLE_SENTINEL",
+    "每周五复盘",
+  ]);
 });
 
 test("exr-3 exposes deterministic clarify while preserving bounded Provider deviation evidence", async () => {

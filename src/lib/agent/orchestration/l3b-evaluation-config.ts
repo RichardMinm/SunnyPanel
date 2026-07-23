@@ -8,9 +8,10 @@ import {
   ANSWER_TOTAL_TIMEOUT_MS,
 } from "../answer/config";
 
-export const L3B_EVALUATION_CONFIG_VERSION = "l3b-r2-provider-protocol-v1";
+export const L3B_EVALUATION_CONFIG_VERSION =
+  "l3b-save-memory-args-repair-v1";
 export const L3B_PROMPT_PROTOCOL_VERSION =
-  "l3b-query-scope-precedence-contract-v1";
+  "l3b-save-memory-args-contract-v1";
 export const L3B_RESOURCE_PROTOCOL_VERSION = 3;
 
 export type L3BEvaluationConfig = Readonly<{
@@ -49,7 +50,7 @@ export const L3B_EVALUATION_CONFIG: L3BEvaluationConfig = Object.freeze({
   promptProtocolVersion: L3B_PROMPT_PROTOCOL_VERSION,
   provider: "deepseek",
   resourceProtocolVersion: L3B_RESOURCE_PROTOCOL_VERSION,
-  schemaRetries: 0,
+  schemaRetries: 1,
   schemaVersion: ORCHESTRATOR_OUTPUT_SCHEMA_VERSION,
   semanticRetries: 0,
   structuredOutputMode: "provider_default",

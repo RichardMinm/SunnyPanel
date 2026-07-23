@@ -26,8 +26,10 @@ import {
 import { mapStructuredOutputToPlan } from "../../../src/lib/agent/orchestration/orchestrator-mapper";
 import { getResourceProtocolProjection } from "../../../src/lib/agent/orchestration/resource-readiness-guard";
 import {
+  L3B_EVALUATION_CONFIG_VERSION,
   L3B_EVALUATION_CONFIG,
   L3B_EVALUATION_CONFIG_HASH,
+  L3B_PROMPT_PROTOCOL_VERSION,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation-config";
 import { createModelCallBudgetRecorder } from "../../../src/lib/agent/orchestration/model-call-budget";
 
@@ -177,15 +179,22 @@ describe("langchain-orchestrator protocol", () => {
   });
 
   it("freezes the resource-reference protocol metadata and deterministic secret-free hash", () => {
-    assert.equal(L3B_EVALUATION_CONFIG.evaluationConfigVersion, "l3b-r2-provider-protocol-v1");
+    assert.equal(
+      L3B_EVALUATION_CONFIG.evaluationConfigVersion,
+      L3B_EVALUATION_CONFIG_VERSION,
+    );
     assert.equal(
       L3B_EVALUATION_CONFIG.promptProtocolVersion,
-      "l3b-query-scope-precedence-contract-v1",
+      L3B_PROMPT_PROTOCOL_VERSION,
     );
     assert.equal(L3B_EVALUATION_CONFIG.resourceProtocolVersion, 3);
-    assert.equal(
+    assert.notEqual(
       L3B_EVALUATION_CONFIG_HASH,
       "4d50c829aa5dc290acfdbed050a8be36359a83ff7c299b8da9754e657a651405",
+    );
+    assert.equal(
+      L3B_EVALUATION_CONFIG_HASH,
+      "e8b1bc6ca6580f446b3d8cdaa886c5143f72dc17067cf9733ca702e19121f108",
     );
   });
 
@@ -299,6 +308,139 @@ describe("langchain-orchestrator protocol", () => {
     assert.equal(result.status, "unavailable");
     if (result.status !== "unavailable") return;
     assert.equal(result.reason, "schema_failure");
+  });
+
+  it("repairs missing save_memory content within one logical call", async () => {
+    const responses = [
+      {
+        decisionCode: "explicit_write_ready",
+        mode: "single",
+        routingSummary: "保存复盘偏好",
+        tasks: [{
+          agentRole: "memory",
+          args: { title: "复盘偏好" },
+          dependsOn: [],
+          id: "t1",
+          intent: "save_memory",
+          label: "保存长期记忆",
+        }],
+        version: 2,
+      },
+      {
+        decisionCode: "explicit_write_ready",
+        mode: "single",
+        routingSummary: "保存复盘偏好",
+        tasks: [{
+          agentRole: "memory",
+          args: { content: "每周五复盘", title: "复盘偏好" },
+          dependsOn: [],
+          id: "t1",
+          intent: "save_memory",
+          label: "保存长期记忆",
+        }],
+        version: 2,
+      },
+    ];
+    const attemptMessages: unknown[][] = [];
+    let providerAttempts = 0;
+    const recorder = createModelCallBudgetRecorder();
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-23T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [],
+      },
+      message: "记住这条长期偏好",
+      modelCallRecorder: recorder,
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: (() => ({
+        withConfig: () => ({
+          invoke: async (messages: unknown[]) => {
+            attemptMessages.push(messages);
+            const response = responses[providerAttempts];
+            providerAttempts += 1;
+            return { content: JSON.stringify(response) };
+          },
+        }),
+      })) as unknown as ModelFactory,
+      structuredRetryBudget: { schema: 1, transport: 0 },
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.equal(result.plan.tasks[0]?.intent, "save_memory");
+    assert.equal(result.plan.tasks[0]?.args.content, "每周五复盘");
+    assert.equal(providerAttempts, 2);
+    assert.equal(recorder.snapshot().orchestratorLogicalCalls, 1);
+    assert.equal(recorder.snapshot().orchestratorProviderAttempts, 2);
+    assert.equal(attemptMessages[1]?.length, attemptMessages[0]?.length + 1);
+    const repairMessage = String(
+      (attemptMessages[1]?.at(-1) as { content?: unknown } | undefined)?.content
+        ?? "",
+    );
+    assert.match(repairMessage, /tasks\.0\.args\.content/u);
+    assert.doesNotMatch(repairMessage, /复盘偏好|\{"|"tasks"\s*:/u);
+  });
+
+  it("keeps two invalid save_memory responses as a typed schema failure", async () => {
+    let providerAttempts = 0;
+    const recorder = createModelCallBudgetRecorder();
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-23T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [],
+      },
+      message: "记住这条长期偏好",
+      modelCallRecorder: recorder,
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: promptJsonModelFactory(() => {
+        providerAttempts += 1;
+        return {
+          decisionCode: "explicit_write_ready",
+          mode: "single",
+          routingSummary: "保存复盘偏好",
+          tasks: [{
+            agentRole: "memory",
+            args: { title: "复盘偏好" },
+            dependsOn: [],
+            id: "t1",
+            intent: "save_memory",
+            label: "保存长期记忆",
+          }],
+          version: 2,
+        };
+      }),
+      structuredRetryBudget: { schema: 1, transport: 0 },
+    });
+
+    assert.equal(result.status, "unavailable");
+    if (result.status !== "unavailable") return;
+    assert.equal(result.reason, "schema_failure");
+    assert.equal("plan" in result, false);
+    assert.equal(providerAttempts, 2);
+    assert.equal(recorder.snapshot().orchestratorLogicalCalls, 1);
+    assert.equal(recorder.snapshot().orchestratorProviderAttempts, 2);
   });
 
   it("forwards the sanitized Provider attempt observer", async () => {
