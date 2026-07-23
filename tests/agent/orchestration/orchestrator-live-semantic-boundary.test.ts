@@ -124,14 +124,6 @@ test("rejects untrusted specific-plan reads in qry-4, wrt-1, and exr-3", async (
       task("t1", "query_plan_progress", { planId: 101 }),
     ]),
   );
-  assert.equal(qry4.status, "unavailable");
-  if (qry4.status === "unavailable") {
-    assert.equal(qry4.reason, "invalid_query_scope");
-    assert.equal(
-      qry4.queryScopeErrorCode,
-      "provider_selected_workspace_resource",
-    );
-  }
 
   const wrt1 = await run(
     "wrt-1",
@@ -140,11 +132,6 @@ test("rejects untrusted specific-plan reads in qry-4, wrt-1, and exr-3", async (
       task("t2", "compose_plan", {}, ["t1"]),
     ]),
   );
-  assert.equal(wrt1.status, "unavailable");
-  if (wrt1.status === "unavailable") {
-    assert.equal(wrt1.reason, "invalid_query_scope");
-    assert.equal(wrt1.queryScopeErrorCode, "specific_reference_required");
-  }
 
   const exr3 = await run(
     "exr-3",
@@ -152,10 +139,45 @@ test("rejects untrusted specific-plan reads in qry-4, wrt-1, and exr-3", async (
       task("t1", "query_plan_progress", {}),
     ]),
   );
-  assert.equal(exr3.status, "unavailable");
-  if (exr3.status === "unavailable") {
-    assert.equal(exr3.reason, "invalid_query_scope");
-    assert.equal(exr3.queryScopeErrorCode, "specific_reference_required");
+
+  const cases = [
+    [
+      "qry-4",
+      qry4,
+      "provider_selected_workspace_resource",
+      ["query_plan_progress"],
+    ],
+    [
+      "wrt-1",
+      wrt1,
+      "specific_reference_required",
+      ["query_plan_progress", "compose_plan"],
+    ],
+    [
+      "exr-3",
+      exr3,
+      "specific_reference_required",
+      ["query_plan_progress"],
+    ],
+  ] as const;
+
+  for (const [fixtureId, result, code, providerIntents] of cases) {
+    assert.equal(result.status, "clarified", fixtureId);
+    if (result.status !== "clarified") continue;
+    assert.equal(result.clarificationSource, "query_scope", fixtureId);
+    assert.equal(result.queryScopeErrorCode, code, fixtureId);
+    assert.deepEqual(
+      result.plan.tasks.map(({ intent }) => intent),
+      ["clarify"],
+      fixtureId,
+    );
+    assert.equal(
+      typeof result.plan.tasks[0]?.args.question === "string"
+        && result.plan.tasks[0].args.question.trim().length > 0,
+      true,
+      fixtureId,
+    );
+    assert.deepEqual(result.schemaValidDecision.intents, providerIntents);
   }
 });
 

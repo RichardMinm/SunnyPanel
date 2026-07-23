@@ -445,18 +445,24 @@ describe("langchain-orchestrator protocol", () => {
       structuredRetryBudget: { schema: 0, transport: 0 },
     });
 
-    assert.deepEqual(result, {
-      queryScopeErrorCode: "provider_selected_workspace_resource",
-      reason: "invalid_query_scope",
-      safeMessage: "用户没有明确选择具体计划，不能从工作区上下文隐式缩窄查询范围。",
-      schemaValidDecision: {
-        decisionCode: "pure_read_query",
-        intents: ["query_plan_progress"],
-        mode: "single",
-        taskCount: 1,
-      },
-      status: "unavailable",
+    assert.equal(result.status, "clarified");
+    if (result.status !== "clarified") return;
+    assert.equal(result.clarificationSource, "query_scope");
+    assert.equal(
+      result.queryScopeErrorCode,
+      "provider_selected_workspace_resource",
+    );
+    assert.deepEqual(result.plan.tasks.map(({ intent }) => intent), ["clarify"]);
+    assert.deepEqual(result.schemaValidDecision, {
+      decisionCode: "pure_read_query",
+      intents: ["query_plan_progress"],
+      mode: "single",
+      taskCount: 1,
     });
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /planId|101|考研数学复习计划|读取具体计划进度/u,
+    );
   });
 
   it("normalizes an explicit exact title to a trusted planId before mapping", async () => {

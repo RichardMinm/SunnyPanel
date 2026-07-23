@@ -64,6 +64,9 @@ import {
   projectResourceIssuesToClarification,
 } from "./resource-clarification-projector";
 import {
+  projectQueryScopeErrorToClarification,
+} from "./query-scope-clarification-projector";
+import {
   validateAndNormalizeOrchestratorQueryScopes,
   type QueryScopeErrorCode,
 } from "./query-scope-contract";
@@ -115,6 +118,13 @@ export type OrchestratorInvocationResult =
       clarificationSource: "resource_readiness";
       plan: OrchestratorPlan;
       resourceIssueCodes: ResourceReadinessErrorCode[];
+      schemaValidDecision: OrchestratorDecisionProjection;
+      status: "clarified";
+    }
+  | {
+      clarificationSource: "query_scope";
+      plan: OrchestratorPlan;
+      queryScopeErrorCode: QueryScopeErrorCode;
       schemaValidDecision: OrchestratorDecisionProjection;
       status: "clarified";
     }
@@ -545,6 +555,19 @@ export const runLangChainOrchestratorResult = async (
     logAgentEvent("warn", "orchestrator.langchain.invalid_query_scope", {
       code: queryScopeResult.code,
     });
+
+    const clarification = projectQueryScopeErrorToClarification(
+      queryScopeResult.code,
+    );
+    if (clarification) {
+      return {
+        clarificationSource: "query_scope",
+        plan: clarification.plan,
+        queryScopeErrorCode: clarification.queryScopeErrorCode,
+        schemaValidDecision,
+        status: "clarified",
+      };
+    }
 
     return {
       queryScopeErrorCode: queryScopeResult.code,
