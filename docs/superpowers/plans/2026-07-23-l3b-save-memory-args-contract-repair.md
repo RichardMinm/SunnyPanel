@@ -921,7 +921,7 @@ Expected: zero errors. Existing repository warnings may remain.
 - [ ] **Step 4: Verify file boundaries and default Runtime**
 
 ```bash
-git diff --name-only a04a9a0160d5fe44ed431c33868ed50ee21a595a..HEAD
+git diff --name-only a04a9a08674f54dedadc10a1f69326b49689905c..HEAD
 git diff -- src/lib/agent/orchestration/runtime-config.ts
 git status --short --branch
 ```
