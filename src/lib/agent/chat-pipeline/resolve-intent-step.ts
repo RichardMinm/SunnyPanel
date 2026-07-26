@@ -40,6 +40,7 @@ import { resolveConfirmationStep } from "./confirmation-resolution-step";
 import { resolveLegacyHeuristicStep } from "./legacy-heuristic-resolution-step";
 import type { runConversationalAnswer } from "@/lib/agent/answer/runtime";
 import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
+import type { OrchestratorRuntimeMode } from "@/lib/agent/orchestration/runtime-config";
 
 /* ──── Types ──── */
 
@@ -66,6 +67,7 @@ export type ResolveIntentStepParams = {
   modelCallRecorder?: ModelCallBudgetRecorder;
   modelResolver: AgentModelIntentResolver;
   orchestratorPlanSource?: null | OrchestratorPlanSource;
+  orchestratorRuntime?: null | OrchestratorRuntimeMode;
   pendingAction: null | PendingAction;
   preResolvedIntent?: AgentIntent | null;
   recordAgentConfirmationDecisionFn?: typeof recordAgentConfirmationDecision;
@@ -124,6 +126,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     modelCallRecorder,
     modelResolver,
     orchestratorPlanSource,
+    orchestratorRuntime,
     pendingAction,
     preResolvedIntent,
     recordAgentConfirmationDecisionFn = recordAgentConfirmationDecision,
@@ -174,6 +177,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     modelCallRecorder,
     modelResolver,
     orchestratorPlanSource,
+    orchestratorRuntime,
     pendingAction,
     preResolvedIntent,
     persistAgentTurn,

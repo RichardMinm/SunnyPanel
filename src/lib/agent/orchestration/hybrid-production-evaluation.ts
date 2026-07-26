@@ -23,6 +23,7 @@ import type { SafeAnswerErrorCode } from "../answer/types";
 import type { AgentThread } from "@/payload-types";
 import {
   createModelCallBudgetRecorder,
+  isModelCallAuthorizationError,
   projectModelCallBudget,
   type ModelCallBudgetProjection,
   type ModelCallBudgetRecorder,
@@ -374,7 +375,8 @@ export const evaluateHybridProductionCase = async (
           id: input.authenticatedActor.id,
         },
       });
-    } catch {
+    } catch (error) {
+      if (isModelCallAuthorizationError(error)) throw error;
       terminalFailure = true;
     }
     const completedAt = clock();
@@ -776,7 +778,8 @@ export const evaluateProductionGateCase = async (
           id: input.authenticatedActor.id,
         },
       });
-    } catch {
+    } catch (error) {
+      if (isModelCallAuthorizationError(error)) throw error;
       terminalFailure = true;
     }
 
@@ -803,7 +806,8 @@ export const evaluateProductionGateCase = async (
         queryDispatcherDecision = queryResult.outcome === "complete"
           ? "complete"
           : "not_adopted";
-      } catch {
+      } catch (error) {
+        if (isModelCallAuthorizationError(error)) throw error;
         queryDispatcherDecision = "unavailable";
       }
     }
@@ -819,7 +823,8 @@ export const evaluateProductionGateCase = async (
           message: input.fixture.message,
           scopeId: `${sanitizeFixtureId(input.fixture.id)}:${input.round ?? 1}:answer`,
         });
-      } catch {
+      } catch (error) {
+        if (isModelCallAuthorizationError(error)) throw error;
         answerEvidence = answerFailureEvidence();
       }
     }

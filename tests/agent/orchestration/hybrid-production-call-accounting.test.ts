@@ -18,6 +18,7 @@ import {
   createProductionFullAdapter,
 } from "../../../src/lib/agent/orchestration/l3b-production-gate-model-adapters";
 import { createModelCallBudgetRecorder } from "../../../src/lib/agent/orchestration/model-call-budget";
+import * as modelCallBudgetModule from "../../../src/lib/agent/orchestration/model-call-budget";
 import type { AgentChatResponse } from "../../../src/lib/agent/schemas";
 import type { AgentThread } from "../../../src/payload-types";
 import { residualWriteTask } from "./fixtures/hybrid-query-boundary-contract";
@@ -243,4 +244,55 @@ test("production Full retries count attempts without duplicating the logical cal
   assert.equal(observation.callAccounting.fullOrchestratorProviderAttempts, 2);
   assert.equal(observation.observationIndex, 1);
   assert.equal(observation.callAccounting.unexpectedDuplicateModelCalls, 0);
+});
+
+test("production Full authorizes an attempt before the fake Provider callback", async () => {
+  const createAuthorizer = (
+    modelCallBudgetModule as typeof modelCallBudgetModule & {
+      createModelCallAuthorizer?: (limits: {
+        logicalCallMaximum: number;
+        providerAttemptMaximum: number;
+        providerAttemptsPerObservationMaximum: number;
+      }) => { beginObservation: () => void };
+    }
+  ).createModelCallAuthorizer;
+  assert.equal(typeof createAuthorizer, "function");
+  const authorizer = createAuthorizer({
+    logicalCallMaximum: 1,
+    providerAttemptMaximum: 0,
+    providerAttemptsPerObservationMaximum: 0,
+  });
+  authorizer.beginObservation();
+  const recorder = createModelCallBudgetRecorder({ authorizer });
+  let providerCallbacks = 0;
+  const adapter = createProductionFullAdapter({
+    modelConfig,
+    modelFactory: promptJsonModelFactory(() => {
+      providerCallbacks += 1;
+      return {
+        decisionCode: "explicit_write_ready",
+        mode: "single",
+        routingSummary: "must not run",
+        tasks: [],
+        version: 2,
+      };
+    }),
+    observe: () => undefined,
+    recorder,
+    retryBudget: { schema: 0, transport: 0 },
+  });
+
+  await assert.rejects(
+    adapter("create a synthetic plan", {
+      checklists: [],
+      now: "2026-07-17T12:00:00.000+08:00",
+      pendingAction: null,
+      plans: [],
+    }),
+    (error: unknown) =>
+      error instanceof Error
+      && error.name === "ModelCallAuthorizationError"
+      && error.message === "MODEL_PROVIDER_ATTEMPT_LIMIT_EXCEEDED",
+  );
+  assert.equal(providerCallbacks, 0);
 });

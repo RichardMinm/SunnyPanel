@@ -64,6 +64,39 @@ const invalid = (
   valid: false,
 });
 
+const projectSupportedScheduleArgs = (
+  args: Readonly<Record<string, unknown>>,
+  trustedPlanId: number,
+): Readonly<Record<string, unknown>> => {
+  const projected: Record<string, unknown> = { planId: trustedPlanId };
+  if (
+    typeof args.defaultDurationMinutes === "number"
+    && Number.isFinite(args.defaultDurationMinutes)
+  ) {
+    projected.defaultDurationMinutes = args.defaultDurationMinutes;
+  }
+  if (
+    args.defaultStartTime === null
+    || (
+      typeof args.defaultStartTime === "string"
+      && args.defaultStartTime.trim().length > 0
+    )
+  ) {
+    projected.defaultStartTime = args.defaultStartTime;
+  }
+  if (
+    args.startDate === null
+    || (
+      typeof args.startDate === "string"
+      && args.startDate.trim().length > 0
+      && !Number.isNaN(Date.parse(args.startDate))
+    )
+  ) {
+    projected.startDate = args.startDate;
+  }
+  return Object.freeze(projected);
+};
+
 export const validateSchedulePlanReferences = (
   input: Readonly<{
     context: AgentPromptContext;
@@ -129,15 +162,14 @@ export const validateSchedulePlanReferences = (
   const normalizedTask = correctionRequired
     ? Object.freeze({
         ...task,
-        args: Object.freeze({
-          ...task.args,
-          planId: explicitPlanId,
-        }),
+        args: projectSupportedScheduleArgs(task.args, explicitPlanId),
+        label: "安排已有计划",
       })
     : task;
   const normalizedOutput = correctionRequired
     ? Object.freeze({
         ...input.output,
+        routingSummary: "安排已有计划",
         tasks: Object.freeze([normalizedTask]),
       }) as OrchestratorOutput
     : input.output;

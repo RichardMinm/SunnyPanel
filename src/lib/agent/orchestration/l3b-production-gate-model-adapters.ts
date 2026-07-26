@@ -350,10 +350,11 @@ export const createProductionFullAdapter = (input: Readonly<{
       modelConfig: input.modelConfig,
       ...(input.modelFactory ? { modelFactory: input.modelFactory } : {}),
       structuredRetryBudget: input.retryBudget,
+      providerAttemptAuthorizer: () =>
+        input.recorder.recordProviderAttempt("orchestrator"),
       providerAttemptObserver: (event) => {
         if (event.phase === "providerRequestStarted") {
           providerAttempts += 1;
-          input.recorder.recordProviderAttempt("orchestrator");
         } else if (event.phase === "providerResponseReceived") {
           completedResponses += 1;
         } else if (event.phase === "strictSchemaValidated") {

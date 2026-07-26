@@ -689,19 +689,40 @@ test("Full evidence preserves bounded query-scope and schedule-reference categor
 test("Full evidence projects a rebound schedule reference without identifiers", async () => {
   const diagnostic = knownIdDiagnostic("diag-plan-existing-id");
   const recorder = createModelCallBudgetRecorder();
-  const adapter = createProductionFullAdapter({
-    modelConfig,
-    modelFactory: promptJsonModelFactory(() => fullOutput(
+  const providerOutput: OrchestratorOutput = {
+    ...fullOutput(
       "explicit_write_ready",
       "schedule_plan",
-      { planId: 999 },
-    )),
+      {
+        planId: 999,
+        planTitle: "Provider 旧标题",
+        startDate: "2026-07-21",
+      },
+    ),
+    routingSummary: "安排 Provider 计划 999 的旧标题",
+    tasks: [{
+      ...fullOutput(
+        "explicit_write_ready",
+        "schedule_plan",
+        { planId: 999 },
+      ).tasks[0]!,
+      args: {
+        planId: 999,
+        planTitle: "Provider 旧标题",
+        startDate: "2026-07-21",
+      },
+      label: "安排 Provider 计划 999 的旧标题",
+    }],
+  };
+  const adapter = createProductionFullAdapter({
+    modelConfig,
+    modelFactory: promptJsonModelFactory(() => providerOutput),
     observe: () => undefined,
     recorder,
     retryBudget: { schema: 0, transport: 0 },
   });
 
-  await adapter(diagnostic.message, diagnostic.context);
+  const plan = await adapter(diagnostic.message, diagnostic.context);
 
   const evidence = adapter.getRoleEvidence();
   assert.equal(evidence.status, "success");
@@ -713,6 +734,13 @@ test("Full evidence projects a rebound schedule reference without identifiers", 
   assert.equal(JSON.stringify(evidence).includes("999"), false);
   assert.equal(JSON.stringify(evidence).includes("\"planId\""), false);
   assert.equal(JSON.stringify(evidence).includes("\"taskId\""), false);
+  assert.equal(plan.reasoning, "安排已有计划");
+  assert.equal(plan.tasks[0]?.label, "安排已有计划");
+  assert.deepEqual(plan.tasks[0]?.args, {
+    planId: 101,
+    startDate: "2026-07-21",
+  });
+  assert.doesNotMatch(JSON.stringify(plan), /999|Provider 旧标题/u);
 });
 
 test("Known-ID classifies rebound exact references after Provider ID copy drift", async () => {

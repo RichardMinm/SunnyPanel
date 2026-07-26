@@ -57,6 +57,7 @@ export type InvokeStructuredOptions<TSchema extends z.ZodType> = {
    * original parsed object.
    */
   modelSchema?: z.ZodType;
+  providerAttemptAuthorizer?: (attempt: number) => void;
   providerAttemptObserver?: StructuredProviderAttemptObserver;
   schemaRepairInstruction?: (
     issues: StructuredOutputDiagnostics["issues"],
@@ -156,6 +157,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     maxTransportRetries = 1,
     maxSchemaRetries = 1,
     modelSchema,
+    providerAttemptAuthorizer,
     providerAttemptObserver,
     schemaRepairInstruction,
   } = options;
@@ -277,6 +279,8 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
       const attemptMessages = schemaRepairMessage
         ? [...lcMessages, new SystemMessage(schemaRepairMessage)]
         : lcMessages;
+      const nextProviderAttempt = providerAttempt + 1;
+      providerAttemptAuthorizer?.(nextProviderAttempt);
       const controller = new AbortController();
       const timeoutId = setTimeout(
         () => controller.abort(new DOMException("Timeout", "TimeoutError")),
@@ -285,7 +289,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
       const onCallerAbort = () => controller.abort();
       signal?.addEventListener("abort", onCallerAbort, { once: true });
 
-      providerAttempt += 1;
+      providerAttempt = nextProviderAttempt;
       activeAttempt = providerAttempt;
       activeAttemptStartedAt = Date.now();
       responseEventEmitted = false;

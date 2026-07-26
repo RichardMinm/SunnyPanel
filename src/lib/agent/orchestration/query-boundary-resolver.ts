@@ -182,13 +182,23 @@ const clarify = (
 
 const looksLikeSpecificPlanQuery = (normalizedMessage: string): boolean => {
   if (!normalizedMessage.includes("计划")) return false;
-  if (
-    GENERIC_PLAN_REFERENCES.some((reference) =>
-      normalizedMessage.includes(reference))
-  ) {
-    return false;
+  let residual = normalizedMessage;
+  let removedGenericReference = false;
+  for (const reference of GENERIC_PLAN_REFERENCES) {
+    if (!residual.includes(reference)) continue;
+    removedGenericReference = true;
+    residual = residual.replaceAll(reference, "");
   }
-  return true;
+  if (!removedGenericReference) return true;
+
+  residual = residual
+    .replace(
+      /(?:查看|看看|查询|检查|了解|显示|告诉我|帮我|请|一下|我的|里|中|中的|内|的|进度|完成情况|完成度)/gu,
+      "",
+    )
+    .replace(/[\s,，。.!！?？:：;；、"'“”‘’（）()【】[\]{}]/gu, "");
+
+  return residual.length > 0;
 };
 
 const residualInput = (
@@ -297,6 +307,13 @@ export const resolveHybridQueryBoundary = (input: Readonly<{
       },
       task: queryTask("query_plan_progress", { planId: plan.id }),
     });
+  }
+
+  if (
+    RESIDUAL_WRITE_CUE.test(input.originalRequest)
+    && !resolveResidualIntentPolicy(input.originalRequest)
+  ) {
+    return { kind: "not_applicable" };
   }
 
   if (looksLikeSpecificPlanQuery(normalizedMessage)) {

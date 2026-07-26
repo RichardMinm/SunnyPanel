@@ -79,6 +79,38 @@ test("an exact full title produces resolved_exact_title provenance", async () =>
   });
 });
 
+test("a generic possessive plus a residual title selector is not downgraded to aggregate scope", async () => {
+  const { resolveHybridQueryBoundary } = await loadBoundary(
+    "provenance_generic_possessive_with_residual_selector",
+  );
+  const result = resolveHybridQueryBoundary({
+    authorizedSnapshot: actorAuthorizedSnapshot(),
+    originalRequest: "查看我的计划里数学的进度",
+  });
+
+  assert.equal(result.kind, "clarify");
+  if (result.kind !== "clarify") return;
+  assert.equal(result.providerCalls, 0);
+  assert.equal(result.reason, "title_not_found");
+});
+
+test("generic scaffolding never strips selector-like title nouns", async () => {
+  const { resolveHybridQueryBoundary } = await loadBoundary(
+    "provenance_generic_scaffold_preserves_selector_nouns",
+  );
+
+  for (const selector of ["当前项目", "工作项目", "任务清单"]) {
+    const result = resolveHybridQueryBoundary({
+      authorizedSnapshot: actorAuthorizedSnapshot(),
+      originalRequest: `查看我的计划里${selector}的进度`,
+    });
+    assert.equal(result.kind, "clarify", selector);
+    if (result.kind !== "clarify") continue;
+    assert.equal(result.providerCalls, 0);
+    assert.equal(result.reason, "title_not_found");
+  }
+});
+
 test("qry-4 cannot fuzzy-match the only Context plan and deterministically clarifies", async () => {
   const { resolveHybridQueryBoundary } = await loadBoundary("provenance_no_fuzzy_or_unique_context");
   const fixture = focusedFixture("qry-4");

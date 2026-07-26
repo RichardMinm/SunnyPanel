@@ -83,6 +83,9 @@ import {
 import {
   projectSchedulePlanReferenceErrorToClarification,
 } from "./schedule-plan-reference-clarification-projector";
+import {
+  buildLangChainSystemPrompt as buildAuthoritativeLangChainSystemPrompt,
+} from "./langchain-orchestrator-contract";
 
 /* ---- Safe clarify fallback (deterministic, no model output reuse) ---- */
 
@@ -377,7 +380,7 @@ export const buildLangChainOrchestratorMessages = (
   context: AgentPromptContext,
 ): ChatMessage[] =>
   buildMessages({
-    systemRules: buildLangChainSystemPrompt(),
+    systemRules: buildAuthoritativeLangChainSystemPrompt(),
     workspaceContext: buildWorkspaceContext(context),
     userMessage: message,
   });
@@ -397,6 +400,7 @@ export type LangChainOrchestratorOptions = {
     schema: number;
     transport: number;
   };
+  providerAttemptAuthorizer?: (attempt: number) => void;
   providerAttemptObserver?: StructuredProviderAttemptObserver;
   modelCallRecorder?: ModelCallBudgetRecorder;
   modelCallRole?: Extract<ModelCallRole, "orchestrator" | "replan">;
@@ -416,22 +420,15 @@ export const runLangChainOrchestratorResult = async (
     modelCallRole = "orchestrator",
     modelCallScopeId = "orchestrator",
     structuredRetryBudget,
+    providerAttemptAuthorizer,
     providerAttemptObserver,
   } = options;
 
   let latestProviderAttempt = 0;
-  const recordedProviderAttempts = new Set<number>();
   let latestSafeProtocol: SafeProtocolDiagnostics =
     createSafeProtocolDiagnostics();
   const observeProviderAttempt: StructuredProviderAttemptObserver = (event) => {
     latestProviderAttempt = event.attempt;
-    if (
-      event.phase === "providerRequestStarted"
-      && !recordedProviderAttempts.has(event.attempt)
-    ) {
-      recordedProviderAttempts.add(event.attempt);
-      modelCallRecorder?.recordProviderAttempt(modelCallRole);
-    }
     if ("safeProtocol" in event) latestSafeProtocol = event.safeProtocol;
     try {
       providerAttemptObserver?.(event);
@@ -519,6 +516,12 @@ export const runLangChainOrchestratorResult = async (
     signal,
     maxTransportRetries: structuredRetryBudget?.transport ?? 1,
     maxSchemaRetries: structuredRetryBudget?.schema ?? 1,
+    providerAttemptAuthorizer: providerAttemptAuthorizer
+      ?? (
+        modelCallRecorder
+          ? () => modelCallRecorder.recordProviderAttempt(modelCallRole)
+          : undefined
+      ),
     providerAttemptObserver: observeProviderAttempt,
     schemaRepairInstruction: buildOrchestratorTaskArgsRepairInstruction,
   });

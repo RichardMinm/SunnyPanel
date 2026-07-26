@@ -210,6 +210,7 @@ export type OrchestrationStepResult =
       outcome: "continue";
       data: {
         orchestratorPlanSource?: "heuristic" | "llm" | null;
+        orchestratorRuntime?: "langchain" | "legacy" | null;
         preResolvedIntent: AgentIntent | null;
         tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
       };
@@ -286,6 +287,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     user,
     validateHybridCandidateFn = validateHybridOrchestrationCandidate,
   } = params;
+  const configuredOrchestratorRuntime = resolveOrchestratorRuntimeMode();
   let tokenUsage = tokenUsageIn;
   let hybridPlan: OrchestratorPlan | null = null;
   const recordHybridObservation = (
@@ -424,6 +426,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       outcome: "continue",
       data: {
         orchestratorPlanSource: null,
+        orchestratorRuntime: null,
         preResolvedIntent: null,
         tokenUsage: tokenUsageIn,
       },
@@ -706,6 +709,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       outcome: "continue",
       data: {
         orchestratorPlanSource: "llm",
+        orchestratorRuntime: "langchain",
         preResolvedIntent: canaryIntent,
         tokenUsage,
       },
@@ -716,7 +720,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     hybridBoundaryMode === "runtime"
     && !forcedPlan
     && !pendingAction
-    && isHybridQueryBoundaryEnabled(resolveOrchestratorRuntimeMode());
+    && isHybridQueryBoundaryEnabled(configuredOrchestratorRuntime);
 
   if (hybridBoundaryEnabled) {
     const snapshotResult = buildActorAuthorizedResourceSnapshot({
@@ -764,6 +768,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           outcome: "continue",
           data: {
             orchestratorPlanSource: "llm",
+            orchestratorRuntime: "langchain",
             preResolvedIntent: boundary.preResolvedIntent,
             tokenUsage,
           },
@@ -783,6 +788,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           outcome: "continue",
           data: {
             orchestratorPlanSource: "llm",
+            orchestratorRuntime: "langchain",
             preResolvedIntent: {
               args: { question },
               confidence: 1,
@@ -823,6 +829,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
             outcome: "continue",
             data: {
               orchestratorPlanSource: "llm",
+              orchestratorRuntime: "langchain",
               preResolvedIntent: {
                 args: {
                   question: "查询范围已经确定，但后续操作暂时无法可靠规划。请稍后重试或单独说明要创建的内容。",
@@ -852,6 +859,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
             outcome: "continue",
             data: {
               orchestratorPlanSource: "llm",
+              orchestratorRuntime: "langchain",
               preResolvedIntent: {
                 args: {
                   question: "查询范围已经确定，但后续操作无法组成安全任务。请拆开说明下一步要做什么。",
@@ -888,6 +896,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
             outcome: "continue",
             data: {
               orchestratorPlanSource: "llm",
+              orchestratorRuntime: "langchain",
               preResolvedIntent: {
                 args: {
                   question: "查询范围已经确定，但后续操作未通过安全校验。请拆开说明下一步要做什么。",
@@ -1191,6 +1200,10 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     outcome: "continue",
     data: {
       orchestratorPlanSource: plan.source ?? "llm",
+      orchestratorRuntime:
+        forcedPlan || runOrchestratorFn !== dispatchOrchestrator
+          ? null
+          : configuredOrchestratorRuntime,
       preResolvedIntent,
       tokenUsage,
     },

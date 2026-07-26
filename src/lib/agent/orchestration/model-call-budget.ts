@@ -6,6 +6,105 @@ export type ModelCallRole =
   | "query_commentary"
   | "specialist";
 
+export type ModelCallAuthorizationErrorCode =
+  | "MODEL_LOGICAL_CALL_LIMIT_EXCEEDED"
+  | "MODEL_OBSERVATION_PROVIDER_ATTEMPT_LIMIT_EXCEEDED"
+  | "MODEL_PROVIDER_ATTEMPT_LIMIT_EXCEEDED";
+
+export class ModelCallAuthorizationError extends Error {
+  readonly code: ModelCallAuthorizationErrorCode;
+
+  constructor(code: ModelCallAuthorizationErrorCode) {
+    super(code);
+    this.code = code;
+    this.name = "ModelCallAuthorizationError";
+  }
+}
+
+export const isModelCallAuthorizationError = (
+  error: unknown,
+): error is ModelCallAuthorizationError =>
+  error instanceof ModelCallAuthorizationError
+  || (
+    typeof error === "object"
+    && error !== null
+    && "name" in error
+    && error.name === "ModelCallAuthorizationError"
+    && "code" in error
+    && typeof error.code === "string"
+  );
+
+export type ModelCallAuthorizer = Readonly<{
+  authorizeLogicalCall: (role: ModelCallRole) => void;
+  authorizeProviderAttempt: (role: ModelCallRole) => void;
+  beginObservation: () => void;
+  snapshot: () => Readonly<{
+    logicalCalls: number;
+    observationProviderAttempts: number;
+    providerAttempts: number;
+  }>;
+}>;
+
+export type ModelCallAuthorizationLimits = Readonly<{
+  logicalCallMaximum: number;
+  providerAttemptMaximum: number;
+  providerAttemptsPerObservationMaximum: number;
+}>;
+
+const boundedMaximum = (value: number): number =>
+  Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+
+export const createModelCallAuthorizer = (
+  limits: ModelCallAuthorizationLimits,
+): ModelCallAuthorizer => {
+  const logicalCallMaximum = boundedMaximum(limits.logicalCallMaximum);
+  const providerAttemptMaximum = boundedMaximum(
+    limits.providerAttemptMaximum,
+  );
+  const providerAttemptsPerObservationMaximum = boundedMaximum(
+    limits.providerAttemptsPerObservationMaximum,
+  );
+  let logicalCalls = 0;
+  let providerAttempts = 0;
+  let observationProviderAttempts = 0;
+
+  return Object.freeze({
+    authorizeLogicalCall: (_role) => {
+      if (logicalCalls >= logicalCallMaximum) {
+        throw new ModelCallAuthorizationError(
+          "MODEL_LOGICAL_CALL_LIMIT_EXCEEDED",
+        );
+      }
+      logicalCalls += 1;
+    },
+    authorizeProviderAttempt: (_role) => {
+      if (providerAttempts >= providerAttemptMaximum) {
+        throw new ModelCallAuthorizationError(
+          "MODEL_PROVIDER_ATTEMPT_LIMIT_EXCEEDED",
+        );
+      }
+      if (
+        observationProviderAttempts
+        >= providerAttemptsPerObservationMaximum
+      ) {
+        throw new ModelCallAuthorizationError(
+          "MODEL_OBSERVATION_PROVIDER_ATTEMPT_LIMIT_EXCEEDED",
+        );
+      }
+      providerAttempts += 1;
+      observationProviderAttempts += 1;
+    },
+    beginObservation: () => {
+      observationProviderAttempts = 0;
+    },
+    snapshot: () => Object.freeze({
+      logicalCalls,
+      observationProviderAttempts,
+      providerAttempts,
+    }),
+  });
+};
+
 export type L3BTurnCallAccounting = {
   answerLogicalCalls: number;
   answerProviderAttempts: number;
@@ -39,6 +138,10 @@ export type ModelCallBudgetRecorder = {
   recordProviderAttempt: (role: ModelCallRole) => void;
   snapshot: () => TurnModelCallBudget;
 };
+
+export type ModelCallBudgetRecorderOptions = Readonly<{
+  authorizer?: ModelCallAuthorizer;
+}>;
 
 export type ModelCallBudgetProjection = Readonly<{
   answerLogicalCalls: number;
@@ -130,12 +233,15 @@ const providerAttemptCounter: Record<
   specialist: "specialistProviderAttempts",
 };
 
-export const createModelCallBudgetRecorder = (): ModelCallBudgetRecorder => {
+export const createModelCallBudgetRecorder = (
+  options: ModelCallBudgetRecorderOptions = {},
+): ModelCallBudgetRecorder => {
   const budget = emptyBudget();
   const consumedScopes = new Set<string>();
 
   return {
     record: (role, scopeId) => {
+      options.authorizer?.authorizeLogicalCall(role);
       const scopeKey = `${role}:${scopeId}`;
 
       if (consumedScopes.has(scopeKey)) {
@@ -150,6 +256,7 @@ export const createModelCallBudgetRecorder = (): ModelCallBudgetRecorder => {
       return true;
     },
     recordProviderAttempt: (role) => {
+      options.authorizer?.authorizeProviderAttempt(role);
       budget[providerAttemptCounter[role]] += 1;
     },
     snapshot: () => ({ ...budget }),

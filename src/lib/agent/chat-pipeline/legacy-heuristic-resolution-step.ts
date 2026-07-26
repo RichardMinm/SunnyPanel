@@ -51,6 +51,7 @@ import { resolveQueryAdoption, resolveQueryRuntime } from "@/lib/agent/query/run
 import { ConversationalAnswerStreamFailure } from "@/lib/agent/answer/errors";
 import { runConversationalAnswer } from "@/lib/agent/answer/runtime";
 import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
+import type { OrchestratorRuntimeMode } from "@/lib/agent/orchestration/runtime-config";
 
 /* ──── Types ──── */
 
@@ -67,6 +68,7 @@ export type LegacyResolutionParams = {
   modelCallRecorder?: ModelCallBudgetRecorder;
   modelResolver: AgentModelIntentResolver;
   orchestratorPlanSource?: null | OrchestratorPlanSource;
+  orchestratorRuntime?: null | OrchestratorRuntimeMode;
   pendingAction: null | PendingAction;
   preResolvedIntent?: AgentIntent | null;
   persistAgentTurn: (args: {
@@ -154,6 +156,7 @@ export const resolveLegacyHeuristicStep = async (
     modelCallRecorder,
     modelResolver: _modelResolver,
     orchestratorPlanSource,
+    orchestratorRuntime,
     pendingAction: _pendingAction,
     preResolvedIntent,
     persistAgentTurn,
@@ -212,23 +215,32 @@ export const resolveLegacyHeuristicStep = async (
     if (preResolvedIntent.intent === "answer_question") {
       emitStatus("正在生成回复...");
       stream?.start({ id: "stage-response", phase: "response", title: "组织回复" });
-      const terminal = await conversationalAnswerRunner({
-        history: resolvedHistory,
-        intent: preResolvedIntent,
-        message,
-        modelCallRecorder,
-        callScopeId: "turn-answer",
-        workspaceContext: JSON.stringify(context),
-        emitToken,
-      });
-      if (terminal.status !== "complete") {
-        throw new ConversationalAnswerStreamFailure(terminal);
+      if (orchestratorRuntime === "legacy") {
+        const existingAnswer = (
+          preResolvedIntent.reply
+          ?? preResolvedIntent.args.answer
+          ?? ""
+        ).trim();
+        if (existingAnswer) emitToken(existingAnswer, "response");
+      } else {
+        const terminal = await conversationalAnswerRunner({
+          history: resolvedHistory,
+          intent: preResolvedIntent,
+          message,
+          modelCallRecorder,
+          callScopeId: "turn-answer",
+          workspaceContext: JSON.stringify(context),
+          emitToken,
+        });
+        if (terminal.status !== "complete") {
+          throw new ConversationalAnswerStreamFailure(terminal);
+        }
+        resolvedPreIntent = {
+          ...preResolvedIntent,
+          args: { ...preResolvedIntent.args, answer: terminal.answer },
+          reply: terminal.answer,
+        };
       }
-      resolvedPreIntent = {
-        ...preResolvedIntent,
-        args: { ...preResolvedIntent.args, answer: terminal.answer },
-        reply: terminal.answer,
-      };
       stream?.complete("stage-response", "回复已生成");
     } else if (preResolvedIntent.intent === "clarify") {
       emitStatus("正在生成回复...");

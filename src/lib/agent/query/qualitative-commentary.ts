@@ -14,6 +14,7 @@ import {
 import { resolveQueryTimeouts } from "./runtime-config";
 import type { QueryFacts } from "./types";
 import type { ModelCallBudgetRecorder } from "../orchestration/model-call-budget";
+import { isModelCallAuthorizationError } from "../orchestration/model-call-budget";
 
 export type QualitativeCommentaryResult =
   | { latencyMs: number; modelCalls: 1; status: "accepted"; text: string; ttftMs: number }
@@ -132,6 +133,7 @@ export const runQualitativeQueryCommentary = async (
       ttftMs: Math.max(0, (firstTextAt ?? startedAt) - startedAt),
     };
   } catch (error) {
+    if (isModelCallAuthorizationError(error)) throw error;
     const reason = error && typeof error === "object" && "commentaryReason" in error
       ? error.commentaryReason as CommentaryOmissionReason
       : "provider_error";

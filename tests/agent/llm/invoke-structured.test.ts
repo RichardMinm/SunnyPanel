@@ -935,6 +935,39 @@ describe("invokeStructured (L1-A contract)", () => {
 
   /* ─── 10. Deployment safety ─── */
   describe("no unsafe fallbacks", () => {
+    it("runs the non-instrumentation authorizer before the Provider callback", async () => {
+      const callCount = { value: 0 };
+      let observerCalls = 0;
+      const factory = fakeModelFactory({
+        callCount,
+        onSuccess: { count: 1, name: "must-not-run" },
+      });
+      const authorizationError = new Error("MODEL_PROVIDER_ATTEMPT_LIMIT_EXCEEDED");
+      authorizationError.name = "ModelCallAuthorizationError";
+      const options = {
+        schema: testSchema,
+        schemaName,
+        messages: testMessages,
+        modelConfig: makeConfig(),
+        modelFactory: factory,
+        providerAttemptAuthorizer: () => {
+          throw authorizationError;
+        },
+        providerAttemptObserver: () => {
+          observerCalls += 1;
+        },
+      } as Parameters<typeof invokeStructured>[0] & {
+        providerAttemptAuthorizer: () => void;
+      };
+
+      await assert.rejects(
+        invokeStructured(options),
+        (error: unknown) => error === authorizationError,
+      );
+      assert.equal(callCount.value, 0);
+      assert.equal(observerCalls, 0);
+    });
+
     it("does NOT call real network (fake model injectable)", async () => {
       /* The test itself proves injectability — if the fake factory
        *   weren't called, the test would fail or hang. */

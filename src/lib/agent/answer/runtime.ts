@@ -6,6 +6,7 @@ import { buildMessages, type ChatMessage } from "../llm/message-builder";
 import { createModelConfig, type ModelConfig } from "../llm/model-config";
 import { createChatModel, type ModelFactory } from "../llm/model-factory";
 import type { ModelCallBudgetRecorder } from "../orchestration/model-call-budget";
+import { isModelCallAuthorizationError } from "../orchestration/model-call-budget";
 import type { AgentChatMessage, AgentIntent } from "../schemas";
 import type {
   ConversationalAnswerTerminalState,
@@ -267,6 +268,7 @@ export const runConversationalAnswer = async (
       ? { answer, persist: true, status: "complete" }
       : failure("empty_stream", false);
   } catch (error) {
+    if (isModelCallAuthorizationError(error)) throw error;
     const code =
       error && typeof error === "object" && "answerErrorCode" in error
         ? (error.answerErrorCode as SafeAnswerErrorCode)

@@ -77,6 +77,12 @@ export type HybridQueryBoundaryResolution =
       kind: "clarify";
       output: OrchestratorOutput;
       providerCalls: 0;
+      reason:
+        | "explicit_plan_id_not_found"
+        | "id_title_conflict"
+        | "invalid_plan_reference"
+        | "title_ambiguous"
+        | "title_not_found";
     }>
   | Readonly<{
       fixedMetadata: FixedTaskMetadata;

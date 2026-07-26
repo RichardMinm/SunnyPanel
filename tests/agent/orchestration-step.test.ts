@@ -377,7 +377,7 @@ test("LangChain runtime resolves a pure progress query before the full Orchestra
   }
 });
 
-test("LangChain runtime deterministically clarifies an unresolved specific title before Provider availability checks", async () => {
+test("LangChain runtime does not let a generic possessive mask an unresolved title selector", async () => {
   const previousRuntime = process.env.AGENT_ORCHESTRATOR_RUNTIME;
   process.env.AGENT_ORCHESTRATOR_RUNTIME = "langchain";
   try {
@@ -393,7 +393,7 @@ test("LangChain runtime deterministically clarifies an unresolved specific title
       },
       emitStatus: () => undefined,
       emitToken: () => undefined,
-      message: "检查一下考研数学计划的完成情况",
+      message: "查看我的计划里数学的进度",
       payload: {} as Payload,
       pendingAction: null,
       persistAgentTurn: async () => assert.fail("clarify must continue to the existing deterministic response path"),

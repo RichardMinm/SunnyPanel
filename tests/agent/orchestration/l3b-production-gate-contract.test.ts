@@ -34,9 +34,11 @@ type ProductionGatePreflight = Readonly<{
     authorizedLogicalCallMaximum: number;
     authorizedMaximum: number;
     businessObservations: number;
+    providerAttemptsPerObservationMaximum: number;
   }>;
   evaluationConfigHash: string;
   fixtureIds: readonly string[];
+  manifestHash: string;
   observationCount: number;
   providerAttempts: number;
   reportPath: string;
@@ -64,9 +66,14 @@ const reportSnapshot = (path: string) => {
   return { exists: true, mode, mtimeMs, size } as const;
 };
 
-test("the persisted report keeps bounded rebound signals but rejects internal task IDs", () => {
-  const safeReport = JSON.stringify({
+test("the persisted report accepts bounded signals and legitimate metrics", () => {
+  const safeReport = {
+    actualCallCounts: {
+      logicalCalls: 101,
+      providerAttempts: 2,
+    },
     observations: [{
+      fixtureId: "diag-plan-existing-id",
       roleEvidence: {
         fullOrchestrator: {
           schedulePlanReferenceCorrectionCode: "provider_plan_id_rebound",
@@ -74,14 +81,181 @@ test("the persisted report keeps bounded rebound signals but rejects internal ta
       },
     }],
     summary: { metrics: { provider: { providerPlanIdRebounds: 2 } } },
-  });
+  };
 
-  assert.doesNotThrow(() => assertReportSafe(safeReport, []));
+  assert.doesNotThrow(() => assertReportSafe(safeReport, [101]));
+});
+
+test("the report validator recursively rejects every raw and identity category", () => {
+  const base = {
+    observations: [{
+      fixtureId: "diag-plan-existing-id",
+      roleEvidence: {
+        fullOrchestrator: {
+          schedulePlanReferenceCorrectionCode: "provider_plan_id_rebound",
+        },
+      },
+    }],
+    summary: { metrics: { provider: { providerPlanIdRebounds: 2 } } },
+  };
+  const forbidden = [
+    "message",
+    "content",
+    "title",
+    "prompt",
+    "response",
+    "reasoning",
+    "error",
+    "stack",
+    "credentials",
+    "secret",
+    "taskId",
+    "planId",
+    "resourceId",
+    "checklistId",
+    "scheduleItemId",
+  ] as const;
+
+  for (const key of forbidden) {
+    const unsafe = structuredClone(base);
+    Object.assign(
+      unsafe.observations[0]!.roleEvidence.fullOrchestrator,
+      { [key]: key.endsWith("Id") ? 101 : "never-retain" },
+    );
+    assert.throws(
+      () => assertReportSafe(unsafe, []),
+      (error: unknown) =>
+        error instanceof Error && error.message === "REPORT_SHAPE_UNSAFE",
+      key,
+    );
+  }
+});
+
+test("the report validator rejects exact string and numeric fixture values outside metric slots", () => {
+  const rawMessage = "把计划 101 安排到下周";
+  const numericResourceId = 101;
+  const stringUnsafe = {
+    observations: [{ fixtureId: rawMessage }],
+  };
+  const numericUnsafe = {
+    observations: [{ fixtureId: numericResourceId }],
+  };
+
+  for (const unsafe of [stringUnsafe, numericUnsafe]) {
+    assert.throws(
+      () => assertReportSafe(unsafe, [rawMessage, numericResourceId]),
+      (error: unknown) =>
+        error instanceof Error && error.message === "REPORT_RETENTION_UNSAFE",
+    );
+  }
+});
+
+test("the report validator rejects embedded secrets and unrecognized categorical values", () => {
   assert.throws(
-    () => assertReportSafe(JSON.stringify({ taskId: "internal-task" }), []),
+    () => assertReportSafe(
+      { observations: [{ failureCodes: ["prefix-secret-value-suffix"] }] },
+      ["secret-value"],
+    ),
+    (error: unknown) =>
+      error instanceof Error && error.message === "REPORT_RETENTION_UNSAFE",
+  );
+  assert.throws(
+    () => assertReportSafe(
+      { observations: [{ failureCodes: ["rawProviderToken"] }] },
+      [],
+    ),
     (error: unknown) =>
       error instanceof Error && error.message === "REPORT_SHAPE_UNSAFE",
   );
+});
+
+test("the report validator permits a sensitive numeric value only in the rounds metric", () => {
+  assert.doesNotThrow(() => assertReportSafe({ rounds: [1] }, [1]));
+  assert.throws(
+    () => assertReportSafe({ observations: [{ fixtureId: 1 }] }, [1]),
+    (error: unknown) =>
+      error instanceof Error && error.message === "REPORT_RETENTION_UNSAFE",
+  );
+});
+
+test("the disclosure manifest binds stage, complete ordered data, report path, and ceilings", async () => {
+  const modulePath =
+    "../../../src/lib/agent/orchestration/l3b-production-gate-manifest";
+  const manifestModule = await import(modulePath).catch(() => null) as null | {
+    createProductionGateDisclosureManifest: (input: Readonly<{
+      cases: readonly unknown[];
+      evaluationConfigHash: string;
+      logicalCallMaximum: number;
+      providerAttemptMaximum: number;
+      providerAttemptsPerObservationMaximum: number;
+      reportPath: string;
+      stage: "acceptance" | "focused" | "known_id" | "stability";
+    }>) => Readonly<{
+      hash: string;
+      manifest: Readonly<{
+        fullOrchestrator: Readonly<{
+          strictSchemaFingerprint: string;
+          systemRulesFingerprint: string;
+        }>;
+        residualPlanner: readonly unknown[];
+      }>;
+    }>;
+  };
+  assert.ok(manifestModule);
+  const cases = getL3BProductionStageCases("known_id");
+  const base = {
+    cases,
+    evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
+    logicalCallMaximum: 6,
+    providerAttemptMaximum: 24,
+    providerAttemptsPerObservationMaximum: 4,
+    reportPath: "/tmp/l3b-r8-production-known-id-v4.json",
+    stage: "known_id" as const,
+  };
+  const canonical = manifestModule.createProductionGateDisclosureManifest(base);
+  assert.match(canonical.hash, /^[a-f0-9]{64}$/u);
+  assert.match(
+    canonical.manifest.fullOrchestrator.systemRulesFingerprint,
+    /^[a-f0-9]{64}$/u,
+  );
+  assert.match(
+    canonical.manifest.fullOrchestrator.strictSchemaFingerprint,
+    /^[a-f0-9]{64}$/u,
+  );
+
+  const changedInputs = [
+    { ...base, stage: "focused" as const },
+    { ...base, cases: [cases[1], cases[0], ...cases.slice(2)] },
+    {
+      ...base,
+      cases: cases.map((entry, index) =>
+        index === 0
+          ? {
+              ...entry,
+              source: { ...entry.source, message: `${entry.source.message} ` },
+            }
+          : entry),
+    },
+    { ...base, reportPath: "/tmp/l3b-r8-production-known-id-v5.json" },
+    { ...base, logicalCallMaximum: 7 },
+    { ...base, providerAttemptMaximum: 25 },
+    { ...base, providerAttemptsPerObservationMaximum: 5 },
+  ] as const;
+  for (const changed of changedInputs) {
+    assert.notEqual(
+      manifestModule.createProductionGateDisclosureManifest(changed).hash,
+      canonical.hash,
+    );
+  }
+
+  const focused = manifestModule.createProductionGateDisclosureManifest({
+    ...base,
+    cases: getL3BProductionStageCases("focused"),
+    logicalCallMaximum: 9,
+    reportPath: "/tmp/l3b-r8-production-focused.json",
+    stage: "focused",
+  });
+  assert.ok(focused.manifest.residualPlanner.length > 0);
 });
 
 test("freezes the production gate protocol, exact stage sizes, and Focused order", () => {
@@ -271,7 +445,22 @@ test("the production-seam CLI reaches the canonical Known-ID preflight without a
     encoding: "utf8",
   }).trim().length > 0;
 
-  const child = spawnSync(
+  const baseEnvironment: NodeJS.ProcessEnv = {
+    AGENT_LIVE_LLM_EVAL: "1",
+    AGENT_PRODUCTION_SEAM_EVAL: "1",
+    HOME: process.env.HOME ?? "",
+    L3B_PRODUCTION_GATE_ACCEPTED_CONFIG_HASH:
+      L3B_EVALUATION_CONFIG_HASH,
+    L3B_PRODUCTION_GATE_ACCEPTED_HEAD: head,
+    L3B_PRODUCTION_GATE_PREFLIGHT_ONLY: "1",
+    L3B_PRODUCTION_GATE_STAGE: "known_id",
+    L3B_PRODUCTION_PROVIDER_DATA_APPROVED: "1",
+    NODE_ENV: "test",
+    PATH: process.env.PATH ?? "",
+    PAYLOAD_SECRET: "sunnypanel-agent-test-secret-2026",
+    TMPDIR: process.env.TMPDIR ?? "/tmp",
+  };
+  const runGate = (environment: NodeJS.ProcessEnv) => spawnSync(
     process.execPath,
     [
       "--import",
@@ -281,23 +470,10 @@ test("the production-seam CLI reaches the canonical Known-ID preflight without a
     {
       cwd: process.cwd(),
       encoding: "utf8",
-      env: {
-        AGENT_LIVE_LLM_EVAL: "1",
-        AGENT_PRODUCTION_SEAM_EVAL: "1",
-        HOME: process.env.HOME ?? "",
-        L3B_PRODUCTION_GATE_ACCEPTED_CONFIG_HASH:
-          L3B_EVALUATION_CONFIG_HASH,
-        L3B_PRODUCTION_GATE_ACCEPTED_HEAD: head,
-        L3B_PRODUCTION_GATE_PREFLIGHT_ONLY: "1",
-        L3B_PRODUCTION_GATE_STAGE: "known_id",
-        L3B_PRODUCTION_PROVIDER_DATA_APPROVED: "1",
-        NODE_ENV: "test",
-        PATH: process.env.PATH ?? "",
-        PAYLOAD_SECRET: "sunnypanel-agent-test-secret-2026",
-        TMPDIR: process.env.TMPDIR ?? "/tmp",
-      },
+      env: environment,
     },
   );
+  const child = runGate(baseEnvironment);
 
   const messages = [
     ...jsonLines(child.stdout),
@@ -318,11 +494,58 @@ test("the production-seam CLI reaches the canonical Known-ID preflight without a
   assert.deepEqual(preflight.rounds, [1]);
   assert.equal(preflight.reportPath, reportPath);
   assert.equal(preflight.evaluationConfigHash, L3B_EVALUATION_CONFIG_HASH);
+  assert.match(preflight.manifestHash, /^[a-f0-9]{64}$/u);
   assert.equal(preflight.providerAttempts, 0);
   assert.equal(preflight.budget.businessObservations, 6);
   assert.equal(preflight.budget.authorizedLogicalCallMaximum, 6);
   assert.equal(preflight.budget.authorizedMaximum, 24);
+  assert.equal(
+    preflight.budget.providerAttemptsPerObservationMaximum,
+    4,
+  );
   assert.equal(preflight.budget.actualProviderAttempts, 0);
+
+  const matchedChild = runGate({
+    ...baseEnvironment,
+    L3B_PRODUCTION_GATE_ACCEPTED_MANIFEST_HASH: preflight.manifestHash,
+  });
+  const matchedMessages = [
+    ...jsonLines(matchedChild.stdout),
+    ...jsonLines(matchedChild.stderr),
+  ];
+  const matchedTerminal = matchedMessages.find(
+    ({ preflight: candidate }) => candidate !== undefined,
+  );
+  assert.equal(
+    matchedTerminal?.preflight?.manifestHash,
+    preflight.manifestHash,
+  );
+  assert.equal(matchedTerminal?.providerAttempts, 0);
+
+  const mismatchChild = runGate({
+    ...baseEnvironment,
+    DEEPSEEK_API_KEY: "unused-deterministic-placeholder",
+    L3B_PRODUCTION_GATE_ACCEPTED_MANIFEST_HASH: "0".repeat(64),
+    L3B_PRODUCTION_GATE_PREFLIGHT_ONLY: "0",
+  });
+  const mismatchMessages = [
+    ...jsonLines(mismatchChild.stdout),
+    ...jsonLines(mismatchChild.stderr),
+  ];
+  const mismatchTerminal = mismatchMessages.find(
+    ({ failureCode }) =>
+      failureCode === "ACCEPTED_MANIFEST_HASH_MISMATCH",
+  );
+  assert.equal(mismatchChild.status, 1);
+  assert.equal(
+    mismatchTerminal?.failureCode,
+    "ACCEPTED_MANIFEST_HASH_MISMATCH",
+  );
+  assert.equal(mismatchTerminal?.providerAttempts, 0);
+  assert.equal(
+    mismatchTerminal?.preflight?.manifestHash,
+    preflight.manifestHash,
+  );
 
   if (dirty) {
     assert.equal(child.status, 1);

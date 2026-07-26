@@ -5,6 +5,15 @@ import {
   createModelCallBudgetRecorder,
   projectModelCallBudget,
 } from "../../../src/lib/agent/orchestration/model-call-budget";
+import * as modelCallBudgetModule from "../../../src/lib/agent/orchestration/model-call-budget";
+
+const createAuthorizer = () => {
+  assert.equal(
+    typeof modelCallBudgetModule.createModelCallAuthorizer,
+    "function",
+  );
+  return modelCallBudgetModule.createModelCallAuthorizer;
+};
 
 test("records legitimate model calls by role and scope", () => {
   const recorder = createModelCallBudgetRecorder();
@@ -112,4 +121,94 @@ test("terminal projection exposes every production role without compatibility co
     specialistProviderAttempts: 0,
     unexpectedDuplicateModelCalls: 0,
   });
+});
+
+test("authorizer rejects before a seventh logical role call across all six roles", () => {
+  const authorizer = createAuthorizer()({
+    logicalCallMaximum: 6,
+    providerAttemptMaximum: 24,
+    providerAttemptsPerObservationMaximum: 4,
+  });
+  authorizer.beginObservation();
+  const recorder = createModelCallBudgetRecorder({ authorizer });
+  const roles = [
+    "orchestrator",
+    "residual_planner",
+    "conversational_answer",
+    "query_commentary",
+    "replan",
+    "specialist",
+  ] as const;
+  for (const [index, role] of roles.entries()) {
+    assert.equal(recorder.record(role, `scope-${index + 1}`), true);
+  }
+
+  let forbiddenCallbackCalls = 0;
+  assert.throws(
+    () => {
+      recorder.record("orchestrator", "scope-7");
+      forbiddenCallbackCalls += 1;
+    },
+    (error: unknown) =>
+      error instanceof Error
+      && error.name === "ModelCallAuthorizationError"
+      && error.message === "MODEL_LOGICAL_CALL_LIMIT_EXCEEDED",
+  );
+  assert.equal(forbiddenCallbackCalls, 0);
+});
+
+test("authorizer rejects before the fifth attempt in one observation", () => {
+  const authorizer = createAuthorizer()({
+    logicalCallMaximum: 6,
+    providerAttemptMaximum: 24,
+    providerAttemptsPerObservationMaximum: 4,
+  });
+  authorizer.beginObservation();
+  const recorder = createModelCallBudgetRecorder({ authorizer });
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    recorder.recordProviderAttempt("orchestrator");
+  }
+
+  let forbiddenCallbackCalls = 0;
+  assert.throws(
+    () => {
+      recorder.recordProviderAttempt("residual_planner");
+      forbiddenCallbackCalls += 1;
+    },
+    (error: unknown) =>
+      error instanceof Error
+      && error.name === "ModelCallAuthorizationError"
+      && error.message === "MODEL_OBSERVATION_PROVIDER_ATTEMPT_LIMIT_EXCEEDED",
+  );
+  assert.equal(forbiddenCallbackCalls, 0);
+});
+
+test("authorizer rejects before a twenty-fifth global Provider attempt", () => {
+  const authorizer = createAuthorizer()({
+    logicalCallMaximum: 6,
+    providerAttemptMaximum: 24,
+    providerAttemptsPerObservationMaximum: 4,
+  });
+  for (let observation = 1; observation <= 6; observation += 1) {
+    authorizer.beginObservation();
+    const recorder = createModelCallBudgetRecorder({ authorizer });
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      recorder.recordProviderAttempt("orchestrator");
+    }
+  }
+
+  authorizer.beginObservation();
+  const recorder = createModelCallBudgetRecorder({ authorizer });
+  let forbiddenCallbackCalls = 0;
+  assert.throws(
+    () => {
+      recorder.recordProviderAttempt("orchestrator");
+      forbiddenCallbackCalls += 1;
+    },
+    (error: unknown) =>
+      error instanceof Error
+      && error.name === "ModelCallAuthorizationError"
+      && error.message === "MODEL_PROVIDER_ATTEMPT_LIMIT_EXCEEDED",
+  );
+  assert.equal(forbiddenCallbackCalls, 0);
 });

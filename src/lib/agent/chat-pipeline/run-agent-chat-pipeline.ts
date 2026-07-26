@@ -833,6 +833,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
             pendingAction: currentPendingAction,
             preResolvedIntent: orchestrationResult.data.preResolvedIntent,
             orchestratorPlanSource: orchestrationResult.data.orchestratorPlanSource,
+            orchestratorRuntime: orchestrationResult.data.orchestratorRuntime,
             persistAgentTurn,
             pushTrace,
             resolvedHistory,

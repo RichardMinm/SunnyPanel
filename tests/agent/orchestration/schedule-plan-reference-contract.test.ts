@@ -78,8 +78,23 @@ test("accepts matching exact title and ID provenance", () => {
   );
 });
 
-test("rebinds a Provider plan ID to the one explicit authorized user ID", () => {
-  const providerOutput = output(999);
+test("rebinds only supported schedule fields and removes all Provider identity residue", () => {
+  const providerOutput: OrchestratorOutput = {
+    ...output(999),
+    routingSummary: "安排 Provider 计划 999 的旧标题",
+    tasks: [{
+      ...output(999).tasks[0]!,
+      args: {
+        defaultDurationMinutes: 45,
+        defaultStartTime: "09:30",
+        planId: 999,
+        planTitle: "Provider 旧标题",
+        startDate: "2026-07-28",
+        unsupportedIdentity: 999,
+      },
+      label: "安排 Provider 计划 999 的旧标题",
+    }],
+  };
   const result = validateSchedulePlanReferences({
     context,
     message: "把计划 101 安排到下周",
@@ -88,8 +103,16 @@ test("rebinds a Provider plan ID to the one explicit authorized user ID", () => 
 
   assert.equal(result.valid, true);
   if (!result.valid) return;
-  assert.deepEqual(result.output.tasks[0]?.args, { planId: 101 });
-  assert.deepEqual(providerOutput.tasks[0]?.args, { planId: 999 });
+  assert.deepEqual(result.output.tasks[0]?.args, {
+    defaultDurationMinutes: 45,
+    defaultStartTime: "09:30",
+    planId: 101,
+    startDate: "2026-07-28",
+  });
+  assert.equal(result.output.routingSummary, "安排已有计划");
+  assert.equal(result.output.tasks[0]?.label, "安排已有计划");
+  assert.doesNotMatch(JSON.stringify(result.output), /999|Provider 旧标题/u);
+  assert.equal(providerOutput.tasks[0]?.args.planId, 999);
   assert.notEqual(result.output, providerOutput);
   assert.notEqual(result.output.tasks[0], providerOutput.tasks[0]);
   assert.deepEqual(result.corrections, [{

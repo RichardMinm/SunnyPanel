@@ -11,6 +11,26 @@
 import { execFileSync } from "node:child_process";
 import { access, open, unlink } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import {
+  assertProductionGateReportSafe,
+} from "../src/lib/agent/orchestration/l3b-production-gate-report.ts";
+import {
+  calculateProductionStageAuthorizedBudget,
+} from "../src/lib/agent/orchestration/l3b-production-gate-budget.ts";
+import {
+  getL3BProductionStageCases,
+  L3B_PRODUCTION_GATE_PROTOCOL_VERSION,
+} from "../src/lib/agent/orchestration/l3b-production-gate-contract.ts";
+import {
+  createProductionGateDisclosureManifest,
+} from "../src/lib/agent/orchestration/l3b-production-gate-manifest.ts";
+import {
+  L3B_EVALUATION_CONFIG,
+  L3B_EVALUATION_CONFIG_HASH,
+} from "../src/lib/agent/orchestration/l3b-evaluation-config.ts";
+import {
+  RESIDUAL_PLANNER_RETRY_POLICY,
+} from "../src/lib/agent/orchestration/residual-planner-contract.ts";
 
 class ProductionSeamGateError extends Error {
   constructor(code) {
@@ -28,6 +48,12 @@ const REPORT_PATHS = Object.freeze({
 });
 const STAGES = new Set(Object.keys(REPORT_PATHS));
 const ACTOR = Object.freeze({ collection: "users", id: 7, isAdmin: true });
+const PROVIDER_ATTEMPTS_PER_OBSERVATION_MAXIMUM = 4;
+const MODEL_CALL_AUTHORIZATION_FAILURE_CODES = new Set([
+  "MODEL_LOGICAL_CALL_LIMIT_EXCEEDED",
+  "MODEL_OBSERVATION_PROVIDER_ATTEMPT_LIMIT_EXCEEDED",
+  "MODEL_PROVIDER_ATTEMPT_LIMIT_EXCEEDED",
+]);
 
 let actualProviderAttempts = 0;
 let preflightForFailure = null;
@@ -80,18 +106,29 @@ const logicalCallCount = (accounting) =>
   + accounting.residualPlannerLogicalCalls
   + accounting.specialistLogicalCalls;
 
-const collectWorkspaceText = (value, key = "") => {
+const collectSensitiveFixtureValues = (value, key = "") => {
   if (Array.isArray(value)) {
-    return value.flatMap((child) => collectWorkspaceText(child, key));
+    return value.flatMap((child) =>
+      collectSensitiveFixtureValues(child, key)
+    );
   }
   if (!value || typeof value !== "object") {
-    return typeof value === "string"
-        && /^(?:content|description|items|name|text|title)$/iu.test(key)
-      ? [value]
-      : [];
+    if (
+      typeof value === "string"
+      && /^(?:content|description|items|message|name|text|title)$/iu.test(key)
+    ) {
+      return [value];
+    }
+    if (
+      typeof value === "number"
+      && /(?:^id$|ids?$)/iu.test(key)
+    ) {
+      return [value];
+    }
+    return [];
   }
   return Object.entries(value).flatMap(([childKey, child]) =>
-    collectWorkspaceText(child, childKey));
+    collectSensitiveFixtureValues(child, childKey));
 };
 
 const projectRoleEvidence = (roleEvidence) => Object.freeze({
@@ -150,14 +187,8 @@ const projectObservation = (observation) => Object.freeze({
   usable: observation.usable,
 });
 
-export const assertReportSafe = (encoded, sensitiveValues) => {
-  if (sensitiveValues.some((value) => value && encoded.includes(value))) {
-    fail("REPORT_RETENTION_UNSAFE");
-  }
-  if (/"(?:cause|credentials|errorMessage|prompt|rawResponse|reasoning|response|stack|taskId)"\s*:/iu.test(encoded)) {
-    fail("REPORT_SHAPE_UNSAFE");
-  }
-};
+export const assertReportSafe = (report, sensitiveValues) =>
+  assertProductionGateReportSafe(report, sensitiveValues);
 
 const writeReport = async (path, encoded) => {
   let handle = null;
@@ -195,45 +226,7 @@ const main = async () => {
   );
   const payloadSecret = requireValue("PAYLOAD_SECRET");
   const preflightOnly = process.env.L3B_PRODUCTION_GATE_PREFLIGHT_ONLY === "1";
-  const apiKey = preflightOnly
-    ? process.env.DEEPSEEK_API_KEY?.trim() ?? ""
-    : requireValue("DEEPSEEK_API_KEY");
   const reportPath = REPORT_PATHS[stage];
-
-  const [
-    { createModelConfig },
-    { evaluateProductionGateCase },
-    {
-      getL3BProductionStageCases,
-      L3B_PRODUCTION_GATE_PROTOCOL_VERSION,
-    },
-    { aggregateProductionGate },
-    { calculateProductionStageAuthorizedBudget },
-    {
-      createProductionAnswerAdapter,
-      createProductionFullAdapter,
-      createProductionResidualObserver,
-    },
-    {
-      L3B_EVALUATION_CONFIG,
-      L3B_EVALUATION_CONFIG_HASH,
-    },
-    {
-      createModelCallBudgetRecorder,
-      projectModelCallBudget,
-    },
-    { RESIDUAL_PLANNER_RETRY_POLICY },
-  ] = await Promise.all([
-    import("../src/lib/agent/llm/model-config.ts"),
-    import("../src/lib/agent/orchestration/hybrid-production-evaluation.ts"),
-    import("../src/lib/agent/orchestration/l3b-production-gate-contract.ts"),
-    import("../src/lib/agent/orchestration/l3b-production-gate.ts"),
-    import("../src/lib/agent/orchestration/l3b-production-gate-budget.ts"),
-    import("../src/lib/agent/orchestration/l3b-production-gate-model-adapters.ts"),
-    import("../src/lib/agent/orchestration/l3b-evaluation-config.ts"),
-    import("../src/lib/agent/orchestration/model-call-budget.ts"),
-    import("../src/lib/agent/orchestration/residual-langchain-planner.ts"),
-  ]);
 
   const cases = getL3BProductionStageCases(stage);
   const rounds = Object.freeze([...new Set(cases.map(({ round }) => round))]);
@@ -260,12 +253,24 @@ const main = async () => {
   });
   const authorizedMaximum = stageBudget.providerAttempts;
   const currentHead = git("rev-parse", "HEAD");
+  const disclosureManifest = createProductionGateDisclosureManifest({
+    cases,
+    evaluationConfigHash: L3B_EVALUATION_CONFIG_HASH,
+    logicalCallMaximum: stageBudget.logicalCalls,
+    providerAttemptMaximum: stageBudget.providerAttempts,
+    providerAttemptsPerObservationMaximum:
+      PROVIDER_ATTEMPTS_PER_OBSERVATION_MAXIMUM,
+    reportPath,
+    stage,
+  });
   const budget = Object.freeze({
     actualProviderAttempts: 0,
     authorizedLogicalCallMaximum: stageBudget.logicalCalls,
     authorizedMaximum,
     businessObservations: cases.length,
     conservativeAttemptsPerObservation,
+    providerAttemptsPerObservationMaximum:
+      PROVIDER_ATTEMPTS_PER_OBSERVATION_MAXIMUM,
     retryLimits,
   });
   const preflightBase = Object.freeze({
@@ -274,6 +279,7 @@ const main = async () => {
     evaluationConfigVersion: L3B_EVALUATION_CONFIG.evaluationConfigVersion,
     fixtureIds,
     head: currentHead,
+    manifestHash: disclosureManifest.hash,
     observationCount: cases.length,
     protocolVersion: L3B_PRODUCTION_GATE_PROTOCOL_VERSION,
     providerAttempts: 0,
@@ -287,12 +293,45 @@ const main = async () => {
   if (acceptedConfigHash !== L3B_EVALUATION_CONFIG_HASH) {
     fail("ACCEPTED_CONFIG_HASH_MISMATCH");
   }
+  const acceptedManifestHash =
+    process.env.L3B_PRODUCTION_GATE_ACCEPTED_MANIFEST_HASH?.trim() ?? "";
+  if (!preflightOnly || acceptedManifestHash) {
+    if (!acceptedManifestHash) {
+      fail("MISSING_L3B_PRODUCTION_GATE_ACCEPTED_MANIFEST_HASH");
+    }
+    if (acceptedManifestHash !== disclosureManifest.hash) {
+      fail("ACCEPTED_MANIFEST_HASH_MISMATCH");
+    }
+  }
   if (git("status", "--porcelain")) fail("WORKTREE_NOT_CLEAN");
   if (await exists(reportPath)) fail("REPORT_PATH_EXISTS");
 
   const preflight = Object.freeze({ ...preflightBase, status: "ready" });
   process.stdout.write(`${JSON.stringify({ preflight })}\n`);
   if (preflightOnly) return;
+
+  const apiKey = requireValue("DEEPSEEK_API_KEY");
+  const [
+    { createModelConfig },
+    { evaluateProductionGateCase },
+    { aggregateProductionGate },
+    {
+      createProductionAnswerAdapter,
+      createProductionFullAdapter,
+      createProductionResidualObserver,
+    },
+    {
+      createModelCallAuthorizer,
+      createModelCallBudgetRecorder,
+      projectModelCallBudget,
+    },
+  ] = await Promise.all([
+    import("../src/lib/agent/llm/model-config.ts"),
+    import("../src/lib/agent/orchestration/hybrid-production-evaluation.ts"),
+    import("../src/lib/agent/orchestration/l3b-production-gate.ts"),
+    import("../src/lib/agent/orchestration/l3b-production-gate-model-adapters.ts"),
+    import("../src/lib/agent/orchestration/model-call-budget.ts"),
+  ]);
 
   process.stdout.write(`${JSON.stringify({
     liveCallBudget: budget,
@@ -329,11 +368,18 @@ const main = async () => {
 
   const observations = [];
   const providerEvents = [];
+  const authorizer = createModelCallAuthorizer({
+    logicalCallMaximum: stageBudget.logicalCalls,
+    providerAttemptMaximum: stageBudget.providerAttempts,
+    providerAttemptsPerObservationMaximum:
+      PROVIDER_ATTEMPTS_PER_OBSERVATION_MAXIMUM,
+  });
   for (const [index, entry] of cases.entries()) {
     if (actualProviderAttempts >= authorizedMaximum) {
       fail("LIVE_CALL_BUDGET_EXHAUSTED");
     }
-    const recorder = createModelCallBudgetRecorder();
+    authorizer.beginObservation();
+    const recorder = createModelCallBudgetRecorder({ authorizer });
     const observe = (event) => providerEvents.push(event);
     const residualObserver = createProductionResidualObserver({ observe });
     const fullOrchestratorAdapter = createProductionFullAdapter({
@@ -369,6 +415,12 @@ const main = async () => {
       });
     } finally {
       actualProviderAttempts += providerAttemptCount(projectModelCallBudget(recorder.snapshot()));
+      if (
+        actualProviderAttempts
+        !== authorizer.snapshot().providerAttempts
+      ) {
+        fail("LIVE_CALL_ACCOUNTING_MISMATCH");
+      }
       if (actualProviderAttempts > authorizedMaximum) {
         fail("LIVE_CALL_BUDGET_EXCEEDED");
       }
@@ -394,6 +446,7 @@ const main = async () => {
     evaluationConfigVersion: L3B_EVALUATION_CONFIG.evaluationConfigVersion,
     fixtureIds,
     head: currentHead,
+    manifestHash: disclosureManifest.hash,
     observationCount: observations.length,
     observations: Object.freeze(observations.map(projectObservation)),
     protocolVersion: L3B_PRODUCTION_GATE_PROTOCOL_VERSION,
@@ -401,16 +454,16 @@ const main = async () => {
     stage,
     summary,
   });
-  const encoded = JSON.stringify(report, null, 2);
   const sensitiveValues = [
     apiKey,
     payloadSecret,
-    ...cases.flatMap(({ source }) => [
-      source.message,
-      ...collectWorkspaceText(source.context),
-    ]),
+    ACTOR.id,
+    ...cases.flatMap(({ source }) =>
+      collectSensitiveFixtureValues(source)
+    ),
   ];
-  assertReportSafe(encoded, sensitiveValues);
+  assertReportSafe(report, sensitiveValues);
+  const encoded = JSON.stringify(report, null, 2);
   await writeReport(reportPath, encoded);
   process.stdout.write(`${JSON.stringify({
     actualLogicalCalls,
@@ -426,9 +479,17 @@ if (
   && import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((error) => {
+    const authorizationFailureCode =
+      error
+      && typeof error === "object"
+      && error.name === "ModelCallAuthorizationError"
+      && typeof error.code === "string"
+      && MODEL_CALL_AUTHORIZATION_FAILURE_CODES.has(error.code)
+        ? error.code
+        : null;
     const failureCode = error instanceof ProductionSeamGateError
       ? error.code
-      : "UNEXPECTED_FAILURE";
+      : authorizationFailureCode ?? "UNEXPECTED_FAILURE";
     process.stderr.write(`${JSON.stringify({
       failureCode,
       preflight: preflightForFailure

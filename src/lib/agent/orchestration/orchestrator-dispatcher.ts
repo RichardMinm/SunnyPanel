@@ -12,14 +12,16 @@
 
 import type { AgentPromptContext } from "../prompts";
 import type { OrchestratorPlan } from "./types";
-import { resolveOrchestratorRuntimeMode } from "./runtime-config";
+import {
+  resolveOrchestratorRuntimeMode,
+  type OrchestratorRuntimeMode,
+} from "./runtime-config";
 import { runOrchestrator as runLegacyOrchestrator } from "./orchestrator";
 import {
   projectOrchestratorFailureToSafePlan,
   runLangChainOrchestratorResult,
   type OrchestratorInvocationResult,
 } from "./langchain-orchestrator";
-import { validateAndNormalizeOrchestratorPlanQueryScopes } from "./query-scope-contract";
 import type {
   ModelCallBudgetRecorder,
   ModelCallRole,
@@ -38,47 +40,23 @@ export type OrchestratorService = (
   accounting?: OrchestratorCallAccountingOptions,
 ) => Promise<OrchestratorInvocationResult>;
 
-export const dispatchOrchestratorResult: OrchestratorService = async (
-  message,
-  context,
-  signal,
-  accounting = undefined,
-) => {
-  const mode = resolveOrchestratorRuntimeMode();
-  const role = accounting?.role ?? "orchestrator";
-  const scopeId = accounting?.scopeId ?? "orchestrator";
-
-  if (mode === "langchain") {
-    return runLangChainOrchestratorResult({
-      context,
-      message,
-      modelCallRecorder: accounting?.modelCallRecorder,
-      modelCallRole: role,
-      modelCallScopeId: scopeId,
-      signal,
-    });
+export const dispatchOrchestratorResultForRuntime = async (
+  input: Readonly<{
+    context: AgentPromptContext;
+    message: string;
+    mode: OrchestratorRuntimeMode;
+    runLangChain: () => Promise<OrchestratorInvocationResult>;
+    runLegacy: () => Promise<OrchestratorPlan>;
+  }>,
+): Promise<OrchestratorInvocationResult> => {
+  if (input.mode === "langchain") {
+    return input.runLangChain();
   }
 
   try {
-    const queryScopeResult = validateAndNormalizeOrchestratorPlanQueryScopes({
-      context,
-      message,
-      plan: await runLegacyOrchestrator(message, context, signal, {
-        modelCallRecorder: accounting?.modelCallRecorder,
-        role,
-        scopeId,
-      }),
-    });
-    if (!queryScopeResult.valid) {
-      return {
-        queryScopeErrorCode: queryScopeResult.code,
-        reason: "invalid_query_scope",
-        safeMessage: queryScopeResult.safeMessage,
-        status: "unavailable",
-      };
-    }
+    const plan = await input.runLegacy();
     return {
-      plan: queryScopeResult.plan,
+      plan,
       schedulePlanReferenceCorrectionCode: null,
       status: "success",
     };
@@ -89,6 +67,38 @@ export const dispatchOrchestratorResult: OrchestratorService = async (
       status: "unavailable",
     };
   }
+};
+
+export const dispatchOrchestratorResult: OrchestratorService = async (
+  message,
+  context,
+  signal,
+  accounting = undefined,
+) => {
+  const mode = resolveOrchestratorRuntimeMode();
+  const role = accounting?.role ?? "orchestrator";
+  const scopeId = accounting?.scopeId ?? "orchestrator";
+
+  return dispatchOrchestratorResultForRuntime({
+    context,
+    message,
+    mode,
+    runLangChain: () =>
+      runLangChainOrchestratorResult({
+        context,
+        message,
+        modelCallRecorder: accounting?.modelCallRecorder,
+        modelCallRole: role,
+        modelCallScopeId: scopeId,
+        signal,
+      }),
+    runLegacy: () =>
+      runLegacyOrchestrator(message, context, signal, {
+        modelCallRecorder: accounting?.modelCallRecorder,
+        role,
+        scopeId,
+      }),
+  });
 };
 
 /** Dispatch to the active orchestrator based on AGENT_ORCHESTRATOR_RUNTIME.
