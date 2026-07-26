@@ -10,7 +10,6 @@ import { createHash } from "node:crypto";
 
 import {
   HYBRID_FOCUSED_FIXTURE_IDS,
-  HYBRID_FOCUSED_ROUNDS,
 } from "./hybrid-focused-gate";
 import {
   L3B_EVALUATION_CONFIG,
@@ -39,6 +38,7 @@ export type HybridFocusedGatePreflightErrorCode =
   | "EVALUATION_CONFIG_INVALID"
   | "FIXTURE_SNAPSHOT_HASH_MISMATCH"
   | "FOCUSED_FIXTURE_SET_INVALID"
+  | "HYBRID_FOCUSED_GATE_RETIRED"
   | "OBSERVATION_CONTRACT_MISMATCH"
   | "QUERY_COMMENTARY_MODE_MISMATCH"
   | "RESIDUAL_BUDGET_CONFIG_MISMATCH"
@@ -206,63 +206,9 @@ export const buildHybridFocusedGatePreflight = (input: Readonly<{
 };
 
 export const assertHybridFocusedGatePreflight = (
-  preflight: HybridFocusedGatePreflight,
-): void => {
-  if (
-    preflight.fixtureSnapshotHash
-    !== HYBRID_FOCUSED_GATE_FROZEN_HASHES.fixtureSnapshotHash
-  ) {
-    throw new HybridFocusedGatePreflightError(
-      "FIXTURE_SNAPSHOT_HASH_MISMATCH",
-    );
-  }
-  if (
-    preflight.residualPromptHash
-    !== HYBRID_FOCUSED_GATE_FROZEN_HASHES.residualPromptHash
-  ) {
-    throw new HybridFocusedGatePreflightError(
-      "RESIDUAL_PROMPT_HASH_MISMATCH",
-    );
-  }
-  if (
-    preflight.residualSchemaHash
-    !== HYBRID_FOCUSED_GATE_FROZEN_HASHES.residualSchemaHash
-  ) {
-    throw new HybridFocusedGatePreflightError(
-      "RESIDUAL_SCHEMA_HASH_MISMATCH",
-    );
-  }
-  if (
-    preflight.evaluationConfigHash
-    !== HYBRID_FOCUSED_GATE_FROZEN_HASHES.evaluationConfigHash
-  ) {
-    throw new HybridFocusedGatePreflightError(
-      "EVALUATION_CONFIG_HASH_MISMATCH",
-    );
-  }
-  if (
-    preflight.observations !== 12
-    || HYBRID_FOCUSED_FIXTURE_IDS.length
-      * HYBRID_FOCUSED_ROUNDS.length !== 12
-  ) {
-    throw new HybridFocusedGatePreflightError(
-      "OBSERVATION_CONTRACT_MISMATCH",
-    );
-  }
-  if (preflight.commentaryMode !== "omitted") {
-    throw new HybridFocusedGatePreflightError(
-      "QUERY_COMMENTARY_MODE_MISMATCH",
-    );
-  }
-  if (
-    preflight.authorizedLogicalCallBudget !== 3
-    || preflight.schemaRetries !== 1
-    || preflight.transportRetries !== 1
-    || preflight.maxAttemptsPerLogicalCall !== 4
-    || preflight.authorizedProviderAttemptBudget !== 12
-  ) {
-    throw new HybridFocusedGatePreflightError(
-      "RESIDUAL_BUDGET_CONFIG_MISMATCH",
-    );
-  }
+  _preflight: HybridFocusedGatePreflight,
+): never => {
+  throw new HybridFocusedGatePreflightError(
+    "HYBRID_FOCUSED_GATE_RETIRED",
+  );
 };

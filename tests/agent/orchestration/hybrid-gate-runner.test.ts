@@ -6,7 +6,6 @@ import {
   type FocusedGatePreflight,
   type FocusedGatePreflightModule,
   type FocusedGateRunnerModule,
-  type FocusedObservation,
 } from "./fixtures/hybrid-focused-gate-contract";
 import {
   loadR4AGreenModule,
@@ -24,120 +23,29 @@ const loadPreflight = async (): Promise<FocusedGatePreflight> => {
   });
 };
 
-test("focused runner fixes four fixtures across three deterministic rounds", async () => {
+test("the retired Hybrid runner invokes zero evaluation callbacks", async () => {
   const { runHybridFocusedGate } =
     await loadR4AGreenModule<FocusedGateRunnerModule>(
       R4A_GREEN_MODULES.focusedGateRunner,
-      "hybrid_focused_gate_runner",
+      "hybrid_focused_gate_retired",
     );
-  const calls: Array<{
-    commentaryStatus: string;
-    fixtureId: string;
-    index: number;
-    round: number;
-  }> = [];
-  let residualCalls = 0;
-  const preflight = await loadPreflight();
-
-  const observations = await runHybridFocusedGate({
-    evaluate: async (input): Promise<FocusedObservation> => {
-      const commentary = await input.queryCommentaryAdapter();
-      calls.push({
-        commentaryStatus: commentary.status,
-        fixtureId: input.fixtureId,
-        index: input.observationIndex,
-        round: input.round,
-      });
-      if (input.fixtureId === "cmp-4") residualCalls += 1;
-      return baseObservation({
-        fixtureId: input.fixtureId,
-        observationIndex: input.observationIndex,
-        residualPlannerLogicalCalls: input.fixtureId === "cmp-4" ? 1 : 0,
-        residualPlannerProviderAttempts:
-          input.fixtureId === "cmp-4" ? 2 : 0,
-        round: input.round,
-      });
-    },
-    preflight,
-  });
-
-  assert.equal(observations.length, 12);
-  assert.equal(residualCalls, 3);
-  assert.deepEqual(calls.map(({ fixtureId }) => fixtureId), [
-    "qry-1", "qry-4", "inj-2", "cmp-4",
-    "qry-1", "qry-4", "inj-2", "cmp-4",
-    "qry-1", "qry-4", "inj-2", "cmp-4",
-  ]);
-  assert.deepEqual(calls.map(({ round }) => round), [
-    1, 1, 1, 1,
-    2, 2, 2, 2,
-    3, 3, 3, 3,
-  ]);
-  assert.deepEqual(calls.map(({ index }) => index), [
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
-  ]);
-  assert.deepEqual(
-    new Set(calls.map(({ commentaryStatus }) => commentaryStatus)),
-    new Set(["omitted"]),
-  );
-});
-
-test("transport attempts never become observations or a Targeted-15 denominator", async () => {
-  const { runHybridFocusedGate } =
-    await loadR4AGreenModule<FocusedGateRunnerModule>(
-      R4A_GREEN_MODULES.focusedGateRunner,
-      "hybrid_transport_attempt_denominator",
-    );
-  const observations = await runHybridFocusedGate({
-    evaluate: async (input) => baseObservation({
-      fixtureId: input.fixtureId,
-      observationIndex: input.observationIndex,
-      residualPlannerLogicalCalls: input.fixtureId === "cmp-4" ? 1 : 0,
-      residualPlannerProviderAttempts:
-        input.fixtureId === "cmp-4" ? 4 : 0,
-      round: input.round,
-    }),
-    preflight: await loadPreflight(),
-  });
-
-  assert.equal(observations.length, 12);
-  assert.equal(
-    observations.reduce(
-      (total, observation) =>
-        total + observation.residualPlannerProviderAttempts,
-      0,
-    ),
-    12,
-  );
-});
-
-test("frozen Preflight mismatch reaches zero evaluation callbacks", async () => {
-  const { runHybridFocusedGate } =
-    await loadR4AGreenModule<FocusedGateRunnerModule>(
-      R4A_GREEN_MODULES.focusedGateRunner,
-      "hybrid_preflight_provider_zero",
-    );
-  const preflight = await loadPreflight();
-  let evaluated = 0;
+  let callbacks = 0;
 
   await assert.rejects(
     runHybridFocusedGate({
       evaluate: async () => {
-        evaluated += 1;
+        callbacks += 1;
         return baseObservation();
       },
-      preflight: {
-        ...preflight,
-        residualPromptHash: "0".repeat(64),
-      },
+      preflight: await loadPreflight(),
     }),
     (error: unknown) =>
       typeof error === "object"
       && error !== null
       && "code" in error
-      && error.code === "RESIDUAL_PROMPT_HASH_MISMATCH",
+      && error.code === "HYBRID_FOCUSED_GATE_RETIRED",
   );
-  assert.equal(evaluated, 0);
+  assert.equal(callbacks, 0);
 });
 
 test("focused runner documents that Commentary omission is evaluation-only", async () => {

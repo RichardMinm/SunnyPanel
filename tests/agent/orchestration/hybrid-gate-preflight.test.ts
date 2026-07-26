@@ -17,8 +17,6 @@ import {
   L3B_EVALUATION_FIXTURES,
 } from "../../../src/lib/agent/orchestration/l3b-evaluation-fixtures";
 import type {
-  FocusedGatePreflight,
-  FocusedGatePreflightErrorCode,
   FocusedGatePreflightModule,
 } from "./fixtures/hybrid-focused-gate-contract";
 import {
@@ -180,67 +178,24 @@ test("Preflight exposes only the reviewed sanitized contract", async () => {
   );
 });
 
-test("every frozen Preflight mismatch has a typed safe failure", async () => {
+test("the historical Hybrid preflight always fails typed and retired", async () => {
   const {
     assertHybridFocusedGatePreflight,
     buildHybridFocusedGatePreflight,
   } = await loadPreflight();
   const preflight = buildHybridFocusedGatePreflight({
-    head: "5f374b07318d3080d9adacdef1618f08f82f0cf0",
+    head: "historical",
   });
-  const mismatches: readonly [
-    keyof FocusedGatePreflight,
-    unknown,
-    FocusedGatePreflightErrorCode,
-  ][] = [
-    [
-      "fixtureSnapshotHash",
-      "0".repeat(64),
-      "FIXTURE_SNAPSHOT_HASH_MISMATCH",
-    ],
-    [
-      "residualPromptHash",
-      "0".repeat(64),
-      "RESIDUAL_PROMPT_HASH_MISMATCH",
-    ],
-    [
-      "residualSchemaHash",
-      "0".repeat(64),
-      "RESIDUAL_SCHEMA_HASH_MISMATCH",
-    ],
-    [
-      "evaluationConfigHash",
-      "0".repeat(64),
-      "EVALUATION_CONFIG_HASH_MISMATCH",
-    ],
-    ["observations", 11, "OBSERVATION_CONTRACT_MISMATCH"],
-    ["commentaryMode", "enabled", "QUERY_COMMENTARY_MODE_MISMATCH"],
-    [
-      "authorizedProviderAttemptBudget",
-      13,
-      "RESIDUAL_BUDGET_CONFIG_MISMATCH",
-    ],
-  ];
 
-  assert.doesNotThrow(() =>
-    assertHybridFocusedGatePreflight(preflight)
+  assert.throws(
+    () => assertHybridFocusedGatePreflight(preflight),
+    (error: unknown) =>
+      typeof error === "object"
+      && error !== null
+      && "code" in error
+      && error.code === "HYBRID_FOCUSED_GATE_RETIRED"
+      && !("cause" in error),
   );
-  for (const [field, value, code] of mismatches) {
-    assert.throws(
-      () =>
-        assertHybridFocusedGatePreflight({
-          ...preflight,
-          [field]: value,
-        } as FocusedGatePreflight),
-      (error: unknown) =>
-        typeof error === "object"
-        && error !== null
-        && "code" in error
-        && error.code === code
-        && !("cause" in error),
-      `${field} should fail with ${code}`,
-    );
-  }
 });
 
 test("invalid focused fixture sources fail with typed safe codes", async () => {
