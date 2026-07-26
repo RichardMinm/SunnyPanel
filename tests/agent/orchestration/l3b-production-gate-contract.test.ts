@@ -528,7 +528,7 @@ test("the production-seam CLI reaches the canonical Known-ID preflight without a
     matchedTerminal?.preflight?.manifestHash,
     preflight.manifestHash,
   );
-  assert.equal(matchedTerminal?.providerAttempts, 0);
+  assert.equal(matchedTerminal?.preflight?.providerAttempts, 0);
 
   const mismatchChild = runGate({
     ...baseEnvironment,
