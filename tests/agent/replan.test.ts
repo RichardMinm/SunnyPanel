@@ -159,6 +159,7 @@ test("incremental replan uses the injected authoritative service and preserves c
           label: "解释缺失项",
         }],
       },
+      schedulePlanReferenceCorrectionCode: null,
       status: "success",
     };
   };

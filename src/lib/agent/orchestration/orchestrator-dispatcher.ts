@@ -79,6 +79,7 @@ export const dispatchOrchestratorResult: OrchestratorService = async (
     }
     return {
       plan: queryScopeResult.plan,
+      schedulePlanReferenceCorrectionCode: null,
       status: "success",
     };
   } catch {

@@ -682,6 +682,35 @@ test("Full evidence preserves bounded query-scope and schedule-reference categor
   assert.equal(JSON.stringify(resourceEvidence).includes("999"), false);
 });
 
+test("Full evidence projects a rebound schedule reference without identifiers", async () => {
+  const diagnostic = knownIdDiagnostic("diag-plan-existing-id");
+  const recorder = createModelCallBudgetRecorder();
+  const adapter = createProductionFullAdapter({
+    modelConfig,
+    modelFactory: promptJsonModelFactory(() => fullOutput(
+      "explicit_write_ready",
+      "schedule_plan",
+      { planId: 999 },
+    )),
+    observe: () => undefined,
+    recorder,
+    retryBudget: { schema: 0, transport: 0 },
+  });
+
+  await adapter(diagnostic.message, diagnostic.context);
+
+  const evidence = adapter.getRoleEvidence();
+  assert.equal(evidence.status, "success");
+  assert.equal(
+    evidence.schedulePlanReferenceCorrectionCode,
+    "provider_plan_id_rebound",
+  );
+  assert.equal(evidence.schedulePlanReferenceErrorCode, null);
+  assert.equal(JSON.stringify(evidence).includes("999"), false);
+  assert.equal(JSON.stringify(evidence).includes("\"planId\""), false);
+  assert.equal(JSON.stringify(evidence).includes("\"taskId\""), false);
+});
+
 test("Known-ID accepts one actor-authorized exact plan reference", async () => {
   const { observation } = await evaluateKnownId(
     "diag-plan-existing-id",

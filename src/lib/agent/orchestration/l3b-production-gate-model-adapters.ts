@@ -42,7 +42,10 @@ import type {
   ResidualRejectionReason,
 } from "./residual-langchain-planner";
 import type { ResourceReadinessErrorCode } from "./resource-readiness-guard";
-import type { SchedulePlanReferenceErrorCode } from "./schedule-plan-reference-contract";
+import type {
+  SchedulePlanReferenceCorrectionCode,
+  SchedulePlanReferenceErrorCode,
+} from "./schedule-plan-reference-contract";
 
 export type SanitizedRoleEvent = Readonly<{
   answerStatus?: "complete" | "incomplete" | "unavailable";
@@ -83,6 +86,8 @@ export type ProductionFullRoleEvidence = Readonly<{
   providerLatenciesMs: readonly number[];
   queryScopeErrorCode: QueryScopeErrorCode | null;
   resourceIssueCodes: readonly ResourceReadinessErrorCode[];
+  schedulePlanReferenceCorrectionCode:
+    SchedulePlanReferenceCorrectionCode | null;
   schedulePlanReferenceErrorCode: SchedulePlanReferenceErrorCode | null;
   semanticProjection: OrchestratorDecisionProjection | null;
   semanticValidationPasses: number;
@@ -153,6 +158,7 @@ const emptyFullEvidence = (): ProductionFullRoleEvidence => Object.freeze({
   providerLatenciesMs: Object.freeze([]),
   queryScopeErrorCode: null,
   resourceIssueCodes: Object.freeze([]),
+  schedulePlanReferenceCorrectionCode: null,
   schedulePlanReferenceErrorCode: null,
   semanticProjection: null,
   semanticValidationPasses: 0,
@@ -404,6 +410,10 @@ export const createProductionFullAdapter = (input: Readonly<{
           ? [...(result.resourceIssueCodes ?? [])]
           : [],
       ),
+      schedulePlanReferenceCorrectionCode:
+        result.status === "success"
+          ? result.schedulePlanReferenceCorrectionCode
+          : null,
       schedulePlanReferenceErrorCode:
         "schedulePlanReferenceErrorCode" in result
           ? result.schedulePlanReferenceErrorCode ?? null

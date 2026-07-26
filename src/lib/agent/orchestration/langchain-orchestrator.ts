@@ -77,6 +77,7 @@ import {
 } from "./query-scope-contract";
 import {
   validateSchedulePlanReferences,
+  type SchedulePlanReferenceCorrectionCode,
   type SchedulePlanReferenceErrorCode,
 } from "./schedule-plan-reference-contract";
 import {
@@ -124,6 +125,8 @@ export type OrchestratorInvocationResult =
   | {
       status: "success";
       plan: OrchestratorPlan;
+      schedulePlanReferenceCorrectionCode:
+        SchedulePlanReferenceCorrectionCode | null;
       schemaValidDecision?: OrchestratorDecisionProjection;
     }
   | {
@@ -684,7 +687,13 @@ export const runLangChainOrchestratorResult = async (
     taskCount: plan.tasks.length,
   });
 
-  return { plan, schemaValidDecision, status: "success" };
+  return {
+    plan,
+    schedulePlanReferenceCorrectionCode:
+      scheduleReferenceResult.corrections[0]?.code ?? null,
+    schemaValidDecision,
+    status: "success",
+  };
 };
 
 export const runLangChainOrchestrator = async (

@@ -87,6 +87,7 @@ const observation = (
       clarificationSource: null,
       queryScopeErrorCode: null,
       resourceIssueCodes: [],
+      schedulePlanReferenceCorrectionCode: null,
       schedulePlanReferenceErrorCode: null,
       semanticProjection: null,
       semanticValidationPasses: 0,
@@ -188,6 +189,7 @@ const knownIdObservations = (): ProductionGateObservation[] =>
             schedulePlanReferenceErrorCode: titleConflict
               ? "plan_id_title_conflict"
               : null,
+            schedulePlanReferenceCorrectionCode: null,
             status: exact
               ? "success"
               : unavailable

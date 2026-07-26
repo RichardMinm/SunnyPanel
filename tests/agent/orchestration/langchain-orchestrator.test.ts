@@ -678,10 +678,66 @@ describe("langchain-orchestrator protocol", () => {
 
     assert.equal(result.status, "success");
     if (result.status !== "success") return;
+    assert.equal(result.schedulePlanReferenceCorrectionCode, null);
+    assert.deepEqual(result.plan.tasks[0]?.args, { planId: 101 });
     assert.deepEqual(
       result.plan.tasks.map(({ intent }) => intent),
       ["schedule_plan"],
     );
+  });
+
+  it("normalizes a Provider schedule ID before Resource Readiness and mapping", async () => {
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-26T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [{
+          id: 101,
+          priority: "medium",
+          state: "active",
+          title: "考研数学复习计划",
+        }],
+      },
+      message: "把计划 101 安排到下周",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: promptJsonModelFactory(() => ({
+        decisionCode: "explicit_write_ready",
+        mode: "single",
+        routingSummary: "schedule selected plan",
+        tasks: [{
+          agentRole: "schedule",
+          args: { planId: 999, startDate: "2026-08-03" },
+          dependsOn: [],
+          id: "t1",
+          intent: "schedule_plan",
+          label: "schedule selected plan",
+        }],
+        version: 2,
+      })),
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.equal(result.status, "success");
+    if (result.status !== "success") return;
+    assert.deepEqual(result.plan.tasks[0]?.args, {
+      planId: 101,
+      startDate: "2026-08-03",
+    });
+    assert.equal(
+      result.schedulePlanReferenceCorrectionCode,
+      "provider_plan_id_rebound",
+    );
+    assert.equal(JSON.stringify(result).includes("999"), false);
   });
 
   it("keeps unsupported task-output resource references unavailable", async () => {
