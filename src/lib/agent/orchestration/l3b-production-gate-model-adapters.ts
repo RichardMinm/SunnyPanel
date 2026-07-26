@@ -333,7 +333,14 @@ export const createProductionFullAdapter = (input: Readonly<{
   modelFactory?: ModelFactory;
   observe: (event: SanitizedRoleEvent) => void;
   recorder: ModelCallBudgetRecorder;
-  retryBudget: { schema: number; transport: number };
+  retryBudget: {
+    schema: number;
+    timeout?: {
+      retries: number;
+      retryTimeoutMs: number;
+    };
+    transport: number;
+  };
 }>): ProductionFullAdapter => {
   const clock = input.clock ?? Date.now;
   let evidence = emptyFullEvidence();

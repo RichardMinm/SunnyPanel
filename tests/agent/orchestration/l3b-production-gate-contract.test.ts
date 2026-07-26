@@ -353,6 +353,7 @@ test("derives Provider authorization from the one reachable production branch pe
   const retryLimits = {
     answerAttemptsPerObservation: 1,
     fullSchemaRetries: 0,
+    fullTimeoutRetries: 1,
     fullTransportRetries: 1,
     residualSchemaRetries: 1,
     residualTransportRetries: 1,
@@ -369,7 +370,7 @@ test("derives Provider authorization from the one reachable production branch pe
       retryLimits,
       stage: "focused",
     }),
-    { logicalCalls: 9, providerAttempts: 24 },
+    { logicalCalls: 9, providerAttempts: 30 },
   );
   assert.deepEqual(
     calculateProductionStageAuthorizedBudget({
@@ -377,7 +378,7 @@ test("derives Provider authorization from the one reachable production branch pe
       retryLimits,
       stage: "acceptance",
     }),
-    { logicalCalls: 34, providerAttempts: 65 },
+    { logicalCalls: 34, providerAttempts: 93 },
   );
 });
 
@@ -559,10 +560,10 @@ test("the production-seam CLI reaches the canonical Known-ID preflight without a
   assert.equal(preflight.providerAttempts, 0);
   assert.equal(preflight.budget.businessObservations, 6);
   assert.equal(preflight.budget.authorizedLogicalCallMaximum, 6);
-  assert.equal(preflight.budget.authorizedMaximum, 24);
+  assert.equal(preflight.budget.authorizedMaximum, 30);
   assert.equal(
     preflight.budget.providerAttemptsPerObservationMaximum,
-    4,
+    5,
   );
   assert.equal(preflight.budget.actualProviderAttempts, 0);
 

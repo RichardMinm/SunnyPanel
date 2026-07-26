@@ -451,9 +451,12 @@ test("freezes and hashes the exact secret-free evaluation configuration", () => 
   assert.equal(L3B_EVALUATION_CONFIG.transportRetries, 1);
   assert.equal(L3B_EVALUATION_CONFIG.schemaRetries, 1);
   assert.equal(L3B_EVALUATION_CONFIG.semanticRetries, 0);
+  assert.equal(L3B_EVALUATION_CONFIG.orchestratorTimeoutMs, 30_000);
+  assert.equal(L3B_EVALUATION_CONFIG.orchestratorTimeoutRetries, 1);
+  assert.equal(L3B_EVALUATION_CONFIG.orchestratorTimeoutRetryMs, 10_000);
   assert.equal(
     L3B_EVALUATION_CONFIG_VERSION,
-    "l3b-request-semantic-boundary-v1",
+    "l3b-full-timeout-recovery-v1",
   );
   assert.equal(
     L3B_PROMPT_PROTOCOL_VERSION,
@@ -467,7 +470,7 @@ test("freezes and hashes the exact secret-free evaluation configuration", () => 
   );
   assert.equal(
     L3B_EVALUATION_CONFIG_HASH,
-    "85dda3e05eb18fd3729e2f60c8808d30950162515a651fa201de68b37cf5e135",
+    "4f435d40d8a0d777973c92ade0f8161c2c64a04bd4751768c56eca7afe60adcb",
   );
 
   const reversed = Object.fromEntries(

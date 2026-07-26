@@ -59,10 +59,16 @@ export type InvokeStructuredOptions<TSchema extends z.ZodType> = {
   modelSchema?: z.ZodType;
   providerAttemptAuthorizer?: (attempt: number) => void;
   providerAttemptObserver?: StructuredProviderAttemptObserver;
+  timeoutRetryPolicy?: StructuredTimeoutRetryPolicy;
   schemaRepairInstruction?: (
     issues: StructuredOutputDiagnostics["issues"],
   ) => null | string;
 };
+
+export type StructuredTimeoutRetryPolicy = Readonly<{
+  maxRetries: number;
+  retryTimeoutMs: number;
+}>;
 
 export type StructuredRetryReason =
   | "connection_reset"
@@ -159,11 +165,27 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     modelSchema,
     providerAttemptAuthorizer,
     providerAttemptObserver,
+    timeoutRetryPolicy,
     schemaRepairInstruction,
   } = options;
 
   const capabilities = getProviderCapabilities(modelConfig.provider);
   const strategy = capabilities.structuredOutputMode;
+  const configuredTimeoutRetries = boundedNonNegativeInteger(
+    timeoutRetryPolicy?.maxRetries ?? 0,
+  );
+  const timeoutRetryMs = boundedPositiveInteger(
+    timeoutRetryPolicy?.retryTimeoutMs ?? 0,
+  );
+  let timeoutRetriesRemaining =
+    timeoutRetryMs === null ? 0 : configuredTimeoutRetries;
+  const logicalTimeoutBudgetMs =
+    timeoutRetryMs === null || configuredTimeoutRetries === 0
+      ? null
+      : modelConfig.timeoutMs + timeoutRetryMs * configuredTimeoutRetries;
+  const logicalTimeoutDeadlineAt = logicalTimeoutBudgetMs === null
+    ? null
+    : Date.now() + logicalTimeoutBudgetMs;
   let providerAttempt = 0;
   let activeAttempt = 0;
   let activeAttemptStartedAt = 0;
@@ -266,12 +288,12 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     }
   };
 
-  for (
+  transportLoop: for (
     let transportAttempt = 0;
     transportAttempt <= maxTransportRetries;
     transportAttempt += 1
   ) {
-    for (
+    schemaLoop: for (
       let schemaAttempt = 0;
       schemaAttempt <= maxSchemaRetries;
       schemaAttempt += 1
@@ -279,250 +301,318 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
       const attemptMessages = schemaRepairMessage
         ? [...lcMessages, new SystemMessage(schemaRepairMessage)]
         : lcMessages;
-      const nextProviderAttempt = providerAttempt + 1;
-      providerAttemptAuthorizer?.(nextProviderAttempt);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(new DOMException("Timeout", "TimeoutError")),
-        modelConfig.timeoutMs,
-      );
-      const onCallerAbort = () => controller.abort();
-      signal?.addEventListener("abort", onCallerAbort, { once: true });
+      let attemptTimeoutMs = modelConfig.timeoutMs;
+      let isTimeoutRecoveryAttempt = false;
 
-      providerAttempt = nextProviderAttempt;
-      activeAttempt = providerAttempt;
-      activeAttemptStartedAt = Date.now();
-      responseEventEmitted = false;
-      safeProtocol = createSafeProtocolDiagnostics();
-      observeAttempt({ attempt: activeAttempt, phase: "providerRequestStarted" });
-
-      try {
-        let rawResult: unknown;
-
-        if (strategy === "prompt_json") {
-          const jsonModel = model.withConfig({
-            outputVersion: "v0",
-            response_format: { type: "json_object" },
-          } as unknown as Parameters<typeof model.withConfig>[0]);
-          const message = await jsonModel.invoke(attemptMessages, {
-            signal: controller.signal,
-            tags,
-          });
-          markResponseReceivedWithoutEnvelope();
-          rawResult = parsePromptJsonMessage(message, modelSchema ?? schema, schema, {
-            advance,
-            emitStage,
-            safeProtocol: () => safeProtocol,
-          });
-        } else {
-          const parsed = await structuredRunnable!.invoke(attemptMessages, {
-            signal: controller.signal,
-            tags,
-          });
-          markResponseReceivedWithoutEnvelope();
-          rawResult = validateNativeStructuredResult(
-            parsed,
-            modelSchema ?? schema,
-            schema,
-            { advance, emitStage, safeProtocol: () => safeProtocol },
-          );
+      providerAttemptLoop: while (true) {
+        const remainingLogicalTimeoutMs = remainingTimeoutMs(
+          logicalTimeoutDeadlineAt,
+        );
+        if (
+          logicalTimeoutBudgetMs !== null
+          && remainingLogicalTimeoutMs !== null
+          && remainingLogicalTimeoutMs <= 0
+        ) {
+          return {
+            ok: false,
+            error: modelTimeout(
+              logicalTimeoutBudgetMs,
+              modelConfig.provider,
+            ),
+          };
         }
+        const effectiveAttemptTimeoutMs = remainingLogicalTimeoutMs === null
+          ? attemptTimeoutMs
+          : Math.min(attemptTimeoutMs, remainingLogicalTimeoutMs);
+        const attemptBoundedByLogicalDeadline =
+          effectiveAttemptTimeoutMs < attemptTimeoutMs;
+        const nextProviderAttempt = providerAttempt + 1;
+        providerAttemptAuthorizer?.(nextProviderAttempt);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(
+          () => controller.abort(new DOMException("Timeout", "TimeoutError")),
+          effectiveAttemptTimeoutMs,
+        );
+        const onCallerAbort = () => controller.abort();
+        signal?.addEventListener("abort", onCallerAbort, { once: true });
 
-        clearTimeout(timeoutId);
-        signal?.removeEventListener("abort", onCallerAbort);
+        providerAttempt = nextProviderAttempt;
+        activeAttempt = providerAttempt;
+        activeAttemptStartedAt = Date.now();
+        responseEventEmitted = false;
+        safeProtocol = createSafeProtocolDiagnostics();
+        observeAttempt({
+          attempt: activeAttempt,
+          phase: "providerRequestStarted",
+        });
 
-        return {
-          ok: true,
-          data: rawResult as z.infer<TSchema>,
-          provider: modelConfig.provider,
-          model: modelConfig.model,
-        };
-      } catch (error) {
-        clearTimeout(timeoutId);
-        signal?.removeEventListener("abort", onCallerAbort);
+        try {
+          let rawResult: unknown;
 
-        if (isTimeoutError(error, controller.signal)) {
+          if (strategy === "prompt_json") {
+            const jsonModel = model.withConfig({
+              outputVersion: "v0",
+              response_format: { type: "json_object" },
+            } as unknown as Parameters<typeof model.withConfig>[0]);
+            const message = await jsonModel.invoke(attemptMessages, {
+              signal: controller.signal,
+              tags,
+            });
+            markResponseReceivedWithoutEnvelope();
+            rawResult = parsePromptJsonMessage(
+              message,
+              modelSchema ?? schema,
+              schema,
+              {
+                advance,
+                emitStage,
+                safeProtocol: () => safeProtocol,
+              },
+            );
+          } else {
+            const parsed = await structuredRunnable!.invoke(attemptMessages, {
+              signal: controller.signal,
+              tags,
+            });
+            markResponseReceivedWithoutEnvelope();
+            rawResult = validateNativeStructuredResult(
+              parsed,
+              modelSchema ?? schema,
+              schema,
+              { advance, emitStage, safeProtocol: () => safeProtocol },
+            );
+          }
+
+          clearTimeout(timeoutId);
+          signal?.removeEventListener("abort", onCallerAbort);
+
+          return {
+            ok: true,
+            data: rawResult as z.infer<TSchema>,
+            provider: modelConfig.provider,
+            model: modelConfig.model,
+          };
+        } catch (error) {
+          clearTimeout(timeoutId);
+          signal?.removeEventListener("abort", onCallerAbort);
+
+          if (isCallerAbort(error, signal)) {
+            advance({ latencyMs: Date.now() - activeAttemptStartedAt });
+            observeAttempt({
+              attempt: activeAttempt,
+              phase: "failed",
+              reason: "cancelled",
+              retryScheduled: false,
+              safeProtocol,
+            });
+            return {
+              ok: false,
+              error: {
+                code: "MODEL_TIMEOUT",
+                retryable: false,
+                provider: modelConfig.provider,
+                safeMessage: "请求已被取消。",
+                structuredOutput: transportDiagnostics(safeProtocol),
+              },
+            };
+          }
+
+          if (isTimeoutError(error, controller.signal)) {
+            const retryScheduled =
+              !isTimeoutRecoveryAttempt
+              && !attemptBoundedByLogicalDeadline
+              && timeoutRetriesRemaining > 0
+              && timeoutRetryMs !== null;
+            if (retryScheduled) timeoutRetriesRemaining -= 1;
+            advance({
+              httpStatusClass: safeProtocol.responseReceived
+                ? safeProtocol.httpStatusClass
+                : "network_error",
+              latencyMs: Date.now() - activeAttemptStartedAt,
+            });
+            observeAttempt({
+              attempt: activeAttempt,
+              phase: "failed",
+              reason: "timeout",
+              retryScheduled,
+              safeProtocol,
+            });
+            if (retryScheduled) {
+              isTimeoutRecoveryAttempt = true;
+              attemptTimeoutMs = timeoutRetryMs;
+              continue providerAttemptLoop;
+            }
+            return {
+              ok: false,
+              error: modelTimeout(
+                effectiveAttemptTimeoutMs,
+                modelConfig.provider,
+                transportDiagnostics(safeProtocol),
+              ),
+            };
+          }
+
+          const observedEnvelopeFailure = classifyObservedEnvelopeFailure(
+            error,
+            safeProtocol,
+          );
+          if (error instanceof NativeSchemaValidationError) {
+            const retryScheduled =
+              !isTimeoutRecoveryAttempt
+              && schemaAttempt < maxSchemaRetries
+              && hasRemainingTimeout(logicalTimeoutDeadlineAt);
+            lastStructuredOutputDiagnostics = {
+              stage: "zod_validation",
+              issues: error.issues,
+            };
+            observeAttempt({
+              attempt: activeAttempt,
+              phase: "failed",
+              reason: "provider_protocol",
+              retryScheduled,
+              schemaIssues: error.issues,
+              safeProtocol,
+            });
+            if (retryScheduled) {
+              scheduleRepairMessage(error.issues);
+              continue schemaLoop;
+            }
+            return {
+              ok: false,
+              error: structuredOutputRetryExhausted(
+                maxSchemaRetries,
+                modelConfig.provider,
+                modelConfig.model,
+                lastStructuredOutputDiagnostics,
+              ),
+            };
+          }
+          const protocolError = error instanceof SafeProtocolFailureError
+            ? error
+            : observedEnvelopeFailure;
+          if (protocolError !== null) {
+            const retryScheduled =
+              !isTimeoutRecoveryAttempt
+              && schemaAttempt < maxSchemaRetries
+              && hasRemainingTimeout(logicalTimeoutDeadlineAt);
+            lastStructuredOutputDiagnostics = protocolDiagnostics(
+              protocolError.details,
+            );
+            observeAttempt({
+              attempt: activeAttempt,
+              phase: "failed",
+              reason: "provider_protocol",
+              retryScheduled,
+              protocolFailure: protocolError.details.failure,
+              schemaIssues: protocolError.details.issues,
+              safeProtocol: protocolError.details.diagnostics,
+            });
+            if (retryScheduled) {
+              scheduleRepairMessage(protocolError.details.issues);
+              continue schemaLoop;
+            }
+            return {
+              ok: false,
+              error: structuredOutputRetryExhausted(
+                maxSchemaRetries,
+                modelConfig.provider,
+                modelConfig.model,
+                lastStructuredOutputDiagnostics,
+              ),
+            };
+          }
+
+          if (isOutputParserException(error)) {
+            const retryScheduled =
+              !isTimeoutRecoveryAttempt
+              && schemaAttempt < maxSchemaRetries
+              && hasRemainingTimeout(logicalTimeoutDeadlineAt);
+            observeAttempt({
+              attempt: activeAttempt,
+              phase: "failed",
+              reason: "provider_protocol",
+              retryScheduled,
+              safeProtocol,
+            });
+            lastStructuredOutputDiagnostics = {
+              stage: "provider_protocol",
+              issues: [],
+            };
+            if (retryScheduled) {
+              scheduleRepairMessage([]);
+              continue schemaLoop;
+            }
+            return {
+              ok: false,
+              error: structuredOutputRetryExhausted(
+                maxSchemaRetries,
+                modelConfig.provider,
+                modelConfig.model,
+                lastStructuredOutputDiagnostics,
+              ),
+            };
+          }
+
           advance({
             httpStatusClass: safeProtocol.responseReceived
               ? safeProtocol.httpStatusClass
               : "network_error",
             latencyMs: Date.now() - activeAttemptStartedAt,
           });
-          observeAttempt({
-            attempt: activeAttempt,
-            phase: "failed",
-            reason: "timeout",
-            retryScheduled: false,
-            safeProtocol,
-          });
-          return {
-            ok: false,
-            error: modelTimeout(
-              modelConfig.timeoutMs,
-              modelConfig.provider,
-              transportDiagnostics(safeProtocol),
-            ),
-          };
-        }
-
-        if (isCallerAbort(error, signal)) {
-          advance({ latencyMs: Date.now() - activeAttemptStartedAt });
-          observeAttempt({
-            attempt: activeAttempt,
-            phase: "failed",
-            reason: "cancelled",
-            retryScheduled: false,
-            safeProtocol,
-          });
-          return {
-            ok: false,
-            error: {
-              code: "MODEL_TIMEOUT",
-              retryable: false,
-              provider: modelConfig.provider,
-              safeMessage: "请求已被取消。",
-              structuredOutput: transportDiagnostics(safeProtocol),
-            },
-          };
-        }
-
-        const observedEnvelopeFailure = classifyObservedEnvelopeFailure(
-          error,
-          safeProtocol,
-        );
-        if (error instanceof NativeSchemaValidationError) {
-          const retryScheduled = schemaAttempt < maxSchemaRetries;
-          lastStructuredOutputDiagnostics = {
-            stage: "zod_validation",
-            issues: error.issues,
-          };
-          observeAttempt({
-            attempt: activeAttempt,
-            phase: "failed",
-            reason: "provider_protocol",
-            retryScheduled,
-            schemaIssues: error.issues,
-            safeProtocol,
-          });
-          if (retryScheduled) {
-            scheduleRepairMessage(error.issues);
-            continue;
-          }
-          return {
-            ok: false,
-            error: structuredOutputRetryExhausted(
-              maxSchemaRetries,
-              modelConfig.provider,
-              modelConfig.model,
-              lastStructuredOutputDiagnostics,
-            ),
-          };
-        }
-        const protocolError = error instanceof SafeProtocolFailureError
-          ? error
-          : observedEnvelopeFailure;
-        if (protocolError !== null) {
-          const retryScheduled = schemaAttempt < maxSchemaRetries;
-          lastStructuredOutputDiagnostics = protocolDiagnostics(
-            protocolError.details,
+          const retryReason = classifyStructuredTransportRetry(error);
+          const transportRetryDelayMs = 500 * (transportAttempt + 1);
+          const remainingBeforeTransportRetry = remainingTimeoutMs(
+            logicalTimeoutDeadlineAt,
           );
+          const retryScheduled =
+            !isTimeoutRecoveryAttempt
+            && retryReason !== null
+            && transportAttempt < maxTransportRetries
+            && (
+              remainingBeforeTransportRetry === null
+              || remainingBeforeTransportRetry > transportRetryDelayMs
+            );
           observeAttempt({
             attempt: activeAttempt,
             phase: "failed",
-            reason: "provider_protocol",
-            retryScheduled,
-            protocolFailure: protocolError.details.failure,
-            schemaIssues: protocolError.details.issues,
-            safeProtocol: protocolError.details.diagnostics,
-          });
-          if (retryScheduled) {
-            scheduleRepairMessage(protocolError.details.issues);
-            continue;
-          }
-          return {
-            ok: false,
-            error: structuredOutputRetryExhausted(
-              maxSchemaRetries,
-              modelConfig.provider,
-              modelConfig.model,
-              lastStructuredOutputDiagnostics,
-            ),
-          };
-        }
-
-        if (isOutputParserException(error)) {
-          const retryScheduled = schemaAttempt < maxSchemaRetries;
-          observeAttempt({
-            attempt: activeAttempt,
-            phase: "failed",
-            reason: "provider_protocol",
+            reason: retryReason ?? "non_retryable_transport",
             retryScheduled,
             safeProtocol,
           });
-          lastStructuredOutputDiagnostics = {
-            stage: "provider_protocol",
-            issues: [],
-          };
+
           if (retryScheduled) {
-            scheduleRepairMessage([]);
-            continue;
+            await new Promise((resolve) =>
+              setTimeout(resolve, transportRetryDelayMs));
+            continue transportLoop;
+          }
+
+          const diagnostics = transportDiagnostics(safeProtocol);
+          const status = getErrorStatus(error);
+          if (status === 401 || status === 403) {
+            return {
+              ok: false,
+              error: modelAuthFailed(modelConfig.provider, diagnostics),
+            };
+          }
+          if (status === 429) {
+            return {
+              ok: false,
+              error: modelRateLimited(
+                modelConfig.provider,
+                modelConfig.model,
+                diagnostics,
+              ),
+            };
           }
           return {
             ok: false,
-            error: structuredOutputRetryExhausted(
-              maxSchemaRetries,
+            error: modelUnavailable(
               modelConfig.provider,
-              modelConfig.model,
-              lastStructuredOutputDiagnostics,
-            ),
-          };
-        }
-
-        advance({
-          httpStatusClass: safeProtocol.responseReceived
-            ? safeProtocol.httpStatusClass
-            : "network_error",
-          latencyMs: Date.now() - activeAttemptStartedAt,
-        });
-        const retryReason = classifyStructuredTransportRetry(error);
-        const retryScheduled = retryReason !== null
-          && transportAttempt < maxTransportRetries;
-        observeAttempt({
-          attempt: activeAttempt,
-          phase: "failed",
-          reason: retryReason ?? "non_retryable_transport",
-          retryScheduled,
-          safeProtocol,
-        });
-
-        if (retryScheduled) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, 500 * (transportAttempt + 1)));
-          break;
-        }
-
-        const diagnostics = transportDiagnostics(safeProtocol);
-        const status = getErrorStatus(error);
-        if (status === 401 || status === 403) {
-          return {
-            ok: false,
-            error: modelAuthFailed(modelConfig.provider, diagnostics),
-          };
-        }
-        if (status === 429) {
-          return {
-            ok: false,
-            error: modelRateLimited(
-              modelConfig.provider,
-              modelConfig.model,
+              undefined,
               diagnostics,
             ),
           };
         }
-        return {
-          ok: false,
-          error: modelUnavailable(modelConfig.provider, undefined, diagnostics),
-        };
       }
     }
   }
@@ -531,6 +621,20 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     ok: false,
     error: modelUnavailable(modelConfig.provider),
   };
+};
+
+const boundedNonNegativeInteger = (value: number): number =>
+  Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+
+const boundedPositiveInteger = (value: number): number | null =>
+  Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
+
+const remainingTimeoutMs = (deadlineAt: number | null): number | null =>
+  deadlineAt === null ? null : Math.max(0, deadlineAt - Date.now());
+
+const hasRemainingTimeout = (deadlineAt: number | null): boolean => {
+  const remaining = remainingTimeoutMs(deadlineAt);
+  return remaining === null || remaining > 0;
 };
 
 type ProtocolStageContext = Readonly<{

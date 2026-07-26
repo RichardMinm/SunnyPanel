@@ -49,7 +49,7 @@ const REPORT_PATHS = Object.freeze({
 });
 const STAGES = new Set(Object.keys(REPORT_PATHS));
 const ACTOR = Object.freeze({ collection: "users", id: 7, isAdmin: true });
-const PROVIDER_ATTEMPTS_PER_OBSERVATION_MAXIMUM = 4;
+const PROVIDER_ATTEMPTS_PER_OBSERVATION_MAXIMUM = 5;
 const MODEL_CALL_AUTHORIZATION_FAILURE_CODES = new Set([
   "MODEL_LOGICAL_CALL_LIMIT_EXCEEDED",
   "MODEL_OBSERVATION_PROVIDER_ATTEMPT_LIMIT_EXCEEDED",
@@ -251,6 +251,7 @@ const main = async () => {
   const retryLimits = Object.freeze({
     answerAttemptsPerObservation: 1,
     fullSchemaRetries: L3B_EVALUATION_CONFIG.schemaRetries,
+    fullTimeoutRetries: L3B_EVALUATION_CONFIG.orchestratorTimeoutRetries,
     fullTransportRetries: L3B_EVALUATION_CONFIG.transportRetries,
     residualSchemaRetries: RESIDUAL_PLANNER_RETRY_POLICY.maxSchemaRetries,
     residualTransportRetries:
@@ -259,6 +260,7 @@ const main = async () => {
   const conservativeAttemptsPerObservation = retryLimits.answerAttemptsPerObservation
     + (retryLimits.fullSchemaRetries + 1)
       * (retryLimits.fullTransportRetries + 1)
+    + retryLimits.fullTimeoutRetries
     + (retryLimits.residualSchemaRetries + 1)
       * (retryLimits.residualTransportRetries + 1);
   const stageBudget = calculateProductionStageAuthorizedBudget({
@@ -403,6 +405,11 @@ const main = async () => {
       recorder,
       retryBudget: {
         schema: L3B_EVALUATION_CONFIG.schemaRetries,
+        timeout: {
+          retries: L3B_EVALUATION_CONFIG.orchestratorTimeoutRetries,
+          retryTimeoutMs:
+            L3B_EVALUATION_CONFIG.orchestratorTimeoutRetryMs,
+        },
         transport: L3B_EVALUATION_CONFIG.transportRetries,
       },
     });

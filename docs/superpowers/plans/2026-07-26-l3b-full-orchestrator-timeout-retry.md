@@ -112,6 +112,7 @@ network or database access.
 **Files:**
 - Modify: `tests/agent/orchestration/langchain-orchestrator.test.ts`
 - Modify: `src/lib/agent/orchestration/langchain-orchestrator.ts`
+- Create: `src/lib/agent/orchestration/orchestrator-timeout-policy.ts`
 - Modify: `tests/agent/orchestration/l3b-production-gate-evaluation.test.ts`
 - Modify: `src/lib/agent/orchestration/l3b-production-gate-model-adapters.ts`
 
@@ -154,6 +155,17 @@ Expected: the Full retry budget cannot yet pass a timeout policy.
 
 - [ ] **Step 4: Thread the policy without adding a logical call**
 
+Create the shared production policy:
+
+```ts
+export const FULL_ORCHESTRATOR_TIMEOUT_POLICY = Object.freeze({
+  firstAttemptTimeoutMs: 30_000,
+  maxRetries: 1,
+  retryTimeoutMs: 10_000,
+  totalTimeoutMs: 40_000,
+} as const);
+```
+
 Extend the retry budget:
 
 ```ts
@@ -167,8 +179,12 @@ structuredRetryBudget?: {
 };
 ```
 
-Map it directly to `invokeStructured.timeoutRetryPolicy`. Keep the existing
-single `modelCallRecorder.record(...)` before `invokeStructured()`.
+Map an explicit budget directly to `invokeStructured.timeoutRetryPolicy`.
+When the complete budget is omitted, use the shared production policy; when a
+complete budget is supplied without `timeout`, keep timeout recovery disabled.
+Resolve the non-injected production model config with the shared 30-second
+first-attempt timeout. Keep the existing single
+`modelCallRecorder.record(...)` before `invokeStructured()`.
 
 - [ ] **Step 5: Run the focused tests and verify GREEN**
 
@@ -312,6 +328,7 @@ git add \
   src/lib/agent/orchestration/l3b-evaluation-config.ts \
   src/lib/agent/orchestration/l3b-production-gate-budget.ts \
   src/lib/agent/orchestration/l3b-production-gate-model-adapters.ts \
+  src/lib/agent/orchestration/orchestrator-timeout-policy.ts \
   scripts/agent-production-seam-gate-eval.mjs \
   tests/agent/llm/invoke-structured.test.ts \
   tests/agent/orchestration/langchain-orchestrator.test.ts \

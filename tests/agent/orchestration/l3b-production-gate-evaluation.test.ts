@@ -97,7 +97,14 @@ const evaluate = async (
   options: Readonly<{
     answerChunks?: readonly (AIMessageChunk | Error)[];
     fullInvoke?: () => unknown | Promise<unknown>;
-    fullRetryBudget?: { schema: number; transport: number };
+    fullRetryBudget?: {
+      schema: number;
+      timeout?: {
+        retries: number;
+        retryTimeoutMs: number;
+      };
+      transport: number;
+    };
     residualInvoke?: Parameters<typeof evaluateProductionGateCase>[0]["residualInvoke"];
   }> = {},
 ) => {
@@ -389,6 +396,49 @@ test("wrt-3 repairs missing memory content without erasing the first schema miss
     "RAW_TITLE_SENTINEL",
     "每周五复盘",
   ]);
+});
+
+test("a recovered Full timeout remains one logical call with attempt-level evidence", async () => {
+  let providerAttempts = 0;
+  const { events, observation } = await evaluate("wrt-1", {
+    fullInvoke: async () => {
+      providerAttempts += 1;
+      if (providerAttempts === 1) {
+        throw new DOMException("timeout", "TimeoutError");
+      }
+      return fullOutput(
+        "explicit_write_ready",
+        "compose_plan",
+        { goal: "synthetic", title: "synthetic" },
+      );
+    },
+    fullRetryBudget: {
+      schema: 0,
+      timeout: { retries: 1, retryTimeoutMs: 50 },
+      transport: 0,
+    },
+    residualInvoke: async () => assert.fail("Full path cannot call Residual"),
+  });
+
+  assert.equal(observation.semanticMatch, true);
+  assert.equal(observation.usable, true);
+  assert.equal(observation.callAccounting.fullOrchestratorLogicalCalls, 1);
+  assert.equal(observation.callAccounting.fullOrchestratorProviderAttempts, 2);
+  assert.equal(observation.roleEvidence.fullOrchestrator.providerAttempts, 2);
+  assert.equal(observation.roleEvidence.fullOrchestrator.completedResponses, 1);
+  assert.equal(observation.roleEvidence.fullOrchestrator.strictSchemaPasses, 1);
+  assert.equal(
+    observation.roleEvidence.fullOrchestrator.semanticValidationPasses,
+    1,
+  );
+  assert.equal(observation.roleEvidence.fullOrchestrator.timeoutAttempts, 1);
+  assert.deepEqual(
+    events
+      .filter((event) => event.phase === "providerRequestStarted")
+      .map(({ attempt }) => attempt),
+    [1, 2],
+  );
+  assertSafeObservation(observation, "wrt-1");
 });
 
 test("exr-3 exposes deterministic clarify while preserving bounded Provider deviation evidence", async () => {

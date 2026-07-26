@@ -682,6 +682,74 @@ test("uses genuine Residual observer evidence for every structured denominator",
   assert.equal(metrics.provider.observedUpperTailMs, 125);
 });
 
+test("keeps a recovered Full timeout attempt-based while final validation uses the completed response", () => {
+  const observations = stabilityObservations();
+  const index = observations.findIndex(({ fixtureId, round }) =>
+    fixtureId === "wrt-1" && round === 1
+  );
+  assert.notEqual(index, -1);
+  const selected = observations[index];
+  observations[index] = observation(
+    selected.fixtureId,
+    selected.round,
+    selected.observationIndex,
+    {
+      callAccounting: {
+        ...selected.callAccounting,
+        fullOrchestratorLogicalCalls: 1,
+        fullOrchestratorProviderAttempts: 2,
+      },
+      roleEvidence: {
+        ...selected.roleEvidence,
+        fullOrchestrator: {
+          ...selected.roleEvidence.fullOrchestrator,
+          completedResponses: 1,
+          latencyMs: 30_125,
+          providerAttempts: 2,
+          providerLatenciesMs: [30_000, 125],
+          semanticValidationPasses: 1,
+          semanticValidationsCompleted: 1,
+          status: "success",
+          strictSchemaPasses: 1,
+          timeoutAttempts: 1,
+        },
+      },
+    },
+  );
+
+  const metrics = aggregateProductionGate({
+    observations,
+    providerEvents: [],
+    stage: "stability",
+  }).metrics;
+  assert.equal(metrics.logicalCalls.fullOrchestrator, 1);
+  assert.equal(metrics.provider.attempts.fullOrchestrator, 2);
+  assert.deepEqual(metrics.provider.timeoutRate, {
+    count: 1,
+    denominator: 2,
+    rate: 0.5,
+    rendered: "1/2",
+  });
+  assert.deepEqual(metrics.provider.transportAvailability, {
+    count: 1,
+    denominator: 2,
+    rate: 0.5,
+    rendered: "1/2",
+  });
+  assert.deepEqual(metrics.provider.strictSchema, {
+    count: 1,
+    denominator: 1,
+    rate: 1,
+    rendered: "1/1",
+  });
+  assert.deepEqual(metrics.provider.semanticValidity, {
+    count: 1,
+    denominator: 1,
+    rate: 1,
+    rendered: "1/1",
+  });
+});
+
 test("never renders an actually called structured role as an empty denominator", () => {
   const observations = stabilityObservations();
   const index = observations.findIndex(({ fixtureId, round }) =>

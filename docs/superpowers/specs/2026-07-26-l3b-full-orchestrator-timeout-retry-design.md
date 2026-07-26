@@ -36,12 +36,16 @@ type StructuredTimeoutRetryPolicy = Readonly<{
 }>;
 ```
 
-The default is no timeout retry, preserving Router, Residual Planner, and all
-other callers. The Full Orchestrator passes this policy only through its
-existing structured retry budget.
+The `invokeStructured()` default is no timeout retry, preserving Router,
+Residual Planner, and all other callers. The Full Orchestrator owns one shared
+production policy. When no explicit retry budget is supplied, it applies
+30 seconds plus one 10-second recovery; an explicit budget can still disable
+all retries for deterministic tests. The Production Seam Gate reads the same
+shared values instead of maintaining a parallel timeout contract.
 
-The first attempt continues to use `modelConfig.timeoutMs` (`30_000` in the
-Production Seam Gate). After one genuine timeout:
+The production Full Orchestrator resolves its model config with a 30-second
+timeout. Injected test/evaluation configs retain their supplied first-attempt
+timeout. After one genuine timeout:
 
 1. emit a sanitized `failed/timeout` attempt event with
    `retryScheduled=true`;

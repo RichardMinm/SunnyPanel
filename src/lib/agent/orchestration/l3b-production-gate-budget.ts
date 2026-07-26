@@ -11,6 +11,7 @@ import {
 export type ProductionGateRetryLimits = Readonly<{
   answerAttemptsPerObservation: number;
   fullSchemaRetries: number;
+  fullTimeoutRetries: number;
   fullTransportRetries: number;
   residualSchemaRetries: number;
   residualTransportRetries: number;
@@ -41,7 +42,7 @@ export const calculateProductionStageAuthorizedBudget = (input: Readonly<{
   const fullAttempts = attempts(
     input.retryLimits.fullSchemaRetries,
     input.retryLimits.fullTransportRetries,
-  );
+  ) + input.retryLimits.fullTimeoutRetries;
   const residualAttempts = attempts(
     input.retryLimits.residualSchemaRetries,
     input.retryLimits.residualTransportRetries,

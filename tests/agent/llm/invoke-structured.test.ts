@@ -80,6 +80,7 @@ const sequentialFactory = (
         capturedMessages.push([...messages]);
         const output = outputs[index];
         index += 1;
+        if (output instanceof Error) throw output;
         return output;
       },
     }),
@@ -682,6 +683,195 @@ describe("invokeStructured (L1-A contract)", () => {
         assert.equal(result.error.retryable, true);
       }
       /* Timeout is NOT retried — only 1 call */
+      assert.equal(callCount.value, 1);
+    });
+
+    it("retries one timeout only when an explicit recovery policy is present", async () => {
+      const callCount = { value: 0 };
+      const events: StructuredProviderAttemptEvent[] = [];
+      const result = await invokeStructured({
+        schema: testSchema,
+        schemaName,
+        messages: testMessages,
+        modelConfig: makeConfig(),
+        modelFactory: sequentialFactory(
+          [
+            new DOMException("timeout", "TimeoutError"),
+            { name: "recovered", count: 2 },
+          ],
+          [],
+          callCount,
+        ),
+        maxTransportRetries: 3,
+        maxSchemaRetries: 3,
+        timeoutRetryPolicy: {
+          maxRetries: 1,
+          retryTimeoutMs: 50,
+        },
+        providerAttemptObserver: (event) => events.push(event),
+      });
+
+      assert.equal(result.ok, true);
+      assert.equal(callCount.value, 2);
+      assert.deepEqual(
+        events
+          .filter((event) => event.phase === "providerRequestStarted")
+          .map(({ attempt }) => attempt),
+        [1, 2],
+      );
+      assert.deepEqual(
+        events
+          .filter((event) => event.phase === "failed")
+          .map((event) => ({
+            attempt: event.attempt,
+            reason: event.reason,
+            retryScheduled: event.retryScheduled,
+          })),
+        [{ attempt: 1, reason: "timeout", retryScheduled: true }],
+      );
+    });
+
+    it("uses the recovery timeout and makes the recovery attempt terminal", async () => {
+      let calls = 0;
+      const factory: ModelFactory = () => ({
+        withStructuredOutput: () => ({
+          invoke: async (
+            _messages: unknown[],
+            options: { signal?: AbortSignal } = {},
+          ) => {
+            calls += 1;
+            if (calls === 1) {
+              throw new DOMException("timeout", "TimeoutError");
+            }
+            if (calls === 2) {
+              await new Promise((resolve) => setTimeout(resolve, 20));
+              if (options.signal?.aborted) {
+                throw options.signal.reason;
+              }
+              return { name: "recovered", count: 2 };
+            }
+            assert.fail("timeout recovery must make at most one fresh attempt");
+          },
+        }),
+      }) as unknown as BaseChatModel;
+
+      const result = await invokeStructured({
+        schema: testSchema,
+        schemaName,
+        messages: testMessages,
+        modelConfig: { ...makeConfig(), timeoutMs: 5 },
+        modelFactory: factory,
+        maxTransportRetries: 3,
+        maxSchemaRetries: 3,
+        timeoutRetryPolicy: {
+          maxRetries: 1,
+          retryTimeoutMs: 50,
+        },
+      });
+
+      assert.equal(result.ok, true);
+      assert.equal(calls, 2);
+
+      const invalidRecoveryCalls = { value: 0 };
+      const invalidRecovery = await invokeStructured({
+        schema: testSchema,
+        schemaName,
+        messages: testMessages,
+        modelConfig: makeConfig(),
+        modelFactory: sequentialFactory(
+          [
+            new DOMException("timeout", "TimeoutError"),
+            { name: "invalid", count: "not-a-number" },
+          ],
+          [],
+          invalidRecoveryCalls,
+        ),
+        maxTransportRetries: 3,
+        maxSchemaRetries: 3,
+        timeoutRetryPolicy: {
+          maxRetries: 1,
+          retryTimeoutMs: 50,
+        },
+      });
+
+      assert.equal(invalidRecovery.ok, false);
+      assert.equal(invalidRecoveryCalls.value, 2);
+    });
+
+    it("caps all preceding retries and timeout recovery to one total deadline", async () => {
+      let calls = 0;
+      const factory: ModelFactory = () => ({
+        withStructuredOutput: () => ({
+          invoke: async (
+            _messages: unknown[],
+            options: { signal?: AbortSignal } = {},
+          ) => {
+            calls += 1;
+            if (calls === 1) {
+              await new Promise((resolve) => setTimeout(resolve, 15));
+              return { name: "invalid", count: "not-a-number" };
+            }
+            if (calls === 2) {
+              await new Promise<void>((_resolve, reject) => {
+                if (options.signal?.aborted) {
+                  reject(options.signal.reason);
+                  return;
+                }
+                options.signal?.addEventListener(
+                  "abort",
+                  () => reject(options.signal?.reason),
+                  { once: true },
+                );
+              });
+            }
+            assert.fail("the 30+10 contract cannot start a third attempt");
+          },
+        }),
+      }) as unknown as BaseChatModel;
+
+      const startedAt = Date.now();
+      const result = await invokeStructured({
+        schema: testSchema,
+        schemaName,
+        messages: testMessages,
+        modelConfig: { ...makeConfig(), timeoutMs: 20 },
+        modelFactory: factory,
+        maxTransportRetries: 0,
+        maxSchemaRetries: 1,
+        timeoutRetryPolicy: {
+          maxRetries: 1,
+          retryTimeoutMs: 10,
+        },
+      });
+
+      assert.equal(result.ok, false);
+      assert.equal(calls, 2);
+      assert.ok(Date.now() - startedAt < 60);
+    });
+
+    it("never retries a caller abort even when timeout recovery is enabled", async () => {
+      const callCount = { value: 0 };
+      const controller = new AbortController();
+      controller.abort();
+
+      const result = await invokeStructured({
+        schema: testSchema,
+        schemaName,
+        messages: testMessages,
+        modelConfig: makeConfig(),
+        modelFactory: fakeModelFactory({
+          onError: new DOMException("aborted", "AbortError"),
+          callCount,
+        }),
+        signal: controller.signal,
+        timeoutRetryPolicy: {
+          maxRetries: 1,
+          retryTimeoutMs: 50,
+        },
+      });
+
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.equal(result.error.retryable, false);
       assert.equal(callCount.value, 1);
     });
   });

@@ -7,9 +7,10 @@ import {
   ANSWER_MAX_PARAGRAPHS,
   ANSWER_TOTAL_TIMEOUT_MS,
 } from "../answer/config";
+import { FULL_ORCHESTRATOR_TIMEOUT_POLICY } from "./orchestrator-timeout-policy";
 
 export const L3B_EVALUATION_CONFIG_VERSION =
-  "l3b-request-semantic-boundary-v1";
+  "l3b-full-timeout-recovery-v1";
 export const L3B_PROMPT_PROTOCOL_VERSION =
   "l3b-request-semantic-boundary-v1";
 export const L3B_RESOURCE_PROTOCOL_VERSION = 3;
@@ -25,6 +26,8 @@ export type L3BEvaluationConfig = Readonly<{
   orchestratorMaxOutputTokens: number;
   orchestratorThinkingMode: "disabled";
   orchestratorTimeoutMs: number;
+  orchestratorTimeoutRetries: number;
+  orchestratorTimeoutRetryMs: number;
   promptProtocolVersion: string;
   provider: "deepseek";
   resourceProtocolVersion: number;
@@ -46,7 +49,11 @@ export const L3B_EVALUATION_CONFIG: L3BEvaluationConfig = Object.freeze({
   model: "deepseek-v4-pro",
   orchestratorMaxOutputTokens: 4096,
   orchestratorThinkingMode: "disabled",
-  orchestratorTimeoutMs: 30_000,
+  orchestratorTimeoutMs:
+    FULL_ORCHESTRATOR_TIMEOUT_POLICY.firstAttemptTimeoutMs,
+  orchestratorTimeoutRetries: FULL_ORCHESTRATOR_TIMEOUT_POLICY.maxRetries,
+  orchestratorTimeoutRetryMs:
+    FULL_ORCHESTRATOR_TIMEOUT_POLICY.retryTimeoutMs,
   promptProtocolVersion: L3B_PROMPT_PROTOCOL_VERSION,
   provider: "deepseek",
   resourceProtocolVersion: L3B_RESOURCE_PROTOCOL_VERSION,

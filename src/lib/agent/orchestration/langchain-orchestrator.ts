@@ -61,6 +61,7 @@ import {
   orchestratorOutputWithTaskArgsSchema,
   renderOrchestratorTaskArgsProtocol,
 } from "./orchestrator-task-args-contract";
+import { FULL_ORCHESTRATOR_TIMEOUT_POLICY } from "./orchestrator-timeout-policy";
 import {
   getResourceProtocolProjection,
   type ResourceReadinessErrorCode,
@@ -410,6 +411,10 @@ export type LangChainOrchestratorOptions = {
   /** Explicit bounded retries for evaluation. Production defaults remain one each. */
   structuredRetryBudget?: {
     schema: number;
+    timeout?: {
+      retries: number;
+      retryTimeoutMs: number;
+    };
     transport: number;
   };
   providerAttemptAuthorizer?: (attempt: number) => void;
@@ -497,6 +502,7 @@ export const runLangChainOrchestratorResult = async (
         baseURL: rawConfig.baseUrl,
         model: rawConfig.model,
         provider: rawConfig.provider ?? "unknown",
+        timeoutMs: FULL_ORCHESTRATOR_TIMEOUT_POLICY.firstAttemptTimeoutMs,
       });
 
       if (typeof resolved === "object" && "code" in resolved) {
@@ -518,6 +524,17 @@ export const runLangChainOrchestratorResult = async (
   }
 
   /* 5. Invoke with structured output */
+  const timeoutRetryPolicy = structuredRetryBudget === undefined
+    ? {
+        maxRetries: FULL_ORCHESTRATOR_TIMEOUT_POLICY.maxRetries,
+        retryTimeoutMs: FULL_ORCHESTRATOR_TIMEOUT_POLICY.retryTimeoutMs,
+      }
+    : structuredRetryBudget.timeout
+      ? {
+          maxRetries: structuredRetryBudget.timeout.retries,
+          retryTimeoutMs: structuredRetryBudget.timeout.retryTimeoutMs,
+        }
+      : undefined;
   const result = await invokeStructured({
     schema: orchestratorOutputWithTaskArgsSchema,
     modelSchema: orchestratorOutputBaseSchema,
@@ -528,6 +545,7 @@ export const runLangChainOrchestratorResult = async (
     signal,
     maxTransportRetries: structuredRetryBudget?.transport ?? 1,
     maxSchemaRetries: structuredRetryBudget?.schema ?? 1,
+    timeoutRetryPolicy,
     providerAttemptAuthorizer: providerAttemptAuthorizer
       ?? (
         modelCallRecorder

@@ -194,7 +194,7 @@ describe("langchain-orchestrator protocol", () => {
     );
     assert.equal(
       L3B_EVALUATION_CONFIG_HASH,
-      "85dda3e05eb18fd3729e2f60c8808d30950162515a651fa201de68b37cf5e135",
+      "4f435d40d8a0d777973c92ade0f8161c2c64a04bd4751768c56eca7afe60adcb",
     );
   });
 
@@ -233,6 +233,64 @@ describe("langchain-orchestrator protocol", () => {
     assert.equal(calls, 2);
     assert.equal(recorder.snapshot().orchestratorLogicalCalls, 1);
     assert.equal(recorder.snapshot().orchestratorProviderAttempts, 2);
+  });
+
+  it("uses the production Full timeout recovery without creating a duplicate logical call", async () => {
+    let calls = 0;
+    const events: StructuredProviderAttemptEvent[] = [];
+    const recorder = createModelCallBudgetRecorder();
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-26T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [],
+      },
+      message: "制定一个复习计划",
+      modelCallRecorder: recorder,
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: promptJsonModelFactory(() => {
+        calls += 1;
+        if (calls === 1) {
+          throw new DOMException("timeout", "TimeoutError");
+        }
+        return {
+          decisionCode: "explicit_write_ready",
+          mode: "single",
+          routingSummary: "创建复习计划草稿",
+          tasks: [{
+            agentRole: "plan",
+            args: { goal: "完成复习", title: "复习计划" },
+            dependsOn: [],
+            id: "t1",
+            intent: "compose_plan",
+            label: "创建复习计划草稿",
+          }],
+          version: 2,
+        };
+      }),
+      providerAttemptObserver: (event) => events.push(event),
+    });
+
+    assert.equal(result.status, "success");
+    assert.equal(calls, 2);
+    assert.equal(recorder.snapshot().orchestratorLogicalCalls, 1);
+    assert.equal(recorder.snapshot().orchestratorProviderAttempts, 2);
+    assert.deepEqual(
+      events
+        .filter((event) => event.phase === "providerRequestStarted")
+        .map(({ attempt }) => attempt),
+      [1, 2],
+    );
   });
 
   it("allows the explicit evaluation harness to disable all retries", async () => {
