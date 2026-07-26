@@ -189,7 +189,9 @@ const knownIdObservations = (): ProductionGateObservation[] =>
             schedulePlanReferenceErrorCode: titleConflict
               ? "plan_id_title_conflict"
               : null,
-            schedulePlanReferenceCorrectionCode: null,
+            schedulePlanReferenceCorrectionCode: exact
+              ? "provider_plan_id_rebound"
+              : null,
             status: exact
               ? "success"
               : unavailable
@@ -450,6 +452,9 @@ test("Known-ID passes exact references and typed safe rejections as diagnostic o
   });
 
   assert.equal(summary.passed, true);
+  assert.equal(summary.metrics.provider.providerPlanIdRebounds, 2);
+  assert.equal(summary.failedGates.includes("semantic_match_rate"), false);
+  assert.equal(summary.failedGates.includes("usable_result_rate"), false);
   assert.deepEqual(summary.failedGates, []);
   assert.equal(summary.metrics.business.semanticMatches.rendered, "6/6");
   assert.equal(summary.metrics.business.usableResults.rendered, "6/6");

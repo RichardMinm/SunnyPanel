@@ -21,6 +21,9 @@ import {
   L3B_PRODUCTION_STAGE_CONTRACTS,
 } from "../../../src/lib/agent/orchestration/l3b-production-gate-contract";
 import { calculateProductionStageAuthorizedBudget } from "../../../src/lib/agent/orchestration/l3b-production-gate-budget";
+import {
+  assertReportSafe,
+} from "../../../scripts/agent-production-seam-gate-eval.mjs";
 
 const hash = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -54,6 +57,32 @@ const jsonLines = (value: string): ProductionGateProcessMessage[] =>
     .map((line) => line.trim())
     .filter((line) => line.startsWith("{"))
     .map((line) => JSON.parse(line) as ProductionGateProcessMessage);
+
+const reportSnapshot = (path: string) => {
+  if (!existsSync(path)) return { exists: false } as const;
+  const { mode, mtimeMs, size } = statSync(path);
+  return { exists: true, mode, mtimeMs, size } as const;
+};
+
+test("the persisted report keeps bounded rebound signals but rejects internal task IDs", () => {
+  const safeReport = JSON.stringify({
+    observations: [{
+      roleEvidence: {
+        fullOrchestrator: {
+          schedulePlanReferenceCorrectionCode: "provider_plan_id_rebound",
+        },
+      },
+    }],
+    summary: { metrics: { provider: { providerPlanIdRebounds: 2 } } },
+  });
+
+  assert.doesNotThrow(() => assertReportSafe(safeReport, []));
+  assert.throws(
+    () => assertReportSafe(JSON.stringify({ taskId: "internal-task" }), []),
+    (error: unknown) =>
+      error instanceof Error && error.message === "REPORT_SHAPE_UNSAFE",
+  );
+});
 
 test("freezes the production gate protocol, exact stage sizes, and Focused order", () => {
   assert.equal(
@@ -223,11 +252,16 @@ test("fails typed for missing, duplicate, extra, and reordered fixture IDs", () 
 });
 
 test("the production-seam CLI reaches the canonical Known-ID preflight without a Provider key", () => {
-  const reportPath = "/tmp/l3b-r8-production-known-id-v3.json";
-  const reportExistedBefore = existsSync(reportPath);
-  const reportBefore = reportExistedBefore
-    ? statSync(reportPath)
-    : null;
+  const reportPath = "/tmp/l3b-r8-production-known-id-v4.json";
+  const preservedReportPaths = [
+    "/tmp/l3b-r8-production-known-id.json",
+    "/tmp/l3b-r8-production-known-id-v2.json",
+    "/tmp/l3b-r8-production-known-id-v3.json",
+  ] as const;
+  const reportPaths = [reportPath, ...preservedReportPaths] as const;
+  const reportsBefore = Object.fromEntries(
+    reportPaths.map((path) => [path, reportSnapshot(path)]),
+  );
   const head = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: process.cwd(),
     encoding: "utf8",
@@ -294,7 +328,7 @@ test("the production-seam CLI reaches the canonical Known-ID preflight without a
     assert.equal(child.status, 1);
     assert.equal(terminal.failureCode, "WORKTREE_NOT_CLEAN");
     assert.equal(preflight.status, "blocked");
-  } else if (reportExistedBefore) {
+  } else if (reportsBefore[reportPath].exists) {
     assert.equal(child.status, 1);
     assert.equal(terminal.failureCode, "REPORT_PATH_EXISTS");
     assert.equal(preflight.status, "blocked");
@@ -304,10 +338,8 @@ test("the production-seam CLI reaches the canonical Known-ID preflight without a
     assert.equal(preflight.status, "ready");
   }
 
-  assert.equal(existsSync(reportPath), reportExistedBefore);
-  if (reportBefore) {
-    const reportAfter = statSync(reportPath);
-    assert.equal(reportAfter.mtimeMs, reportBefore.mtimeMs);
-    assert.equal(reportAfter.size, reportBefore.size);
-  }
+  const reportsAfter = Object.fromEntries(
+    reportPaths.map((path) => [path, reportSnapshot(path)]),
+  );
+  assert.deepEqual(reportsAfter, reportsBefore);
 });

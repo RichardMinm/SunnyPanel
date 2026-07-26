@@ -10,6 +10,7 @@
 
 import { execFileSync } from "node:child_process";
 import { access, open, unlink } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
 
 class ProductionSeamGateError extends Error {
   constructor(code) {
@@ -22,7 +23,7 @@ class ProductionSeamGateError extends Error {
 const REPORT_PATHS = Object.freeze({
   acceptance: "/tmp/l3b-r8-production-acceptance.json",
   focused: "/tmp/l3b-r8-production-focused.json",
-  known_id: "/tmp/l3b-r8-production-known-id-v3.json",
+  known_id: "/tmp/l3b-r8-production-known-id-v4.json",
   stability: "/tmp/l3b-r8-production-stability.json",
 });
 const STAGES = new Set(Object.keys(REPORT_PATHS));
@@ -149,11 +150,11 @@ const projectObservation = (observation) => Object.freeze({
   usable: observation.usable,
 });
 
-const assertReportSafe = (encoded, sensitiveValues) => {
+export const assertReportSafe = (encoded, sensitiveValues) => {
   if (sensitiveValues.some((value) => value && encoded.includes(value))) {
     fail("REPORT_RETENTION_UNSAFE");
   }
-  if (/"(?:cause|credentials|errorMessage|prompt|rawResponse|reasoning|response|stack)"\s*:/iu.test(encoded)) {
+  if (/"(?:cause|credentials|errorMessage|prompt|rawResponse|reasoning|response|stack|taskId)"\s*:/iu.test(encoded)) {
     fail("REPORT_SHAPE_UNSAFE");
   }
 };
@@ -420,16 +421,21 @@ const main = async () => {
   })}\n`);
 };
 
-main().catch((error) => {
-  const failureCode = error instanceof ProductionSeamGateError
-    ? error.code
-    : "UNEXPECTED_FAILURE";
-  process.stderr.write(`${JSON.stringify({
-    failureCode,
-    preflight: preflightForFailure
-      ? { ...preflightForFailure, failureCode, status: "blocked" }
-      : null,
-    providerAttempts: actualProviderAttempts,
-  })}\n`);
-  process.exitCode = 1;
-});
+if (
+  process.argv[1]
+  && import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main().catch((error) => {
+    const failureCode = error instanceof ProductionSeamGateError
+      ? error.code
+      : "UNEXPECTED_FAILURE";
+    process.stderr.write(`${JSON.stringify({
+      failureCode,
+      preflight: preflightForFailure
+        ? { ...preflightForFailure, failureCode, status: "blocked" }
+        : null,
+      providerAttempts: actualProviderAttempts,
+    })}\n`);
+    process.exitCode = 1;
+  });
+}

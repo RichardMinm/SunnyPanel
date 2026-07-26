@@ -57,6 +57,7 @@ export type ProductionGateProviderMetrics = Readonly<{
   costUsd: number | null;
   fullLatencyP50Ms: number | null;
   observedUpperTailMs: number | null;
+  providerPlanIdRebounds: number;
   queryScopeDeviations: number;
   renderedCostUsd: "N/A" | string;
   resourceReferenceDeviations: number;
@@ -568,6 +569,11 @@ export const computeProductionGateMetrics = (
       costUsd: null,
       fullLatencyP50Ms: percentile(fullLatencies, 0.5),
       observedUpperTailMs: percentile(endedAttemptLatencies, 0.95),
+      providerPlanIdRebounds: input.observations.filter(
+        ({ roleEvidence }) =>
+          roleEvidence.fullOrchestrator
+            .schedulePlanReferenceCorrectionCode === "provider_plan_id_rebound",
+      ).length,
       queryScopeDeviations: input.observations.filter(
         (observation) =>
           isQueryScopeClarification(observation)

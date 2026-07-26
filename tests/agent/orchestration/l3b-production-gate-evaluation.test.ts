@@ -206,6 +206,10 @@ const assertSafeKnownIdObservation = (
   assert.equal(serialized.includes(selected.message), false);
   assert.equal(serialized.includes("考研数学复习计划"), false);
   assert.equal(serialized.includes("\"planId\""), false);
+  assert.equal(
+    JSON.stringify(observation.roleEvidence).includes("\"taskId\""),
+    false,
+  );
   assert.doesNotMatch(
     serialized,
     /rawProvider|rawResponse|stack|reasoning_content/u,
@@ -711,22 +715,33 @@ test("Full evidence projects a rebound schedule reference without identifiers", 
   assert.equal(JSON.stringify(evidence).includes("\"taskId\""), false);
 });
 
-test("Known-ID accepts one actor-authorized exact plan reference", async () => {
-  const { observation } = await evaluateKnownId(
+test("Known-ID classifies rebound exact references after Provider ID copy drift", async () => {
+  for (const fixtureId of [
     "diag-plan-existing-id",
-    () => fullOutput(
-      "explicit_write_ready",
-      "schedule_plan",
-      { planId: 101, startDate: "2026-07-21" },
-    ),
-  );
+    "diag-plan-title-valid-id",
+  ] as const) {
+    const { observation } = await evaluateKnownId(
+      fixtureId,
+      () => fullOutput(
+        "explicit_write_ready",
+        "schedule_plan",
+        { planId: 999, startDate: "2026-07-21" },
+      ),
+    );
 
-  assert.equal(observation.knownIdOutcome, "exact_reference");
-  assert.equal(observation.knownIdRejectionSource, null);
-  assert.equal(observation.semanticMatch, true);
-  assert.equal(observation.usable, true);
-  assert.deepEqual(observation.finalTaskIntents, ["schedule_plan"]);
-  assertSafeKnownIdObservation(observation, "diag-plan-existing-id");
+    assert.equal(observation.knownIdOutcome, "exact_reference", fixtureId);
+    assert.equal(observation.knownIdRejectionSource, null, fixtureId);
+    assert.equal(observation.semanticMatch, true, fixtureId);
+    assert.equal(observation.usable, true, fixtureId);
+    assert.deepEqual(observation.finalTaskIntents, ["schedule_plan"], fixtureId);
+    assert.equal(
+      observation.roleEvidence.fullOrchestrator
+        .schedulePlanReferenceCorrectionCode,
+      "provider_plan_id_rebound",
+      fixtureId,
+    );
+    assertSafeKnownIdObservation(observation, fixtureId);
+  }
 });
 
 test("Known-ID treats an outside ID only as typed safe rejection", async () => {
