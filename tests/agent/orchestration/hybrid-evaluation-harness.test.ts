@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import type { OrchestratorOutput } from "../../../src/lib/agent/llm/schemas/orchestrator-output";
@@ -48,21 +48,6 @@ test("the R3 harness is explicitly not the R4 path because it calls the full Orc
   const source = readFileSync("scripts/agent-orchestrator-canary-eval.mjs", "utf8");
   assert.match(source, /runLangChainOrchestratorResult/);
   assert.doesNotMatch(source, /runHybridOrchestration/);
-});
-
-test("the R4 live harness imports the production evaluator and never a standalone planner entry", () => {
-  const path = "scripts/agent-hybrid-query-boundary-eval.mjs";
-  assert.equal(
-    existsSync(path),
-    true,
-    `R4A_RED_UNIMPLEMENTED:hybrid_live_harness:${path}`,
-  );
-  const source = readFileSync(path, "utf8");
-  assert.match(source, /evaluateHybridProductionCase/);
-  assert.doesNotMatch(
-    source,
-    /runHybridOrchestration|runLangChainOrchestratorResult|runLangChainOrchestrator\(|runResidualPlanner|composeFixedTaskPlan/,
-  );
 });
 
 test("the hybrid evaluator records the required counters and Boundary task ownership", async () => {

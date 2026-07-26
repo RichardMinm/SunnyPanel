@@ -117,7 +117,7 @@ test("production evaluator owns only the real production entry and Dispatcher se
   );
 });
 
-test("explicit Hybrid script fails closed before imports without live approval", () => {
+test("the obsolete Hybrid script retires before approval or Provider setup", () => {
   const result = spawnSync(
     process.execPath,
     [
@@ -129,6 +129,8 @@ test("explicit Hybrid script fails closed before imports without live approval",
       cwd: process.cwd(),
       encoding: "utf8",
       env: {
+        DATABASE_URL: "must-not-be-read",
+        DEEPSEEK_API_KEY: "must-not-be-read",
         NODE_ENV: "test",
         PATH: process.env.PATH ?? "",
       },
@@ -137,56 +139,11 @@ test("explicit Hybrid script fails closed before imports without live approval",
   assert.equal(result.status, 1);
   assert.equal(result.stderr, "");
   assert.deepEqual(JSON.parse(result.stdout.trim()), {
-    errorCode: "MISSING_AGENT_HYBRID_QUERY_BOUNDARY_EVAL",
+    errorCode: "HYBRID_FOCUSED_GATE_RETIRED",
     passed: false,
+    providerAttempts: 0,
+    replacement: "production_seam_focused",
   });
-});
-
-test("explicit Hybrid script freezes approval, clean HEAD, /tmp report, and failed-gate exit", () => {
-  const source = readFileSync(
-    "scripts/agent-hybrid-query-boundary-eval.mjs",
-    "utf8",
-  );
-  assert.match(source, /L3B_HYBRID_PROVIDER_DATA_APPROVED/);
-  assert.match(source, /L3B_HYBRID_GATE_ACCEPTED_HEAD/);
-  assert.match(source, /DATABASE_URL_MUST_BE_UNSET/);
-  assert.match(source, /assertHybridFocusedGatePreflight/);
-  assert.match(source, /buildHybridFocusedGatePreflight/);
-  assert.match(source, /assertHybridFocusedGateReportReady/);
-  assert.match(source, /runHybridFocusedGate/);
-  assert.match(source, /writeHybridFocusedGateReport/);
-  assert.match(source, /if \(!summary\.passed\) process\.exitCode = 1/);
-  assert.doesNotMatch(source, /Targeted\s*15|Fresh\s*99/);
-
-  const reportReady = source.indexOf(
-    "assertHybridFocusedGateReportReady()",
-  );
-  const preflight = source.indexOf(
-    "buildHybridFocusedGatePreflight(",
-  );
-  const preflightValidation = source.indexOf(
-    "assertHybridFocusedGatePreflight(preflight)",
-  );
-  const preflightOutput = source.indexOf(
-    "process.stdout.write(`${JSON.stringify({",
-    preflightValidation,
-  );
-  const modelConfig = source.indexOf(
-    "const modelConfig = createModelConfig({",
-    preflightOutput,
-  );
-  const runner = source.indexOf("runHybridFocusedGate({");
-  const evaluation = source.indexOf(
-    "evaluateHybridProductionCase({",
-    runner,
-  );
-  assert.equal(reportReady >= 0, true);
-  assert.equal(preflight > reportReady, true);
-  assert.equal(preflightValidation > preflight, true);
-  assert.equal(preflightOutput > preflightValidation, true);
-  assert.equal(modelConfig > preflightOutput, true);
-  assert.equal(runner > modelConfig, true);
-  assert.equal(evaluation > runner, true);
 });
 
 test("production harness runs pure Query through the real dispatcher adoption gate", async () => {
