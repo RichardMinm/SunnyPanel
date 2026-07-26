@@ -24,5 +24,9 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
 
-  return handleAgentChatPost({ body, user: authResult.user });
+  return handleAgentChatPost({
+    body,
+    signal: request.signal,
+    user: authResult.user,
+  });
 }

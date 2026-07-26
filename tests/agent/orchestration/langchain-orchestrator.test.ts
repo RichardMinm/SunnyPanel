@@ -618,6 +618,84 @@ describe("langchain-orchestrator protocol", () => {
     assert.doesNotMatch(JSON.stringify(result), /planId|999|安排计划/);
   });
 
+  // Mutation caught: restoring the validator's compound-mode bypass would map
+  // and return a Provider-selected schedule target instead of clarifying.
+  it("clarifies an ambiguous compound schedule before compatibility mapping", async () => {
+    let providerAttempts = 0;
+    const result = await runLangChainOrchestratorResult({
+      context: {
+        checklists: [],
+        now: "2026-07-26T12:00:00.000+08:00",
+        pendingAction: null,
+        plans: [{
+          id: 101,
+          priority: "medium",
+          state: "active",
+          title: "考研数学复习计划",
+        }],
+      },
+      message: "安排这个计划，然后查看进度",
+      modelConfig: {
+        apiKey: "test-only",
+        baseURL: "https://example.invalid",
+        maxRetries: 0,
+        model: "fake",
+        provider: "deepseek",
+        structuredOutputMode: "provider_default",
+        temperature: 0,
+        timeoutMs: 100,
+      },
+      modelFactory: promptJsonModelFactory(() => {
+        providerAttempts += 1;
+        return {
+          decisionCode: "compound_ready",
+          mode: "compound",
+          routingSummary: "schedule selected context plan and query progress",
+          tasks: [
+            {
+              agentRole: "schedule",
+              args: { planId: 101 },
+              dependsOn: [],
+              id: "t1",
+              intent: "schedule_plan",
+              label: "schedule selected context plan",
+            },
+            {
+              agentRole: "query",
+              args: { scope: "all" },
+              dependsOn: ["t1"],
+              id: "t2",
+              intent: "query_progress",
+              label: "query progress",
+            },
+          ],
+          version: 2,
+        };
+      }),
+      structuredRetryBudget: { schema: 0, transport: 0 },
+    });
+
+    assert.equal(providerAttempts, 1);
+    assert.equal(result.status, "clarified");
+    if (result.status !== "clarified") return;
+    assert.equal(result.clarificationSource, "schedule_plan_reference");
+    assert.equal(
+      result.schedulePlanReferenceErrorCode,
+      "explicit_plan_id_required",
+    );
+    assert.deepEqual(result.plan.tasks.map(({ intent }) => intent), ["clarify"]);
+    assert.deepEqual(result.schemaValidDecision, {
+      decisionCode: "compound_ready",
+      intents: ["schedule_plan", "query_progress"],
+      mode: "compound",
+      taskCount: 2,
+    });
+    assert.doesNotMatch(
+      JSON.stringify(result.plan),
+      /schedule_plan|query_progress|101|selected context/u,
+    );
+  });
+
   it("clarifies a genuine schedule plan ID/title conflict before mapping", async () => {
     const result = await runLangChainOrchestratorResult({
       context: {

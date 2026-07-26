@@ -249,7 +249,10 @@ test("production adoption derives admin status only from the authenticated serve
   const step = fs.readFileSync("src/lib/agent/chat-pipeline/legacy-heuristic-resolution-step.ts", "utf8");
   assert.match(route, /getPayloadAuthResult\(\)/);
   assert.match(route, /if \(!authResult\.user\)/);
-  assert.match(route, /handleAgentChatPost\(\{ body, user: authResult\.user \}\)/);
+  assert.match(
+    route,
+    /handleAgentChatPost\(\{\s*body,\s*signal: request\.signal,\s*user: authResult\.user,\s*\}\)/u,
+  );
   assert.match(step, /actor: \{ isAdmin: user\.collection === "users" \}/);
   assert.match(step, /adoption: resolveQueryAdoption\(\)/);
   assert.doesNotMatch(step, /message\.(?:isAdmin|role)|body\.(?:isAdmin|role)/);

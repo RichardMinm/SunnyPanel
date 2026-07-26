@@ -36,7 +36,7 @@ describe("orchestrator-runtime-config", () => {
       assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     });
 
-    it("returns legacy for uppercase LANGCHAIN", () => {
+    it("returns langchain for uppercase LANGCHAIN", () => {
       process.env.AGENT_ORCHESTRATOR_RUNTIME = "LANGCHAIN";
       assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     });
@@ -46,7 +46,7 @@ describe("orchestrator-runtime-config", () => {
       assert.equal(resolveOrchestratorRuntimeMode(), "legacy");
     });
 
-    it("returns legacy for whitespace-padded value", () => {
+    it("returns langchain for whitespace-padded langchain", () => {
       process.env.AGENT_ORCHESTRATOR_RUNTIME = "  langchain  ";
       assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     });

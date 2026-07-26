@@ -56,7 +56,7 @@ describe("orchestrator-dispatcher", () => {
   });
 
   describe("mode isolation", () => {
-    it("legacy mode does not load langchain modules at dispatch time", () => {
+    it("legacy runtime value resolves to legacy mode", () => {
       process.env.AGENT_ORCHESTRATOR_RUNTIME = "legacy";
       assert.equal(resolveOrchestratorRuntimeMode(), "legacy");
     });

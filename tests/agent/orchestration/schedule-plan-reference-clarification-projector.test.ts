@@ -13,6 +13,7 @@ const codes: SchedulePlanReferenceErrorCode[] = [
   "multiple_explicit_plan_ids",
   "explicit_plan_id_not_in_context",
   "multiple_exact_plan_titles",
+  "multiple_schedule_plan_tasks",
   "plan_id_title_conflict",
 ];
 

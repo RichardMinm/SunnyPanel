@@ -9,6 +9,7 @@ export type SchedulePlanReferenceErrorCode =
   | "multiple_explicit_plan_ids"
   | "explicit_plan_id_not_in_context"
   | "multiple_exact_plan_titles"
+  | "multiple_schedule_plan_tasks"
   | "plan_id_title_conflict";
 
 export type SchedulePlanReferenceCorrectionCode =
@@ -49,6 +50,8 @@ const safeMessageByCode = Object.freeze({
     "请求同时提到了多个计划标题，请确认要安排的计划。",
   multiple_explicit_plan_ids:
     "请求同时提到了多个计划 ID，请确认要安排的计划。",
+  multiple_schedule_plan_tasks:
+    "一个请求中只能安排一个已有计划，请分别提供计划 ID。",
   plan_id_title_conflict:
     "计划 ID 与标题指向不同资源，请确认要安排的计划。",
 } satisfies Record<SchedulePlanReferenceErrorCode, string>);
@@ -115,17 +118,8 @@ export const validateSchedulePlanReferences = (
       valid: true,
     });
   }
-  if (
-    input.output.mode !== "single"
-    || input.output.tasks.length !== 1
-    || scheduleTasks.length !== 1
-  ) {
-    return Object.freeze({
-      corrections: NO_CORRECTIONS,
-      output: input.output,
-      provenances: Object.freeze([]),
-      valid: true,
-    });
+  if (scheduleTasks.length > 1) {
+    return invalid("multiple_schedule_plan_tasks");
   }
 
   const task = scheduleTasks[0]!;
@@ -170,7 +164,11 @@ export const validateSchedulePlanReferences = (
     ? Object.freeze({
         ...input.output,
         routingSummary: "安排已有计划",
-        tasks: Object.freeze([normalizedTask]),
+        tasks: Object.freeze(
+          input.output.tasks.map((currentTask) =>
+            currentTask.id === task.id ? normalizedTask : currentTask
+          ),
+        ),
       }) as OrchestratorOutput
     : input.output;
   const corrections = correctionRequired

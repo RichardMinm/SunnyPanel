@@ -136,6 +136,7 @@ export type RunAgentChatPipelineDeps = {
   /** Performance timer (null when AGENT_PERF_TRACE≠1) */
   perfTimer?: AgentPerformanceTimer | null;
   resolvedHistory: AgentChatMessage[];
+  signal?: AbortSignal;
   structuredConfirmation: null | StructuredConfirmation;
   thread: AgentThread;
   user: { id: number };
@@ -158,6 +159,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     pendingAction,
     perfTimer = null,
     resolvedHistory,
+    signal,
     structuredConfirmation,
     thread,
     user,
@@ -760,6 +762,7 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
           persistAgentTurn,
           pushTrace,
           resolvedHistory,
+          signal,
           stream,
           tokenUsage,
           trace,

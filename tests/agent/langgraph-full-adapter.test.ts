@@ -29,6 +29,88 @@ const context: AgentPromptContext = {
   plans: [],
 };
 
+// Mutation caught: omitting the shared request signal from the Full LangGraph
+// adapter would prevent a client disconnect from reaching orchestration.
+test("full adapter forwards the request signal into orchestration", async () => {
+  const caller = new AbortController();
+  const thread = {
+    id: 41,
+    messages: [],
+    pendingAction: null,
+  } as unknown as AgentThread;
+  let propagatedSignal: AbortSignal | undefined;
+  const steps: FullLangGraphAdapterSteps = {
+    appendAgentThreadTurn: async () => thread,
+    runAgentLearningLoop: async () => ({
+      candidates: [],
+      decisions: [],
+      savedMemories: [],
+      source: "fallback",
+      suggestedMemories: [],
+    }),
+    runBuildContextStep: async () => ({
+      context,
+      contextSummary: "上下文",
+      tokenUsage,
+      workingMemory: {
+        pendingConfirmations: [],
+        recentActions: [],
+        sessionId: "signal-propagation",
+      },
+    }),
+    runDryRunAndProposeStep: async () => {
+      throw new Error("Cancellation clarification must skip dry-run.");
+    },
+    runExecuteAndPersistStep: async () => {
+      throw new Error("Cancellation clarification must skip execution.");
+    },
+    runOrchestrationStep: async (params) => {
+      propagatedSignal = params.signal;
+      return {
+        outcome: "early_exit",
+        response: {
+          assistantMessage: "请求已被取消。",
+          confidence: 0,
+          engine: "workflow",
+          intent: "clarify",
+          pendingAction: null,
+          threadId: thread.id,
+          tokenUsage: params.tokenUsage,
+        },
+      };
+    },
+    runResolveIntentStep: async () => {
+      throw new Error("Cancellation clarification must skip intent resolution.");
+    },
+  };
+  const run = createRunFullLangGraphAgentChatPipeline(
+    {
+      baseTokenUsage: tokenUsage,
+      contextPreferences: null,
+      finalizeTurn: async ({ response }) => response,
+      generateIntentWithAgentModel: async () => null,
+      intentModelEngine: "heuristic",
+      message: "安排计划",
+      payload: {} as never,
+      pendingAction: null,
+      resolvedHistory: [],
+      signal: caller.signal,
+      structuredConfirmation: null,
+      thread,
+      user: { id: 7 },
+      userPreferences: null,
+      workbenchMode: "plan",
+    },
+    steps,
+    { checkpointer: new MemorySaver() },
+  );
+
+  const response = await run();
+
+  assert.equal(propagatedSignal, caller.signal);
+  assert.equal(response.intent, "clarify");
+});
+
 test("full adapter uses the parent checkpoint namespace for the mounted native subgraph", () => {
   const source = readFileSync(
     "src/lib/agent/langgraph/full-adapter.ts",

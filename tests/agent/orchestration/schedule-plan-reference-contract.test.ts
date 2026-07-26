@@ -44,6 +44,27 @@ const output = (planId: number): OrchestratorOutput => ({
   version: 2,
 });
 
+const compoundOutput = (planId: number): OrchestratorOutput => ({
+  decisionCode: "compound_ready",
+  mode: "compound",
+  routingSummary: "schedule an existing plan and query progress",
+  tasks: [
+    {
+      ...output(planId).tasks[0]!,
+      id: "t1",
+    },
+    {
+      agentRole: "query",
+      args: { scope: "all" },
+      dependsOn: ["t1"],
+      id: "t2",
+      intent: "query_progress",
+      label: "query progress",
+    },
+  ],
+  version: 2,
+});
+
 test("accepts explicit ID-only provenance including generic labels", () => {
   const result = validateSchedulePlanReferences({
     context,
@@ -206,23 +227,10 @@ test("leaves non-schedule output unchanged with no provenance", () => {
   });
 });
 
-test("leaves compound output to existing compound and resource contracts", () => {
-  const currentOutput: OrchestratorOutput = {
-    ...output(101),
-    decisionCode: "compound_ready",
-    mode: "compound",
-    tasks: [
-      output(101).tasks[0]!,
-      {
-        agentRole: "query",
-        args: {},
-        dependsOn: ["t1"],
-        id: "t2",
-        intent: "query_progress",
-        label: "query progress",
-      },
-    ],
-  };
+// Mutation caught: restoring the compound-mode early return would accept a
+// context-only Provider plan ID without deterministic user provenance.
+test("rejects a context-only plan reference in a compound output", () => {
+  const currentOutput = compoundOutput(101);
   const result = validateSchedulePlanReferences({
     context,
     message: "安排这个计划，然后查看进度",
@@ -230,9 +238,99 @@ test("leaves compound output to existing compound and resource contracts", () =>
   });
 
   assert.deepEqual(result, {
-    corrections: [],
-    output: currentOutput,
-    provenances: [],
-    valid: true,
+    code: "explicit_plan_id_required",
+    safeMessage: "安排已有计划需要用户明确提供一个计划 ID。",
+    valid: false,
   });
+});
+
+// Mutation caught: rejecting every compound schedule would discard a valid,
+// explicit actor-authorized user plan ID.
+test("binds one explicit user plan ID to one compound schedule task", () => {
+  const currentOutput = compoundOutput(101);
+  const result = validateSchedulePlanReferences({
+    context,
+    message: "安排计划 101，然后查看进度",
+    output: currentOutput,
+  });
+
+  assert.equal(result.valid, true);
+  if (!result.valid) return;
+  assert.equal(result.output, currentOutput);
+  assert.deepEqual(result.corrections, []);
+  assert.deepEqual(result.provenances, [{
+    planId: 101,
+    source: "explicit_plan_id",
+    taskId: "t1",
+  }]);
+});
+
+// Mutation caught: trusting the Provider-selected context ID or rebuilding the
+// whole compound output would change the user target or damage the task DAG.
+test("rebinds only the compound schedule task and preserves the dependency DAG", () => {
+  const currentOutput = compoundOutput(102);
+  const originalQueryTask = currentOutput.tasks[1];
+  const originalDependencies = currentOutput.tasks.map(
+    ({ dependsOn }) => [...dependsOn],
+  );
+  const result = validateSchedulePlanReferences({
+    context,
+    message: "安排计划 101，然后查看进度",
+    output: currentOutput,
+  });
+
+  assert.equal(result.valid, true);
+  if (!result.valid) return;
+  assert.deepEqual(
+    result.output.tasks.map(({ dependsOn }) => dependsOn),
+    originalDependencies,
+  );
+  assert.deepEqual(
+    result.output.tasks.map(({ id, intent }) => ({ id, intent })),
+    [
+      { id: "t1", intent: "schedule_plan" },
+      { id: "t2", intent: "query_progress" },
+    ],
+  );
+  assert.deepEqual(result.output.tasks[0]?.args, { planId: 101 });
+  assert.equal(result.output.tasks[1], originalQueryTask);
+  assert.deepEqual(result.output.tasks[1]?.args, { scope: "all" });
+  assert.deepEqual(result.corrections, [{
+    code: "provider_plan_id_rebound",
+    taskId: "t1",
+  }]);
+  assert.deepEqual(result.provenances, [{
+    planId: 101,
+    source: "explicit_plan_id",
+    taskId: "t1",
+  }]);
+});
+
+// Mutation caught: reusing one explicit ID across multiple compound mutation
+// tasks would authorize more schedule writes than the user selected.
+test("rejects more than one compound schedule task", () => {
+  const currentOutput: OrchestratorOutput = {
+    ...compoundOutput(101),
+    tasks: [
+      {
+        ...output(101).tasks[0]!,
+        id: "t1",
+      },
+      {
+        ...output(101).tasks[0]!,
+        dependsOn: ["t1"],
+        id: "t2",
+      },
+    ],
+  };
+  const result = validateSchedulePlanReferences({
+    context,
+    message: "安排计划 101",
+    output: currentOutput,
+  });
+
+  assert.equal(result.valid, false);
+  if (result.valid) return;
+  assert.equal(result.code, "multiple_schedule_plan_tasks");
+  assert.equal(result.safeMessage.trim().length > 0, true);
 });

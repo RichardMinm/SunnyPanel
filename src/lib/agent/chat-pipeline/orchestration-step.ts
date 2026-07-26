@@ -189,6 +189,7 @@ export type OrchestrationStepParams = {
   residualPlannerModelConfig?: ModelConfig;
   residualPlannerProviderAttemptObserver?: StructuredProviderAttemptObserver;
   runResidualPlannerFn?: typeof runResidualPlanner;
+  signal?: AbortSignal;
   stream?: AgentStreamController;
   terminalizeCompoundExecution?: boolean;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -280,6 +281,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     residualPlannerProviderAttemptObserver,
     runOrchestratorFn = dispatchOrchestrator,
     runResidualPlannerFn = runResidualPlanner,
+    signal,
     stream,
     terminalizeCompoundExecution = false,
     tokenUsage: tokenUsageIn,
@@ -1003,14 +1005,14 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     forcedPlan ??
     hybridPlan ??
     (runOrchestratorFn === dispatchOrchestrator
-      ? await dispatchOrchestrator(message, context, undefined, {
+      ? await dispatchOrchestrator(message, context, signal, {
           modelCallRecorder,
           role: "orchestrator",
           scopeId: "turn-orchestrator",
         })
       : await (async () => {
           modelCallRecorder?.record("orchestrator", "turn-orchestrator");
-          return runOrchestratorFn(message, context);
+          return runOrchestratorFn(message, context, signal);
         })());
   stream?.progress({
     detail: `${plan.mode === "compound" ? "复合" : "单一"}意图 · ${plan.tasks.length} 个子任务`,

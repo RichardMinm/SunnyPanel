@@ -117,8 +117,12 @@ export type AgentChatPostUser = { id: number };
 /**
  * 鉴权之后的 HTTP 入口：解析 body、建线程、处理「跳过待办」短路与主管线，返回 JSON 或 SSE。
  */
-export const handleAgentChatPost = async (input: { body: unknown; user: AgentChatPostUser }) => {
-  const { body, user } = input;
+export const handleAgentChatPost = async (input: {
+  body: unknown;
+  signal?: AbortSignal;
+  user: AgentChatPostUser;
+}) => {
+  const { body, signal, user } = input;
 
   if (!isRecord(body)) {
     return NextResponse.json(
@@ -277,6 +281,7 @@ export const handleAgentChatPost = async (input: { body: unknown; user: AgentCha
     pendingAction,
     perfTimer,
     resolvedHistory,
+    signal,
     structuredConfirmation,
     thread,
     turnId,
