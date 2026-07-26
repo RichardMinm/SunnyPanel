@@ -648,9 +648,11 @@ const assertNoSensitiveRetention = (
     if (
       typeof sensitive === "number"
       && Number.isFinite(sensitive)
-      && typeof value === "number"
     ) {
-      return value === sensitive && !numericMetricPath(path);
+      const matchesSensitiveNumber =
+        (typeof value === "number" && value === sensitive)
+        || (typeof value === "string" && value === String(sensitive));
+      return matchesSensitiveNumber && !numericMetricPath(path);
     }
     return false;
   });

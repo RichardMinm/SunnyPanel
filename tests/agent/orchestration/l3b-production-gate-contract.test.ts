@@ -150,6 +150,14 @@ test("the report validator rejects exact string and numeric fixture values outsi
   }
 });
 
+test("the report validator rejects a stringified sensitive numeric fixture identity", () => {
+  assert.throws(
+    () => assertReportSafe({ fixtureIds: ["101"] }, [101]),
+    (error: unknown) =>
+      error instanceof Error && error.message === "REPORT_RETENTION_UNSAFE",
+  );
+});
+
 test("the report validator rejects embedded secrets and unrecognized categorical values", () => {
   assert.throws(
     () => assertReportSafe(
