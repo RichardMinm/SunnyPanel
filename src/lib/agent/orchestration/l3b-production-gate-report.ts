@@ -28,10 +28,20 @@ interface ReportObjectShape {
   readonly [key: string]: ReportShape;
 }
 
-type ReportShape = "leaf" | ReportArrayShape | ReportObjectShape;
+interface ReportNullableShape {
+  readonly nullable: ReportShape;
+}
+
+type ReportShape =
+  | "leaf"
+  | ReportArrayShape
+  | ReportNullableShape
+  | ReportObjectShape;
 
 const leaf = "leaf" as const;
 const leafArray = Object.freeze({ array: leaf });
+const nullable = (shape: ReportShape): ReportNullableShape =>
+  Object.freeze({ nullable: shape });
 
 const roleCountsShape = Object.freeze({
   answerRenderer: leaf,
@@ -91,12 +101,12 @@ const fullEvidenceShape = Object.freeze({
   resourceIssueCodes: leafArray,
   schedulePlanReferenceCorrectionCode: leaf,
   schedulePlanReferenceErrorCode: leaf,
-  semanticProjection: Object.freeze({
+  semanticProjection: nullable(Object.freeze({
     decisionCode: leaf,
     intents: leafArray,
     mode: leaf,
     taskCount: leaf,
-  }),
+  })),
   semanticValidationPasses: leaf,
   semanticValidationsCompleted: leaf,
   status: leaf,
@@ -571,6 +581,11 @@ const validateShape = (
 ): void => {
   if (shape === leaf) {
     validateLeaf(value, path);
+    return;
+  }
+  if ("nullable" in shape) {
+    if (value === null) return;
+    validateShape(value, shape.nullable, path);
     return;
   }
   if ("array" in shape) {

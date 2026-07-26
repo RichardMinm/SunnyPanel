@@ -23,7 +23,11 @@ import {
 import { calculateProductionStageAuthorizedBudget } from "../../../src/lib/agent/orchestration/l3b-production-gate-budget";
 import {
   assertReportSafe,
+  classifyProductionSeamFailure,
 } from "../../../scripts/agent-production-seam-gate-eval.mjs";
+import {
+  ProductionGateReportSafetyError,
+} from "../../../src/lib/agent/orchestration/l3b-production-gate-report";
 
 const hash = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -84,6 +88,39 @@ test("the persisted report accepts bounded signals and legitimate metrics", () =
   };
 
   assert.doesNotThrow(() => assertReportSafe(safeReport, [101]));
+});
+
+test("the persisted report accepts a null semantic projection for roles that were not called", () => {
+  const safeReport = {
+    observations: [{
+      roleEvidence: {
+        fullOrchestrator: {
+          semanticProjection: null,
+        },
+      },
+    }],
+  };
+
+  assert.doesNotThrow(() => assertReportSafe(safeReport, []));
+  assert.throws(
+    () => assertReportSafe({ summary: null }, []),
+    (error: unknown) =>
+      error instanceof Error && error.message === "REPORT_SHAPE_UNSAFE",
+  );
+});
+
+test("report safety failures retain a typed terminal failure code", () => {
+  for (const code of [
+    "REPORT_RETENTION_UNSAFE",
+    "REPORT_SHAPE_UNSAFE",
+  ] as const) {
+    assert.equal(
+      classifyProductionSeamFailure(
+        new ProductionGateReportSafetyError(code),
+      ),
+      code,
+    );
+  }
 });
 
 test("the report validator recursively rejects every raw and identity category", () => {

@@ -13,6 +13,7 @@ import { access, open, unlink } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import {
   assertProductionGateReportSafe,
+  ProductionGateReportSafetyError,
 } from "../src/lib/agent/orchestration/l3b-production-gate-report.ts";
 import {
   calculateProductionStageAuthorizedBudget,
@@ -189,6 +190,20 @@ const projectObservation = (observation) => Object.freeze({
 
 export const assertReportSafe = (report, sensitiveValues) =>
   assertProductionGateReportSafe(report, sensitiveValues);
+
+export const classifyProductionSeamFailure = (error) => {
+  const authorizationFailureCode =
+    error
+    && typeof error === "object"
+    && error.name === "ModelCallAuthorizationError"
+    && typeof error.code === "string"
+    && MODEL_CALL_AUTHORIZATION_FAILURE_CODES.has(error.code)
+      ? error.code
+      : null;
+  if (error instanceof ProductionSeamGateError) return error.code;
+  if (error instanceof ProductionGateReportSafetyError) return error.code;
+  return authorizationFailureCode ?? "UNEXPECTED_FAILURE";
+};
 
 const writeReport = async (path, encoded) => {
   let handle = null;
@@ -479,17 +494,7 @@ if (
   && import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((error) => {
-    const authorizationFailureCode =
-      error
-      && typeof error === "object"
-      && error.name === "ModelCallAuthorizationError"
-      && typeof error.code === "string"
-      && MODEL_CALL_AUTHORIZATION_FAILURE_CODES.has(error.code)
-        ? error.code
-        : null;
-    const failureCode = error instanceof ProductionSeamGateError
-      ? error.code
-      : authorizationFailureCode ?? "UNEXPECTED_FAILURE";
+    const failureCode = classifyProductionSeamFailure(error);
     process.stderr.write(`${JSON.stringify({
       failureCode,
       preflight: preflightForFailure
