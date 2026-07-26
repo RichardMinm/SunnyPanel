@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   mkdirSync,
@@ -823,38 +824,37 @@ test("keeps the six Plan known-ID diagnostics outside the gating matrix", () => 
   );
 });
 
-test("live harness is explicit, database-free, fixed-budget, and uses typed results", () => {
+test("the historical authoritative Gate is a typed fail-closed tombstone", () => {
   const source = readFileSync(
     resolve(process.cwd(), "scripts/agent-orchestrator-canary-eval.mjs"),
     "utf8",
   );
+  const env = { ...process.env };
+  delete env.AGENT_LIVE_LLM_EVAL;
+  delete env.DEEPSEEK_API_KEY;
+  delete env.DATABASE_URL;
+  const result = spawnSync(
+    process.execPath,
+    ["scripts/agent-orchestrator-canary-eval.mjs"],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env,
+    },
+  );
 
-  assert.match(source, /AGENT_LIVE_LLM_EVAL/);
-  assert.match(source, /runLangChainOrchestratorResult/);
-  assert.match(source, /L3B_EVALUATION_CONFIG_HASH/);
-  assert.match(source, /L3B_ACCEPTANCE_CONFIG_HASH/);
-  assert.match(source, /assertL3BStabilityPrerequisite/);
-  assert.match(source, /providerAttemptObserver/);
-  assert.match(source, /transport: L3B_EVALUATION_CONFIG\.transportRetries/);
-  assert.match(source, /schema: L3B_EVALUATION_CONFIG\.schemaRetries/);
-  assert.match(source, /maxOutputTokens: L3B_EVALUATION_CONFIG\.orchestratorMaxOutputTokens/);
-  assert.match(source, /thinkingMode: L3B_EVALUATION_CONFIG\.orchestratorThinkingMode/);
-  assert.match(source, /L3B_EVALUATION_FIXTURES/);
-  assert.match(source, /L3B_KNOWN_ID_DIAGNOSTICS/);
-  assert.match(source, /knownIdDiagnostics/);
-  assert.match(source, /L3B_EVAL_FIXTURE_IDS/);
-  assert.match(source, /L3B_EVAL_REPORT_PATH/);
-  assert.match(source, /assertSanitizedL3BReport\(report\)/);
-  assert.match(source, /writeSanitizedL3BReport/);
-  assert.match(source, /buildL3BDiagnosticStatus/);
-  assert.match(source, /queryScopeErrorCode/);
-  assert.match(source, /combineL3BTopLevelPass/);
-  assert.match(source, /diagnosticStatus/);
-  assert.match(source, /orchestrator-plan-to-intent/);
-  assert.match(source, /specialist-task-completeness/);
-  assert.doesNotMatch(source, /src\/lib\/agent\/orchestrator\.ts/);
-  assert.doesNotMatch(source, /agents\/run-specialized-agent\.ts/);
-  assert.doesNotMatch(source, /getAgentModelConfig|DATABASE_URL|payload\.config/);
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, "");
+  assert.deepEqual(JSON.parse(result.stdout.trim()), {
+    errorCode: "L3B_AUTHORITATIVE_GATE_RETIRED",
+    passed: false,
+    providerAttempts: 0,
+    replacement: "production_seam_gate",
+  });
+  assert.doesNotMatch(
+    source,
+    /AGENT_LIVE_LLM_EVAL|DEEPSEEK_API_KEY|DATABASE_URL|import\s*\(|runLangChainOrchestratorResult|writeSanitizedL3BReport/,
+  );
 });
 
 test("fixture selection rejects empty and unknown IDs, deduplicates, and preserves matrix order", () => {

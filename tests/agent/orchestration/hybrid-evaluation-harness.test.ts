@@ -44,9 +44,11 @@ const cmp4Result = (secret = "safe"): HybridOrchestrationResult => ({
   status: "usable",
 });
 
-test("the R3 harness is explicitly not the R4 path because it calls the full Orchestrator", () => {
+test("the historical Full-only Gate is retired outside the R4 product path", () => {
   const source = readFileSync("scripts/agent-orchestrator-canary-eval.mjs", "utf8");
-  assert.match(source, /runLangChainOrchestratorResult/);
+  assert.match(source, /L3B_AUTHORITATIVE_GATE_RETIRED/);
+  assert.match(source, /replacement:\s*"production_seam_gate"/);
+  assert.doesNotMatch(source, /runLangChainOrchestratorResult/);
   assert.doesNotMatch(source, /runHybridOrchestration/);
 });
 

@@ -139,41 +139,17 @@ test("one timeout observation fails the 99-observation gate regardless of retry 
   assert.equal(report.pass, false);
 });
 
-test("diagnostics and raw payload-bearing keys stay outside authoritative denominators", () => {
+test("the retired authoritative Gate cannot bypass the Production Seam manifest", () => {
   const source = readFileSync(
     resolve(process.cwd(), "scripts/agent-orchestrator-canary-eval.mjs"),
     "utf8",
   );
-  assert.match(source, /assertSanitizedL3BReport\(report\)/);
-  assert.match(source, /forbiddenReportKey/);
-  assert.match(source, /knownIdDiagnostics/);
-  assert.match(source, /schemaIssues: \(event\.schemaIssues/);
-  assert.match(source, /missing_required/);
-  assert.match(source, /wrong_type/);
-  assert.match(source, /invalid_enum/);
-  assert.match(source, /invalid_shape/);
-  assert.match(source, /observations: runs\.map/);
-  assert.doesNotMatch(source, /runs\.push\([^)]*diagnostic/);
-});
-
-test("runs known-ID diagnostics only after the acceptance matrix passes", () => {
-  const source = readFileSync(
-    resolve(process.cwd(), "scripts/agent-orchestrator-canary-eval.mjs"),
-    "utf8",
-  );
-  const gatingIndex = source.indexOf("const gating = buildL3BEvaluationReport");
-  const diagnosticsIndex = source.indexOf("const knownIdDiagnostics =");
-
-  assert.notEqual(gatingIndex, -1);
-  assert.notEqual(diagnosticsIndex, -1);
-  assert.ok(gatingIndex < diagnosticsIndex);
-  assert.match(
-    source.slice(diagnosticsIndex, source.indexOf("const diagnosticStatus =")),
-    /gateStage === "acceptance" && gating\.pass/,
-  );
-  assert.match(
-    source.slice(source.indexOf("const runKnownIdDiagnostic"), gatingIndex),
-    /structuredRetryBudget:[\s\S]*transport: 0/,
+  assert.match(source, /L3B_AUTHORITATIVE_GATE_RETIRED/);
+  assert.match(source, /replacement:\s*"production_seam_gate"/);
+  assert.match(source, /providerAttempts:\s*0/);
+  assert.doesNotMatch(
+    source,
+    /AGENT_LIVE_LLM_EVAL|DEEPSEEK_API_KEY|import\s*\(|runLangChainOrchestratorResult/,
   );
 });
 
