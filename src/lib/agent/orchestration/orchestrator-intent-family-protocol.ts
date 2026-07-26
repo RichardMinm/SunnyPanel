@@ -212,6 +212,7 @@ export type OrchestratorSemanticContrast = Readonly<{
     | "natural_language_checklist_draft"
     | "partial_title_query"
     | "imperative_completion_mutation"
+    | "unfinished_items_schedule"
     | "new_plan_schedule";
   reason: string;
   requestPattern: string;
@@ -295,10 +296,12 @@ export const ORCHESTRATOR_SEMANTIC_CONTRASTS = Object.freeze([
       mode: "single",
     },
     forbiddenDecisionCodes: [
+      "pure_consultation",
       "pure_read_query",
       "explicit_write_ready",
     ],
     forbiddenIntents: [
+      "answer_question",
       "query_plan_progress",
       "complete_plan_item",
     ],
@@ -307,6 +310,28 @@ export const ORCHESTRATOR_SEMANTIC_CONTRASTS = Object.freeze([
       "祈使完成或标记完成是 mutation；complete_plan_item 只能操作已有清单项。计划标题不能替代清单标题，workspace 中存在计划也不证明清单存在；没有 actor-authorized context 中精确且唯一的 checklistTitle 时，必须选择 explicit_write_missing_resource 并澄清。",
     requestPattern:
       "中性示例：workspace 只有一份课程计划，没有匹配清单；用户命令完成该计划中的一个条目。",
+  }),
+  semanticContrast({
+    admitted: {
+      decisionCode: "compound_missing_target",
+      intents: ["clarify"],
+      mode: "single",
+    },
+    forbiddenDecisionCodes: [
+      "compound_ready",
+      "explicit_write_ready",
+    ],
+    forbiddenIntents: [
+      "query_progress",
+      "compose_checklist",
+      "compose_schedule_item",
+      "create_schedule_items",
+    ],
+    id: "unfinished_items_schedule",
+    reason:
+      "把已有未完成条目移动到后续周期是 existing-target mutation；缺少可信且唯一的原计划、清单条目或日程引用时必须整体澄清，不能重写成新建清单或日程草案。",
+    requestPattern:
+      "中性示例：用户先查看本周期完成情况，再要求把尚未完成的既有条目移动到未来周期，但没有可信且唯一的原资源引用。",
   }),
   semanticContrast({
     admitted: {

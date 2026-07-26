@@ -9,9 +9,9 @@ import {
 } from "../answer/config";
 
 export const L3B_EVALUATION_CONFIG_VERSION =
-  "l3b-save-memory-args-repair-v1";
+  "l3b-request-semantic-boundary-v1";
 export const L3B_PROMPT_PROTOCOL_VERSION =
-  "l3b-save-memory-args-contract-v1";
+  "l3b-request-semantic-boundary-v1";
 export const L3B_RESOURCE_PROTOCOL_VERSION = 3;
 
 export type L3BEvaluationConfig = Readonly<{

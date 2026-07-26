@@ -453,11 +453,11 @@ test("freezes and hashes the exact secret-free evaluation configuration", () => 
   assert.equal(L3B_EVALUATION_CONFIG.semanticRetries, 0);
   assert.equal(
     L3B_EVALUATION_CONFIG_VERSION,
-    "l3b-save-memory-args-repair-v1",
+    "l3b-request-semantic-boundary-v1",
   );
   assert.equal(
     L3B_PROMPT_PROTOCOL_VERSION,
-    "l3b-save-memory-args-contract-v1",
+    "l3b-request-semantic-boundary-v1",
   );
   assert.doesNotMatch(JSON.stringify(L3B_EVALUATION_CONFIG), /apiKey|secret|sk-/i);
   assert.match(L3B_EVALUATION_CONFIG_HASH, /^[a-f0-9]{64}$/);
@@ -467,7 +467,7 @@ test("freezes and hashes the exact secret-free evaluation configuration", () => 
   );
   assert.equal(
     L3B_EVALUATION_CONFIG_HASH,
-    "e8b1bc6ca6580f446b3d8cdaa886c5143f72dc17067cf9733ca702e19121f108",
+    "85dda3e05eb18fd3729e2f60c8808d30950162515a651fa201de68b37cf5e135",
   );
 
   const reversed = Object.fromEntries(

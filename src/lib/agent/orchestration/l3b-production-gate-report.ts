@@ -98,6 +98,7 @@ const fullEvidenceShape = Object.freeze({
   providerAttempts: leaf,
   providerLatenciesMs: leafArray,
   queryScopeErrorCode: leaf,
+  requestSemanticBoundaryErrorCode: leaf,
   resourceIssueCodes: leafArray,
   schedulePlanReferenceCorrectionCode: leaf,
   schedulePlanReferenceErrorCode: leaf,
@@ -345,6 +346,10 @@ const queryScopeCodes = valueSet([
   "title_ambiguous",
   "title_not_found",
 ]);
+const requestSemanticBoundaryCodes = valueSet([
+  "imperative_completion_non_write",
+  "unfinished_items_schedule_non_clarify",
+]);
 const resourceIssueCodes = valueSet([
   "RESOURCE_DEPENDENCY_MISSING",
   "RESOURCE_ID_MISSING",
@@ -504,6 +509,7 @@ const validateStringLeaf = (
   if (key === "clarificationSource") {
     if (
       value === "query_scope"
+      || value === "request_semantic_boundary"
       || value === "resource_readiness"
       || value === "schedule_plan_reference"
     ) {
@@ -517,6 +523,10 @@ const validateStringLeaf = (
   }
   if (key === "queryScopeErrorCode") {
     if (queryScopeCodes.has(value)) return;
+    return unsafeShape();
+  }
+  if (key === "requestSemanticBoundaryErrorCode") {
+    if (requestSemanticBoundaryCodes.has(value)) return;
     return unsafeShape();
   }
   if (key === "resourceIssueCodes") {

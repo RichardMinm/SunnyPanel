@@ -686,6 +686,58 @@ test("Full evidence preserves bounded query-scope and schedule-reference categor
   assert.equal(JSON.stringify(resourceEvidence).includes("999"), false);
 });
 
+test("Full evidence preserves only the typed request-semantic boundary category", async () => {
+  const recorder = createModelCallBudgetRecorder();
+  const adapter = createProductionFullAdapter({
+    modelConfig,
+    modelFactory: promptJsonModelFactory(() => ({
+      decisionCode: "compound_ready",
+      mode: "compound",
+      routingSummary: "bounded test decision",
+      tasks: [
+        {
+          agentRole: "query",
+          args: {},
+          dependsOn: [],
+          id: "t1",
+          intent: "query_progress",
+          label: "query_progress",
+        },
+        {
+          agentRole: "plan",
+          args: {},
+          dependsOn: ["t1"],
+          id: "t2",
+          intent: "compose_checklist",
+          label: "compose_checklist",
+        },
+      ],
+      version: 2,
+    })),
+    observe: () => undefined,
+    recorder,
+    retryBudget: { schema: 0, transport: 0 },
+  });
+  const selected = fixture("cmp-2");
+
+  await adapter(selected.message, selected.context);
+
+  const evidence = adapter.getRoleEvidence();
+  assert.equal(evidence.status, "clarified");
+  assert.equal(
+    evidence.clarificationSource,
+    "request_semantic_boundary",
+  );
+  assert.equal(
+    evidence.requestSemanticBoundaryErrorCode,
+    "unfinished_items_schedule_non_clarify",
+  );
+  assert.deepEqual(evidence.resourceIssueCodes, []);
+  assert.equal(evidence.queryScopeErrorCode, null);
+  assert.equal(evidence.schedulePlanReferenceErrorCode, null);
+  assert.doesNotMatch(JSON.stringify(evidence), /复盘|没完成|排到下周/u);
+});
+
 test("Full evidence projects a rebound schedule reference without identifiers", async () => {
   const diagnostic = knownIdDiagnostic("diag-plan-existing-id");
   const recorder = createModelCallBudgetRecorder();

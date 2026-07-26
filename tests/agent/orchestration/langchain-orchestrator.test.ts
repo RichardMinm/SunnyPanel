@@ -194,7 +194,7 @@ describe("langchain-orchestrator protocol", () => {
     );
     assert.equal(
       L3B_EVALUATION_CONFIG_HASH,
-      "e8b1bc6ca6580f446b3d8cdaa886c5143f72dc17067cf9733ca702e19121f108",
+      "85dda3e05eb18fd3729e2f60c8808d30950162515a651fa201de68b37cf5e135",
     );
   });
 

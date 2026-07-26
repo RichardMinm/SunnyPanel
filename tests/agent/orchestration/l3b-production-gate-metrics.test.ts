@@ -86,6 +86,7 @@ const observation = (
       providerLatenciesMs: [],
       clarificationSource: null,
       queryScopeErrorCode: null,
+      requestSemanticBoundaryErrorCode: null,
       resourceIssueCodes: [],
       schedulePlanReferenceCorrectionCode: null,
       schedulePlanReferenceErrorCode: null,

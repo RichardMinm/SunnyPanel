@@ -109,6 +109,22 @@ test("the persisted report accepts a null semantic projection for roles that wer
   );
 });
 
+test("the persisted report accepts typed request-semantic clarification evidence", () => {
+  const safeReport = {
+    observations: [{
+      roleEvidence: {
+        fullOrchestrator: {
+          clarificationSource: "request_semantic_boundary",
+          requestSemanticBoundaryErrorCode:
+            "unfinished_items_schedule_non_clarify",
+        },
+      },
+    }],
+  };
+
+  assert.doesNotThrow(() => assertReportSafe(safeReport, []));
+});
+
 test("report safety failures retain a typed terminal failure code", () => {
   for (const code of [
     "REPORT_RETENTION_UNSAFE",
@@ -306,7 +322,7 @@ test("the disclosure manifest binds stage, complete ordered data, report path, a
 test("freezes the production gate protocol, exact stage sizes, and Focused order", () => {
   assert.equal(
     L3B_PRODUCTION_GATE_PROTOCOL_VERSION,
-    "l3b-production-seam-stability-gate-v1",
+    "l3b-production-seam-stability-gate-v2",
   );
   assert.deepEqual(L3B_PRODUCTION_FOCUSED_FIXTURE_IDS, [
     "qry-1",

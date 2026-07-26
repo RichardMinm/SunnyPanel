@@ -7,7 +7,7 @@ import {
 import type { ProductionBranchKind } from "./hybrid-production-evaluation";
 
 export const L3B_PRODUCTION_GATE_PROTOCOL_VERSION =
-  "l3b-production-seam-stability-gate-v1" as const;
+  "l3b-production-seam-stability-gate-v2" as const;
 
 export type L3BProductionGateStage =
   | "acceptance"

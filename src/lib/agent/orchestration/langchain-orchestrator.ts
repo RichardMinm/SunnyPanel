@@ -84,6 +84,11 @@ import {
   projectSchedulePlanReferenceErrorToClarification,
 } from "./schedule-plan-reference-clarification-projector";
 import {
+  projectRequestSemanticBoundaryToClarification,
+  validateRequestSemanticBoundary,
+  type RequestSemanticBoundaryErrorCode,
+} from "./request-semantic-boundary";
+import {
   buildLangChainSystemPrompt as buildAuthoritativeLangChainSystemPrompt,
 } from "./langchain-orchestrator-contract";
 
@@ -131,6 +136,13 @@ export type OrchestratorInvocationResult =
       schedulePlanReferenceCorrectionCode:
         SchedulePlanReferenceCorrectionCode | null;
       schemaValidDecision?: OrchestratorDecisionProjection;
+    }
+  | {
+      clarificationSource: "request_semantic_boundary";
+      plan: OrchestratorPlan;
+      requestSemanticBoundaryErrorCode: RequestSemanticBoundaryErrorCode;
+      schemaValidDecision: OrchestratorDecisionProjection;
+      status: "clarified";
     }
   | {
       clarificationSource: "resource_readiness";
@@ -609,6 +621,31 @@ export const runLangChainOrchestratorResult = async (
   }
 
   const queryScopeValidatedOutput = queryScopeResult.output;
+
+  const requestSemanticBoundaryResult = validateRequestSemanticBoundary({
+    message,
+    output: queryScopeValidatedOutput,
+  });
+
+  if (!requestSemanticBoundaryResult.valid) {
+    logAgentEvent(
+      "warn",
+      "orchestrator.langchain.invalid_request_semantic_boundary",
+      { code: requestSemanticBoundaryResult.code },
+    );
+
+    const clarification = projectRequestSemanticBoundaryToClarification(
+      requestSemanticBoundaryResult.code,
+    );
+    return {
+      clarificationSource: "request_semantic_boundary",
+      plan: clarification.plan,
+      requestSemanticBoundaryErrorCode:
+        clarification.requestSemanticBoundaryErrorCode,
+      schemaValidDecision,
+      status: "clarified",
+    };
+  }
 
   const scheduleReferenceResult = validateSchedulePlanReferences({
     context,

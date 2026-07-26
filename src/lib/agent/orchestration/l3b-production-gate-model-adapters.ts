@@ -46,6 +46,9 @@ import type {
   SchedulePlanReferenceCorrectionCode,
   SchedulePlanReferenceErrorCode,
 } from "./schedule-plan-reference-contract";
+import type {
+  RequestSemanticBoundaryErrorCode,
+} from "./request-semantic-boundary";
 
 export type SanitizedRoleEvent = Readonly<{
   answerStatus?: "complete" | "incomplete" | "unavailable";
@@ -74,6 +77,7 @@ export type ProductionFullRoleEvidence = Readonly<{
   completedResponses: number;
   clarificationSource:
     | "query_scope"
+    | "request_semantic_boundary"
     | "resource_readiness"
     | "schedule_plan_reference"
     | null;
@@ -85,6 +89,8 @@ export type ProductionFullRoleEvidence = Readonly<{
   providerAttempts: number;
   providerLatenciesMs: readonly number[];
   queryScopeErrorCode: QueryScopeErrorCode | null;
+  requestSemanticBoundaryErrorCode:
+    RequestSemanticBoundaryErrorCode | null;
   resourceIssueCodes: readonly ResourceReadinessErrorCode[];
   schedulePlanReferenceCorrectionCode:
     SchedulePlanReferenceCorrectionCode | null;
@@ -157,6 +163,7 @@ const emptyFullEvidence = (): ProductionFullRoleEvidence => Object.freeze({
   providerAttempts: 0,
   providerLatenciesMs: Object.freeze([]),
   queryScopeErrorCode: null,
+  requestSemanticBoundaryErrorCode: null,
   resourceIssueCodes: Object.freeze([]),
   schedulePlanReferenceCorrectionCode: null,
   schedulePlanReferenceErrorCode: null,
@@ -405,6 +412,10 @@ export const createProductionFullAdapter = (input: Readonly<{
       queryScopeErrorCode:
         "queryScopeErrorCode" in result
           ? result.queryScopeErrorCode ?? null
+          : null,
+      requestSemanticBoundaryErrorCode:
+        "requestSemanticBoundaryErrorCode" in result
+          ? result.requestSemanticBoundaryErrorCode ?? null
           : null,
       resourceIssueCodes: Object.freeze(
         "resourceIssueCodes" in result

@@ -31,10 +31,11 @@ const expectedIds = [
   "natural_language_checklist_draft",
   "partial_title_query",
   "imperative_completion_mutation",
+  "unfinished_items_schedule",
   "new_plan_schedule",
 ] as const;
 
-test("freezes the six schema-typed semantic contrasts", () => {
+test("freezes the seven schema-typed semantic contrasts", () => {
   assert.deepEqual(
     ORCHESTRATOR_SEMANTIC_CONTRASTS.map(({ id }) => id),
     expectedIds,
@@ -174,19 +175,52 @@ test("closes imperative completion against read and untrusted write branches", (
   });
   assert.deepEqual(
     contrast.forbiddenDecisionCodes,
-    ["pure_read_query", "explicit_write_ready"],
+    ["pure_consultation", "pure_read_query", "explicit_write_ready"],
   );
   assert.deepEqual(
     contrast.forbiddenIntents,
-    ["query_plan_progress", "complete_plan_item"],
+    ["answer_question", "query_plan_progress", "complete_plan_item"],
   );
   assert.match(contrast.reason, /计划标题不能替代清单标题/);
   assert.match(contrast.reason, /精确且唯一/);
 
   const prompt = buildLangChainSystemPrompt();
-  assert.match(prompt, /禁止 decisionCode=pure_read_query,explicit_write_ready/);
-  assert.match(prompt, /禁止 intents=query_plan_progress,complete_plan_item/);
+  assert.match(
+    prompt,
+    /禁止 decisionCode=pure_consultation,pure_read_query,explicit_write_ready/,
+  );
+  assert.match(
+    prompt,
+    /禁止 intents=answer_question,query_plan_progress,complete_plan_item/,
+  );
   assert.match(prompt, /计划标题不能替代清单标题/);
+});
+
+test("closes unfinished-item scheduling against new-draft relabelling", () => {
+  const contrast = ORCHESTRATOR_SEMANTIC_CONTRASTS.find(
+    ({ id }) => id === "unfinished_items_schedule",
+  );
+
+  assert.ok(contrast);
+  assert.deepEqual(contrast.admitted, {
+    decisionCode: "compound_missing_target",
+    intents: ["clarify"],
+    mode: "single",
+  });
+  assert.equal(
+    contrast.forbiddenDecisionCodes.includes("compound_ready"),
+    true,
+  );
+  assert.equal(
+    contrast.forbiddenIntents.includes("compose_checklist"),
+    true,
+  );
+  assert.equal(
+    contrast.forbiddenIntents.includes("compose_schedule_item"),
+    true,
+  );
+  assert.match(contrast.reason, /已有未完成条目/u);
+  assert.match(contrast.reason, /新建清单或日程草案/u);
 });
 
 test("treats every matching contrast as an exclusive admitted tuple", () => {
