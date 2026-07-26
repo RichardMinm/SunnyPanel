@@ -7,10 +7,17 @@ import {
 export type SchedulePlanReferenceErrorCode =
   | "explicit_plan_id_required"
   | "multiple_explicit_plan_ids"
-  | "provider_plan_id_mismatch"
   | "explicit_plan_id_not_in_context"
   | "multiple_exact_plan_titles"
   | "plan_id_title_conflict";
+
+export type SchedulePlanReferenceCorrectionCode =
+  "provider_plan_id_rebound";
+
+export type SchedulePlanReferenceCorrection = Readonly<{
+  code: SchedulePlanReferenceCorrectionCode;
+  taskId: string;
+}>;
 
 export type SchedulePlanReferenceProvenance = Readonly<{
   planId: number;
@@ -22,6 +29,7 @@ export type SchedulePlanReferenceProvenance = Readonly<{
 
 export type SchedulePlanReferenceValidationResult =
   | Readonly<{
+      corrections: readonly SchedulePlanReferenceCorrection[];
       output: OrchestratorOutput;
       provenances: readonly SchedulePlanReferenceProvenance[];
       valid: true;
@@ -43,9 +51,10 @@ const safeMessageByCode = Object.freeze({
     "请求同时提到了多个计划 ID，请确认要安排的计划。",
   plan_id_title_conflict:
     "计划 ID 与标题指向不同资源，请确认要安排的计划。",
-  provider_plan_id_mismatch:
-    "模型选择的计划 ID 与用户提供的 ID 不一致，请确认要安排的计划。",
 } satisfies Record<SchedulePlanReferenceErrorCode, string>);
+
+const NO_CORRECTIONS =
+  Object.freeze([]) as readonly SchedulePlanReferenceCorrection[];
 
 const invalid = (
   code: SchedulePlanReferenceErrorCode,
@@ -67,6 +76,7 @@ export const validateSchedulePlanReferences = (
   );
   if (scheduleTasks.length === 0) {
     return Object.freeze({
+      corrections: NO_CORRECTIONS,
       output: input.output,
       provenances: Object.freeze([]),
       valid: true,
@@ -78,6 +88,7 @@ export const validateSchedulePlanReferences = (
     || scheduleTasks.length !== 1
   ) {
     return Object.freeze({
+      corrections: NO_CORRECTIONS,
       output: input.output,
       provenances: Object.freeze([]),
       valid: true,
@@ -97,9 +108,6 @@ export const validateSchedulePlanReferences = (
   }
 
   const explicitPlanId = evidence.explicitPlanIds[0]!;
-  if (task.args.planId !== explicitPlanId) {
-    return invalid("provider_plan_id_mismatch");
-  }
   if (!evidence.trustedPlans.some(({ id }) => id === explicitPlanId)) {
     return invalid("explicit_plan_id_not_in_context");
   }
@@ -117,6 +125,31 @@ export const validateSchedulePlanReferences = (
     return invalid("plan_id_title_conflict");
   }
 
+  const correctionRequired = task.args.planId !== explicitPlanId;
+  const normalizedTask = correctionRequired
+    ? Object.freeze({
+        ...task,
+        args: Object.freeze({
+          ...task.args,
+          planId: explicitPlanId,
+        }),
+      })
+    : task;
+  const normalizedOutput = correctionRequired
+    ? Object.freeze({
+        ...input.output,
+        tasks: Object.freeze([normalizedTask]),
+      }) as OrchestratorOutput
+    : input.output;
+  const corrections = correctionRequired
+    ? Object.freeze([
+        Object.freeze({
+          code: "provider_plan_id_rebound" as const,
+          taskId: task.id,
+        }),
+      ])
+    : NO_CORRECTIONS;
+
   const provenance = Object.freeze({
     planId: explicitPlanId,
     source: exactTitlePlanIds.size === 1
@@ -125,7 +158,8 @@ export const validateSchedulePlanReferences = (
     taskId: task.id,
   });
   return Object.freeze({
-    output: input.output,
+    corrections,
+    output: normalizedOutput,
     provenances: Object.freeze([provenance]),
     valid: true,
   });

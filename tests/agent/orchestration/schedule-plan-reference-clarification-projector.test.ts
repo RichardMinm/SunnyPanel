@@ -11,7 +11,6 @@ import type {
 const codes: SchedulePlanReferenceErrorCode[] = [
   "explicit_plan_id_required",
   "multiple_explicit_plan_ids",
-  "provider_plan_id_mismatch",
   "explicit_plan_id_not_in_context",
   "multiple_exact_plan_titles",
   "plan_id_title_conflict",

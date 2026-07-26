@@ -61,18 +61,46 @@ test("accepts explicit ID-only provenance including generic labels", () => {
 });
 
 test("accepts matching exact title and ID provenance", () => {
+  const outputPassedToValidator = output(101);
   const result = validateSchedulePlanReferences({
     context,
     message: "把考研数学复习计划 101 安排到下周",
-    output: output(101),
+    output: outputPassedToValidator,
   });
 
   assert.equal(result.valid, true);
   if (!result.valid) return;
+  assert.equal(result.output, outputPassedToValidator);
+  assert.deepEqual(result.corrections, []);
   assert.equal(
     result.provenances[0]?.source,
     "explicit_plan_id_and_exact_title",
   );
+});
+
+test("rebinds a Provider plan ID to the one explicit authorized user ID", () => {
+  const providerOutput = output(999);
+  const result = validateSchedulePlanReferences({
+    context,
+    message: "把计划 101 安排到下周",
+    output: providerOutput,
+  });
+
+  assert.equal(result.valid, true);
+  if (!result.valid) return;
+  assert.deepEqual(result.output.tasks[0]?.args, { planId: 101 });
+  assert.deepEqual(providerOutput.tasks[0]?.args, { planId: 999 });
+  assert.notEqual(result.output, providerOutput);
+  assert.notEqual(result.output.tasks[0], providerOutput.tasks[0]);
+  assert.deepEqual(result.corrections, [{
+    code: "provider_plan_id_rebound",
+    taskId: "t1",
+  }]);
+  assert.deepEqual(result.provenances, [{
+    planId: 101,
+    source: "explicit_plan_id",
+    taskId: "t1",
+  }]);
 });
 
 test("rejects a genuine exact title and ID conflict", () => {
@@ -93,7 +121,6 @@ test("rejects invalid single-task schedule references deterministically", () => 
   const cases = [
     ["安排这个计划", output(101), "explicit_plan_id_required"],
     ["把计划 101 和计划 102 安排到下周", output(101), "multiple_explicit_plan_ids"],
-    ["把计划 101 安排到下周", output(102), "provider_plan_id_mismatch"],
     ["把计划 999 安排到下周", output(999), "explicit_plan_id_not_in_context"],
     [
       "把考研数学复习计划和英语复习计划 101 安排到下周",
@@ -113,6 +140,20 @@ test("rejects invalid single-task schedule references deterministically", () => 
     if (result.valid) continue;
     assert.equal(result.code, code, message);
   }
+});
+
+test("rejects an explicit plan ID outside context before a Provider ID can rebind", () => {
+  const outsideOutput = output(102);
+  const outsideResult = validateSchedulePlanReferences({
+    context: { ...context, plans: context.plans.slice(0, 1) },
+    message: "把计划 999 安排到下周",
+    output: outsideOutput,
+  });
+
+  assert.equal(outsideResult.valid, false);
+  if (outsideResult.valid) return;
+  assert.equal(outsideResult.code, "explicit_plan_id_not_in_context");
+  assert.deepEqual(outsideOutput.tasks[0]?.args, { planId: 102 });
 });
 
 test("leaves non-schedule output unchanged with no provenance", () => {
@@ -135,6 +176,7 @@ test("leaves non-schedule output unchanged with no provenance", () => {
   });
 
   assert.deepEqual(result, {
+    corrections: [],
     output: currentOutput,
     provenances: [],
     valid: true,
@@ -165,6 +207,7 @@ test("leaves compound output to existing compound and resource contracts", () =>
   });
 
   assert.deepEqual(result, {
+    corrections: [],
     output: currentOutput,
     provenances: [],
     valid: true,
