@@ -210,6 +210,20 @@ export const createRunFullLangGraphAgentChatPipeline = (
     emitChange: (event: AgentStreamChangeEvent) => void = () => undefined,
     emitActivity: (event: AgentTraceEventPayload) => void = () => undefined,
   ): Promise<AgentChatResponse> => {
+    if (signal?.aborted) {
+      return {
+        assistantMessage: "请求已被取消。",
+        confidence: 0,
+        engine: "workflow",
+        intent: "clarify",
+        pendingAction: null,
+        threadId: thread.id,
+        tokenUsage: baseTokenUsage,
+        trace: [],
+        turnId,
+      };
+    }
+
     const trace: AgentTraceStep[] = [];
     const backendTraceEvents: AgentTraceEventPayload[] = [];
     const stream = createAgentStreamController({
@@ -797,6 +811,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
               threadId: thread.id,
               tokenUsage: result.data.tokenUsage,
               trace,
+              turnId: graphInput.turnId,
             },
             type: "cancelled",
           };

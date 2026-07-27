@@ -10,7 +10,10 @@ import {
 } from "../../src/lib/agent/langgraph/full-adapter";
 import type { AgentActionReceiptStore } from "../../src/lib/agent/action-receipts";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
-import type { AgentChatResponse } from "../../src/lib/agent/schemas";
+import type {
+  AgentChatResponse,
+  PendingAction,
+} from "../../src/lib/agent/schemas";
 import type { ProposedAgentAction } from "../../src/lib/agent/schemas";
 import type { AgentThread } from "../../src/payload-types";
 
@@ -126,6 +129,205 @@ test("full adapter terminates cancelled orchestration before resolution or persi
   assert.equal(finalizerCount, 0);
   assert.equal(learningCount, 0);
   assert.equal(payloadAccesses, 0);
+});
+
+test("full adapter rejects an already-aborted request before context or checkpoint work", async () => {
+  const caller = new AbortController();
+  caller.abort(new DOMException("Client disconnected", "AbortError"));
+  let buildCount = 0;
+  let orchestrationCount = 0;
+  let finalizerCount = 0;
+  let appendCount = 0;
+  let learningCount = 0;
+  let payloadAccesses = 0;
+  const thread = {
+    id: 141,
+    messages: [],
+    pendingAction: null,
+  } as unknown as AgentThread;
+  const payload = new Proxy({} as never, {
+    get() {
+      payloadAccesses += 1;
+      throw new Error("An already-cancelled request must not access Payload.");
+    },
+  });
+  const steps: FullLangGraphAdapterSteps = {
+    appendAgentThreadTurn: async () => {
+      appendCount += 1;
+      throw new Error("An already-cancelled request must not append a turn.");
+    },
+    runAgentLearningLoop: async () => {
+      learningCount += 1;
+      throw new Error("An already-cancelled request must not learn.");
+    },
+    runBuildContextStep: async () => {
+      buildCount += 1;
+      throw new Error("An already-cancelled request must not build context.");
+    },
+    runDryRunAndProposeStep: async () => {
+      throw new Error("An already-cancelled request must not dry-run.");
+    },
+    runExecuteAndPersistStep: async () => {
+      throw new Error("An already-cancelled request must not execute.");
+    },
+    runOrchestrationStep: async () => {
+      orchestrationCount += 1;
+      throw new Error("An already-cancelled request must not orchestrate.");
+    },
+    runResolveIntentStep: async () => {
+      throw new Error("An already-cancelled request must not resolve.");
+    },
+  };
+  const run = createRunFullLangGraphAgentChatPipeline(
+    {
+      baseTokenUsage: tokenUsage,
+      contextPreferences: null,
+      finalizeTurn: async ({ response }) => {
+        finalizerCount += 1;
+        return response;
+      },
+      generateIntentWithAgentModel: async () => null,
+      intentModelEngine: "heuristic",
+      message: "安排计划",
+      payload,
+      pendingAction: null,
+      resolvedHistory: [],
+      signal: caller.signal,
+      structuredConfirmation: null,
+      thread,
+      turnId: "already-cancelled-turn",
+      user: { id: 7 },
+      userPreferences: null,
+      workbenchMode: "plan",
+    },
+    steps,
+    { checkpointer: new MemorySaver() },
+  );
+
+  const response = await run();
+
+  assert.equal(response.assistantMessage, "请求已被取消。");
+  assert.equal(response.turnId, "already-cancelled-turn");
+  assert.equal(buildCount, 0);
+  assert.equal(orchestrationCount, 0);
+  assert.equal(finalizerCount, 0);
+  assert.equal(appendCount, 0);
+  assert.equal(learningCount, 0);
+  assert.equal(payloadAccesses, 0);
+});
+
+test("full adapter does not replay a cancelled checkpoint into the next healthy turn", async () => {
+  const checkpointer = new MemorySaver();
+  const pendingAction: PendingAction = {
+    action: {
+      args: { title: "待确认计划" },
+      changes: [{
+        collection: "plans",
+        operation: "create",
+        preview: "创建待确认计划",
+      }],
+      id: "pending-plan-action",
+      intent: "create_plan",
+      requiresConfirmation: true,
+      riskLevel: "medium",
+      summary: "创建待确认计划",
+    },
+    type: "await_confirmation" as const,
+  };
+  const thread = {
+    id: 142,
+    messages: [],
+    pendingAction,
+  } as unknown as AgentThread;
+  let orchestrationCount = 0;
+  const steps: FullLangGraphAdapterSteps = {
+    appendAgentThreadTurn: async () => {
+      throw new Error("This checkpoint regression test must not persist.");
+    },
+    runAgentLearningLoop: async () => ({
+      candidates: [],
+      decisions: [],
+      savedMemories: [],
+      source: "fallback",
+      suggestedMemories: [],
+    }),
+    runBuildContextStep: async ({ pendingAction: currentPending }) => ({
+      context: { ...context, pendingAction: currentPending },
+      contextSummary: "取消重放测试上下文",
+      tokenUsage,
+      workingMemory: {
+        pendingConfirmations: currentPending ? [currentPending] : [],
+        recentActions: [],
+        sessionId: "cancelled-checkpoint-replay",
+      },
+    }),
+    runDryRunAndProposeStep: async () => {
+      throw new Error("This checkpoint regression test must not dry-run.");
+    },
+    runExecuteAndPersistStep: async () => {
+      throw new Error("This checkpoint regression test must not execute.");
+    },
+    runOrchestrationStep: async ({ tokenUsage: usage }) => {
+      orchestrationCount += 1;
+      if (orchestrationCount === 1) {
+        return {
+          outcome: "cancelled",
+          data: {
+            safeMessage: "请求已被取消。",
+            tokenUsage: usage,
+          },
+        };
+      }
+      return {
+        outcome: "early_exit",
+        response: {
+          assistantMessage: "第二轮已重新编排。",
+          confidence: 1,
+          engine: "workflow",
+          intent: "answer_question",
+          pendingAction,
+          threadId: thread.id,
+          tokenUsage: usage,
+          trace: [],
+          turnId: "healthy-turn",
+        },
+      };
+    },
+    runResolveIntentStep: async () => {
+      throw new Error("This checkpoint regression test must not resolve.");
+    },
+  };
+  const createRun = (turnId: string) =>
+    createRunFullLangGraphAgentChatPipeline(
+      {
+        baseTokenUsage: tokenUsage,
+        contextPreferences: null,
+        finalizeTurn: async ({ response }) => response,
+        generateIntentWithAgentModel: async () => null,
+        intentModelEngine: "heuristic",
+        message: turnId === "cancelled-turn" ? "取消" : "重新开始",
+        payload: {} as never,
+        pendingAction,
+        resolvedHistory: [],
+        structuredConfirmation: null,
+        thread,
+        turnId,
+        user: { id: 7 },
+        userPreferences: null,
+        workbenchMode: "plan",
+      },
+      steps,
+      { checkpointer },
+    );
+
+  const cancelled = await createRun("cancelled-turn")();
+  const healthy = await createRun("healthy-turn")();
+
+  assert.equal(cancelled.assistantMessage, "请求已被取消。");
+  assert.equal(cancelled.turnId, "cancelled-turn");
+  assert.equal(healthy.assistantMessage, "第二轮已重新编排。");
+  assert.equal(healthy.turnId, "healthy-turn");
+  assert.equal(orchestrationCount, 2);
 });
 
 test("full adapter uses the parent checkpoint namespace for the mounted native subgraph", () => {

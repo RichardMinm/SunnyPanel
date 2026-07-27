@@ -833,7 +833,17 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
           modelConfig: residualPlannerModelConfig,
           providerAttemptObserver: residualPlannerProviderAttemptObserver,
           scopeId: "hybrid-query-boundary",
+          signal,
         });
+        if (signal?.aborted) {
+          return {
+            outcome: "cancelled",
+            data: {
+              safeMessage: "请求已被取消。",
+              tokenUsage,
+            },
+          };
+        }
         recordHybridObservation({
           code: residual.status === "success" ? null : residual.code,
           rejectionReason:

@@ -474,3 +474,55 @@ test("LangChain runtime composes a fixed Query with an injected residual plan be
     else process.env.AGENT_ORCHESTRATOR_RUNTIME = previousRuntime;
   }
 });
+
+test("LangChain hybrid residual planning propagates caller cancellation as a terminal outcome", async () => {
+  const previousRuntime = process.env.AGENT_ORCHESTRATOR_RUNTIME;
+  process.env.AGENT_ORCHESTRATOR_RUNTIME = "langchain";
+  const caller = new AbortController();
+  let propagatedSignal: AbortSignal | undefined;
+  try {
+    const result = await runOrchestrationStep({
+      context: {
+        ...promptContext,
+        plans: [{
+          id: 101,
+          priority: "medium",
+          state: "active",
+          title: "考研数学复习计划",
+        }],
+      },
+      deferCompoundExecution: true,
+      emitStatus: () => undefined,
+      emitToken: () => undefined,
+      message: "检查项目进度，记录未完成的作为新任务",
+      payload: {} as Payload,
+      pendingAction: null,
+      persistAgentTurn: async () =>
+        assert.fail("cancelled residual planning must not persist"),
+      pushTrace: () => undefined,
+      runResidualPlannerFn: async (options) => {
+        propagatedSignal = options.signal;
+        caller.abort(new DOMException("Client disconnected", "AbortError"));
+        return {
+          code: "provider_error",
+          logicalCalls: 1,
+          providerAttempts: 1,
+          status: "unavailable",
+        };
+      },
+      signal: caller.signal,
+      tokenUsage,
+      trace: [],
+      user: { id: 1 },
+    });
+
+    assert.equal(propagatedSignal, caller.signal);
+    assert.equal(result.outcome, "cancelled");
+    if (result.outcome === "cancelled") {
+      assert.equal(result.data.safeMessage, "请求已被取消。");
+    }
+  } finally {
+    if (previousRuntime === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
+    else process.env.AGENT_ORCHESTRATOR_RUNTIME = previousRuntime;
+  }
+});
