@@ -50,6 +50,7 @@ const eslintConfig = defineConfig([
     // Default ignores of eslint-config-next:
     ".next/**",
     ".agent-test-dist/**",
+    ".claude/worktrees/**",
     ".worktrees/**",
     "coverage/**",
     "dist/**",
