@@ -47,6 +47,7 @@ export const dispatchOrchestratorResultForRuntime = async (
     mode: OrchestratorRuntimeMode;
     runLangChain: () => Promise<OrchestratorInvocationResult>;
     runLegacy: () => Promise<OrchestratorPlan>;
+    signal?: AbortSignal;
   }>,
 ): Promise<OrchestratorInvocationResult> => {
   if (input.mode === "langchain") {
@@ -61,6 +62,14 @@ export const dispatchOrchestratorResultForRuntime = async (
       status: "success",
     };
   } catch {
+    if (input.signal?.aborted) {
+      return {
+        reason: "cancelled",
+        safeMessage: "请求已被取消。",
+        status: "unavailable",
+      };
+    }
+
     return {
       reason: "provider_error",
       safeMessage: "AI 服务暂时不可用，请稍后重试。",
@@ -83,6 +92,7 @@ export const dispatchOrchestratorResult: OrchestratorService = async (
     context,
     message,
     mode,
+    signal,
     runLangChain: () =>
       runLangChainOrchestratorResult({
         context,

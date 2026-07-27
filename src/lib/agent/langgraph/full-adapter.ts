@@ -786,6 +786,22 @@ export const createRunFullLangGraphAgentChatPipeline = (
           return { response: result.response, type: "response" };
         }
 
+        if (result.outcome === "cancelled") {
+          return {
+            response: {
+              assistantMessage: result.data.safeMessage,
+              confidence: 0,
+              engine: "workflow",
+              intent: "clarify",
+              pendingAction: null,
+              threadId: thread.id,
+              tokenUsage: result.data.tokenUsage,
+              trace,
+            },
+            type: "cancelled",
+          };
+        }
+
         tokenUsage = result.data.tokenUsage;
 
         if (result.outcome === "compound") {
@@ -1637,6 +1653,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
       Boolean(openDomainDefinition.args.openDomainTopic);
     const effectivePendingAction = forceFreshPipeline ? null : pendingAction;
     const initialInput = {
+      cancelled: false,
       compoundPlan: null,
       compoundResult: null,
       context: null,

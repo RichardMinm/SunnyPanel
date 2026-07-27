@@ -145,6 +145,22 @@ export type RunAgentChatPipelineDeps = {
   turnId?: string;
 };
 
+const buildCancelledTurnResponse = ({
+  threadId,
+  tokenUsage,
+}: {
+  threadId: number;
+  tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
+}): AgentChatResponse => ({
+  assistantMessage: "请求已被取消。",
+  confidence: 0,
+  engine: "workflow",
+  intent: "clarify",
+  pendingAction: null,
+  threadId,
+  tokenUsage,
+});
+
 export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
   const {
     baseTokenUsage,
@@ -193,6 +209,13 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
     emitChange: (event: AgentStreamChangeEvent) => void = () => undefined,
     emitActivity: (event: AgentTraceEventPayload) => void = () => undefined,
   ): Promise<AgentChatResponse> => {
+    if (signal?.aborted) {
+      return buildCancelledTurnResponse({
+        threadId: thread.id,
+        tokenUsage: baseTokenUsage,
+      });
+    }
+
     const trace: AgentTraceStep[] = [];
     const backendTraceEvents: AgentTraceEventPayload[] = [];
     const turnAudit: AgentTurnTrace = createEmptyTurnTrace(deps.turnId);
@@ -771,8 +794,23 @@ export const createRunAgentChatPipeline = (deps: RunAgentChatPipelineDeps) => {
       );
       stream.complete(
         "stage-orchestration",
-        orchestrationResult.outcome === "early_exit" ? "编排已生成结果" : "编排检查完成",
+        orchestrationResult.outcome === "early_exit"
+          ? "编排已生成结果"
+          : orchestrationResult.outcome === "cancelled"
+            ? "请求已取消"
+            : "编排检查完成",
       );
+
+      if (orchestrationResult.outcome === "cancelled") {
+        return attachMeta({
+          ...buildCancelledTurnResponse({
+            threadId: thread.id,
+            tokenUsage: orchestrationResult.data.tokenUsage,
+          }),
+          assistantMessage: orchestrationResult.data.safeMessage,
+          trace,
+        });
+      }
 
       if (orchestrationResult.outcome === "early_exit") {
         lastResponse = orchestrationResult.response;

@@ -35,6 +35,10 @@ export type FullGraphResponseOutcome = {
 export type FullGraphOrchestrationOutcome =
   | FullGraphResponseOutcome
   | {
+      response: AgentChatResponse;
+      type: "cancelled";
+    }
+  | {
       plan: OrchestratorPlan;
       tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
       type: "compound";
@@ -127,6 +131,7 @@ export type FullGraphResumeInput = {
 };
 
 type FullSunnyAgentGraphState = {
+  cancelled: boolean;
   compoundPlan: null | OrchestratorPlan;
   compoundResult: ExecutionGraphResult | null;
   context: null | unknown;
@@ -147,6 +152,10 @@ type FullSunnyAgentGraphState = {
 };
 
 const StateAnnotation = Annotation.Root({
+  cancelled: Annotation<FullSunnyAgentGraphState["cancelled"]>({
+    default: () => false,
+    reducer: (_left, right) => right,
+  }),
   compoundPlan: Annotation<
     FullSunnyAgentGraphState["compoundPlan"]
   >,
@@ -232,6 +241,14 @@ export const compileFullSunnyAgentGraph = (
 
         if (result.type === "response") {
           return {
+            response: result.response,
+            tokenUsage: result.response.tokenUsage ?? state.tokenUsage,
+          };
+        }
+
+        if (result.type === "cancelled") {
+          return {
+            cancelled: true,
             response: result.response,
             tokenUsage: result.response.tokenUsage ?? state.tokenUsage,
           };
@@ -428,6 +445,7 @@ export const compileFullSunnyAgentGraph = (
         compoundResult: null,
         dryRunData: null,
         failureMessage: null,
+        cancelled: false,
         input: {
           ...state.input,
           baseTokenUsage: resume.baseTokenUsage,
@@ -488,6 +506,8 @@ export const compileFullSunnyAgentGraph = (
       (state) =>
         state.failureMessage
           ? "failure"
+          : state.cancelled
+            ? END
           : state.response
             ? routeResponse(state)
             : state.compoundPlan
@@ -499,6 +519,7 @@ export const compileFullSunnyAgentGraph = (
         "failure",
         "finalize",
         "resolve_intent",
+        END,
       ],
     )
     .addConditionalEdges(

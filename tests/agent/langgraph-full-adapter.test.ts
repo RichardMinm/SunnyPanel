@@ -29,25 +29,35 @@ const context: AgentPromptContext = {
   plans: [],
 };
 
-// Mutation caught: omitting the shared request signal from the Full LangGraph
-// adapter would prevent a client disconnect from reaching orchestration.
-test("full adapter forwards the request signal into orchestration", async () => {
+// Mutation caught: routing a cancelled orchestration response through normal
+// graph finalization would persist a turn after the caller disconnected.
+test("full adapter terminates cancelled orchestration before resolution or persistence", async () => {
   const caller = new AbortController();
+  let appendCount = 0;
+  let finalizerCount = 0;
+  let learningCount = 0;
+  let payloadAccesses = 0;
   const thread = {
     id: 41,
     messages: [],
     pendingAction: null,
   } as unknown as AgentThread;
   let propagatedSignal: AbortSignal | undefined;
+  const payload = new Proxy({} as never, {
+    get() {
+      payloadAccesses += 1;
+      throw new Error("Payload access is forbidden after caller cancellation.");
+    },
+  });
   const steps: FullLangGraphAdapterSteps = {
-    appendAgentThreadTurn: async () => thread,
-    runAgentLearningLoop: async () => ({
-      candidates: [],
-      decisions: [],
-      savedMemories: [],
-      source: "fallback",
-      suggestedMemories: [],
-    }),
+    appendAgentThreadTurn: async () => {
+      appendCount += 1;
+      throw new Error("Cancellation must not append a thread turn.");
+    },
+    runAgentLearningLoop: async () => {
+      learningCount += 1;
+      throw new Error("Cancellation must not run the learning loop.");
+    },
     runBuildContextStep: async () => ({
       context,
       contextSummary: "上下文",
@@ -66,15 +76,11 @@ test("full adapter forwards the request signal into orchestration", async () => 
     },
     runOrchestrationStep: async (params) => {
       propagatedSignal = params.signal;
+      caller.abort(new DOMException("Client disconnected", "AbortError"));
       return {
-        outcome: "early_exit",
-        response: {
-          assistantMessage: "请求已被取消。",
-          confidence: 0,
-          engine: "workflow",
-          intent: "clarify",
-          pendingAction: null,
-          threadId: thread.id,
+        outcome: "cancelled",
+        data: {
+          safeMessage: "请求已被取消。",
           tokenUsage: params.tokenUsage,
         },
       };
@@ -87,11 +93,14 @@ test("full adapter forwards the request signal into orchestration", async () => 
     {
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
-      finalizeTurn: async ({ response }) => response,
+      finalizeTurn: async ({ response }) => {
+        finalizerCount += 1;
+        return response;
+      },
       generateIntentWithAgentModel: async () => null,
       intentModelEngine: "heuristic",
       message: "安排计划",
-      payload: {} as never,
+      payload,
       pendingAction: null,
       resolvedHistory: [],
       signal: caller.signal,
@@ -108,7 +117,15 @@ test("full adapter forwards the request signal into orchestration", async () => 
   const response = await run();
 
   assert.equal(propagatedSignal, caller.signal);
+  assert.equal(caller.signal.aborted, true);
+  assert.equal(response.assistantMessage, "请求已被取消。");
   assert.equal(response.intent, "clarify");
+  assert.equal(response.pendingAction, null);
+  assert.equal(response.threadId, thread.id);
+  assert.equal(appendCount, 0);
+  assert.equal(finalizerCount, 0);
+  assert.equal(learningCount, 0);
+  assert.equal(payloadAccesses, 0);
 });
 
 test("full adapter uses the parent checkpoint namespace for the mounted native subgraph", () => {

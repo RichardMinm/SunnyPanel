@@ -115,6 +115,7 @@ const SAFE_CLARIFY_PLAN: OrchestratorPlan = {
 };
 
 export type OrchestratorFailureReason =
+  | "cancelled"
   | "invalid_dag"
   | "invalid_decision_consistency"
   | "invalid_query_scope"
@@ -563,7 +564,10 @@ export const runLangChainOrchestratorResult = async (
       safeMessage: result.error.safeMessage,
     });
 
-    return unavailable(modelErrorReason(result.error), result.error.safeMessage);
+    return unavailable(
+      signal?.aborted ? "cancelled" : modelErrorReason(result.error),
+      result.error.safeMessage,
+    );
   }
 
   const schemaValidDecision: OrchestratorDecisionProjection = Object.freeze({

@@ -12,7 +12,12 @@ import {
 import { runOrchestrationSubgraph } from "@/lib/agent/langgraph/orchestration-subgraph";
 import { orchestratorPlanToIntent } from "@/lib/agent/orchestrator";
 import type { runOrchestrator } from "@/lib/agent/orchestration/orchestrator";
-import { dispatchOrchestrator } from "@/lib/agent/orchestration/orchestrator-dispatcher";
+import {
+  dispatchOrchestrator,
+  dispatchOrchestratorResult,
+  type OrchestratorService,
+} from "@/lib/agent/orchestration/orchestrator-dispatcher";
+import { projectOrchestratorFailureToSafePlan } from "@/lib/agent/orchestration/langchain-orchestrator";
 import { composeFixedTaskPlan } from "@/lib/agent/orchestration/fixed-task-plan-composer";
 import {
   validateHybridOrchestrationCandidate,
@@ -185,6 +190,7 @@ export type OrchestrationStepParams = {
   resolvedHistory?: import("@/lib/agent/schemas").AgentChatMessage[];
   resolveRouterCanaryRoutingFn?: typeof resolveRouterCanaryRouting;
   runOrchestratorFn?: typeof runOrchestrator;
+  runOrchestratorResultFn?: OrchestratorService;
   residualPlannerInvoke?: InjectedResidualInvoke;
   residualPlannerModelConfig?: ModelConfig;
   residualPlannerProviderAttemptObserver?: StructuredProviderAttemptObserver;
@@ -200,6 +206,13 @@ export type OrchestrationStepParams = {
 
 export type OrchestrationStepResult =
   | { outcome: "early_exit"; response: AgentChatResponse }
+  | {
+      outcome: "cancelled";
+      data: {
+        safeMessage: string;
+        tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
+      };
+    }
   | {
       outcome: "compound";
       data: {
@@ -280,6 +293,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     residualPlannerModelConfig,
     residualPlannerProviderAttemptObserver,
     runOrchestratorFn = dispatchOrchestrator,
+    runOrchestratorResultFn,
     runResidualPlannerFn = runResidualPlanner,
     signal,
     stream,
@@ -292,6 +306,16 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
   const configuredOrchestratorRuntime = resolveOrchestratorRuntimeMode();
   let tokenUsage = tokenUsageIn;
   let hybridPlan: OrchestratorPlan | null = null;
+
+  if (signal?.aborted) {
+    return {
+      outcome: "cancelled",
+      data: {
+        safeMessage: "请求已被取消。",
+        tokenUsage,
+      },
+    };
+  }
   const recordHybridObservation = (
     observation: HybridOrchestrationStepObservation,
   ) => {
@@ -938,6 +962,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
    * Pending confirmation flows (confirm/cancel) are deterministic and still proceed. */
   if (
     runOrchestratorFn === dispatchOrchestrator
+    && !runOrchestratorResultFn
     && !pendingAction
     && !hybridPlan
   ) {
@@ -1001,19 +1026,42 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     title: "编排器正在拆解任务",
   });
 
-  const plan =
-    forcedPlan ??
-    hybridPlan ??
-    (runOrchestratorFn === dispatchOrchestrator
-      ? await dispatchOrchestrator(message, context, signal, {
-          modelCallRecorder,
-          role: "orchestrator",
-          scopeId: "turn-orchestrator",
-        })
-      : await (async () => {
-          modelCallRecorder?.record("orchestrator", "turn-orchestrator");
-          return runOrchestratorFn(message, context, signal);
-        })());
+  let plan = forcedPlan ?? hybridPlan;
+
+  if (!plan) {
+    if (runOrchestratorResultFn || runOrchestratorFn === dispatchOrchestrator) {
+      const result = await (
+        runOrchestratorResultFn ?? dispatchOrchestratorResult
+      )(message, context, signal, {
+        modelCallRecorder,
+        role: "orchestrator",
+        scopeId: "turn-orchestrator",
+      });
+
+      if (
+        signal?.aborted
+        || (result.status === "unavailable" && result.reason === "cancelled")
+      ) {
+        return {
+          outcome: "cancelled",
+          data: {
+            safeMessage:
+              result.status === "unavailable"
+                ? result.safeMessage
+                : "请求已被取消。",
+            tokenUsage,
+          },
+        };
+      }
+
+      plan = result.status === "unavailable"
+        ? projectOrchestratorFailureToSafePlan()
+        : result.plan;
+    } else {
+      modelCallRecorder?.record("orchestrator", "turn-orchestrator");
+      plan = await runOrchestratorFn(message, context, signal);
+    }
+  }
   stream?.progress({
     detail: `${plan.mode === "compound" ? "复合" : "单一"}意图 · ${plan.tasks.length} 个子任务`,
     message: "编排计划已生成",
@@ -1204,6 +1252,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       orchestratorPlanSource: plan.source ?? "llm",
       orchestratorRuntime:
         forcedPlan || runOrchestratorFn !== dispatchOrchestrator
+          || runOrchestratorResultFn
           ? null
           : configuredOrchestratorRuntime,
       preResolvedIntent,

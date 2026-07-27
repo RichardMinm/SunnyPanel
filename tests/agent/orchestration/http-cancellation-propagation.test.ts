@@ -5,6 +5,9 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { Payload } from "payload";
 
 import {
+  createRunAgentChatPipeline,
+} from "../../../src/lib/agent/chat-pipeline/run-agent-chat-pipeline";
+import {
   runOrchestrationStep,
 } from "../../../src/lib/agent/chat-pipeline/orchestration-step";
 import type {
@@ -12,7 +15,6 @@ import type {
 } from "../../../src/lib/agent/llm/invoke-structured";
 import type { ModelFactory } from "../../../src/lib/agent/llm/model-factory";
 import {
-  projectOrchestratorFailureToSafePlan,
   runLangChainOrchestratorResult,
   type OrchestratorInvocationResult,
 } from "../../../src/lib/agent/orchestration/langchain-orchestrator";
@@ -36,6 +38,58 @@ const context = {
   pendingAction: null,
   plans: [],
 };
+
+// Mutation caught: removing the runner's terminal abort guard would allow
+// context loading, finalization, or persistence for a disconnected request.
+test("legacy runner terminates an already-cancelled turn without downstream work", async () => {
+  const caller = new AbortController();
+  caller.abort(new DOMException("Client disconnected", "AbortError"));
+  let finalizerCalls = 0;
+  let payloadAccesses = 0;
+  const payload = new Proxy({} as Payload, {
+    get() {
+      payloadAccesses += 1;
+      throw new Error("Payload access is forbidden after caller cancellation.");
+    },
+  });
+  const thread = {
+    id: 17,
+    lastIntent: null,
+    messages: [],
+    pendingAction: null,
+  } as unknown as AgentThread;
+  const run = createRunAgentChatPipeline({
+    baseTokenUsage: tokenUsage,
+    contextPreferences: null,
+    finalizeTurn: async ({ response }) => {
+      finalizerCalls += 1;
+      return response;
+    },
+    generateIntentWithAgentModel: async () => {
+      throw new Error("Intent resolution is forbidden after caller cancellation.");
+    },
+    intentModelEngine: "heuristic",
+    message: "帮我制定发布计划",
+    payload,
+    pendingAction: null,
+    resolvedHistory: [],
+    signal: caller.signal,
+    structuredConfirmation: null,
+    thread,
+    user: { id: 1 },
+    userPreferences: null,
+    workbenchMode: "plan",
+  });
+
+  const result = await run();
+
+  assert.equal(result.assistantMessage, "请求已被取消。");
+  assert.equal(result.intent, "clarify");
+  assert.equal(result.pendingAction, null);
+  assert.equal(result.threadId, thread.id);
+  assert.equal(finalizerCalls, 0);
+  assert.equal(payloadAccesses, 0);
+});
 
 // Mutation caught: dropping the request signal before the dispatcher would
 // leave the structured Full Orchestrator running and eligible for recovery.
@@ -85,7 +139,7 @@ test("caller cancellation reaches the production orchestration seam exactly once
       throw new Error("Proposal persistence is forbidden after cancellation.");
     },
     pushTrace: () => undefined,
-    runOrchestratorFn: async (message, promptContext, signal) => {
+    runOrchestratorResultFn: async (message, promptContext, signal) => {
       propagatedSignal = signal;
       assert.equal(signal, caller.signal);
       structuredResult = await runLangChainOrchestratorResult({
@@ -113,9 +167,7 @@ test("caller cancellation reaches the production orchestration seam exactly once
           transport: 1,
         },
       });
-      return structuredResult.status === "success"
-        ? structuredResult.plan
-        : projectOrchestratorFailureToSafePlan();
+      return structuredResult;
     },
     tokenUsage,
     trace: [],
@@ -127,7 +179,7 @@ test("caller cancellation reaches the production orchestration seam exactly once
   assert.equal(providerAttempts, 1);
   assert.equal(structuredResult?.status, "unavailable");
   if (structuredResult?.status === "unavailable") {
-    assert.equal(structuredResult.reason, "timeout");
+    assert.equal(structuredResult.reason, "cancelled");
     assert.equal(structuredResult.safeMessage, "请求已被取消。");
   }
   assert.deepEqual(
@@ -149,12 +201,67 @@ test("caller cancellation reaches the production orchestration seam exactly once
     ),
     false,
   );
-  assert.equal(result.outcome, "continue");
-  if (result.outcome === "continue") {
-    assert.equal(result.data.preResolvedIntent?.intent, "clarify");
+  assert.equal(result.outcome, "cancelled");
+  if (result.outcome === "cancelled") {
+    assert.equal(result.data.safeMessage, "请求已被取消。");
   }
   assert.equal(proposalOrPersistenceCalls, 0);
   assert.equal(taskExecutionCalls, 0);
+  assert.equal(payloadAccesses, 0);
+});
+
+// Mutation caught: accepting a just-completed Provider result after the caller
+// disconnects would re-open intent resolution and persistence.
+test("caller cancellation wins a race with a successful orchestration result", async () => {
+  const caller = new AbortController();
+  let payloadAccesses = 0;
+  const payload = new Proxy({} as Payload, {
+    get() {
+      payloadAccesses += 1;
+      throw new Error("Payload access is forbidden after caller cancellation.");
+    },
+  });
+  const safePlan: OrchestratorPlan = {
+    mode: "single",
+    reasoning: "A valid result arrived as the caller disconnected.",
+    source: "llm",
+    tasks: [{
+      agentRole: "query",
+      args: { question: "如何安排发布？" },
+      dependsOn: [],
+      id: "t1",
+      intent: "answer_question",
+      label: "回答发布问题",
+    }],
+  };
+
+  const result = await runOrchestrationStep({
+    context,
+    emitStatus: () => undefined,
+    emitToken: () => undefined,
+    hybridBoundaryMode: "disabled",
+    message: "如何安排发布？",
+    payload,
+    pendingAction: null,
+    persistAgentTurn: async () => {
+      throw new Error("Persistence is forbidden after caller cancellation.");
+    },
+    pushTrace: () => undefined,
+    runOrchestratorResultFn: async () => {
+      caller.abort(new DOMException("Client disconnected", "AbortError"));
+      return {
+        plan: safePlan,
+        schedulePlanReferenceCorrectionCode: null,
+        status: "success",
+      };
+    },
+    signal: caller.signal,
+    tokenUsage,
+    trace: [],
+    user: { collection: "users", id: 1 },
+  });
+
+  assert.equal(result.outcome, "cancelled");
   assert.equal(payloadAccesses, 0);
 });
 
