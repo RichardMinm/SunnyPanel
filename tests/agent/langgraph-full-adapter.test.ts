@@ -201,7 +201,6 @@ test("full adapter rejects an already-aborted request before context or checkpoi
       workbenchMode: "plan",
     },
     steps,
-    { checkpointer: new MemorySaver() },
   );
 
   const response = await run();

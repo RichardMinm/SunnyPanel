@@ -191,13 +191,6 @@ export const createRunFullLangGraphAgentChatPipeline = (
     userPreferences,
   };
   const threadSummary = toPromptThreadSummary(thread);
-  const checkpointer =
-    options?.checkpointer ?? getSunnyAgentPostgresSaver();
-  const receiptStore =
-    options?.receiptStore ??
-    createPayloadActionReceiptStore(payload as never);
-  const orchestrationExecuteIntent =
-    options?.executeIntent ?? executeAgentIntent;
 
   return async (
     emitStatus: (status: string) => void = () => undefined,
@@ -224,6 +217,13 @@ export const createRunFullLangGraphAgentChatPipeline = (
       };
     }
 
+    const checkpointer =
+      options?.checkpointer ?? getSunnyAgentPostgresSaver();
+    const receiptStore =
+      options?.receiptStore ??
+      createPayloadActionReceiptStore(payload as never);
+    const orchestrationExecuteIntent =
+      options?.executeIntent ?? executeAgentIntent;
     const trace: AgentTraceStep[] = [];
     const backendTraceEvents: AgentTraceEventPayload[] = [];
     const stream = createAgentStreamController({
