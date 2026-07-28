@@ -97,3 +97,15 @@ test("transactional batch keeps successful messages and the latest pending actio
   assert.equal(result.assistantMessage, "完成：step one\n\n完成：step two");
   assert.equal(result.pendingAction?.type, "await_completion_note");
 });
+
+test("transactional batch preserves effects even when a child has no assistant message", async () => {
+  const result = await executeAgentIntentsTransactional([makeAnswerIntent("silent"), makeAnswerIntent("visible")], undefined, {
+    executeIntent: async (intent): Promise<AgentIntentExecutionResult> => ({
+      affectedDocuments: [{ collection: "plans", documentId: (intent as AnswerIntent).args.answer === "silent" ? 1 : 2, operation: "update", visibility: "private" }],
+      assistantMessage: (intent as AnswerIntent).args.answer === "silent" ? "" : "visible",
+      pendingAction: null,
+    }),
+  });
+
+  assert.deepEqual(result.affectedDocuments?.map((document) => document.documentId), [1, 2]);
+});

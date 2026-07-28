@@ -17,6 +17,7 @@ import { logAgentEvent } from "@/lib/agent/logger";
 import { isRollbackPayloadExecutable } from "@/lib/agent/rollback-parse";
 import type { AgentChatResponse, AgentEngine, AgentIntent, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
 import { getAgentToolDefinition } from "@/lib/agent/tool-registry";
+import { sanitizeAffectedDocuments } from "@/lib/agent/tool-shared";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
@@ -678,7 +679,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   });
 
   return {
-    ...(execution.affectedDocuments ? { affectedDocuments: execution.affectedDocuments } : {}),
+    ...(sanitizeAffectedDocuments(execution.affectedDocuments) ? { affectedDocuments: sanitizeAffectedDocuments(execution.affectedDocuments) } : {}),
     assistantMessage,
     confidence: resolution.intent.confidence,
     engine: resolution.engine,

@@ -126,9 +126,9 @@ export const executeAgentIntentsTransactional = async (
       );
 
       if (result.assistantMessage) {
-      messages.push(result.assistantMessage);
-      affectedDocuments.push(...(result.affectedDocuments ?? []));
+        messages.push(result.assistantMessage);
       }
+      affectedDocuments.push(...(result.affectedDocuments ?? []));
 
       if (result.pendingAction) {
         pendingAction = result.pendingAction;

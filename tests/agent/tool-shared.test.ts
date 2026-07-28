@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { scoreTextMatch } from "../../src/lib/agent/tool-shared";
+import { sanitizeAffectedDocuments, scoreTextMatch } from "../../src/lib/agent/tool-shared";
 
 test("scoreTextMatch returns 100 for exact match (case-insensitive)", () => {
   assert.equal(scoreTextMatch("高等数学", "高等数学"), 100);
@@ -31,4 +31,12 @@ test("scoreTextMatch normalizes whitespace, punctuation, and CJK separators", ()
   assert.equal(scoreTextMatch("高等 数学", "高等数学"), 100);
   assert.equal(scoreTextMatch("高等-数学", "高等数学"), 100);
   assert.equal(scoreTextMatch("高等·数学", "高等数学"), 100);
+});
+
+test("sanitizeAffectedDocuments omits invalid entries and raw extras", () => {
+  assert.deepEqual(sanitizeAffectedDocuments([
+    { collection: "plans", documentId: 1, operation: "update", secret: "no", visibility: "private" },
+    { collection: "users", documentId: 2, operation: "update", visibility: "private" },
+    { collection: "plans", documentId: 0, operation: "update", visibility: "private" },
+  ]), [{ collection: "plans", documentId: 1, operation: "update", visibility: "private" }]);
 });

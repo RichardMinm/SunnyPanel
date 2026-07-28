@@ -12,6 +12,7 @@ import type {
   SunnyAgentGraphState,
 } from "@/lib/agent/langgraph/state";
 import type { AgentChatResponse } from "@/lib/agent/schemas";
+import { sanitizeAffectedDocuments } from "@/lib/agent/tool-shared";
 
 export type SunnyAgentGraphDependencies = {
   buildContext: (
@@ -120,7 +121,7 @@ export const compileSunnyAgentGraph = (
         throw new Error("LangGraph execution result is missing");
       }
       const response: AgentChatResponse = {
-        ...(state.execution.affectedDocuments ? { affectedDocuments: state.execution.affectedDocuments } : {}),
+        ...(sanitizeAffectedDocuments(state.execution.affectedDocuments) ? { affectedDocuments: sanitizeAffectedDocuments(state.execution.affectedDocuments) } : {}),
         assistantMessage: state.execution.assistantMessage,
         confidence: state.resolution.intent.confidence,
         contextSummary: state.contextSummary,
