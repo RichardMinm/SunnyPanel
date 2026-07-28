@@ -1,4 +1,5 @@
 import { getPayloadClient } from "@/lib/payload/client";
+import { appendPlanLink } from "@/lib/core-linkage/plan-links";
 import {
   createScheduleItem,
   type ScheduleItemInput,
@@ -378,25 +379,21 @@ export const createScheduleItemsFromIntent = async (
         depth: 0,
       });
       if (!plan) continue; /* plan not found — skip */
-      const beforeContent = (plan as { linkedContent?: unknown }).linkedContent ?? [];
-      const existingIds = new Set(
-        (Array.isArray(beforeContent) ? beforeContent : [])
-          .filter((l: unknown) => (l as { relationTo?: string }).relationTo === "schedule-items")
-          .map((l: unknown) => (l as { value?: number }).value),
+      const linkedContent = scheduleItemIds.reduce(
+        (current, scheduleItemId) => appendPlanLink(current, {
+          relationTo: "schedule-items",
+          value: scheduleItemId,
+        }),
+        (plan as { linkedContent?: unknown }).linkedContent,
       );
-      const newLinks = scheduleItemIds
-        .filter((id) => !existingIds.has(id))
-        .map((id) => ({ relationTo: "schedule-items" as const, value: id }));
 
-      if (newLinks.length > 0) {
-        await (payload as unknown as { update: (args: { collection: string; data: Record<string, unknown>; id: number; overrideAccess: boolean; depth: number }) => Promise<unknown> }).update({
-          collection: "plans",
-          data: { linkedContent: [...(Array.isArray(beforeContent) ? beforeContent : []), ...newLinks] },
-          id: planId,
-          overrideAccess: true,
-          depth: 0,
-        });
-      }
+      await (payload as unknown as { update: (args: { collection: string; data: Record<string, unknown>; id: number; overrideAccess: boolean; depth: number }) => Promise<unknown> }).update({
+        collection: "plans",
+        data: { linkedContent },
+        id: planId,
+        overrideAccess: true,
+        depth: 0,
+      });
     } catch (error) {
       return buildCompensatedFailure({
         createdItems,

@@ -1,5 +1,10 @@
 import type { Checklist, Plan } from "@/payload-types";
 
+import {
+  appendPlanLink,
+  normalizePlanLinkedContent,
+  type PlanLinkedContent,
+} from "@/lib/core-linkage/plan-links";
 import { getPayloadClient } from "@/lib/payload/client";
 
 import { getCurrentAgentUserId } from "../execution-context";
@@ -36,7 +41,7 @@ export type CreateChecklistRollbackPayload = {
   };
 };
 
-export type PlanLinkedContent = NonNullable<Plan["linkedContent"]>;
+export type { PlanLinkedContent } from "@/lib/core-linkage/plan-links";
 
 export type CreateChecklistPlanLinkRollbackPayload = {
   strategy: "delete_created_checklist_and_restore_plan_links";
@@ -134,15 +139,6 @@ export class ChecklistCreateValidationError extends Error {
     this.missingFields = options.missingFields ?? [];
   }
 }
-
-const linkedContentRelationValues = new Set([
-  "checklists",
-  "notes",
-  "pages",
-  "posts",
-  "timeline-events",
-  "updates",
-]);
 
 const slugMaxLength = 64;
 
@@ -314,92 +310,10 @@ export const buildCreateChecklistPlanLinkRollbackPayload = ({
   },
 });
 
-const getLinkedContentRelationId = (item: PlanLinkedContent[number]) => {
-  const value = item.value;
-
-  return typeof value === "number" ? value : value?.id;
-};
-
-const getLinkedContentKey = (item: PlanLinkedContent[number]) => {
-  const id = getLinkedContentRelationId(item);
-
-  return typeof id === "number" ? `${item.relationTo}:${id}` : null;
-};
-
-export const normalizePlanLinkedContent = (
-  value: null | unknown,
-  message = "Plan linkedContent structure is invalid; manual recovery is required.",
-): PlanLinkedContent => {
-  if (value == null) {
-    return [];
-  }
-
-  if (!Array.isArray(value)) {
-    throw new ChecklistCreateValidationError(message, {
-      code: "invalid_plan_linked_content",
-      missingFields: ["linkedContent"],
-    });
-  }
-
-  return value.map((item, index) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) {
-      throw new ChecklistCreateValidationError(`${message} Invalid linkedContent.${index}.`, {
-        code: "invalid_plan_linked_content",
-        missingFields: [`linkedContent.${index}`],
-      });
-    }
-
-    const record = item as {
-      relationTo?: unknown;
-      value?: unknown;
-    };
-    const relationTo = record.relationTo;
-    const value = record.value;
-    const id = typeof value === "number"
-      ? value
-      : value && typeof value === "object" && !Array.isArray(value) && typeof (value as { id?: unknown }).id === "number"
-        ? (value as { id: number }).id
-        : null;
-
-    if (typeof relationTo !== "string" || !linkedContentRelationValues.has(relationTo) || typeof id !== "number") {
-      throw new ChecklistCreateValidationError(`${message} Invalid linkedContent.${index}.`, {
-        code: "invalid_plan_linked_content",
-        missingFields: [`linkedContent.${index}`],
-      });
-    }
-
-    return {
-      relationTo,
-      value: value as PlanLinkedContent[number]["value"],
-    } as PlanLinkedContent[number];
-  });
-};
-
 export const appendChecklistLinkToPlanLinkedContent = (
   value: null | unknown,
   checklistId: number,
-): PlanLinkedContent => {
-  const linkedContent = normalizePlanLinkedContent(value);
-  const nextLink: PlanLinkedContent[number] = {
-    relationTo: "checklists",
-    value: checklistId,
-  };
-  const next: PlanLinkedContent = [];
-  const seen = new Set<string>();
-
-  for (const item of [...linkedContent, nextLink]) {
-    const key = getLinkedContentKey(item);
-
-    if (!key || seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    next.push(item);
-  }
-
-  return next;
-};
+): PlanLinkedContent => appendPlanLink(value, { relationTo: "checklists", value: checklistId });
 
 const countChecklistItems = (groups: ChecklistCreateData["groups"]) =>
   groups.reduce((count, group) => count + group.items.length, 0);
