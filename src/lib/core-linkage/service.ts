@@ -1,5 +1,3 @@
-import type { Plan } from "@/payload-types";
-
 import type { CoreLinkedCollection, PlanLinkedContent } from "./contracts";
 import {
   appendPlanLink,
@@ -76,7 +74,7 @@ export type CoreLinkagePlanMutationResult =
     });
 
 const failureMessages: Record<CoreLinkageFailureCode, string> = {
-  compensation_failed: "The Plan link could not be restored safely.",
+  compensation_failed: "The Plan link outcome could not be reconciled safely.",
   invalid_reference: "The related resource reference is invalid.",
   plan_link_invalid: "The Plan link state is invalid.",
   plan_link_write_failed: "The Plan link could not be updated.",
@@ -181,7 +179,9 @@ const updatePlanLinks = async (input: {
 
     const currentPlan = await readExact(input.payload, "plans", input.planId);
     if (isFailure(currentPlan)) {
-      return currentPlan;
+      return currentPlan.code === "resource_not_authorized"
+        ? currentPlan
+        : fail("compensation_failed");
     }
 
     let currentLinkedContent: PlanLinkedContent;
@@ -199,18 +199,7 @@ const updatePlanLinks = async (input: {
       return fail("compensation_failed");
     }
 
-    try {
-      await input.payload.update({
-        collection: "plans",
-        data: { linkedContent: input.beforeLinkedContent },
-        depth: 0,
-        id: input.planId,
-        overrideAccess: false,
-      });
-      return fail("plan_link_write_failed");
-    } catch {
-      return fail("compensation_failed");
-    }
+    return null;
   }
 };
 

@@ -16,10 +16,11 @@ type UpdateArgs = { collection: string; data: { linkedContent: unknown }; depth:
 
 class FakePayload {
   readonly findByIDCalls: FindByIDArgs[] = [];
+  readonly findByIDSteps: Array<"authorization" | "generic" | "pass"> = [];
   readonly updateCalls: UpdateArgs[] = [];
   readonly documents = new Map<string, Document>();
   findByIDError: Error | null = null;
-  readonly updateSteps: Array<"apply_then_throw" | "authorization" | "diverge_then_throw" | "fail_before_write"> = [];
+  readonly updateSteps: Array<"apply_then_throw" | "authorization" | "delete_then_throw" | "diverge_then_throw" | "fail_before_write"> = [];
 
   put(collection: string, document: Document) {
     this.documents.set(`${collection}:${document.id}`, structuredClone(document));
@@ -27,6 +28,17 @@ class FakePayload {
 
   async findByID(args: FindByIDArgs) {
     this.findByIDCalls.push(args);
+    const step = this.findByIDSteps.shift();
+
+    if (step === "authorization") {
+      const error = new Error("forbidden read: private project Phoenix");
+      Object.assign(error, { status: 403 });
+      throw error;
+    }
+
+    if (step === "generic") {
+      throw new Error("database read error: private project Phoenix");
+    }
 
     if (this.findByIDError) {
       throw this.findByIDError;
@@ -53,6 +65,11 @@ class FakePayload {
     const current = this.documents.get(`${args.collection}:${args.id}`);
     if (!current) {
       throw new Error("missing document");
+    }
+
+    if (step === "delete_then_throw") {
+      this.documents.delete(`${args.collection}:${args.id}`);
+      throw new Error("database error: private project Phoenix");
     }
 
     const next = step === "diverge_then_throw"
@@ -279,13 +296,13 @@ test("core linkage never overwrites a divergent Plan state after an uncertain li
   assert.deepEqual(result, {
     code: "compensation_failed",
     ok: false,
-    safeMessage: "The Plan link could not be restored safely.",
+    safeMessage: "The Plan link outcome could not be reconciled safely.",
   });
   assert.equal(fakePayload.updateCalls.length, 1);
   assert.deepEqual(fakePayload.documents.get("plans:11")?.linkedContent, [{ relationTo: "posts", value: 999 }]);
 });
 
-test("core linkage restores only a verified applied-then-thrown Plan update", async () => {
+test("core linkage treats a verified applied-then-thrown Plan update as success without a restore", async () => {
   const before: Link[] = [{ relationTo: "posts", value: 7 }];
   fakePayload.put("plans", { id: 11, linkedContent: before });
   fakePayload.put("timeline-events", { id: 41 });
@@ -293,31 +310,73 @@ test("core linkage restores only a verified applied-then-thrown Plan update", as
 
   const result = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
 
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.code, "plan_link_write_failed");
+  const success = expectSuccess(result);
+  assert.deepEqual(success, {
+    afterLinkedContent: [
+      { relationTo: "posts", value: 7 },
+      { relationTo: "timeline-events", value: 41 },
+    ],
+    beforeLinkedContent: before,
+    changed: true,
+    ok: true,
+    planId: 11,
+    timelineEventId: 41,
+  });
   assert.deepEqual(fakePayload.updateCalls.map((call) => call.data.linkedContent), [
     [
       { relationTo: "posts", value: 7 },
       { relationTo: "timeline-events", value: 41 },
     ],
-    before,
   ]);
-  assert.deepEqual(fakePayload.documents.get("plans:11")?.linkedContent, before);
+  assert.deepEqual(fakePayload.documents.get("plans:11")?.linkedContent, success.afterLinkedContent);
 });
 
-test("core linkage reports an explicit safe compensation failure when verified restore fails", async () => {
+test("core linkage maps a generic unreadable reconciliation read to a safe compensation failure", async () => {
   fakePayload.put("plans", { id: 11, linkedContent: [{ relationTo: "posts", value: 7 }] });
   fakePayload.put("timeline-events", { id: 41 });
-  fakePayload.updateSteps.push("apply_then_throw", "fail_before_write");
+  fakePayload.updateSteps.push("apply_then_throw");
+  fakePayload.findByIDSteps.push("pass", "pass", "generic");
 
   const result = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
 
   assert.deepEqual(result, {
     code: "compensation_failed",
     ok: false,
-    safeMessage: "The Plan link could not be restored safely.",
+    safeMessage: "The Plan link outcome could not be reconciled safely.",
   });
-  assert.equal(fakePayload.updateCalls.length, 2);
+  assert.equal(fakePayload.updateCalls.length, 1);
+  assert.doesNotMatch(result.safeMessage, /Phoenix|database/i);
+});
+
+test("core linkage maps a missing reconciliation Plan to compensation failure without a second write", async () => {
+  fakePayload.put("plans", { id: 11, linkedContent: [{ relationTo: "posts", value: 7 }] });
+  fakePayload.put("timeline-events", { id: 41 });
+  fakePayload.updateSteps.push("delete_then_throw");
+
+  const result = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
+
+  assert.deepEqual(result, {
+    code: "compensation_failed",
+    ok: false,
+    safeMessage: "The Plan link outcome could not be reconciled safely.",
+  });
+  assert.equal(fakePayload.updateCalls.length, 1);
+});
+
+test("core linkage returns an authorization failure when its reconciliation read is denied", async () => {
+  fakePayload.put("plans", { id: 11, linkedContent: [{ relationTo: "posts", value: 7 }] });
+  fakePayload.put("timeline-events", { id: 41 });
+  fakePayload.updateSteps.push("apply_then_throw");
+  fakePayload.findByIDSteps.push("pass", "pass", "authorization");
+
+  const result = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
+
+  assert.deepEqual(result, {
+    code: "resource_not_authorized",
+    ok: false,
+    safeMessage: "The related resource is not available to this operation.",
+  });
+  assert.equal(fakePayload.updateCalls.length, 1);
 });
 
 test("core linkage returns safe not-found failures when either mutation resource was deleted", async () => {
