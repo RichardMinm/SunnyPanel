@@ -330,15 +330,18 @@ export function ScheduleMonthView({
       notifyScheduleCompletionDomainRefresh({
         affectedDocuments: data?.affectedDocuments,
         item: completedItem,
+        requestedItemId: itemId,
         responseOk: response.ok,
       });
       if (
         !response.ok
+        || !Number.isSafeInteger(itemId)
+        || itemId <= 0
         || typeof completedItem?.id !== "number"
         || !Number.isSafeInteger(completedItem.id)
         || completedItem.id <= 0
-        || typeof completedItem.status !== "string"
-        || completedItem.status.length === 0
+        || completedItem.id !== itemId
+        || completedItem.status !== "done"
         || !Array.isArray(data?.affectedDocuments)
       ) {
         throw new Error("schedule completion failed");

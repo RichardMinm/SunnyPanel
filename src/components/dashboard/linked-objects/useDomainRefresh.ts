@@ -29,7 +29,7 @@ type AffectedDocumentInput = {
 
 type DomainRefreshLoader = (
   mode: DomainLoadMode,
-) => (() => void) | Promise<void> | void;
+) => (() => void) | void;
 
 type NotifyDomainRefreshOptions = {
   affectedDocuments?: unknown;
@@ -63,6 +63,7 @@ type ScheduleCompletionDomainRefreshOptions = {
     id?: unknown;
     status?: unknown;
   } | null;
+  requestedItemId: unknown;
   responseOk: boolean;
   target?: EventTarget | null;
 };
@@ -242,15 +243,17 @@ export function notifyRollbackDomainRefresh({
 export function notifyScheduleCompletionDomainRefresh({
   affectedDocuments,
   item,
+  requestedItemId,
   responseOk,
   target,
 }: ScheduleCompletionDomainRefreshOptions): boolean {
   if (
     !responseOk
     || !Array.isArray(affectedDocuments)
+    || !isPositiveSafeInteger(requestedItemId)
     || !isPositiveSafeInteger(item?.id)
-    || typeof item.status !== "string"
-    || item.status.length === 0
+    || item.id !== requestedItemId
+    || item.status !== "done"
   ) {
     return false;
   }
@@ -264,6 +267,7 @@ export function notifyScheduleCompletionDomainRefresh({
 
 export function createRetainedDomainRequestRunner() {
   let latestGeneration = 0;
+  let foregroundLoading = false;
 
   return {
     run<T>({
@@ -279,6 +283,7 @@ export function createRetainedDomainRequestRunner() {
 
       clearError();
       if (mode === "foreground") {
+        foregroundLoading = true;
         setForegroundLoading(true);
       }
 
@@ -293,7 +298,12 @@ export function createRetainedDomainRequestRunner() {
             onError(error);
           }
         } finally {
-          if (!cancelled && mode === "foreground") {
+          if (
+            !cancelled
+            && generation === latestGeneration
+            && foregroundLoading
+          ) {
+            foregroundLoading = false;
             setForegroundLoading(false);
           }
         }
@@ -302,6 +312,19 @@ export function createRetainedDomainRequestRunner() {
       return () => {
         cancelled = true;
       };
+    },
+  };
+}
+
+export function createLatestDomainRefreshLoaderProxy(
+  initialLoader: DomainRefreshLoader,
+) {
+  let latestLoader = initialLoader;
+
+  return {
+    invoke: (mode: DomainLoadMode) => latestLoader(mode),
+    update(loader: DomainRefreshLoader) {
+      latestLoader = loader;
     },
   };
 }
@@ -370,17 +393,17 @@ export function useDomainRefresh(
   domain: DomainRefreshDomain,
   loader: DomainRefreshLoader,
 ) {
-  const loaderRef = useRef(loader);
-
-  useEffect(() => {
-    loaderRef.current = loader;
-  }, [loader]);
+  const loaderProxyRef = useRef(
+    createLatestDomainRefreshLoaderProxy(loader),
+  );
+  /* eslint-disable-next-line react-hooks/refs -- the domain event must observe the latest render before passive effects run */
+  loaderProxyRef.current.update(loader);
 
   useEffect(
     () =>
       subscribeToDomainRefresh(
         domain,
-        (mode) => loaderRef.current(mode),
+        loaderProxyRef.current.invoke,
       ),
     [domain],
   );

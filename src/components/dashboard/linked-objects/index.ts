@@ -31,6 +31,7 @@ export {
 export {
   DOMAIN_REFRESH_EVENT,
   buildDomainRefreshDetail,
+  createLatestDomainRefreshLoaderProxy,
   createNavigationApplicationTracker,
   createRetainedDomainRequestRunner,
   notifyAgentTerminalDomainRefresh,

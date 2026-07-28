@@ -5,6 +5,7 @@ import { test } from "node:test";
 import {
   DOMAIN_REFRESH_EVENT,
   buildDomainRefreshDetail,
+  createLatestDomainRefreshLoaderProxy,
   createNavigationApplicationTracker,
   createRetainedDomainRequestRunner,
   notifyAgentTerminalDomainRefresh,
@@ -259,6 +260,7 @@ test("Schedule completion helper dispatches the full returned chain only for bou
     notifyScheduleCompletionDomainRefresh({
       affectedDocuments,
       item: { id: 31, status: "done" },
+      requestedItemId: 31,
       responseOk: true,
       target,
     }),
@@ -268,6 +270,7 @@ test("Schedule completion helper dispatches the full returned chain only for bou
     notifyScheduleCompletionDomainRefresh({
       affectedDocuments,
       item: { id: 31, status: "done" },
+      requestedItemId: 31,
       responseOk: false,
       target,
     }),
@@ -277,6 +280,7 @@ test("Schedule completion helper dispatches the full returned chain only for bou
     notifyScheduleCompletionDomainRefresh({
       affectedDocuments: null,
       item: { id: 31, status: "done" },
+      requestedItemId: 31,
       responseOk: true,
       target,
     }),
@@ -286,6 +290,27 @@ test("Schedule completion helper dispatches the full returned chain only for bou
     notifyScheduleCompletionDomainRefresh({
       affectedDocuments,
       item: { id: "bad", status: "done" },
+      requestedItemId: 31,
+      responseOk: true,
+      target,
+    }),
+    false,
+  );
+  assert.equal(
+    notifyScheduleCompletionDomainRefresh({
+      affectedDocuments,
+      item: { id: 999, status: "done" },
+      requestedItemId: 31,
+      responseOk: true,
+      target,
+    }),
+    false,
+  );
+  assert.equal(
+    notifyScheduleCompletionDomainRefresh({
+      affectedDocuments,
+      item: { id: 31, status: "planned" },
+      requestedItemId: 31,
       responseOk: true,
       target,
     }),
@@ -385,6 +410,9 @@ test("real Agent, rollback and Schedule sources each call their behavior-tested 
     1,
   );
   assert.match(completionBody, /affectedDocuments:\s*data\?\.affectedDocuments/);
+  assert.match(completionBody, /requestedItemId:\s*itemId/);
+  assert.match(completionBody, /completedItem\.id !== itemId/);
+  assert.match(completionBody, /completedItem\.status !== "done"/);
 });
 
 test("all four views use the shared retained runner and exact-domain background loader", () => {
@@ -432,7 +460,8 @@ test("all four views use the shared retained runner and exact-domain background 
     "src/components/dashboard/linked-objects/useDomainRefresh.ts",
   );
   assert.match(hook, /const cleanup = loader\("background"\)/);
-  assert.match(hook, /\(mode\) => loaderRef\.current\(mode\)/);
+  assert.match(hook, /loaderProxyRef\.current\.update\(loader\)/);
+  assert.doesNotMatch(hook, /Promise<void>/);
 
   for (const path of [
     "src/components/dashboard/checklist/ChecklistView.tsx",
@@ -460,6 +489,19 @@ const flushPromises = async () => {
   await Promise.resolve();
   await Promise.resolve();
 };
+
+const runnerOptions = <T,>(
+  loading: boolean[],
+  load: () => Promise<T>,
+) => ({
+  clearError: () => undefined,
+  load,
+  onData: () => undefined,
+  onError: () => undefined,
+  setForegroundLoading: (next: boolean) => {
+    loading.push(next);
+  },
+});
 
 test("retained runner distinguishes foreground/background and retains data on failure", async () => {
   const runner = createRetainedDomainRequestRunner();
@@ -564,6 +606,106 @@ test("retained runner ignores stale and cancelled completions", async () => {
   await flushPromises();
   assert.equal(data, "initial");
   assert.equal(errors, 0);
+});
+
+test("latest background success or error settles superseded foreground loading", async () => {
+  for (const outcome of ["success", "error"] as const) {
+    const runner = createRetainedDomainRequestRunner();
+    const loading: boolean[] = [];
+    const foreground = deferred<string>();
+    const background = deferred<string>();
+
+    runner.run({
+      ...runnerOptions(loading, () => foreground.promise),
+      mode: "foreground",
+    });
+    runner.run({
+      ...runnerOptions(loading, () => background.promise),
+      mode: "background",
+    });
+    assert.deepEqual(loading, [true]);
+
+    if (outcome === "success") {
+      background.resolve("latest");
+    } else {
+      background.reject(new Error("latest failed"));
+    }
+    await flushPromises();
+    assert.deepEqual(loading, [true, false], outcome);
+  }
+});
+
+test("stale foreground completion cannot clear loading while a newer request is active", async () => {
+  const runner = createRetainedDomainRequestRunner();
+  const loading: boolean[] = [];
+  const foreground = deferred<string>();
+  const background = deferred<string>();
+
+  runner.run({
+    ...runnerOptions(loading, () => foreground.promise),
+    mode: "foreground",
+  });
+  runner.run({
+    ...runnerOptions(loading, () => background.promise),
+    mode: "background",
+  });
+  foreground.resolve("stale");
+  await flushPromises();
+  assert.deepEqual(loading, [true]);
+
+  background.resolve("latest");
+  await flushPromises();
+  assert.deepEqual(loading, [true, false]);
+});
+
+test("newer foreground owns loading until its own completion", async () => {
+  const runner = createRetainedDomainRequestRunner();
+  const loading: boolean[] = [];
+  const first = deferred<string>();
+  const second = deferred<string>();
+
+  runner.run({
+    ...runnerOptions(loading, () => first.promise),
+    mode: "foreground",
+  });
+  runner.run({
+    ...runnerOptions(loading, () => second.promise),
+    mode: "foreground",
+  });
+  assert.deepEqual(loading, [true, true]);
+
+  first.resolve("stale");
+  await flushPromises();
+  assert.deepEqual(loading, [true, true]);
+
+  second.resolve("latest");
+  await flushPromises();
+  assert.deepEqual(loading, [true, true, false]);
+});
+
+test("latest-loader proxy invokes only a synchronously updated loader", () => {
+  const target = new EventTarget();
+  const calls: string[] = [];
+  const loaderProxy = createLatestDomainRefreshLoaderProxy(() => {
+    calls.push("old");
+  });
+  const unsubscribe = subscribeToDomainRefresh(
+    "plans",
+    loaderProxy.invoke,
+    target,
+  );
+
+  loaderProxy.update(() => {
+    calls.push("new");
+  });
+  notifyDomainRefresh({
+    affectedDocuments: [{ collection: "plans", documentId: 7 }],
+    reason: "manual_update",
+    target,
+  });
+
+  assert.deepEqual(calls, ["new"]);
+  unsubscribe();
 });
 
 test("one navigation generation applies once, survives refresh, and a new generation reapplies", () => {
