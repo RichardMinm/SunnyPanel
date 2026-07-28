@@ -57,8 +57,8 @@ const rollbackClaimTrace = (input: {
   'rollbackClaim',
   jsonb_build_object(
     'claimTokenHash', md5(${input.claimToken}),
-    'state', ${input.state},
-    'updatedAt', ${input.updatedAt}
+    'state', ${input.state}::text,
+    'updatedAt', ${input.updatedAt}::text
   )
 )`;
 

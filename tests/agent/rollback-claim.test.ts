@@ -29,6 +29,8 @@ test("AgentRun rollback claim is one owner-bound parameterized compare-and-set",
   assert.match(normalizedSql, /"trace" = /i);
   assert.match(normalizedSql, /where "id" = \$\d+ and "user_id" = \$\d+ and "rollback_available" = \$\d+/i);
   assert.match(normalizedSql, /'claimTokenHash', md5\(\$\d+\)/i);
+  assert.match(normalizedSql, /'state', \$\d+::text/i);
+  assert.match(normalizedSql, /'updatedAt', \$\d+::text/i);
   assert.doesNotMatch(normalizedSql, /'claimToken',\s*\$\d+/i);
   assert.equal(compiled.params.includes("claim-token-123"), true);
   assert.equal(compiled.params.includes("in_progress"), true);
@@ -125,6 +127,8 @@ test("AgentRun rollback terminal transition is one owner-and-token-bound compare
     normalizedSql,
     /"trace".*'claimTokenHash'.*=\s*md5\(\$\d+\)/i,
   );
+  assert.match(normalizedSql, /'state', \$\d+::text/i);
+  assert.match(normalizedSql, /'updatedAt', \$\d+::text/i);
   assert.doesNotMatch(normalizedSql, /'claimToken',\s*\$\d+/i);
   assert.match(normalizedSql, /"trace".*'state'.*=\s*\$\d+/i);
   assert.equal(compiled.params.includes("claim-token-123"), true);
