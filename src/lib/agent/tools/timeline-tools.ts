@@ -79,7 +79,7 @@ export const composeTimelineEventFromIntent = async (
     title: "TimelineEvent 已创建",
   });
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: [
       {
         collection: "timeline-events",
@@ -130,6 +130,7 @@ export const composeTimelineEventFromIntent = async (
     affectedDocuments: [{ collection: "timeline-events", documentId: timelineEvent.id, operation: "create", visibility: timelineEvent.visibility }],
     assistantMessage: `已创建 TimelineEvent #${timelineEvent.id}：${timelineEvent.title}\n${proposal.reason}`,
     pendingAction: null,
+    rollbackSourceRunId: agentRun.id,
     rollbackPayload: {
       strategy: "delete_created_timeline_event",
       target: {

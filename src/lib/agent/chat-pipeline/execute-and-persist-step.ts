@@ -244,6 +244,15 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
         isRollbackPayloadExecutable(batchResult.rollbackPayload)
           ? batchResult.rollbackPayload
           : undefined,
+      lastRollbackSourceRunId:
+        "rollbackPayload" in batchResult &&
+        batchResult.rollbackPayload &&
+        isRollbackPayloadExecutable(batchResult.rollbackPayload) &&
+        typeof batchResult.rollbackSourceRunId === "number" &&
+        Number.isSafeInteger(batchResult.rollbackSourceRunId) &&
+        batchResult.rollbackSourceRunId > 0
+          ? batchResult.rollbackSourceRunId
+          : undefined,
       pendingAction: lastPending,
       trace,
       threadId: updatedThread.id,
@@ -622,6 +631,13 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     "rollbackPayload" in execution && execution.rollbackPayload && isRollbackPayloadExecutable(execution.rollbackPayload)
       ? execution.rollbackPayload
       : undefined;
+  const lastRollbackSourceRunId =
+    lastRollbackPayload &&
+    typeof execution.rollbackSourceRunId === "number" &&
+    Number.isSafeInteger(execution.rollbackSourceRunId) &&
+    execution.rollbackSourceRunId > 0
+      ? execution.rollbackSourceRunId
+      : undefined;
   const outputTokens = estimateTokenCount(assistantMessage);
   tokenUsage = {
     ...tokenUsage,
@@ -685,6 +701,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     engine: resolution.engine,
     intent: resolution.intent.intent,
     lastRollbackPayload,
+    lastRollbackSourceRunId,
     pendingAction: resolvedPending,
     trace,
     threadId: updatedThread.id,

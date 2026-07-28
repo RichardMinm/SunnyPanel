@@ -119,7 +119,7 @@ test("pending confirmation activity exposes dry-run, guard, and waiting states",
 test("execute result activity records receipt and rollback availability", () => {
   const steps = buildAgentActivitySteps({
     assistantMessage: "已创建 2 个日程项，时间范围：2026-06-30。",
-    lastRollbackPayload: { strategy: "delete_created_documents" },
+    lastRollbackSourceRunId: 91,
   });
 
   assert.match(titles(steps).join("\n"), /已执行写入/);

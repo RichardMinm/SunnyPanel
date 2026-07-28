@@ -70,7 +70,7 @@ export function useAgentDashboardChat({
       contextTokens: estimateMessagesTokenCount(initialMessages),
     }),
   );
-  const [lastRollbackPayload, setLastRollbackPayload] = useState<unknown | null>(null);
+  const [lastRollbackSourceRunId, setLastRollbackSourceRunId] = useState<number | null>(null);
   const [lastRollbackResult, setLastRollbackResult] = useState<AgentRollbackExecutionResult | null>(null);
   const [artifactsRollbackBusy, setArtifactsRollbackBusy] = useState(false);
   const [artifactsRollbackError, setArtifactsRollbackError] = useState<string | null>(null);
@@ -132,7 +132,7 @@ export function useAgentDashboardChat({
         setStreamStages([]);
         setStreamProgress([]);
         setStreamChanges([]);
-        setLastRollbackPayload(null);
+        setLastRollbackSourceRunId(null);
         setLastRollbackResult(null);
         setArtifactsRollbackError(null);
         setSelectedRunRollbackError(null);
@@ -163,7 +163,7 @@ export function useAgentDashboardChat({
       setStreamStages([]);
       setStreamProgress([]);
       setStreamChanges([]);
-      setLastRollbackPayload(null);
+      setLastRollbackSourceRunId(null);
       setLastRollbackResult(null);
       setArtifactsRollbackError(null);
       setSelectedRunRollbackError(null);
@@ -188,7 +188,7 @@ export function useAgentDashboardChat({
     activeSuggestionSource,
     contextPreferences,
     isSubmitting,
-    lastRollbackPayload,
+    lastRollbackSourceRunId,
     loadThread,
     messages,
     pendingAction,
@@ -198,7 +198,7 @@ export function useAgentDashboardChat({
     setErrorMessage,
     setInput,
     setIsSubmitting,
-    setLastRollbackPayload,
+    setLastRollbackSourceRunId,
     setLastRollbackResult,
     setMessages,
     setPendingAction,
@@ -339,7 +339,7 @@ export function useAgentDashboardChat({
 
   const rollbackSelectedRun = useCallback(async () => {
     if (!selectedRunDetail || !canRollbackAgentRunDetail(selectedRunDetail)) {
-      setSelectedRunRollbackError("这条执行记录没有可自动撤销的 rollbackPayload。");
+      setSelectedRunRollbackError("这条执行记录当前不可自动撤销。");
       return;
     }
 
@@ -348,10 +348,7 @@ export function useAgentDashboardChat({
 
     try {
       const response = await fetch("/api/agent/rollback", {
-        body: JSON.stringify({
-          rollbackPayload: selectedRunDetail.rollbackPayload,
-          sourceRunId: selectedRunDetail.id,
-        }),
+        body: JSON.stringify({ sourceRunId: selectedRunDetail.id }),
         headers: {
           "Content-Type": "application/json",
         },
@@ -366,7 +363,7 @@ export function useAgentDashboardChat({
       const rollbackResult = normalizeRollbackExecutionResult(data.result);
 
       await loadThread(threadId ?? undefined, { preserveInspector: true });
-      setLastRollbackPayload(null);
+      setLastRollbackSourceRunId(null);
       setLastRollbackResult(rollbackResult);
       setActiveInspectorTab("trace");
       setStatusText(rollbackResult ? formatRollbackResultStatus(rollbackResult) : "已执行撤销");
@@ -400,7 +397,7 @@ export function useAgentDashboardChat({
     isSubmitting,
     isThinking,
     lastInteractionAt,
-    lastRollbackPayload,
+    lastRollbackSourceRunId,
     lastRollbackResult,
     loadThread,
     messages,

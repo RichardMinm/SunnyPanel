@@ -18,6 +18,7 @@ import type {
 } from "@/lib/agent/stream-events";
 import { isQueryStreamFailure } from "@/lib/agent/query/errors";
 import { isConversationalAnswerStreamFailure } from "@/lib/agent/answer/errors";
+import { projectPublicAgentChatResponse } from "@/lib/agent/public-chat-response";
 
 const intentToSuggestedMode: Partial<Record<AgentChatResponse["intent"], AgentWorkbenchMode>> = {
   answer_question: "ask",
@@ -91,8 +92,10 @@ const emitProgressiveTokens = async (
 };
 
 export const createAgentChatResponse = (payload: AgentChatResponse, stream: boolean) => {
+  const publicPayload = projectPublicAgentChatResponse(payload);
+
   if (!stream) {
-    return NextResponse.json(payload);
+    return NextResponse.json(publicPayload);
   }
 
   const encoder = new TextEncoder();
@@ -102,30 +105,30 @@ export const createAgentChatResponse = (payload: AgentChatResponse, stream: bool
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
 
-      const streamedUsage = payload.tokenUsage
+      const streamedUsage = publicPayload.tokenUsage
         ? {
-            ...payload.tokenUsage,
+            ...publicPayload.tokenUsage,
             outputTokens: 0,
-            totalTokens: payload.tokenUsage.contextTokens + payload.tokenUsage.inputTokens,
+            totalTokens: publicPayload.tokenUsage.contextTokens + publicPayload.tokenUsage.inputTokens,
           }
         : createTokenUsageSnapshot();
 
       enqueue("meta", {
-        confidence: payload.confidence,
-        contextSummary: payload.contextSummary,
-        engine: payload.engine,
-        intent: payload.intent,
-        pendingAction: payload.pendingAction,
-        suggestedMode: intentToSuggestedMode[payload.intent],
-        threadId: payload.threadId,
+        confidence: publicPayload.confidence,
+        contextSummary: publicPayload.contextSummary,
+        engine: publicPayload.engine,
+        intent: publicPayload.intent,
+        pendingAction: publicPayload.pendingAction,
+        suggestedMode: intentToSuggestedMode[publicPayload.intent],
+        threadId: publicPayload.threadId,
         tokenUsage: streamedUsage,
-        turnId: payload.turnId,
+        turnId: publicPayload.turnId,
       });
 
-      await emitProgressiveTokens(payload.assistantMessage, enqueue, streamedUsage, 'response');
+      await emitProgressiveTokens(publicPayload.assistantMessage, enqueue, streamedUsage, 'response');
 
       enqueue("done", {
-        ...payload,
+        ...publicPayload,
         tokenUsage: streamedUsage,
       });
       controller.close();
@@ -216,30 +219,31 @@ export const createAgentChatStream = (
           },
         );
 
+        const publicPayload = projectPublicAgentChatResponse(payload);
         const resolvedAssistantMessage =
           typeof payload.assistantMessage === "string" && payload.assistantMessage.trim().length > 0
             ? payload.assistantMessage
             : streamedResponseText.trim() || payload.assistantMessage;
-        const finalPayload = {
+        const finalPayload = projectPublicAgentChatResponse({
           ...payload,
           assistantMessage: resolvedAssistantMessage,
-        };
+        });
 
         // If the pipeline didn't stream any tokens (e.g. write intents with deterministic text),
         // fall back to progressive word-by-word streaming of the assistantMessage.
         if (!tokensWereStreamed && finalPayload.assistantMessage) {
-          const baseUsage = payload.tokenUsage
-            ? { ...payload.tokenUsage, outputTokens: 0, totalTokens: (payload.tokenUsage.contextTokens + payload.tokenUsage.inputTokens) }
+          const baseUsage = publicPayload.tokenUsage
+            ? { ...publicPayload.tokenUsage, outputTokens: 0, totalTokens: (publicPayload.tokenUsage.contextTokens + publicPayload.tokenUsage.inputTokens) }
             : createTokenUsageSnapshot();
           enqueue("meta", {
-            confidence: payload.confidence,
-            engine: payload.engine,
-            intent: payload.intent,
-            pendingAction: payload.pendingAction,
-            suggestedMode: intentToSuggestedMode[payload.intent],
-            threadId: payload.threadId,
+            confidence: publicPayload.confidence,
+            engine: publicPayload.engine,
+            intent: publicPayload.intent,
+            pendingAction: publicPayload.pendingAction,
+            suggestedMode: intentToSuggestedMode[publicPayload.intent],
+            threadId: publicPayload.threadId,
             tokenUsage: baseUsage,
-            turnId: payload.turnId,
+            turnId: publicPayload.turnId,
           });
           await emitProgressiveTokens(finalPayload.assistantMessage, enqueue, baseUsage, 'response');
         }

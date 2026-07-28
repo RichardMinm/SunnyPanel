@@ -2,6 +2,7 @@ import { isRecord } from "@/lib/shared/is-record";
 import type { ChecklistDraft } from "./planning/checklist-draft";
 import type { PlanDraft } from "./planning/draft";
 import type { ScheduleDraft } from "./schedule/draft";
+import type { ScheduleCreationPublicPresentation } from "./schedule/public-confirmation-presentation";
 import type { AgentActivityStep } from "./activity/types";
 import type { AgentTraceEventPayload } from "./trace/types";
 import type { ConversationalAnswerArgs, ConversationalIntentName } from "./conversation/types";
@@ -97,6 +98,9 @@ export type ProposedAgentAction = {
   intent: AgentIntent["intent"];
   requiresConfirmation?: boolean;
   riskLevel: "high" | "low" | "medium";
+  publicPresentation?: {
+    scheduleCreation?: ScheduleCreationPublicPresentation;
+  };
   rollbackAvailable?: boolean;
   rollbackPayload?: unknown;
   summary: string;
@@ -773,8 +777,10 @@ export type AgentChatResponse = {
   confidence?: number;
   engine: AgentEngine;
   intent: AgentIntent["intent"];
-  /** 本轮写入成功后，若存在可自动执行的 rollback 描述则附带（用于 Artifacts 一键撤销）。 */
+  /** Server-internal receipt evidence. Public JSON/SSE projection always strips this field. */
   lastRollbackPayload?: unknown;
+  /** Public bounded reference to the owned AgentRun containing rollback evidence. */
+  lastRollbackSourceRunId?: number;
   pendingAction: null | PendingAction;
   /** 清单草案仅用于前端 artifact 展示，不代表已写入 Checklists collection。 */
   planningChecklistDraft?: ChecklistDraft | null;

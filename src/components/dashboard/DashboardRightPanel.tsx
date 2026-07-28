@@ -54,7 +54,7 @@ type DashboardRightPanelProps = {
   inputTokenEstimate: number;
   lastExecutedAction?: null | ProposedAgentAction;
   latestAssistantMessage?: AgentChatMessage;
-  lastRollbackPayload?: null | unknown;
+  lastRollbackSourceRunId?: null | number;
   lastRollbackResult?: AgentRollbackExecutionResult | null;
   messages: AgentChatMessage[];
   onArtifactsRollback?: () => void;
@@ -264,7 +264,7 @@ export function DashboardRightPanel({
   inputTokenEstimate,
   lastExecutedAction = null,
   latestAssistantMessage,
-  lastRollbackPayload = null,
+  lastRollbackSourceRunId = null,
   lastRollbackResult = null,
   messages,
   onArtifactsRollback,
@@ -382,7 +382,7 @@ export function DashboardRightPanel({
               artifactsRollbackBusy={artifactsRollbackBusy}
               artifactsRollbackError={artifactsRollbackError}
               latestAssistantMessage={latestAssistantMessage}
-              lastRollbackPayload={lastRollbackPayload}
+              lastRollbackSourceRunId={lastRollbackSourceRunId}
               lastRollbackResult={lastRollbackResult}
               onArtifactsRollback={onArtifactsRollback}
               onPlanOperatingPrompt={onPlanOperatingPrompt}

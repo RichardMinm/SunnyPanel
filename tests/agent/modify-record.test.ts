@@ -287,6 +287,7 @@ test("modify_record executes the normalized patch, records audit, and returns sn
       visibility: "unknown",
     },
   ]);
+  assert.equal(result.rollbackSourceRunId, 900);
 });
 
 test("restore_modified_record writes only the captured safe snapshot", async () => {

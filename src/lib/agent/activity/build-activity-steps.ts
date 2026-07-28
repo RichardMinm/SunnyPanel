@@ -15,7 +15,7 @@ export type BuildAgentActivityStepsInput = {
     message: string;
   } | null;
   intent?: null | string;
-  lastRollbackPayload?: unknown;
+  lastRollbackSourceRunId?: number | null;
   pendingAction?: null | PendingAction;
   planningChecklistDraft?: ChecklistDraft | null;
   planningDraft?: PlanDraft | null;
@@ -325,8 +325,8 @@ const isPlanComposeOrCreateMessage = (message: string) =>
 const isRollbackMessage = (message: string, rollbackResult: unknown) =>
   Boolean(rollbackResult) || (/撤销|回滚/u.test(message) && /完成|已执行|成功/u.test(message));
 
-const isExecuteResultMessage = (message: string, lastRollbackPayload: unknown) =>
-  Boolean(lastRollbackPayload) ||
+const isExecuteResultMessage = (message: string, lastRollbackSourceRunId: null | number | undefined) =>
+  Boolean(lastRollbackSourceRunId) ||
   /^已创建\s*\d+\s*个日程项/u.test(message) ||
   /已帮你创建计划|已创建完整计划|已创建计划|已创建清单|已把\s*「.+?」\s*标记完成/u.test(message);
 
@@ -439,7 +439,7 @@ const buildExecuteResultSteps = (input: BuildAgentActivityStepsInput): AgentActi
   makeStep("activity:execute", "executing", "success", "已执行写入"),
   makeStep("activity:database-written", "writing_database", "success", "已写入数据库"),
   makeStep("activity:receipt", "recording_receipt", "success", "已记录操作凭证"),
-  makeStep("activity:rollback-available", "rollback", input.lastRollbackPayload ? "success" : "skipped", input.lastRollbackPayload ? "支持撤销" : "未返回自动撤销信息"),
+  makeStep("activity:rollback-available", "rollback", input.lastRollbackSourceRunId ? "success" : "skipped", input.lastRollbackSourceRunId ? "支持撤销" : "未返回自动撤销信息"),
 ];
 
 const buildRollbackSteps = (): AgentActivityStep[] => [
@@ -476,7 +476,7 @@ export const buildAgentActivitySteps = (input: BuildAgentActivityStepsInput): Ag
     userSteps = buildScheduleDraftSteps();
   } else if (isPlanComposeOrCreateMessage(assistantMessage)) {
     userSteps = buildPlanComposeOrCreateSteps();
-  } else if (isExecuteResultMessage(assistantMessage, input.lastRollbackPayload)) {
+  } else if (isExecuteResultMessage(assistantMessage, input.lastRollbackSourceRunId)) {
     userSteps = buildExecuteResultSteps(input);
   } else if (isScheduleQueryMessage(assistantMessage, input.intent)) {
     userSteps = buildQueryScheduleSteps(input.intent);

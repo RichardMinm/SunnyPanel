@@ -15,6 +15,7 @@ import {
   hydrateAgentThreadState,
 } from "@/lib/agent/thread-events";
 import { toAgentRunSummary } from "@/lib/agent/run-summary";
+import { sanitizePublicPendingAction } from "@/lib/agent/public-chat-response";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
 
@@ -120,6 +121,9 @@ export async function GET(request: Request) {
     ? selectedCanonicalState?.pendingAction ??
       parsePendingAction(ownedSelectedThread.pendingAction)
     : null;
+  const publicSelectedPendingAction = sanitizePublicPendingAction(
+    selectedPendingAction,
+  );
   const selectedPlanningDraft = ownedSelectedThread
     ? extractPlanningDraftFromSessionState(
         (ownedSelectedThread as { conversationState?: unknown }).conversationState,
@@ -136,10 +140,10 @@ export async function GET(request: Request) {
           selectedCanonicalState?.messages ??
             sanitizeChatMessages(ownedSelectedThread.messages ?? []),
           selectedPlanningDraft,
-          selectedPendingAction,
+          publicSelectedPendingAction,
         ),
         selectedPlanningChecklistDraft,
-        selectedPendingAction,
+        publicSelectedPendingAction,
       )
     : [];
 
@@ -149,7 +153,7 @@ export async function GET(request: Request) {
           id: ownedSelectedThread.id,
           lastInteractionAt: ownedSelectedThread.lastInteractionAt,
           messages: selectedMessages,
-          pendingAction: selectedPendingAction,
+          pendingAction: publicSelectedPendingAction,
           title: ownedSelectedThread.title,
         }
       : null,
@@ -157,7 +161,9 @@ export async function GET(request: Request) {
       archived: Boolean(thread.archived),
       id: thread.id,
       lastInteractionAt: thread.lastInteractionAt,
-      pendingAction: parsePendingAction(thread.pendingAction),
+      pendingAction: sanitizePublicPendingAction(
+        parsePendingAction(thread.pendingAction),
+      ),
       tags: Array.isArray(thread.tags) ? thread.tags as string[] : [],
       title: thread.title,
     })),

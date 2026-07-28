@@ -109,3 +109,51 @@ test("transactional batch preserves effects even when a child has no assistant m
 
   assert.deepEqual(result.affectedDocuments?.map((document) => document.documentId), [1, 2]);
 });
+
+test("transactional batch propagates the latest executable child source run ID", async () => {
+  const result = await executeAgentIntentsTransactional(
+    [makeAnswerIntent("first"), makeAnswerIntent("second")],
+    undefined,
+    {
+      executeIntent: async (intent) => ({
+        assistantMessage: (intent as AnswerIntent).args.answer,
+        pendingAction: null,
+        rollbackPayload: {
+          strategy: "delete_created_document",
+          target: {
+            collection: "plans",
+            documentId: (intent as AnswerIntent).args.answer === "first" ? 1 : 2,
+          },
+        },
+        rollbackSourceRunId: (intent as AnswerIntent).args.answer === "first" ? 81 : 82,
+      }) as AgentIntentExecutionResult,
+    },
+  );
+
+  assert.equal((result as AgentIntentExecutionResult & { rollbackSourceRunId?: number }).rollbackSourceRunId, 82);
+});
+
+test("transactional batch never pairs a previous source run with a later executable payload", async () => {
+  const result = await executeAgentIntentsTransactional(
+    [makeAnswerIntent("first"), makeAnswerIntent("second")],
+    undefined,
+    {
+      executeIntent: async (intent) => ({
+        assistantMessage: (intent as AnswerIntent).args.answer,
+        pendingAction: null,
+        rollbackPayload: {
+          strategy: "delete_created_document",
+          target: {
+            collection: "plans",
+            documentId: (intent as AnswerIntent).args.answer === "first" ? 1 : 2,
+          },
+        },
+        ...((intent as AnswerIntent).args.answer === "first"
+          ? { rollbackSourceRunId: 81 }
+          : {}),
+      }) as AgentIntentExecutionResult,
+    },
+  );
+
+  assert.equal(result.rollbackSourceRunId, undefined);
+});

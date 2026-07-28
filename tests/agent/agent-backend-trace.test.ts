@@ -237,7 +237,7 @@ test("write-flow backend trace includes dry-run, guard, confirmation, execute, a
       baseTraceEvent({ phase: "execute", status: "success", title: "已执行写入" }),
       baseTraceEvent({ phase: "receipt", status: "success", title: "已记录 receipt" }),
     ],
-    lastRollbackPayload: { strategy: "delete_created_documents" },
+    lastRollbackSourceRunId: 91,
   });
 
   const kinds = steps.map((step) => step.kind);

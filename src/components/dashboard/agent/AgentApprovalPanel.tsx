@@ -18,7 +18,7 @@ export function AgentApprovalPanel({ action, pendingAction }: AgentApprovalPanel
 
   if (planConfirmationAction) {
     const rollbackStatus =
-      planConfirmationAction.rollbackAvailable || planConfirmationAction.rollbackPayload ? "可回滚" : "不可回滚";
+      planConfirmationAction.rollbackAvailable ? "可回滚" : "不可回滚";
 
     return (
       <div className="sunny-agent-inspector-panel sunny-agent-pending-inspector-summary">

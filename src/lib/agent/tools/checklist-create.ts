@@ -484,7 +484,7 @@ export const createChecklistFromIntent = async (
     title: `已创建清单记录 #${createdChecklist.id}`,
   });
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: [
       {
         collection: "checklists",
@@ -575,6 +575,7 @@ export const createChecklistFromIntent = async (
     pendingAction: null,
     rollbackAvailable: true,
     rollbackPayload,
+    rollbackSourceRunId: agentRun.id,
     title: createdChecklist.title,
     type: "create_checklist",
   };

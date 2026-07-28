@@ -107,7 +107,7 @@ function getPlanTitle(action: ProposedAgentAction): string {
 }
 
 function getRollbackStatus(action: ProposedAgentAction): "不可回滚" | "可回滚" {
-  return action.rollbackAvailable || action.rollbackPayload ? "可回滚" : "不可回滚";
+  return action.rollbackAvailable ? "可回滚" : "不可回滚";
 }
 
 function PlanConfirmationHeader({ action }: { action: ProposedAgentAction }) {

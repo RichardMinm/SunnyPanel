@@ -417,8 +417,9 @@ export const createScheduleItemsFromIntent = async (
 
   const sourceSummary = cleanOptional(args.sourceText) ?? `从日程草案「${normalizeText(args.title) || "未命名"}」创建正式日程。`;
 
+  let rollbackSourceRunId: number;
   try {
-    await createAgentRun({
+    const agentRun = await createAgentRun({
       affectedDocuments: createdItems.map((item) => ({
         collection: "schedule-items",
         documentId: item.id,
@@ -453,6 +454,7 @@ export const createScheduleItemsFromIntent = async (
       userId: options.userId,
       workflow: "planning",
     });
+    rollbackSourceRunId = agentRun.id;
   } catch (error) {
     return buildCompensatedFailure({
       createdItems,
@@ -486,6 +488,7 @@ export const createScheduleItemsFromIntent = async (
     itemsCount: createdItems.length,
     pendingAction: null,
     rollbackPayload,
+    rollbackSourceRunId,
     status: "completed",
     type: "create_schedule_items",
   };

@@ -439,7 +439,7 @@ export const completePlanItemFromIntent = async (
     },
   );
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: completion.affectedDocuments,
     afterSnapshot: {
       checklistId: updatedChecklist.id,
@@ -494,6 +494,7 @@ export const completePlanItemFromIntent = async (
       assistantMessage: `已把 ${buildChecklistItemLabel(updatedChecklist.title, updatedGroup.title, updatedItem.title)} 标记完成，并把备注一起写进去了。对应 Timeline 节点也已经同步。`,
       pendingAction: null,
       rollbackPayload,
+      rollbackSourceRunId: agentRun.id,
     };
   }
 
@@ -504,5 +505,6 @@ export const completePlanItemFromIntent = async (
     assistantMessage: `已把 ${buildChecklistItemLabel(updatedChecklist.title, updatedGroup.title, updatedItem.title)} 标记完成，对应 Timeline 节点也已同步。如果想补一句完成备注或感受，告诉我就好。`,
     pendingAction: null,
     rollbackPayload,
+    rollbackSourceRunId: agentRun.id,
   };
 };

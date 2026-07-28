@@ -35,6 +35,7 @@ export type SunnyAgentGraphExecution = {
   affectedDocuments?: NonNullable<AgentChatResponse["affectedDocuments"]>;
   assistantMessage: string;
   lastRollbackPayload?: unknown;
+  lastRollbackSourceRunId?: number;
   pendingAction: null | PendingAction;
   tokenUsage?: AgentChatResponse["tokenUsage"];
 };

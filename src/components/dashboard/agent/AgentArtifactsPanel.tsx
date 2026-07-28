@@ -1,16 +1,14 @@
 import type { AgentChatMessage, ProposedAgentAction } from "@/lib/agent/schemas";
-import { isRollbackPayloadExecutable, parseRollbackPayload } from "@/lib/agent/rollback-parse";
 
-import { formatCollectionLabel, formatIntentLabel } from "./constants";
+import { formatIntentLabel } from "./constants";
 import { AgentMarkdownBubble } from "./AgentMarkdownBubble";
-import { formatRollbackStrategyLabel } from "./rollback-display";
 
 type AgentArtifactsPanelProps = {
   action: null | ProposedAgentAction;
   artifactsRollbackBusy?: boolean;
   artifactsRollbackError?: null | string;
   latestAssistantMessage?: AgentChatMessage;
-  lastRollbackPayload?: null | unknown;
+  lastRollbackSourceRunId?: null | number;
   onRollback?: () => void;
 };
 
@@ -19,16 +17,13 @@ export function AgentArtifactsPanel({
   artifactsRollbackBusy = false,
   artifactsRollbackError = null,
   latestAssistantMessage,
-  lastRollbackPayload = null,
+  lastRollbackSourceRunId = null,
   onRollback,
 }: AgentArtifactsPanelProps) {
-  const pendingRollback = action?.rollbackPayload;
-  const parsedPending = pendingRollback ? parseRollbackPayload(pendingRollback) : null;
-  const parsedLast = lastRollbackPayload ? parseRollbackPayload(lastRollbackPayload) : null;
-  const canUndoLast = Boolean(lastRollbackPayload && isRollbackPayloadExecutable(lastRollbackPayload));
-  const showPendingRollbackNote = Boolean(pendingRollback && action && !canUndoLast);
+  const canUndoLast = Boolean(lastRollbackSourceRunId);
+  const showPendingRollbackNote = Boolean(action?.rollbackAvailable && !canUndoLast);
 
-  if (!action && !latestAssistantMessage && !lastRollbackPayload) {
+  if (!action && !latestAssistantMessage && !lastRollbackSourceRunId) {
     return (
       <div className="sunny-agent-inspector-empty">
         <h3>暂无产物</h3>
@@ -47,15 +42,11 @@ export function AgentArtifactsPanel({
         </div>
       ) : null}
 
-      {showPendingRollbackNote && parsedPending ? (
+      {showPendingRollbackNote ? (
         <div className="sunny-agent-artifact-row sunny-agent-artifact-rollback-hint" role="status">
           <span>回滚预案</span>
           <strong>回滚预案（确认执行后可用）</strong>
-          <p>
-            {formatRollbackStrategyLabel(parsedPending.strategy)}
-            {parsedPending.target?.collection ? ` · ${formatCollectionLabel(parsedPending.target.collection)}` : ""}
-            {parsedPending.reason ? ` — ${parsedPending.reason}` : ""}
-          </p>
+          <p>确认执行后，系统会根据服务端保存的执行记录提供受控撤销。</p>
         </div>
       ) : null}
 
@@ -67,16 +58,11 @@ export function AgentArtifactsPanel({
         </div>
       ) : null}
 
-      {canUndoLast && parsedLast && onRollback ? (
+      {canUndoLast && onRollback ? (
         <div className="sunny-agent-artifact-row sunny-agent-artifact-rollback-action">
           <span>撤销</span>
           <strong>撤销上一轮写入</strong>
-          <p>
-            {formatRollbackStrategyLabel(parsedLast.strategy)}
-            {parsedLast.target?.collection && typeof parsedLast.target.documentId === "number"
-              ? ` · ${formatCollectionLabel(parsedLast.target.collection)} #${parsedLast.target.documentId}`
-              : ""}
-          </p>
+          <p>撤销将使用服务端保存的执行记录，不会从浏览器提交可执行数据。</p>
           <button
             type="button"
             className="sunny-gap-action-secondary mt-2 disabled:cursor-not-allowed disabled:opacity-60"

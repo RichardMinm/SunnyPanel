@@ -41,7 +41,7 @@ export const createPlanFromIntent = async (
     title: `已创建计划记录 #${createdPlan.id}`,
   });
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: [
       {
         collection: "plans",
@@ -92,6 +92,7 @@ export const createPlanFromIntent = async (
     createdPlanId: createdPlan.id,
     pendingAction: null,
     planId: createdPlan.id,
+    rollbackSourceRunId: agentRun.id,
     rollbackPayload: {
       strategy: "delete_created_document",
       target: {

@@ -10,6 +10,7 @@ import {
   type AgentRollbackExecutionResult,
 } from "@/components/dashboard/agent/rollback-display";
 import { readAgentChatStream } from "@/lib/agent/read-agent-chat-stream";
+import { parsePublicAgentChatResponse } from "@/lib/agent/public-chat-response";
 import {
   appendBackendTraceEventToActivitySteps,
   attachActivityStepsToLastAssistantMessage,
@@ -22,7 +23,6 @@ import {
 import { attachSchedulingDraftToLastAssistantMessage } from "@/lib/agent/schedule/draft-message";
 import type {
   AgentChatMessage,
-  AgentChatResponse,
   AgentTokenUsage,
   AgentTraceStep,
   PendingAction,
@@ -57,7 +57,7 @@ type UseAgentChatMessagingOptions = {
   setErrorMessage: (message: string | null) => void;
   setInput: (value: string) => void;
   setIsSubmitting: (value: boolean) => void;
-  setLastRollbackPayload: (payload: unknown | null) => void;
+  setLastRollbackSourceRunId: (sourceRunId: number | null) => void;
   setLastRollbackResult: (result: AgentRollbackExecutionResult | null) => void;
   setMessages: Dispatch<SetStateAction<AgentChatMessage[]>>;
   setPendingAction: (action: PendingAction | null) => void;
@@ -78,7 +78,7 @@ type UseAgentChatMessagingOptions = {
   setTraceSteps: Dispatch<SetStateAction<AgentTraceStep[]>>;
   setTurnAudit: Dispatch<SetStateAction<AgentTurnTrace | null>>;
   threadId: number | null;
-  lastRollbackPayload: unknown | null;
+  lastRollbackSourceRunId: number | null;
   workbenchMode: AgentWorkbenchMode;
 };
 
@@ -86,7 +86,7 @@ export function useAgentChatMessaging({
   activeSuggestionSource,
   contextPreferences,
   isSubmitting,
-  lastRollbackPayload,
+  lastRollbackSourceRunId,
   loadThread,
   messages,
   pendingAction,
@@ -96,7 +96,7 @@ export function useAgentChatMessaging({
   setErrorMessage,
   setInput,
   setIsSubmitting,
-  setLastRollbackPayload,
+  setLastRollbackSourceRunId,
   setLastRollbackResult,
   setMessages,
   setPendingAction,
@@ -348,9 +348,7 @@ export function useAgentChatMessaging({
               replaceAssistantContent: replaceStreamingAssistantContent,
               setStreamingState,
             })
-          : ((await response.json()) as Partial<AgentChatResponse> & {
-              assistantMessage?: string;
-            });
+          : parsePublicAgentChatResponse(await response.json());
         const responseData = data ?? {};
         const assistantMessage =
           typeof responseData.assistantMessage === "string" ? responseData.assistantMessage : null;
@@ -361,10 +359,7 @@ export function useAgentChatMessaging({
           assistantMessage,
           backendTraceEvents: responseData.backendTraceEvents ?? [],
           intent: responseData.intent ?? null,
-          lastRollbackPayload:
-            "lastRollbackPayload" in responseData && responseData.lastRollbackPayload !== undefined
-              ? responseData.lastRollbackPayload
-              : null,
+          lastRollbackSourceRunId: responseData.lastRollbackSourceRunId ?? null,
           pendingAction: responseData.pendingAction ?? null,
           planningChecklistDraft,
           planningDraft,
@@ -418,11 +413,7 @@ export function useAgentChatMessaging({
         }
 
         setPendingAction(responseData.pendingAction ?? null);
-        setLastRollbackPayload(
-          "lastRollbackPayload" in responseData && responseData.lastRollbackPayload !== undefined
-            ? responseData.lastRollbackPayload
-            : null,
-        );
+        setLastRollbackSourceRunId(responseData.lastRollbackSourceRunId ?? null);
         setTraceSteps(responseData.trace ?? []);
         setTurnAudit(responseData.turnAudit ?? null);
         setThreadId(typeof responseData.threadId === "number" ? responseData.threadId : threadId);
@@ -494,7 +485,7 @@ export function useAgentChatMessaging({
       setErrorMessage,
       setInput,
       setIsSubmitting,
-      setLastRollbackPayload,
+      setLastRollbackSourceRunId,
       setLastRollbackResult,
       setMessages,
       setPendingAction,
@@ -558,7 +549,7 @@ export function useAgentChatMessaging({
     setStreamStages([]);
     setStreamProgress([]);
     setStreamChanges([]);
-    setLastRollbackPayload(null);
+    setLastRollbackSourceRunId(null);
     setLastRollbackResult(null);
     setArtifactsRollbackError(null);
     setInput("");
@@ -575,7 +566,7 @@ export function useAgentChatMessaging({
     setErrorMessage,
     setInput,
     setIsSubmitting,
-    setLastRollbackPayload,
+    setLastRollbackSourceRunId,
     setLastRollbackResult,
     setMessages,
     setPendingAction,
@@ -642,7 +633,7 @@ export function useAgentChatMessaging({
   );
 
   const runArtifactsRollback = useCallback(async () => {
-    if (!lastRollbackPayload) {
+    if (!lastRollbackSourceRunId) {
       return;
     }
 
@@ -651,7 +642,7 @@ export function useAgentChatMessaging({
 
     try {
       const res = await fetch("/api/agent/rollback", {
-        body: JSON.stringify({ rollbackPayload: lastRollbackPayload }),
+        body: JSON.stringify({ sourceRunId: lastRollbackSourceRunId }),
         headers: {
           "Content-Type": "application/json",
         },
@@ -665,7 +656,7 @@ export function useAgentChatMessaging({
 
       const rollbackResult = normalizeRollbackExecutionResult(data.result);
 
-      setLastRollbackPayload(null);
+      setLastRollbackSourceRunId(null);
       await loadThread(threadId ?? undefined, { preserveInspector: true });
       setLastRollbackResult(rollbackResult);
       setActiveInspectorTab("trace");
@@ -680,12 +671,12 @@ export function useAgentChatMessaging({
       setArtifactsRollbackBusy(false);
     }
   }, [
-    lastRollbackPayload,
+    lastRollbackSourceRunId,
     loadThread,
     setActiveInspectorTab,
     setArtifactsRollbackBusy,
     setArtifactsRollbackError,
-    setLastRollbackPayload,
+    setLastRollbackSourceRunId,
     setLastRollbackResult,
     setStatusText,
     threadId,

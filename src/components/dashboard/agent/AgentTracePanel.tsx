@@ -21,7 +21,7 @@ type AgentTracePanelProps = {
   artifactsRollbackError?: null | string;
   lastRollbackResult?: AgentRollbackExecutionResult | null;
   latestAssistantMessage?: AgentChatMessage;
-  lastRollbackPayload?: null | unknown;
+  lastRollbackSourceRunId?: null | number;
   debugMode: boolean;
   onArtifactsRollback?: () => void;
   onPlanOperatingPrompt?: (prompt: string) => void;
@@ -134,7 +134,7 @@ export function AgentTracePanel({
   artifactsRollbackError = null,
   lastRollbackResult = null,
   latestAssistantMessage,
-  lastRollbackPayload = null,
+  lastRollbackSourceRunId = null,
   debugMode,
   onArtifactsRollback,
   onPlanOperatingPrompt,
@@ -145,7 +145,7 @@ export function AgentTracePanel({
   statusLabel,
   traceSteps,
 }: AgentTracePanelProps) {
-  const hasArtifacts = Boolean(action || latestAssistantMessage || lastRollbackPayload);
+  const hasArtifacts = Boolean(action || latestAssistantMessage || lastRollbackSourceRunId);
   const hasActivitySteps = activitySteps.length > 0;
   const showDebugTrace = debugMode;
 
@@ -189,7 +189,7 @@ export function AgentTracePanel({
               artifactsRollbackBusy={artifactsRollbackBusy}
               artifactsRollbackError={artifactsRollbackError}
               latestAssistantMessage={latestAssistantMessage}
-              lastRollbackPayload={lastRollbackPayload}
+              lastRollbackSourceRunId={lastRollbackSourceRunId}
               onRollback={onArtifactsRollback}
             />
           ) : null}

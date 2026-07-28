@@ -5,6 +5,7 @@ import {
 } from "@/lib/schedule/complete-schedule-item";
 import { getCurrentAgentUserId } from "../execution-context";
 import { isRecord } from "@/lib/shared/is-record";
+import { isRollbackPayloadExecutable } from "../rollback-parse";
 
 import {
   parseAgentIntentResult,
@@ -18,6 +19,7 @@ import {
 } from "../schemas";
 import {
   createAgentRun,
+  sanitizeAffectedDocuments,
   type AffectedDocumentSummary,
   normalizeForSearch,
   type AgentExecutionTraceReporter,
@@ -593,11 +595,59 @@ export const modifyRecordFromIntent = async (
       };
     }
 
+    const affectedDocuments =
+      sanitizeAffectedDocuments(completion.affectedDocuments) ?? [];
+    const rollbackPayload = completion.rollbackPayload;
+    const rollbackAvailable = isRollbackPayloadExecutable(rollbackPayload);
+    const rollbackRecord = isRecord(rollbackPayload) ? rollbackPayload : null;
+    let agentRun: Awaited<ReturnType<typeof createAgentRun>>;
+
+    try {
+      agentRun = await createAgentRun({
+        affectedDocuments,
+        afterSnapshot: rollbackRecord?.afterSnapshot ?? {
+          scheduleId: args.targetId,
+          status: "done",
+        },
+        beforeSnapshot: rollbackRecord?.beforeSnapshot ?? {
+          scheduleId: args.targetId,
+          status: documentRecord.status ?? null,
+        },
+        goal: `完成日程「${document.title}」`,
+        nextAction: null,
+        payload,
+        rollbackAvailable,
+        ...(rollbackPayload !== undefined ? { rollbackPayload } : {}),
+        status: "succeeded",
+        steps: [
+          {
+            level: "info",
+            message: `已完成日程：${document.title}`,
+          },
+        ],
+        summary: `Agent 已完成日程「${document.title}」。`,
+        title: `Agent completed schedule item · ${document.title}`,
+        workflow: "sync",
+      });
+    } catch {
+      return {
+        affectedDocuments,
+        assistantMessage: `日程「${document.title}」已完成，但执行记录写入失败，未提供可撤销入口。`,
+        pendingAction: null,
+        status: "failed",
+      };
+    }
+
     return {
-      affectedDocuments: completion.affectedDocuments,
+      affectedDocuments,
       assistantMessage: `已完成日程「${document.title}」。`,
       pendingAction: null,
-      ...(completion.rollbackPayload ? { rollbackPayload: completion.rollbackPayload } : {}),
+      ...(rollbackAvailable
+        ? {
+            rollbackPayload,
+            rollbackSourceRunId: agentRun.id,
+          }
+        : {}),
       status: "completed",
     };
   }
@@ -627,7 +677,7 @@ export const modifyRecordFromIntent = async (
     overrideAccess: true,
   });
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: [
       {
         collection,
@@ -689,5 +739,6 @@ export const modifyRecordFromIntent = async (
       .join("，")}。`,
     pendingAction: null,
     rollbackPayload,
+    rollbackSourceRunId: agentRun.id,
   };
 };

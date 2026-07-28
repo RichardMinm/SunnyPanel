@@ -192,9 +192,7 @@ export function AgentApprovalCard({
     : null;
   const rollbackStatus = action.rollbackAvailable
     ? "可回滚"
-    : action.rollbackPayload
-      ? "执行后可回滚"
-      : "暂不可回滚";
+    : "暂不可回滚";
   const nextEffects = planProposal
     ? ["保存当前计划为草稿", "进入待办队列", "可继续拆分为学习阶段"]
     : scheduleProposal

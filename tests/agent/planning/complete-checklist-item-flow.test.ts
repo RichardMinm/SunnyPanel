@@ -159,6 +159,7 @@ test("confirmed completion marks checklist item complete and writes completion m
   assert.equal(updatedItem?.completedAt, "2026-06-29T20:30:00.000+08:00");
   assert.equal(updatedItem?.completionNote, "登录页修复已验收。");
   assert.equal(result.pendingAction, null);
+  assert.equal(result.rollbackSourceRunId, 1001);
   assert.match(result.assistantMessage, /标记完成/);
 });
 

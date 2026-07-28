@@ -400,7 +400,7 @@ export const handleAgentChatPost = async (input: {
   }
 
   try {
-    return NextResponse.json(await runPipeline());
+    return createAgentChatResponse(await runPipeline(), false);
   } catch (error) {
     logAgentEvent("error", "chat.pipeline_error", {
       error: error instanceof Error ? error.message : String(error),

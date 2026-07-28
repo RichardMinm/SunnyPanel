@@ -7,6 +7,7 @@ import {
   getPayloadClient,
   getPayloadStubOperations,
   resetPayloadStub,
+  setPayloadStubCreateHandler,
 } from "../stubs/payload-client";
 
 beforeEach(() => {
@@ -15,9 +16,10 @@ beforeEach(() => {
 
 test("createAgentRun stores the current execution user", async () => {
   const payload = await getPayloadClient();
+  setPayloadStubCreateHandler(async () => ({ id: 91 }));
 
-  await runWithAgentExecutionContext({ userId: 7 }, async () => {
-    await createAgentRun({
+  const run = await runWithAgentExecutionContext({ userId: 7 }, async () =>
+    createAgentRun({
       payload: payload as never,
       status: "succeeded",
       steps: [
@@ -29,12 +31,13 @@ test("createAgentRun stores the current execution user", async () => {
       summary: "created plan",
       title: "Agent created plan",
       workflow: "planning",
-    });
-  });
+    }),
+  );
 
   const createArgs = getPayloadStubOperations().find((operation) => operation.type === "create")?.args as {
     data?: { user?: number };
   };
 
   assert.equal(createArgs.data?.user, 7);
+  assert.equal((run as { id?: number } | undefined)?.id, 91);
 });

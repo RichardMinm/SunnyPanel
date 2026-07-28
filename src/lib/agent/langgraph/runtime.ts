@@ -128,6 +128,7 @@ export const compileSunnyAgentGraph = (
         engine: state.resolution.engine,
         intent: state.resolution.intent.intent,
         lastRollbackPayload: state.execution.lastRollbackPayload,
+        lastRollbackSourceRunId: state.execution.lastRollbackSourceRunId,
         pendingAction: state.execution.pendingAction,
         threadId: state.input.threadId,
         tokenUsage:

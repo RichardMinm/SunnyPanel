@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { parseStreamBlock } from "../../src/lib/agent/chat-stream";
-import { createAgentChatStream } from "../../src/lib/agent/chat-pipeline/stream-envelope";
+import {
+  createAgentChatResponse,
+  createAgentChatStream,
+} from "../../src/lib/agent/chat-pipeline/stream-envelope";
 import { buildLangGraphFailureResponse } from "../../src/lib/agent/langgraph/failure-response";
+import { parsePublicAgentChatResponse } from "../../src/lib/agent/public-chat-response";
 import { readAgentChatStream } from "../../src/lib/agent/read-agent-chat-stream";
 import type {
   AgentStreamChangeEvent,
@@ -19,6 +23,7 @@ import type {
 import type { AgentTraceEventPayload } from "../../src/lib/agent/trace";
 import { QueryStreamFailure } from "../../src/lib/agent/query/errors";
 import { ConversationalAnswerStreamFailure } from "../../src/lib/agent/answer/errors";
+import { getScheduleCreationProposalFromAction } from "../../src/components/dashboard/agent/utils";
 
 const encodeBlock = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 
@@ -41,6 +46,323 @@ const createStreamResponse = (blocks: string[]) =>
       },
     },
   );
+
+const unsafeRollbackTerminal = {
+  affectedDocuments: [
+    {
+      collection: "plans",
+      documentId: 42,
+      extra: "must-not-cross",
+      operation: "create",
+      visibility: "private",
+    },
+    {
+      collection: "users",
+      documentId: 7,
+      operation: "update",
+      visibility: "private",
+    },
+  ],
+  assistantMessage: "已创建计划",
+  engine: "workflow",
+  intent: "create_plan",
+  lastRollbackPayload: {
+    beforeSnapshot: { secret: "before" },
+    strategy: "delete_created_document",
+    target: { collection: "plans", documentId: 42 },
+  },
+  lastRollbackSourceRunId: 91,
+  pendingAction: {
+    action: {
+      afterSnapshot: { secret: "after" },
+      args: { title: "测试计划" },
+      beforeSnapshot: { secret: "before" },
+      changes: [
+        {
+          collection: "plans",
+          operation: "create",
+          preview: "创建测试计划",
+        },
+      ],
+      id: "action-public-boundary",
+      intent: "create_plan",
+      riskLevel: "medium",
+      rollbackPayload: {
+        strategy: "delete_created_document",
+        target: { collection: "plans", documentId: 42 },
+      },
+      summary: "创建测试计划",
+    },
+    type: "await_confirmation",
+  },
+} as unknown as AgentChatResponse;
+
+const unsafeScheduleConfirmationTerminal = {
+  assistantMessage: "请确认日程创建",
+  engine: "workflow",
+  intent: "create_schedule_items",
+  pendingAction: {
+    action: {
+      affectedDocuments: [
+        {
+          collection: "schedule-items",
+          documentId: 42,
+          extra: "must-not-cross",
+          operation: "create",
+          visibility: "private",
+        },
+        {
+          collection: "evil",
+          documentId: -1,
+          operation: "hack",
+          visibility: "secret",
+        },
+      ],
+      afterSnapshot: {
+        conflictSuggestions: [
+          {
+            action: {
+              date: "2026-07-30",
+              endTime: "11:00",
+              itemTitle: "发布检查",
+              startTime: "10:00",
+              type: "move_item",
+            },
+            description: "改到空闲时段",
+            id: "move-release-check",
+            label: "改到 10:00-11:00",
+            riskLevel: "low",
+          },
+        ],
+        conflictSummary: {
+          conflictCount: 1,
+          conflictPolicy: "ask",
+          existingScheduleChecked: true,
+          message: "发现 1 个时间冲突。",
+          warningCount: 0,
+        },
+        dateRange: "2026-07-30",
+        items: [
+          {
+            date: "2026-07-30",
+            endTime: "10:00",
+            startTime: "09:00",
+            title: "发布检查",
+          },
+        ],
+        scheduleConflicts: [
+          {
+            existingScheduleItemId: 501,
+            existingTitle: "已有会议",
+            message: "「发布检查」与已有会议冲突。",
+            proposedDate: "2026-07-30",
+            proposedEndTime: "10:00",
+            proposedStartTime: "09:00",
+            proposedTitle: "发布检查",
+            severity: "warning",
+            type: "existing",
+          },
+        ],
+        sourceChecklistId: 12,
+        sourcePlanId: 99,
+        title: "发布日程",
+      },
+      args: {
+        items: [
+          {
+            date: "2026-07-30",
+            endTime: "10:00",
+            startTime: "09:00",
+            title: "发布检查",
+          },
+        ],
+        sourceChecklistId: 12,
+        sourcePlanId: 99,
+        title: "发布日程",
+      },
+      beforeSnapshot: null,
+      changes: [
+        {
+          collection: "schedule-items",
+          operation: "create",
+          preview: "创建 1 个日程项",
+        },
+      ],
+      id: "schedule-confirmation-public-boundary",
+      intent: "create_schedule_items",
+      riskLevel: "medium",
+      rollbackPayload: {
+        strategy: "delete_created_documents",
+        target: { collection: "schedule-items", documentIds: [42] },
+      },
+      summary: "创建发布日程",
+    },
+    type: "await_confirmation",
+  },
+} as unknown as AgentChatResponse;
+
+const requireScheduleConfirmationAction = (
+  response: null | Partial<AgentChatResponse>,
+) => {
+  assert.equal(response?.pendingAction?.type, "await_confirmation");
+  const pendingAction = response?.pendingAction;
+  assert.ok(pendingAction && pendingAction.type === "await_confirmation");
+
+  return pendingAction.action;
+};
+
+test("JSON chat terminal strips executable rollback fields and sanitizes public effects", async () => {
+  const response = createAgentChatResponse(unsafeRollbackTerminal, false);
+  const body = await response.json() as Record<string, unknown>;
+  const serialized = JSON.stringify(body);
+
+  assert.equal(body.lastRollbackSourceRunId, 91);
+  assert.deepEqual(body.affectedDocuments, [
+    {
+      collection: "plans",
+      documentId: 42,
+      operation: "create",
+      visibility: "private",
+    },
+  ]);
+  assert.doesNotMatch(serialized, /lastRollbackPayload|rollbackPayload|beforeSnapshot|afterSnapshot|must-not-cross/);
+});
+
+test("SSE done terminal strips executable rollback fields and keeps only the bounded source ID", async () => {
+  const response = createAgentChatStream(async () => unsafeRollbackTerminal);
+  const body = await response.text();
+
+  assert.match(body, /event: done\ndata: .*"lastRollbackSourceRunId":91/);
+  assert.doesNotMatch(body, /lastRollbackPayload|rollbackPayload|beforeSnapshot|afterSnapshot|must-not-cross/);
+});
+
+test("stream response parser sanitizes done effects and rejects raw rollback fields and invalid source IDs", async () => {
+  const donePayloads: Array<Record<string, unknown>> = [];
+  const response = createStreamResponse([
+    encodeBlock("done", {
+      ...unsafeRollbackTerminal,
+      lastRollbackSourceRunId: 1.5,
+    }),
+  ]);
+
+  const result = await readAgentChatStream(response, {
+    appendAssistantToken: () => undefined,
+    onDone: (payload) => donePayloads.push(payload as Record<string, unknown>),
+    onErrorMessage: () => undefined,
+    onMeta: () => undefined,
+    onStatus: () => undefined,
+    onStreamStart: () => undefined,
+    onThinkingToken: () => undefined,
+    onTokenUsage: () => undefined,
+    onTraceStep: () => undefined,
+    replaceAssistantContent: () => undefined,
+    setStreamingState: () => undefined,
+  });
+
+  assert.deepEqual(result?.affectedDocuments, [
+    {
+      collection: "plans",
+      documentId: 42,
+      operation: "create",
+      visibility: "private",
+    },
+  ]);
+  assert.equal((result as Record<string, unknown> | null)?.lastRollbackSourceRunId, undefined);
+  assert.equal((result as Record<string, unknown> | null)?.lastRollbackPayload, undefined);
+  assert.equal(donePayloads[0]?.lastRollbackPayload, undefined);
+});
+
+test("non-stream response parser applies the same bounded public contract", () => {
+  const result = parsePublicAgentChatResponse({
+    ...unsafeRollbackTerminal,
+    affectedDocuments: [
+      ...(unsafeRollbackTerminal.affectedDocuments ?? []),
+      {
+        collection: "plans",
+        documentId: Number.MAX_SAFE_INTEGER + 1,
+        operation: "create",
+        visibility: "private",
+      },
+    ],
+    lastRollbackSourceRunId: 92,
+  });
+  const serialized = JSON.stringify(result);
+
+  assert.equal(result?.lastRollbackSourceRunId, 92);
+  assert.deepEqual(result?.affectedDocuments, [
+    {
+      collection: "plans",
+      documentId: 42,
+      operation: "create",
+      visibility: "private",
+    },
+  ]);
+  assert.doesNotMatch(
+    serialized,
+    /lastRollbackPayload|rollbackPayload|beforeSnapshot|afterSnapshot|must-not-cross/,
+  );
+});
+
+test("JSON terminal preserves safe Schedule confirmation presentation and sanitizes nested effects", async () => {
+  const response = createAgentChatResponse(unsafeScheduleConfirmationTerminal, false);
+  const body = await response.json() as Partial<AgentChatResponse>;
+  const action = requireScheduleConfirmationAction(body);
+  const proposal = getScheduleCreationProposalFromAction(action);
+  const serialized = JSON.stringify(body);
+
+  assert.deepEqual(action.affectedDocuments, [
+    {
+      collection: "schedule-items",
+      documentId: 42,
+      operation: "create",
+      visibility: "private",
+    },
+  ]);
+  assert.equal(proposal?.itemCount, 1);
+  assert.equal(proposal?.conflictSummary.conflictCount, 1);
+  assert.equal(proposal?.conflicts[0]?.existingScheduleItemId, 501);
+  assert.equal(proposal?.conflictSuggestions[0]?.id, "move-release-check");
+  assert.doesNotMatch(
+    serialized,
+    /rollbackPayload|beforeSnapshot|afterSnapshot|must-not-cross|\"evil\"|\"hack\"|\"secret\"/,
+  );
+});
+
+test("SSE parser preserves safe Schedule confirmation presentation and sanitizes nested effects", async () => {
+  const response = createAgentChatStream(async () => unsafeScheduleConfirmationTerminal);
+  const result = await readAgentChatStream(response, {
+    appendAssistantToken: () => undefined,
+    onDone: () => undefined,
+    onErrorMessage: () => undefined,
+    onMeta: () => undefined,
+    onStatus: () => undefined,
+    onStreamStart: () => undefined,
+    onThinkingToken: () => undefined,
+    onTokenUsage: () => undefined,
+    onTraceStep: () => undefined,
+    replaceAssistantContent: () => undefined,
+    setStreamingState: () => undefined,
+  });
+  const action = requireScheduleConfirmationAction(result);
+  const proposal = getScheduleCreationProposalFromAction(action);
+  const serialized = JSON.stringify(result);
+
+  assert.deepEqual(action.affectedDocuments, [
+    {
+      collection: "schedule-items",
+      documentId: 42,
+      operation: "create",
+      visibility: "private",
+    },
+  ]);
+  assert.equal(proposal?.itemCount, 1);
+  assert.equal(proposal?.conflictSummary.message, "发现 1 个时间冲突。");
+  assert.equal(proposal?.conflictSuggestions[0]?.label, "改到 10:00-11:00");
+  assert.doesNotMatch(
+    serialized,
+    /rollbackPayload|beforeSnapshot|afterSnapshot|must-not-cross|\"evil\"|\"hack\"|\"secret\"/,
+  );
+});
 
 test("parseStreamBlock parses structured stage, progress, and change events", () => {
   const parsedStage = parseStreamBlock(

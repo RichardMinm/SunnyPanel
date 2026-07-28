@@ -1,5 +1,9 @@
 import { getTokenUsageFromData, parseStreamBlock } from "@/lib/agent/chat-stream";
-import type { AgentChatResponse, AgentTokenUsage, AgentTraceStep } from "@/lib/agent/schemas";
+import type { AgentTokenUsage, AgentTraceStep } from "@/lib/agent/schemas";
+import {
+  parsePublicAgentChatResponse,
+  type PublicAgentChatResponse,
+} from "@/lib/agent/public-chat-response";
 import {
   sanitizeAgentTraceEvent,
   type AgentTraceEventPayload,
@@ -14,7 +18,7 @@ import {
   type AgentStreamStageEvent,
 } from "@/lib/agent/stream-events";
 
-export type AgentChatStreamDone = Partial<AgentChatResponse> & {
+export type AgentChatStreamDone = Partial<PublicAgentChatResponse> & {
   assistantMessage?: string;
 };
 
@@ -175,8 +179,10 @@ export async function readAgentChatStream(
       }
 
       if (parsedBlock.event === "done" && typeof parsedBlock.data === "object" && parsedBlock.data) {
-        doneData = parsedBlock.data as AgentChatStreamDone;
-        handlers.onDone(doneData);
+        doneData = parsePublicAgentChatResponse(parsedBlock.data) as AgentChatStreamDone | null;
+        if (doneData) {
+          handlers.onDone(doneData);
+        }
 
         const nextTokenUsage = getTokenUsageFromData(parsedBlock.data);
 
@@ -219,8 +225,10 @@ export async function readAgentChatStream(
     const parsedBlock = parseStreamBlock(buffer.trim());
 
     if (parsedBlock?.event === "done" && typeof parsedBlock.data === "object" && parsedBlock.data) {
-      doneData = parsedBlock.data as AgentChatStreamDone;
-      handlers.onDone(doneData);
+      doneData = parsePublicAgentChatResponse(parsedBlock.data) as AgentChatStreamDone | null;
+      if (doneData) {
+        handlers.onDone(doneData);
+      }
     }
   }
 

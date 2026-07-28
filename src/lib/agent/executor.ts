@@ -55,6 +55,7 @@ export type AgentIntentExecutionResult = {
   pendingAction: null | import("./schemas").PendingAction;
   planId?: number;
   rollbackPayload?: unknown;
+  rollbackSourceRunId?: number;
   status?: "completed" | "failed";
 };
 
@@ -102,6 +103,7 @@ export const executeAgentIntentsTransactional = async (
   const rollbackPayloads: unknown[] = [];
   let pendingAction: AgentIntentExecutionResult["pendingAction"] = null;
   let rollbackPayload: unknown;
+  let rollbackSourceRunId: number | undefined;
 
   for (const [index, intent] of intents.entries()) {
     const stepNumber = index + 1;
@@ -139,6 +141,12 @@ export const executeAgentIntentsTransactional = async (
 
         if (isExecutable(result.rollbackPayload)) {
           rollbackPayloads.push(result.rollbackPayload);
+          rollbackSourceRunId =
+            typeof result.rollbackSourceRunId === "number"
+            && Number.isSafeInteger(result.rollbackSourceRunId)
+            && result.rollbackSourceRunId > 0
+              ? result.rollbackSourceRunId
+              : undefined;
         }
       }
 
@@ -226,6 +234,7 @@ export const executeAgentIntentsTransactional = async (
     assistantMessage: messages.filter(Boolean).join("\n\n"),
     pendingAction,
     rollbackPayload,
+    ...(rollbackSourceRunId ? { rollbackSourceRunId } : {}),
     status: "completed",
   };
 };

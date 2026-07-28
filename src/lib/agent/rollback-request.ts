@@ -1,13 +1,20 @@
 import type { Payload } from "payload";
 
 import { executeRollbackFromPayload, type RollbackExecutionResult } from "./rollback";
+import { executeAtomicAgentRunRollbackClaim } from "./rollback-claim";
+import { isRollbackPayloadExecutable } from "./rollback-parse";
 import { buildAgentRunOwnerWhere } from "./run-access";
 import { buildRollbackConsumedAgentRunPatch, canRollbackAgentRunDetail, toAgentRunDetail } from "./run-summary";
-import { isRecord } from "@/lib/shared/is-record";
 
-type RollbackPayloadStore = Pick<Payload, "find" | "update">;
+type RollbackPayloadStore = Pick<Payload, "db" | "find" | "update">;
+type ClaimRollbackSourceRun = (input: {
+  sourceRunId: number;
+  updatedAt: string;
+  userId: number;
+}) => Promise<boolean>;
 
 export type TrustedRollbackRequestInput = {
+  claimRollbackSourceRun?: ClaimRollbackSourceRun;
   executeRollback?: (rollbackPayload: unknown) => Promise<RollbackExecutionResult>;
   payload: RollbackPayloadStore;
   rollbackPayload?: unknown;
@@ -21,23 +28,6 @@ export type TrustedRollbackRequestResult = {
   sourceRunId: number;
 };
 
-const stableStringify = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]`;
-  }
-
-  if (isRecord(value)) {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`)
-      .join(",")}}`;
-  }
-
-  return JSON.stringify(value);
-};
-
-const payloadsMatch = (left: unknown, right: unknown) => stableStringify(left) === stableStringify(right);
-
 const findOwnedRunById = async (payload: RollbackPayloadStore, userId: number, sourceRunId: number) => {
   const runs = await payload.find({
     collection: "agent-runs",
@@ -50,38 +40,27 @@ const findOwnedRunById = async (payload: RollbackPayloadStore, userId: number, s
   return (runs.docs[0] ?? null) as unknown as Record<string, unknown> | null;
 };
 
-const findOwnedRunByRollbackPayload = async (
-  payload: RollbackPayloadStore,
-  userId: number,
-  rollbackPayload: unknown,
-) => {
-  const runs = await payload.find({
-    collection: "agent-runs",
-    depth: 0,
-    limit: 20,
-    overrideAccess: true,
-    sort: "-startedAt",
-    where: buildAgentRunOwnerWhere(userId, { rollbackAvailable: { equals: true } }),
-  });
-
-  return ((runs.docs as unknown as Array<Record<string, unknown>>).find((run) =>
-    payloadsMatch(run.rollbackPayload, rollbackPayload),
-  )) ?? null;
-};
-
 export const executeTrustedRollbackRequest = async ({
+  claimRollbackSourceRun,
   executeRollback,
   payload,
   rollbackPayload,
   sourceRunId = null,
   userId,
 }: TrustedRollbackRequestInput): Promise<TrustedRollbackRequestResult> => {
-  const sourceRun =
-    typeof sourceRunId === "number"
-      ? await findOwnedRunById(payload, userId, sourceRunId)
-      : rollbackPayload !== undefined
-        ? await findOwnedRunByRollbackPayload(payload, userId, rollbackPayload)
-        : null;
+  if (rollbackPayload !== undefined) {
+    throw new Error("只接受 sourceRunId；客户端 rollbackPayload 已被拒绝。");
+  }
+
+  if (
+    typeof sourceRunId !== "number"
+    || !Number.isSafeInteger(sourceRunId)
+    || sourceRunId <= 0
+  ) {
+    throw new Error("sourceRunId 必须是正安全整数。");
+  }
+
+  const sourceRun = await findOwnedRunById(payload, userId, sourceRunId);
 
   if (!sourceRun) {
     throw new Error("没有找到可回滚的 AgentRun，或当前用户无权访问。");
@@ -89,17 +68,36 @@ export const executeTrustedRollbackRequest = async ({
 
   const sourceRunDetail = toAgentRunDetail(sourceRun);
 
-  if (!canRollbackAgentRunDetail(sourceRunDetail)) {
+  const storedRollbackPayload = sourceRun.rollbackPayload;
+
+  if (
+    !canRollbackAgentRunDetail(sourceRunDetail)
+    || !isRollbackPayloadExecutable(storedRollbackPayload)
+  ) {
     throw new Error("这条 AgentRun 当前不可回滚。");
   }
 
-  if (rollbackPayload !== undefined && !payloadsMatch(sourceRunDetail.rollbackPayload, rollbackPayload)) {
-    throw new Error("rollbackPayload 与源 AgentRun 不一致，已拒绝执行。");
+  const claimUpdatedAt = new Date().toISOString();
+  const claim = claimRollbackSourceRun ?? ((input) =>
+    executeAtomicAgentRunRollbackClaim({
+      adapter: payload.db as unknown as Parameters<
+        typeof executeAtomicAgentRunRollbackClaim
+      >[0]["adapter"],
+      ...input,
+    }));
+  const claimed = await claim({
+    sourceRunId: sourceRunDetail.id,
+    updatedAt: claimUpdatedAt,
+    userId,
+  });
+
+  if (!claimed) {
+    throw new Error("这条 AgentRun 当前不可回滚，或已被其他请求占用。");
   }
 
   const rollbackExecutor = executeRollback ?? ((payloadToRollback: unknown) =>
     executeRollbackFromPayload(payloadToRollback, { userId }));
-  const result = await rollbackExecutor(sourceRunDetail.rollbackPayload);
+  const result = await rollbackExecutor(storedRollbackPayload);
   const recordedAt = new Date().toISOString();
 
   await payload.update({

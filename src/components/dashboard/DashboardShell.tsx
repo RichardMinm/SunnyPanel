@@ -78,7 +78,7 @@ type DashboardShellProps = {
   isSubmitting: boolean;
   /* Right panel */
   inputTokenEstimate: number;
-  lastRollbackPayload?: null | unknown;
+  lastRollbackSourceRunId?: null | number;
   lastRollbackResult?: AgentRollbackExecutionResult | null;
   messages: AgentChatMessage[];
   traceSteps: AgentTraceStep[];
@@ -162,7 +162,7 @@ export function DashboardShell({
   contextPreferences,
   isSubmitting,
   inputTokenEstimate,
-  lastRollbackPayload,
+  lastRollbackSourceRunId,
   lastRollbackResult,
   messages,
   children,
@@ -517,7 +517,7 @@ export function DashboardShell({
             debugMode={debugMode}
             inputTokenEstimate={inputTokenEstimate}
             latestAssistantMessage={latestAssistantMessage}
-            lastRollbackPayload={lastRollbackPayload}
+            lastRollbackSourceRunId={lastRollbackSourceRunId}
             lastRollbackResult={lastRollbackResult}
             messages={messages}
             onResizeStart={handleResizeStart}

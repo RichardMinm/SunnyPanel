@@ -134,6 +134,7 @@ test("createChecklistFromIntent writes a checklist and AgentRun", async () => {
   assert.equal(result.title, sampleArgs.title);
   assert.equal(result.groupsCount, 1);
   assert.equal(result.itemsCount, 1);
+  assert.equal(result.rollbackSourceRunId, 901);
   assert.deepEqual(result.rollbackPayload, buildCreateChecklistRollbackPayload(501));
 
   const operations = getPayloadStubOperations();
@@ -184,6 +185,7 @@ test("executor create_checklist branch creates the checklist after confirmation"
 
   assert.match(result.assistantMessage, /已创建清单/);
   assert.equal(result.pendingAction, null);
+  assert.equal(result.rollbackSourceRunId, 902);
   assert.deepEqual(result.rollbackPayload, buildCreateChecklistRollbackPayload(502));
 });
 

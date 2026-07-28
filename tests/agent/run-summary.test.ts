@@ -83,7 +83,7 @@ test("toAgentRunSummary keeps ordinary runs without rollback impact", () => {
   );
 });
 
-test("toAgentRunDetail exposes full audit fields for inspector display", () => {
+test("toAgentRunDetail exposes trace fields but omits executable rollback payload", () => {
   assert.deepEqual(
     toAgentRunDetail({
       affectedDocuments: [
@@ -144,13 +144,6 @@ test("toAgentRunDetail exposes full audit fields for inspector display", () => {
       impactSummary: "影响 1 个对象：计划 #42 已创建",
       nextAction: "安排到下周日程。",
       rollbackAvailable: true,
-      rollbackPayload: {
-        strategy: "delete_created_document",
-        target: {
-          collection: "plans",
-          documentId: 42,
-        },
-      },
       runKind: "write",
       startedAt: "2026-06-01T03:00:00.000Z",
       status: "succeeded",
@@ -168,7 +161,7 @@ test("toAgentRunDetail exposes full audit fields for inspector display", () => {
   );
 });
 
-test("canRollbackAgentRunDetail requires rollback availability and payload", () => {
+test("canRollbackAgentRunDetail uses only public availability and positive source run ID", () => {
   const run = toAgentRunDetail({
     id: 12,
     rollbackAvailable: true,
@@ -197,7 +190,7 @@ test("canRollbackAgentRunDetail requires rollback availability and payload", () 
   assert.equal(
     canRollbackAgentRunDetail({
       ...run,
-      rollbackPayload: null,
+      id: 0,
     }),
     false,
   );

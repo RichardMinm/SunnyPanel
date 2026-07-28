@@ -34,7 +34,6 @@ export type AgentRunDetailView = AgentRunSummaryView & {
   goal?: null | string;
   nextAction?: null | string;
   rollbackAvailable?: boolean;
-  rollbackPayload?: unknown;
   steps: AgentRunDetailStep[];
 };
 
@@ -193,13 +192,12 @@ export const toAgentRunDetail = (value: Record<string, unknown>): AgentRunDetail
     ...(typeof value.goal === "string" || value.goal === null ? { goal: value.goal } : {}),
     ...(typeof value.nextAction === "string" || value.nextAction === null ? { nextAction: value.nextAction } : {}),
     ...(typeof value.rollbackAvailable === "boolean" ? { rollbackAvailable: value.rollbackAvailable } : {}),
-    ...("rollbackPayload" in value ? { rollbackPayload: value.rollbackPayload } : {}),
     steps: normalizeSteps(value.steps),
   };
 };
 
 export const canRollbackAgentRunDetail = (run: AgentRunDetailView) =>
-  run.rollbackAvailable === true && run.rollbackPayload !== null && run.rollbackPayload !== undefined;
+  run.rollbackAvailable === true && Number.isSafeInteger(run.id) && run.id > 0;
 
 export const formatAgentRunRollbackAction = (run: AgentRunDetailView) =>
   run.runKind === "rollback" ? "撤销这次回滚" : "撤销这次执行";

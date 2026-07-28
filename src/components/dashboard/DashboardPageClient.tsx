@@ -76,7 +76,7 @@ export function DashboardPageClient({
       contextPreferences={chat.contextPreferences}
       isSubmitting={chat.isSubmitting}
       inputTokenEstimate={chat.inputTokenEstimate}
-      lastRollbackPayload={chat.lastRollbackPayload}
+      lastRollbackSourceRunId={chat.lastRollbackSourceRunId}
       lastRollbackResult={chat.lastRollbackResult}
       messages={chat.messages}
       traceSteps={chat.traceSteps}

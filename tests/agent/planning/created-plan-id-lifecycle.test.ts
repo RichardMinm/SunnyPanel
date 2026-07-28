@@ -103,6 +103,7 @@ test("create_plan execute returns createdPlanId and planId", async () => {
   assert.equal(result.status, "completed");
   assert.equal(result.createdPlanId, 321);
   assert.equal(result.planId, 321);
+  assert.equal(result.rollbackSourceRunId, 9001);
   assert.match(result.assistantMessage, /已帮你创建计划/);
 });
 

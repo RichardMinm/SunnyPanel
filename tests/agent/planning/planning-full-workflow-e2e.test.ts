@@ -348,7 +348,7 @@ test("planning workflow clarifies, drafts, confirms, creates linked checklist, a
 
   let persistedAfterPlan: unknown = null;
   const planExecuteTrace: AgentTraceStep[] = [];
-  await runExecuteAndPersistStep({
+  const planExecution = await runExecuteAndPersistStep({
     confirmedActionId: planPending.action.id,
     conversationState: planPreparation.sessionState,
     emitStatus: () => undefined,
@@ -371,6 +371,7 @@ test("planning workflow clarifies, drafts, confirms, creates linked checklist, a
   });
 
   assert.equal(getCreateCount("plans"), 1);
+  assert.equal(planExecution.lastRollbackSourceRunId, 9001);
   const planSession = normalizeSessionState(persistedAfterPlan);
   assert.equal(planSession.planning?.sourcePlanId, planId);
   assert.equal(planSession.planning?.draft?.sourcePlanId, planId);
@@ -471,6 +472,7 @@ test("planning workflow clarifies, drafts, confirms, creates linked checklist, a
     { relationTo: "checklists", value: checklistId },
   ]);
   assert.ok(checklistExecution.lastRollbackPayload);
+  assert.equal(checklistExecution.lastRollbackSourceRunId, 9002);
   assert.equal(normalizeSessionState(persistedAfterChecklist).planning?.checklistDraft?.sourcePlanId, planId);
 
   linkedContent = [

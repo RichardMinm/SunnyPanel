@@ -137,6 +137,7 @@ test("createScheduleItemsFromIntent writes schedule items and AgentRun", async (
   assert.deepEqual(result.createdScheduleItemIds, [801, 802]);
   assert.equal(result.itemsCount, 2);
   assert.equal(result.dateRange, "2026-06-29 → 2026-06-30");
+  assert.equal(result.rollbackSourceRunId, 9801);
   assert.deepEqual(result.rollbackPayload, {
     strategy: "delete_created_documents",
     target: {
@@ -244,6 +245,7 @@ test("executor create_schedule_items branch creates items after confirmation", a
 
   assert.match(result.assistantMessage, /已创建 2 个日程项/);
   assert.equal(result.pendingAction, null);
+  assert.equal(result.rollbackSourceRunId, 9901);
   assert.deepEqual(
     (result.rollbackPayload as { target?: { documentIds?: number[] } }).target?.documentIds,
     [901, 902],
