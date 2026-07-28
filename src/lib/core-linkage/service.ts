@@ -7,6 +7,10 @@ import {
   removePlanLink,
 } from "./plan-links";
 
+if (typeof window !== "undefined") {
+  throw new Error("The core linkage service is server-only.");
+}
+
 type CoreLinkageCollection = CoreLinkedCollection | "plans";
 
 type CoreLinkageDocument = {
@@ -170,7 +174,31 @@ const updatePlanLinks = async (input: {
       overrideAccess: false,
     });
     return null;
-  } catch {
+  } catch (error) {
+    if (isAuthorizationError(error)) {
+      return fail("resource_not_authorized");
+    }
+
+    const currentPlan = await readExact(input.payload, "plans", input.planId);
+    if (isFailure(currentPlan)) {
+      return currentPlan;
+    }
+
+    let currentLinkedContent: PlanLinkedContent;
+    try {
+      currentLinkedContent = normalizePlanLinkedContent(currentPlan.linkedContent);
+    } catch {
+      return fail("compensation_failed");
+    }
+
+    if (sameLinks(currentLinkedContent, input.beforeLinkedContent)) {
+      return fail("plan_link_write_failed");
+    }
+
+    if (!sameLinks(currentLinkedContent, input.afterLinkedContent)) {
+      return fail("compensation_failed");
+    }
+
     try {
       await input.payload.update({
         collection: "plans",

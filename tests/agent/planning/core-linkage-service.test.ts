@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { beforeEach, test } from "node:test";
 
 import {
@@ -18,7 +19,7 @@ class FakePayload {
   readonly updateCalls: UpdateArgs[] = [];
   readonly documents = new Map<string, Document>();
   findByIDError: Error | null = null;
-  updateFailures = 0;
+  readonly updateSteps: Array<"apply_then_throw" | "authorization" | "diverge_then_throw" | "fail_before_write"> = [];
 
   put(collection: string, document: Document) {
     this.documents.set(`${collection}:${document.id}`, structuredClone(document));
@@ -37,9 +38,15 @@ class FakePayload {
 
   async update(args: UpdateArgs) {
     this.updateCalls.push(structuredClone(args));
+    const step = this.updateSteps.shift();
 
-    if (this.updateFailures > 0) {
-      this.updateFailures -= 1;
+    if (step === "authorization") {
+      const error = new Error("forbidden update: private project Phoenix");
+      Object.assign(error, { status: 403 });
+      throw error;
+    }
+
+    if (step === "fail_before_write") {
       throw new Error("database error: private title should never escape");
     }
 
@@ -48,8 +55,18 @@ class FakePayload {
       throw new Error("missing document");
     }
 
-    const next = { ...current, ...args.data };
+    const next = step === "diverge_then_throw"
+      ? {
+          ...current,
+          linkedContent: [{ relationTo: "posts", value: 999 }],
+        }
+      : { ...current, ...args.data };
     this.documents.set(`${args.collection}:${args.id}`, next);
+
+    if (step === "apply_then_throw" || step === "diverge_then_throw") {
+      throw new Error("database error: private title should never escape");
+    }
+
     return structuredClone(next);
   }
 }
@@ -215,11 +232,64 @@ test("core linkage fails closed for malformed Plan links without exposing docume
   assert.deepEqual(fakePayload.updateCalls, []);
 });
 
-test("core linkage restores the Plan snapshot after a failed link write", async () => {
+test("core linkage does not write a stale restore after a failed-before-write Plan update", async () => {
   const before: Link[] = [{ relationTo: "posts", value: 7 }];
   fakePayload.put("plans", { id: 11, linkedContent: before });
   fakePayload.put("timeline-events", { id: 41 });
-  fakePayload.updateFailures = 1;
+  fakePayload.updateSteps.push("fail_before_write");
+
+  const result = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.code, "plan_link_write_failed");
+    assert.doesNotMatch(result.safeMessage, /private title|database/i);
+  }
+  assert.deepEqual(fakePayload.updateCalls.map((call) => call.data.linkedContent), [
+    [
+      { relationTo: "posts", value: 7 },
+      { relationTo: "timeline-events", value: 41 },
+    ],
+  ]);
+});
+
+test("core linkage returns an authorization failure for a denied Plan update without retrying", async () => {
+  fakePayload.put("plans", { id: 11, linkedContent: [{ relationTo: "posts", value: 7 }] });
+  fakePayload.put("timeline-events", { id: 41 });
+  fakePayload.updateSteps.push("authorization");
+
+  const result = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
+
+  assert.deepEqual(result, {
+    code: "resource_not_authorized",
+    ok: false,
+    safeMessage: "The related resource is not available to this operation.",
+  });
+  assert.equal(fakePayload.updateCalls.length, 1);
+  assert.doesNotMatch(result.safeMessage, /Phoenix|forbidden/i);
+});
+
+test("core linkage never overwrites a divergent Plan state after an uncertain link write", async () => {
+  fakePayload.put("plans", { id: 11, linkedContent: [{ relationTo: "posts", value: 7 }] });
+  fakePayload.put("timeline-events", { id: 41 });
+  fakePayload.updateSteps.push("diverge_then_throw");
+
+  const result = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
+
+  assert.deepEqual(result, {
+    code: "compensation_failed",
+    ok: false,
+    safeMessage: "The Plan link could not be restored safely.",
+  });
+  assert.equal(fakePayload.updateCalls.length, 1);
+  assert.deepEqual(fakePayload.documents.get("plans:11")?.linkedContent, [{ relationTo: "posts", value: 999 }]);
+});
+
+test("core linkage restores only a verified applied-then-thrown Plan update", async () => {
+  const before: Link[] = [{ relationTo: "posts", value: 7 }];
+  fakePayload.put("plans", { id: 11, linkedContent: before });
+  fakePayload.put("timeline-events", { id: 41 });
+  fakePayload.updateSteps.push("apply_then_throw");
 
   const result = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
 
@@ -232,12 +302,13 @@ test("core linkage restores the Plan snapshot after a failed link write", async 
     ],
     before,
   ]);
+  assert.deepEqual(fakePayload.documents.get("plans:11")?.linkedContent, before);
 });
 
-test("core linkage reports an explicit safe compensation failure", async () => {
+test("core linkage reports an explicit safe compensation failure when verified restore fails", async () => {
   fakePayload.put("plans", { id: 11, linkedContent: [{ relationTo: "posts", value: 7 }] });
   fakePayload.put("timeline-events", { id: 41 });
-  fakePayload.updateFailures = 2;
+  fakePayload.updateSteps.push("apply_then_throw", "fail_before_write");
 
   const result = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
 
@@ -247,4 +318,44 @@ test("core linkage reports an explicit safe compensation failure", async () => {
     safeMessage: "The Plan link could not be restored safely.",
   });
   assert.equal(fakePayload.updateCalls.length, 2);
+});
+
+test("core linkage returns safe not-found failures when either mutation resource was deleted", async () => {
+  const missingPlan = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
+  assert.deepEqual(missingPlan, {
+    code: "resource_not_found",
+    ok: false,
+    safeMessage: "The related resource was not found.",
+  });
+
+  fakePayload.put("plans", { id: 11, linkedContent: [] });
+
+  const missingTimelineEvent = await linkTimelineToPlan({ payload, planId: 11, timelineEventId: 41 });
+
+  assert.deepEqual(missingTimelineEvent, {
+    code: "resource_not_found",
+    ok: false,
+    safeMessage: "The related resource was not found.",
+  });
+  assert.deepEqual(fakePayload.updateCalls, []);
+});
+
+test("core linkage refuses client-like module evaluation", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      "--input-type=module",
+      "--eval",
+      "globalThis.window = {}; await import('./src/lib/core-linkage/service.ts')",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    },
+  );
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stderr}${result.stdout}`, /server-only|server only/i);
 });
