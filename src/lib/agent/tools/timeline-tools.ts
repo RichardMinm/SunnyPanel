@@ -280,9 +280,16 @@ export const composeTimelineEventFromIntent = async (
     };
   }
 
+  const effectiveArgs: ComposeTimelineEventArgs = args.sourceType
+    ? args
+    : {
+        ...args,
+        sourceType: initialProposal.sourceType,
+      };
   const payload = await getPayloadClient();
   const needsProtectedSource =
-    args.sourceType === "plan" || args.sourceType === "checklist_item";
+    effectiveArgs.sourceType === "plan" ||
+    effectiveArgs.sourceType === "checklist_item";
   const userId = getCurrentAgentUserId();
   if (needsProtectedSource && !isPersistedId(userId)) {
     return safeFailure("无法验证 Timeline 来源权限，未创建 Timeline 节点。");
@@ -291,7 +298,7 @@ export const composeTimelineEventFromIntent = async (
   const corePayload = isPersistedId(userId)
     ? bindCoreLinkagePayload(payload, userId)
     : (payload as unknown as CoreLinkagePayload);
-  const resolved = await resolveTimelineSource(args, corePayload);
+  const resolved = await resolveTimelineSource(effectiveArgs, corePayload);
   if (!resolved) {
     return safeFailure("指定的 Timeline 来源不可用，未创建 Timeline 节点。");
   }

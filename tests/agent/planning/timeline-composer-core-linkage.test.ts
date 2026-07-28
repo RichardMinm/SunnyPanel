@@ -342,6 +342,44 @@ test("invalid, deleted, or inaccessible Checklist IDs fail with zero business wr
   }
 });
 
+test("inferred Checklist source still rejects nonexistent or inaccessible IDs with zero writes", async () => {
+  for (const scenario of [
+    { id: 999, options: {} },
+    {
+      id: checklist.id,
+      options: { denied: new Set([`checklists:${checklist.id}`]) },
+    },
+  ] as const) {
+    resetPayloadStub();
+    setupPayload(scenario.options);
+
+    const result = await run({
+      checklistTitle: "模型推断的清单",
+      createEvent: true,
+      itemTitle: "模型推断的条目",
+      relatedTaskKey: "item-login",
+      sourceId: scenario.id,
+      sourceText: "完成条目。",
+    });
+
+    assert.equal(result.status, "failed");
+    for (const collection of ["timeline-events", "agent-runs", "plans"]) {
+      assert.equal(
+        getPayloadStubOperations().filter((operation) => {
+          const operationArgs = operation.args as { collection?: string };
+          return (
+            operationArgs.collection === collection &&
+            (operation.type === "create" ||
+              operation.type === "delete" ||
+              operation.type === "update")
+          );
+        }).length,
+        0,
+      );
+    }
+  }
+});
+
 test("missing or unknown Checklist item key fails with zero business writes", async () => {
   for (const relatedTaskKey of [undefined, "item-does-not-exist"]) {
     resetPayloadStub();
