@@ -10,7 +10,9 @@
 
 ## Global Constraints
 
-- 保持现有 Draft → Dry-run → Policy Guard → Confirmation → Execute → Receipt → Rollback 边界。
+- 保持现有 Agent 写入的 Draft → Dry-run → Policy Guard → Confirmation →
+  Execute → Receipt → Rollback 边界。Dashboard 用户直接发起的手动状态更新
+  继续使用服务端认证与确定性业务操作，不伪装成 Agent Receipt。
 - 不修改 LangGraph topology、Router/Orchestrator Prompt、默认 Agent runtime 或 Legacy compatibility。
 - 不新增依赖，不调用 DeepSeek 或其他 Provider。
 - 不使用标题模糊匹配推导关系；只接受持久化且已授权的正整数 ID。
@@ -497,7 +499,10 @@ node --import tsx --test tests/agent/schedule/schedule-status-api-auth.test.ts
 ```
 
 - [ ] Replace the false ownership check. For `done`, call the shared operation;
-  for planned/skipped/canceled, keep a direct authenticated scalar update.
+  for planned/skipped/canceled, keep a direct authenticated scalar update only
+  while the current item is not `done`. A completed item returns 409 and must
+  be restored through the supported rollback path so Checklist, Timeline and
+  Plan state cannot drift.
 - [ ] Return `{ success, affectedDocuments, item }` with minimum fields.
 - [ ] Wire the existing “完成” button to PUT, disable it during the request,
   preserve current data on failure, and show a bounded retryable error.
@@ -512,11 +517,15 @@ git add src/app/api/agent/schedule/route.ts \
 git commit -m "fix(agent): authorize and complete schedule items"
 ```
 
-### Task 7: Route confirmed Agent Schedule completion through the shared operation
+### Task 7: Route confirmed Agent Schedule completion and expose every core write impact
 
 **Files:**
 
 - Modify: `src/lib/agent/tools/modify-record.ts`
+- Modify: `src/lib/agent/tools/plan-create.ts`
+- Modify: `src/lib/agent/tools/checklist-create.ts`
+- Modify: `src/lib/agent/tools/schedule-create-items.ts`
+- Modify: `src/lib/agent/tools/timeline-tools.ts`
 - Modify: `src/lib/agent/tool-shared.ts`
 - Modify: `src/lib/agent/tool-registry.ts`
 - Modify: `src/lib/agent/schemas.ts`
@@ -541,6 +550,11 @@ export type AgentToolResult = {
   a proposal, confirmed `schedule.status = done` calls the shared operation
   once, additional scalar fields are included in the combined snapshot, and
   no duplicate model/tool call is introduced.
+- [ ] Add RED coverage proving successful Plan creation, Checklist creation,
+  Schedule creation, Checklist completion, Schedule completion, explicit
+  Timeline creation and scalar modification each expose sanitized
+  `affectedDocuments`. Derived Plan and Timeline mutations must be included,
+  not only the primary created document.
 - [ ] Add `affectedDocuments` to the sanitized `AgentChatResponse` parser and
   terminal response without exposing snapshots.
 - [ ] Implement `restore_schedule_completion` in rollback: Plan link,
@@ -567,7 +581,10 @@ npm run test:agent:schedule
 - [ ] Commit:
 
 ```bash
-git add src/lib/agent/tools/modify-record.ts src/lib/agent/tool-shared.ts \
+git add src/lib/agent/tools/modify-record.ts src/lib/agent/tools/plan-create.ts \
+  src/lib/agent/tools/checklist-create.ts \
+  src/lib/agent/tools/schedule-create-items.ts \
+  src/lib/agent/tools/timeline-tools.ts src/lib/agent/tool-shared.ts \
   src/lib/agent/tool-registry.ts src/lib/agent/schemas.ts \
   src/lib/agent/chat-pipeline/execute-and-persist-step.ts \
   src/lib/agent/rollback.ts \
@@ -895,14 +912,26 @@ git commit -m "feat(dashboard): refresh linked domains after writes"
 - Modify: `docs/features/schedule.md`
 - Modify: `docs/features/timeline.md`
 
-- [ ] Add a non-production authenticated browser test:
+- [ ] Add non-production authenticated browser coverage as two separate
+  journeys:
+
+  **Manual Dashboard completion**
+
   1. seed one Plan, Checklist, exact Checklist item and linked Schedule;
   2. complete Schedule from Dashboard;
   3. assert Schedule done, Checklist item complete, Plan progress updated;
   4. assert one Timeline event with Plan/Checklist/Schedule links;
   5. navigate Timeline → Plan → Checklist → Schedule without losing
-     `threadId`;
-  6. execute supported rollback and assert all four views refresh.
+     `threadId`.
+
+  **Confirmed Agent completion and rollback**
+
+  1. seed a second equivalent linked object set;
+  2. request and confirm Schedule completion through the Agent;
+  3. assert Receipt/rollback metadata exists;
+  4. execute the supported rollback;
+  5. assert Schedule, Checklist, Plan progress, Timeline and Plan links return
+     to their before state and all four views refresh.
 - [ ] Run the E2E test against the local non-production database:
 
 ```bash
