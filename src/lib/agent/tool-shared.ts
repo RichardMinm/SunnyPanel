@@ -17,7 +17,15 @@ import { validateAgentRunData } from "./write-schemas";
 export type ChecklistGroup = NonNullable<Checklist["groups"]>[number];
 export type ChecklistItem = NonNullable<ChecklistGroup["items"]>[number];
 
+export type AffectedDocumentSummary = {
+  collection: string;
+  documentId: number;
+  operation: "create" | "delete" | "update";
+  visibility: "private" | "public" | "unknown";
+};
+
 export type AgentToolResult = {
+  affectedDocuments?: AffectedDocumentSummary[];
   assistantMessage: string;
   pendingAction: null | PendingAction;
   createdPlanId?: number;

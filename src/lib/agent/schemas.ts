@@ -766,6 +766,7 @@ export type AgentTokenUsage = {
 
 export type AgentChatResponse = {
   activitySteps?: AgentActivityStep[];
+  affectedDocuments?: import("./tool-shared").AffectedDocumentSummary[];
   assistantMessage: string;
   /** 后端结构化 trace，供 Inspector / Ops debug 展示；已脱敏，不承载 raw prompt/response。 */
   backendTraceEvents?: AgentTraceEventPayload[];

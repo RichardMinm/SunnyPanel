@@ -7,6 +7,7 @@ export type RollbackPayload = {
     agentRunId?: null | number;
     beforeLinkedContent?: unknown;
     checklistId?: null | number;
+    itemId?: null | number;
     collection?: string;
     documentId?: null | number;
     documentIds?: number[];
@@ -39,6 +40,7 @@ export const parseRollbackPayload = (value: unknown): null | RollbackPayload => 
           : undefined,
         checklistId:
           typeof value.target.checklistId === "number" ? value.target.checklistId : undefined,
+        itemId: typeof value.target.itemId === "number" ? value.target.itemId : undefined,
         collection: typeof value.target.collection === "string" ? value.target.collection : undefined,
         documentId:
           typeof value.target.documentId === "number"
@@ -69,7 +71,10 @@ export const parseRollbackPayload = (value: unknown): null | RollbackPayload => 
     Boolean(target?.collection) ||
     (strategy === "delete_created_checklist_and_restore_plan_links" &&
       typeof target?.checklistId === "number" &&
-      typeof target?.planId === "number");
+      typeof target?.planId === "number") ||
+    (strategy === "restore_schedule_completion" &&
+      typeof target?.itemId === "number" &&
+      typeof target?.timelineEventId === "number");
 
   return {
     beforeSnapshot: isRecord(value.beforeSnapshot) ? value.beforeSnapshot : undefined,
@@ -92,6 +97,14 @@ export const isRollbackPayloadExecutable = (value: unknown): boolean => {
       typeof parsed.target.checklistId === "number" &&
       typeof parsed.target.planId === "number" &&
       parsed.target.expectedAddedLink != null
+    );
+  }
+
+  if (parsed.strategy === "restore_schedule_completion") {
+    return (
+      typeof parsed.target.itemId === "number" &&
+      typeof parsed.target.timelineEventId === "number" &&
+      parsed.beforeSnapshot != null
     );
   }
 

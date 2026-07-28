@@ -49,6 +49,7 @@ export type TransactionalExecutionOptions = {
 };
 
 export type AgentIntentExecutionResult = {
+  affectedDocuments?: import("./tool-shared").AffectedDocumentSummary[];
   assistantMessage: string;
   createdPlanId?: number;
   pendingAction: null | import("./schemas").PendingAction;
@@ -97,6 +98,7 @@ export const executeAgentIntentsTransactional = async (
   const executeRollback = options.executeRollback ?? executeRollbackFromPayload;
   const isExecutable = options.isRollbackExecutable ?? isRollbackPayloadExecutable;
   const messages: string[] = [];
+  const affectedDocuments: NonNullable<AgentIntentExecutionResult["affectedDocuments"]> = [];
   const rollbackPayloads: unknown[] = [];
   let pendingAction: AgentIntentExecutionResult["pendingAction"] = null;
   let rollbackPayload: unknown;
@@ -124,7 +126,8 @@ export const executeAgentIntentsTransactional = async (
       );
 
       if (result.assistantMessage) {
-        messages.push(result.assistantMessage);
+      messages.push(result.assistantMessage);
+      affectedDocuments.push(...(result.affectedDocuments ?? []));
       }
 
       if (result.pendingAction) {
@@ -219,6 +222,7 @@ export const executeAgentIntentsTransactional = async (
   }
 
   return {
+    ...(affectedDocuments.length > 0 ? { affectedDocuments } : {}),
     assistantMessage: messages.filter(Boolean).join("\n\n"),
     pendingAction,
     rollbackPayload,

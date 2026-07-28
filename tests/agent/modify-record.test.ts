@@ -279,6 +279,14 @@ test("modify_record executes the normalized patch, records audit, and returns sn
       documentId: 42,
     },
   });
+  assert.deepEqual(result.affectedDocuments, [
+    {
+      collection: "schedule-items",
+      documentId: 42,
+      operation: "update",
+      visibility: "unknown",
+    },
+  ]);
 });
 
 test("restore_modified_record writes only the captured safe snapshot", async () => {

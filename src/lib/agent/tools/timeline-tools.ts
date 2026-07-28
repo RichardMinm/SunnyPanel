@@ -127,6 +127,7 @@ export const composeTimelineEventFromIntent = async (
   });
 
   return {
+    affectedDocuments: [{ collection: "timeline-events", documentId: timelineEvent.id, operation: "create", visibility: timelineEvent.visibility }],
     assistantMessage: `已创建 TimelineEvent #${timelineEvent.id}：${timelineEvent.title}\n${proposal.reason}`,
     pendingAction: null,
     rollbackPayload: {
@@ -138,4 +139,3 @@ export const composeTimelineEventFromIntent = async (
     },
   };
 };
-

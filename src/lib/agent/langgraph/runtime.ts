@@ -120,6 +120,7 @@ export const compileSunnyAgentGraph = (
         throw new Error("LangGraph execution result is missing");
       }
       const response: AgentChatResponse = {
+        ...(state.execution.affectedDocuments ? { affectedDocuments: state.execution.affectedDocuments } : {}),
         assistantMessage: state.execution.assistantMessage,
         confidence: state.resolution.intent.confidence,
         contextSummary: state.contextSummary,

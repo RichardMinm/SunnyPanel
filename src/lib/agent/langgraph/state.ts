@@ -32,6 +32,7 @@ export type SunnyAgentGraphResolution = {
 };
 
 export type SunnyAgentGraphExecution = {
+  affectedDocuments?: NonNullable<AgentChatResponse["affectedDocuments"]>;
   assistantMessage: string;
   lastRollbackPayload?: unknown;
   pendingAction: null | PendingAction;

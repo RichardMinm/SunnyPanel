@@ -1,4 +1,9 @@
 import { getPayloadClient } from "@/lib/payload/client";
+import {
+  completeScheduleItem,
+  createTransactionalScheduleCompletionPayload,
+} from "@/lib/schedule/complete-schedule-item";
+import { getCurrentAgentUserId } from "../execution-context";
 import { isRecord } from "@/lib/shared/is-record";
 
 import {
@@ -13,6 +18,7 @@ import {
 } from "../schemas";
 import {
   createAgentRun,
+  type AffectedDocumentSummary,
   normalizeForSearch,
   type AgentExecutionTraceReporter,
   type AgentToolResult,
@@ -522,6 +528,14 @@ export const modifyRecordFromIntent = async (
   args: ModifyRecordArgs,
   onTrace?: AgentExecutionTraceReporter,
   options: {
+    completeSchedule?: (input: {
+      additionalPatch: Omit<ScheduleRecordPatch, "status">;
+      itemId: number;
+    }) => Promise<{
+      affectedDocuments: AffectedDocumentSummary[];
+      ok: boolean;
+      rollbackPayload?: unknown;
+    }>;
     payload?: Awaited<ReturnType<typeof getPayloadClient>>;
   } = {},
 ): Promise<AgentToolResult> => {
@@ -557,6 +571,37 @@ export const modifyRecordFromIntent = async (
   }
 
   const documentRecord = document as unknown as Record<string, unknown>;
+
+  if (args.entityType === "schedule" && normalized.patch.status === "done") {
+    const { status: _status, ...additionalPatch } = normalized.patch;
+    const completion = options.completeSchedule
+      ? await options.completeSchedule({ additionalPatch, itemId: args.targetId })
+      : !getCurrentAgentUserId()
+        ? { affectedDocuments: [] as AffectedDocumentSummary[], ok: false }
+        : await completeScheduleItem({
+          actor: { isAdministrator: true, userId: getCurrentAgentUserId()! },
+          additionalPatch,
+          itemId: args.targetId,
+          payload: createTransactionalScheduleCompletionPayload({ payload: payload as never }),
+        });
+
+    if (!completion.ok) {
+      return {
+        assistantMessage: "日程完成操作未能安全执行，请稍后重试。",
+        pendingAction: null,
+        status: "failed",
+      };
+    }
+
+    return {
+      affectedDocuments: completion.affectedDocuments,
+      assistantMessage: `已完成日程「${document.title}」。`,
+      pendingAction: null,
+      ...(completion.rollbackPayload ? { rollbackPayload: completion.rollbackPayload } : {}),
+      status: "completed",
+    };
+  }
+
   const beforeSnapshot = beforeSnapshotForPatch(documentRecord, normalized.patch);
   const rollbackPayload = {
     beforeSnapshot,
@@ -628,6 +673,17 @@ export const modifyRecordFromIntent = async (
   });
 
   return {
+    affectedDocuments: [
+      {
+        collection,
+        documentId: args.targetId,
+        operation: "update",
+        visibility:
+          documentRecord.visibility === "public" || documentRecord.visibility === "private"
+            ? documentRecord.visibility
+            : "unknown",
+      },
+    ],
     assistantMessage: `已修改${entityLabel[args.entityType]}「${document.title}」：${Object.entries(normalized.patch)
       .map(([field, value]) => `${field}=${previewValue(value)}`)
       .join("，")}。`,

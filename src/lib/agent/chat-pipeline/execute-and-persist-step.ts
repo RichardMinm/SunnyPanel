@@ -678,6 +678,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   });
 
   return {
+    ...(execution.affectedDocuments ? { affectedDocuments: execution.affectedDocuments } : {}),
     assistantMessage,
     confidence: resolution.intent.confidence,
     engine: resolution.engine,

@@ -472,6 +472,10 @@ export const createScheduleItemsFromIntent = async (
   });
 
   return {
+    affectedDocuments: [
+      ...createdItems.map((item) => ({ collection: "schedule-items", documentId: item.id, operation: "create" as const, visibility: "private" as const })),
+      ...[...linkedPlanIds.keys()].map((planId) => ({ collection: "plans", documentId: planId, operation: "update" as const, visibility: "unknown" as const })),
+    ],
     assistantMessage: [
       `已创建 ${createdItems.length} 个日程项，时间范围：${dateRange}。`,
       formatCreatedItemsPreview(createdItems),

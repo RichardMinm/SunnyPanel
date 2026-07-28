@@ -355,7 +355,7 @@ export const executeRollbackFromPayload = async (
     throw new Error("rollbackPayload 缺少可执行的 target。");
   }
 
-  if (parsed.strategy !== "delete_created_checklist_and_restore_plan_links" && !parsed.target.collection) {
+  if (parsed.strategy !== "delete_created_checklist_and_restore_plan_links" && parsed.strategy !== "restore_schedule_completion" && !parsed.target.collection) {
     throw new Error("rollbackPayload 缺少可执行的 target.collection。");
   }
 
@@ -374,6 +374,7 @@ export const executeRollbackFromPayload = async (
     planReviewId,
     suggestionIds,
     timelineEventId,
+    itemId,
   } = parsed.target;
 
   if (parsed.strategy === "delete_created_checklist_and_restore_plan_links") {
@@ -668,6 +669,57 @@ export const executeRollbackFromPayload = async (
       ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId)
       : undefined;
 
+    return auditWarning ? { ...result, auditWarning } : result;
+  }
+
+  if (parsed.strategy === "restore_schedule_completion") {
+    if (!isTrustedUserId(userId)) {
+      throw new Error("The related resource is not available to this operation.");
+    }
+    const scheduleItemId = itemId ?? documentId;
+    if (!scheduleItemId || typeof timelineEventId !== "number") {
+      throw new Error("restore_schedule_completion 缺少有效的日程回滚目标。");
+    }
+    const snapshot = parsed.beforeSnapshot as Record<string, unknown> | undefined;
+    const scheduleData = pickScheduleSnapshotData(snapshot?.schedule);
+    if (!snapshot || !scheduleData) {
+      throw new Error("restore_schedule_completion 缺少有效的日程快照。");
+    }
+    const trustedPayload = bindRollbackPayloadToUser(payload as RollbackPayloadClient, userId);
+    const affectedDocuments: RollbackAffectedDocument[] = [];
+    const planLink = snapshot.schedulePlanLink as Record<string, unknown> | undefined;
+    const linkedPlanId = typeof planLink?.planId === "number" ? planLink.planId : planId;
+    if (linkedPlanId && planLink?.changed === true) {
+      const unlinked = await unlinkTimelineFromPlan({ payload: trustedPayload as CoreLinkagePayload, planId: linkedPlanId, timelineEventId });
+      if (!unlinked.ok) throw new Error(unlinked.safeMessage);
+      if (unlinked.changed) affectedDocuments.push(affectedDocument("plans", linkedPlanId, "update"));
+    }
+    const timelineData = pickTimelineSnapshotData(snapshot.timelineEvent);
+    const priorTimeline = snapshot.timelineEvent;
+    const priorTimelineId = priorTimeline && typeof priorTimeline === "object" && !Array.isArray(priorTimeline) && typeof (priorTimeline as { id?: unknown }).id === "number"
+      ? (priorTimeline as { id: number }).id
+      : null;
+    if (timelineData && priorTimelineId) {
+      await trustedPayload.update({ collection: "timeline-events", data: timelineData as never, id: priorTimelineId, overrideAccess: true });
+      affectedDocuments.push(affectedDocument("timeline-events", priorTimelineId, "update"));
+    } else {
+      try {
+        await trustedPayload.delete({ collection: "timeline-events", id: timelineEventId, overrideAccess: true });
+        affectedDocuments.push(affectedDocument("timeline-events", timelineEventId, "delete"));
+      } catch (error) { if (!isDocumentNotFoundError(error)) throw error; }
+    }
+    const completion = snapshot.checklistCompletion as Record<string, unknown> | undefined;
+    const checklistGroups = completion?.beforeSnapshot && typeof completion.beforeSnapshot === "object" && !Array.isArray(completion.beforeSnapshot)
+      ? (completion.beforeSnapshot as Record<string, unknown>).groups
+      : snapshot.checklistGroups;
+    if (typeof checklistId === "number" && Array.isArray(checklistGroups)) {
+      await trustedPayload.update({ collection: "checklists", context: { skipChecklistTimelineSync: true }, data: { groups: checklistGroups as never }, id: checklistId, overrideAccess: true });
+      affectedDocuments.push(affectedDocument("checklists", checklistId, "update"));
+    }
+    await trustedPayload.update({ collection: "schedule-items", data: scheduleData as never, id: scheduleItemId, overrideAccess: true });
+    affectedDocuments.push(affectedDocument("schedule-items", scheduleItemId, "update"));
+    const result = buildRollbackResult({ affectedDocuments, collection: "schedule-items", documentId: scheduleItemId, strategy: parsed.strategy });
+    const auditWarning = shouldPersistAudit ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId) : undefined;
     return auditWarning ? { ...result, auditWarning } : result;
   }
 

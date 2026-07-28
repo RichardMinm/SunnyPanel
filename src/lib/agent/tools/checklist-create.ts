@@ -559,6 +559,10 @@ export const createChecklistFromIntent = async (
   });
 
   return {
+    affectedDocuments: [
+      { collection: "checklists", documentId: createdChecklist.id, operation: "create", visibility: createdChecklist.visibility },
+      ...(linkedPlanId ? [{ collection: "plans", documentId: linkedPlanId, operation: "update" as const, visibility: "unknown" as const }] : []),
+    ],
     afterLinkedContent,
     assistantMessage: linkedPlanId
       ? `已创建清单「${createdChecklist.title}」，包含 ${groupsCount} 个分组 / ${itemsCount} 个条目，并已关联到计划 #${linkedPlanId}。`
