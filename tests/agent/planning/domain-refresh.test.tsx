@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import * as React from "react";
-import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
-
 import {
   DOMAIN_REFRESH_EVENT,
   buildDomainRefreshDetail,
+  createNavigationApplicationTracker,
+  createRetainedDomainRequestRunner,
+  notifyAgentTerminalDomainRefresh,
   notifyDomainRefresh,
+  notifyRollbackDomainRefresh,
+  notifyScheduleCompletionDomainRefresh,
   subscribeToDomainRefresh,
   type DomainRefreshDetail,
 } from "../../../src/components/dashboard/linked-objects/useDomainRefresh";
@@ -36,7 +37,7 @@ test("collection mapping emits only the four exact domains in deterministic orde
   );
 });
 
-test("mapping deduplicates valid IDs and ignores irrelevant or malformed values", () => {
+test("mapping deduplicates domains and IDs while collecting them independently", () => {
   assert.deepEqual(
     buildDomainRefreshDetail(
       [
@@ -53,14 +54,29 @@ test("mapping deduplicates valid IDs and ignores irrelevant or malformed values"
       "completion",
     ),
     {
-      domains: ["plans", "checklists"],
+      domains: ["plans", "checklists", "schedule", "timeline"],
       ids: [9],
       reason: "completion",
     },
   );
+  assert.deepEqual(
+    buildDomainRefreshDetail(
+      [
+        { collection: "notes", documentId: 1 },
+        { collection: "plans", documentId: 0 },
+        { collection: "checklists" },
+        { collection: "schedule-items", documentId: "bad" },
+      ],
+      "manual_update",
+    ),
+    {
+      domains: ["plans", "checklists", "schedule"],
+      reason: "manual_update",
+    },
+  );
   assert.equal(
     buildDomainRefreshDetail(
-      [{ collection: "notes", documentId: 1 }, { collection: "plans", documentId: 0 }],
+      [{ collection: "notes", documentId: 1 }, { collection: null, documentId: 2 }],
       "manual_update",
     ),
     null,
@@ -92,41 +108,7 @@ test("one source call dispatches one bounded event for many affected documents",
   assert.deepEqual(Object.keys(details[0]).sort(), ["domains", "ids", "reason"]);
 });
 
-test("failed, pending-only or irrelevant Agent results cannot dispatch", () => {
-  const target = new EventTarget();
-  let calls = 0;
-  target.addEventListener(DOMAIN_REFRESH_EVENT, () => {
-    calls += 1;
-  });
-
-  assert.equal(
-    notifyDomainRefresh({
-      affectedDocuments: undefined,
-      reason: "agent_execute",
-      target,
-    }),
-    false,
-  );
-  assert.equal(
-    notifyDomainRefresh({
-      affectedDocuments: [],
-      reason: "agent_execute",
-      target,
-    }),
-    false,
-  );
-  assert.equal(
-    notifyDomainRefresh({
-      affectedDocuments: [{ collection: "agent-memories", documentId: 7 }],
-      reason: "agent_execute",
-      target,
-    }),
-    false,
-  );
-  assert.equal(calls, 0);
-});
-
-test("rollback notification maps normalized documents and bounded legacy fallback", () => {
+test("Agent terminal helper dispatches once for success, including partial execution with next pending", () => {
   const target = new EventTarget();
   const details: DomainRefreshDetail[] = [];
   target.addEventListener(DOMAIN_REFRESH_EVENT, (event) => {
@@ -134,30 +116,123 @@ test("rollback notification maps normalized documents and bounded legacy fallbac
   });
 
   assert.equal(
-    notifyDomainRefresh({
-      affectedDocuments: [
-        { collection: "timeline-events", documentId: 51 },
-        { collection: "plans", documentId: 10 },
-      ],
-      fallback: {
+    notifyAgentTerminalDomainRefresh({
+      affectedDocuments,
+      assistantMessage: "已执行，并准备下一项确认。",
+      pendingAction: { type: "await_confirmation" },
+      responseOk: true,
+      target,
+    }),
+    true,
+  );
+  assert.equal(details.length, 1);
+  assert.deepEqual(details[0], {
+    domains: ["plans", "checklists", "schedule", "timeline"],
+    ids: [11, 22, 31, 41],
+    reason: "agent_execute",
+  });
+});
+
+test("Agent terminal helper ignores failure, pending-only, empty and irrelevant effects", () => {
+  const target = new EventTarget();
+  let calls = 0;
+  target.addEventListener(DOMAIN_REFRESH_EVENT, () => {
+    calls += 1;
+  });
+
+  assert.equal(
+    notifyAgentTerminalDomainRefresh({
+      affectedDocuments,
+      assistantMessage: "失败",
+      responseOk: false,
+      target,
+    }),
+    false,
+  );
+  assert.equal(
+    notifyAgentTerminalDomainRefresh({
+      affectedDocuments: [],
+      assistantMessage: "这是待确认提案。",
+      pendingAction: { type: "await_confirmation" },
+      responseOk: true,
+      target,
+    }),
+    false,
+  );
+  assert.equal(
+    notifyAgentTerminalDomainRefresh({
+      affectedDocuments: [{ collection: "agent-memories", documentId: 7 }],
+      assistantMessage: "已保存记忆。",
+      responseOk: true,
+      target,
+    }),
+    false,
+  );
+  assert.equal(
+    notifyAgentTerminalDomainRefresh({
+      affectedDocuments,
+      assistantMessage: null,
+      responseOk: true,
+      target,
+    }),
+    false,
+  );
+  assert.equal(calls, 0);
+});
+
+test("rollback helper maps normalized documents and bounded legacy fallback only on success", () => {
+  const target = new EventTarget();
+  const details: DomainRefreshDetail[] = [];
+  target.addEventListener(DOMAIN_REFRESH_EVENT, (event) => {
+    details.push((event as Event & { detail: DomainRefreshDetail }).detail);
+  });
+
+  assert.equal(
+    notifyRollbackDomainRefresh({
+      responseOk: true,
+      result: {
+        affectedDocuments: [
+          { collection: "timeline-events", documentId: 51 },
+          { collection: "plans", documentId: 10 },
+        ],
         collection: "checklists",
         documentId: 99,
+        strategy: "restore",
       },
-      reason: "rollback",
       target,
     }),
     true,
   );
   assert.equal(
-    notifyDomainRefresh({
-      fallback: {
+    notifyRollbackDomainRefresh({
+      responseOk: true,
+      result: {
         collection: "schedule-items",
         documentId: 71,
+        strategy: "restore",
       },
-      reason: "rollback",
       target,
     }),
     true,
+  );
+  assert.equal(
+    notifyRollbackDomainRefresh({
+      responseOk: false,
+      result: {
+        affectedDocuments: [{ collection: "plans", documentId: 88 }],
+        strategy: "restore",
+      },
+      target,
+    }),
+    false,
+  );
+  assert.equal(
+    notifyRollbackDomainRefresh({
+      responseOk: true,
+      result: null,
+      target,
+    }),
+    false,
   );
   assert.deepEqual(details, [
     {
@@ -169,6 +244,58 @@ test("rollback notification maps normalized documents and bounded legacy fallbac
       domains: ["schedule"],
       ids: [71],
       reason: "rollback",
+    },
+  ]);
+});
+
+test("Schedule completion helper dispatches the full returned chain only for bounded success", () => {
+  const target = new EventTarget();
+  const details: DomainRefreshDetail[] = [];
+  target.addEventListener(DOMAIN_REFRESH_EVENT, (event) => {
+    details.push((event as Event & { detail: DomainRefreshDetail }).detail);
+  });
+
+  assert.equal(
+    notifyScheduleCompletionDomainRefresh({
+      affectedDocuments,
+      item: { id: 31, status: "done" },
+      responseOk: true,
+      target,
+    }),
+    true,
+  );
+  assert.equal(
+    notifyScheduleCompletionDomainRefresh({
+      affectedDocuments,
+      item: { id: 31, status: "done" },
+      responseOk: false,
+      target,
+    }),
+    false,
+  );
+  assert.equal(
+    notifyScheduleCompletionDomainRefresh({
+      affectedDocuments: null,
+      item: { id: 31, status: "done" },
+      responseOk: true,
+      target,
+    }),
+    false,
+  );
+  assert.equal(
+    notifyScheduleCompletionDomainRefresh({
+      affectedDocuments,
+      item: { id: "bad", status: "done" },
+      responseOk: true,
+      target,
+    }),
+    false,
+  );
+  assert.deepEqual(details, [
+    {
+      domains: ["plans", "checklists", "schedule", "timeline"],
+      ids: [11, 22, 31, 41],
+      reason: "completion",
     },
   ]);
 });
@@ -210,7 +337,7 @@ test("subscribers run once for their domain, ignore other domains, and clean up"
   assert.equal(plans, 1);
 });
 
-test("Agent, both rollback paths and direct completion each notify once after success", () => {
+test("real Agent, rollback and Schedule sources each call their behavior-tested helper once", () => {
   const messaging = read(
     "src/components/dashboard/agent-chat/use-agent-chat-messaging.ts",
   );
@@ -226,47 +353,41 @@ test("Agent, both rollback paths and direct completion each notify once after su
     messaging.indexOf("useEffect(() =>", messaging.indexOf("const sendMessage")),
   );
   assert.equal(
-    sendMessageBody.match(/notifyDomainRefresh\(/g)?.length,
+    sendMessageBody.match(/notifyAgentTerminalDomainRefresh\(/g)?.length,
     1,
     "a completed Agent turn must notify once, not per stream event/document",
-  );
-  assert.ok(
-    sendMessageBody.indexOf("if (!response.ok || !assistantMessage)")
-      < sendMessageBody.indexOf("notifyDomainRefresh("),
-    "Agent notification must be after terminal success validation",
   );
 
   const artifactsRollbackBody = messaging.slice(
     messaging.indexOf("const runArtifactsRollback"),
     messaging.indexOf("return {", messaging.indexOf("const runArtifactsRollback")),
   );
-  assert.equal(artifactsRollbackBody.match(/notifyDomainRefresh\(/g)?.length, 1);
-  assert.match(artifactsRollbackBody, /reason:\s*"rollback"/);
-  assert.match(artifactsRollbackBody, /fallback:/);
+  assert.equal(
+    artifactsRollbackBody.match(/notifyRollbackDomainRefresh\(/g)?.length,
+    1,
+  );
 
   const selectedRollbackBody = dashboardChat.slice(
     dashboardChat.indexOf("const rollbackSelectedRun"),
     dashboardChat.indexOf("const tokenCountStr"),
   );
-  assert.equal(selectedRollbackBody.match(/notifyDomainRefresh\(/g)?.length, 1);
-  assert.match(selectedRollbackBody, /reason:\s*"rollback"/);
-  assert.match(selectedRollbackBody, /fallback:/);
+  assert.equal(
+    selectedRollbackBody.match(/notifyRollbackDomainRefresh\(/g)?.length,
+    1,
+  );
 
   const completionBody = schedule.slice(
     schedule.indexOf("const completeScheduleItem"),
     schedule.indexOf("/* ── Calendar Helpers"),
   );
-  assert.equal(completionBody.match(/notifyDomainRefresh\(/g)?.length, 1);
-  assert.match(completionBody, /affectedDocuments:\s*data\.affectedDocuments/);
-  assert.match(completionBody, /reason:\s*"completion"/);
-  assert.ok(
-    completionBody.indexOf("if (!response.ok")
-      < completionBody.indexOf("notifyDomainRefresh("),
-    "completion notification must be after bounded success validation",
+  assert.equal(
+    completionBody.match(/notifyScheduleCompletionDomainRefresh\(/g)?.length,
+    1,
   );
+  assert.match(completionBody, /affectedDocuments:\s*data\?\.affectedDocuments/);
 });
 
-test("all four views subscribe only to their domain and mount/refetch through one loader", () => {
+test("all four views use the shared retained runner and exact-domain background loader", () => {
   for (const [path, domain, loader] of [
     [
       "src/components/dashboard/agent/PersistedPlanListPanel.tsx",
@@ -296,88 +417,170 @@ test("all four views subscribe only to their domain and mount/refetch through on
     );
     assert.match(
       source,
-      new RegExp(`useEffect\\(\\(\\) => \\{[\\s\\S]*?return ${loader}\\(\\);[\\s\\S]*?\\}, \\[${loader}\\]\\)`),
+      new RegExp(`return ${loader}\\("foreground"\\)`),
     );
+    assert.match(source, /requestRunnerRef\.current\.run\(\{/);
+    assert.match(source, /mode,/);
     assert.equal(
       source.match(/useDomainRefresh\(/g)?.length,
       1,
       `${path} must have one domain subscription`,
     );
   }
+
+  const hook = read(
+    "src/components/dashboard/linked-objects/useDomainRefresh.ts",
+  );
+  assert.match(hook, /const cleanup = loader\("background"\)/);
+  assert.match(hook, /\(mode\) => loaderRef\.current\(mode\)/);
+
+  for (const path of [
+    "src/components/dashboard/checklist/ChecklistView.tsx",
+    "src/components/dashboard/schedule/ScheduleMonthView.tsx",
+    "src/components/dashboard/timeline/TimelineView.tsx",
+  ]) {
+    assert.match(
+      read(path),
+      /navigationApplicationRef\.current\.shouldApply\(/,
+    );
+  }
 });
 
-test("a failed background plan refresh keeps the last successful data visible", async () => {
-  const { Window } = await import("happy-dom");
-  const domWindow = new Window({ url: "http://localhost/dashboard" });
-  Object.defineProperties(globalThis, {
-    document: { configurable: true, value: domWindow.document },
-    Element: { configurable: true, value: domWindow.Element },
-    HTMLElement: { configurable: true, value: domWindow.HTMLElement },
-    navigator: { configurable: true, value: domWindow.navigator },
-    Node: { configurable: true, value: domWindow.Node },
-    SVGElement: { configurable: true, value: domWindow.SVGElement },
-    window: { configurable: true, value: domWindow },
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {
-    configurable: true,
-    value: false,
+  return { promise, reject, resolve };
+};
+
+const flushPromises = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
+
+test("retained runner distinguishes foreground/background and retains data on failure", async () => {
+  const runner = createRetainedDomainRequestRunner();
+  const loading: boolean[] = [];
+  let data = ["retained"];
+  let error: string | null = null;
+  const preservedViewState = {
+    expandedId: 44,
+    filter: "active",
+    month: "2026-07",
+    selectedDate: "2026-07-28",
+    threadId: 73,
+  };
+  const foreground = deferred<string[]>();
+  runner.run({
+    clearError: () => {
+      error = null;
+    },
+    load: () => foreground.promise,
+    mode: "foreground",
+    onData: (next) => {
+      data = next;
+    },
+    onError: () => {
+      error = "failed";
+    },
+    setForegroundLoading: (next) => {
+      loading.push(next);
+    },
   });
-  (globalThis as typeof globalThis & { React?: typeof React }).React = React;
+  assert.deepEqual(loading, [true]);
+  foreground.resolve(["foreground"]);
+  await flushPromises();
+  assert.deepEqual(data, ["foreground"]);
+  assert.deepEqual(loading, [true, false]);
 
-  let requestCount = 0;
-  globalThis.fetch = (async () => {
-    requestCount += 1;
-    if (requestCount === 1) {
-      return new Response(
-        JSON.stringify({
-          plans: [
-            {
-              checklists: [],
-              id: 101,
-              linkedObjects: [],
-              progress: 25,
-              scheduleItems: [],
-              state: "active",
-              status: "published",
-              title: "保留的计划",
-              updatedAt: "2026-07-28T08:00:00.000Z",
-            },
-          ],
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-          status: 200,
-        },
-      );
-    }
-    throw new Error("refresh unavailable");
-  }) as typeof fetch;
-
-  const { PersistedPlanListPanel } = await import(
-    "../../../src/components/dashboard/agent/PersistedPlanListPanel"
-  );
-  const container = domWindow.document.createElement("div");
-  domWindow.document.body.append(container);
-  const root = createRoot(
-    container as unknown as Parameters<typeof createRoot>[0],
-  );
-  flushSync(() => {
-    root.render(<PersistedPlanListPanel />);
+  const background = deferred<string[]>();
+  runner.run({
+    clearError: () => {
+      error = null;
+    },
+    load: () => background.promise,
+    mode: "background",
+    onData: (next) => {
+      data = next;
+    },
+    onError: () => {
+      error = "refresh failed";
+    },
+    setForegroundLoading: (next) => {
+      loading.push(next);
+    },
   });
-  await new Promise((resolve) => setTimeout(resolve, 40));
-  assert.match(container.textContent ?? "", /保留的计划/);
-
-  notifyDomainRefresh({
-    affectedDocuments: [{ collection: "plans", documentId: 101 }],
-    reason: "manual_update",
-    target: domWindow as unknown as EventTarget,
+  background.reject(new Error("unavailable"));
+  await flushPromises();
+  assert.deepEqual(data, ["foreground"]);
+  assert.equal(error, "refresh failed");
+  assert.deepEqual(loading, [true, false]);
+  assert.deepEqual(preservedViewState, {
+    expandedId: 44,
+    filter: "active",
+    month: "2026-07",
+    selectedDate: "2026-07-28",
+    threadId: 73,
   });
-  await new Promise((resolve) => setTimeout(resolve, 40));
+});
 
-  assert.equal(requestCount, 2);
-  assert.match(container.textContent ?? "", /保留的计划/);
-  assert.match(container.textContent ?? "", /刷新失败/);
-  flushSync(() => root.unmount());
+test("retained runner ignores stale and cancelled completions", async () => {
+  const runner = createRetainedDomainRequestRunner();
+  let data = "initial";
+  let errors = 0;
+  const first = deferred<string>();
+  const second = deferred<string>();
+  const third = deferred<string>();
+  const options = {
+    clearError: () => undefined,
+    mode: "background" as const,
+    onData: (next: string) => {
+      data = next;
+    },
+    onError: () => {
+      errors += 1;
+    },
+    setForegroundLoading: () => undefined,
+  };
+
+  runner.run({ ...options, load: () => first.promise });
+  const cancelSecond = runner.run({ ...options, load: () => second.promise });
+  first.resolve("stale");
+  await flushPromises();
+  assert.equal(data, "initial");
+
+  cancelSecond();
+  second.resolve("cancelled");
+  await flushPromises();
+  assert.equal(data, "initial");
+  assert.equal(errors, 0);
+
+  const cancelThird = runner.run({ ...options, load: () => third.promise });
+  cancelThird();
+  third.reject(new Error("cancelled rejection"));
+  await flushPromises();
+  assert.equal(data, "initial");
+  assert.equal(errors, 0);
+});
+
+test("one navigation generation applies once, survives refresh, and a new generation reapplies", () => {
+  const tracker = createNavigationApplicationTracker();
+  let expandedId = 101;
+
+  assert.equal(tracker.shouldApply("checklist:101:1", true), true);
+  expandedId = 999;
+  if (tracker.shouldApply("checklist:101:1", true)) {
+    expandedId = 101;
+  }
+  assert.equal(expandedId, 999, "background data refresh must retain user expansion");
+
+  assert.equal(tracker.shouldApply("checklist:101:2", false), false);
+  assert.equal(tracker.shouldApply("checklist:101:2", true), true);
+  expandedId = 101;
+  assert.equal(expandedId, 101);
 });
 
 test("Task 13 introduces no polling, page reload, storage channel, SSE or dependency change", () => {

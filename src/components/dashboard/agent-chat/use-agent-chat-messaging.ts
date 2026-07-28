@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } fr
 
 import { engineLabelMap, initialMessages } from "@/components/dashboard/agent-chat/constants";
 import type { AgentInspectorTab, ContextPreferences } from "@/components/dashboard/agent";
-import { notifyDomainRefresh } from "@/components/dashboard/linked-objects";
+import {
+  notifyAgentTerminalDomainRefresh,
+  notifyRollbackDomainRefresh,
+} from "@/components/dashboard/linked-objects";
 import {
   formatRollbackResultStatus,
   normalizeRollbackExecutionResult,
@@ -368,14 +371,16 @@ export function useAgentChatMessaging({
           traceSteps: responseData.trace ?? [],
         });
 
+        notifyAgentTerminalDomainRefresh({
+          affectedDocuments: responseData.affectedDocuments,
+          assistantMessage,
+          pendingAction: responseData.pendingAction,
+          responseOk: response.ok,
+        });
+
         if (!response.ok || !assistantMessage) {
           throw new Error(assistantMessage || "Agent 暂时没有返回可用结果。");
         }
-
-        notifyDomainRefresh({
-          affectedDocuments: responseData.affectedDocuments,
-          reason: "agent_execute",
-        });
 
         if (!isStreamingResponse) {
           setMessages((current) => [
@@ -655,20 +660,17 @@ export function useAgentChatMessaging({
         method: "POST",
       });
       const data = (await res.json()) as { message?: string; result?: unknown };
+      const rollbackResult = normalizeRollbackExecutionResult(data.result);
+
+      notifyRollbackDomainRefresh({
+        responseOk: res.ok,
+        result: rollbackResult,
+      });
 
       if (!res.ok) {
         throw new Error(typeof data.message === "string" ? data.message : "回滚失败");
       }
 
-      const rollbackResult = normalizeRollbackExecutionResult(data.result);
-
-      if (rollbackResult) {
-        notifyDomainRefresh({
-          affectedDocuments: rollbackResult.affectedDocuments,
-          fallback: rollbackResult,
-          reason: "rollback",
-        });
-      }
       setLastRollbackSourceRunId(null);
       await loadThread(threadId ?? undefined, { preserveInspector: true });
       setLastRollbackResult(rollbackResult);

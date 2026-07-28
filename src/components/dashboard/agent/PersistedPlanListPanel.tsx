@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PersistedPlanSnapshotCard } from "./PersistedPlanSnapshotCard";
 import type { PlanSummary } from "@/lib/core-linkage/contracts";
 import {
-  createLatestRequestGuard,
+  createRetainedDomainRequestRunner,
   findExactNavigationTarget,
   useDomainRefresh,
+  type DomainLoadMode,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
 
@@ -25,39 +26,27 @@ export function PersistedPlanListPanel({
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const requestGuardRef =
-    useRef<ReturnType<typeof createLatestRequestGuard> | null>(null);
-  if (requestGuardRef.current == null) {
-    requestGuardRef.current = createLatestRequestGuard();
-  }
+  const requestRunnerRef = useRef(createRetainedDomainRequestRunner());
 
-  const loadPlans = useCallback(() => {
-    const request = requestGuardRef.current?.begin();
-    setLoading(true);
-    setError(null);
-
-    void (async () => {
-      try {
+  const loadPlans = useCallback((mode: DomainLoadMode) =>
+    requestRunnerRef.current.run({
+      clearError: () => setError(null),
+      load: async () => {
         const res = await fetch("/api/agent/plans");
         if (!res.ok) throw new Error("加载失败");
         const data = (await res.json()) as { plans: PlanSummary[] };
-        request?.commit(() => setPlans(data.plans ?? []));
-      } catch {
-        request?.commit(() => setError("刷新失败，请重试"));
-      } finally {
-        request?.commit(() => setLoading(false));
-      }
-    })();
-
-    return () => request?.cancel();
-  }, []);
+        return data.plans ?? [];
+      },
+      mode,
+      onData: setPlans,
+      onError: () => setError("刷新失败，请重试"),
+      setForegroundLoading: setLoading,
+    }), []);
 
   useDomainRefresh("plans", loadPlans);
 
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- data fetching pattern consistent with dashboard views */
-    return loadPlans();
-    /* eslint-enable react-hooks/set-state-in-effect */
+    return loadPlans("foreground");
   }, [loadPlans]);
 
   if (loading && plans.length === 0) {

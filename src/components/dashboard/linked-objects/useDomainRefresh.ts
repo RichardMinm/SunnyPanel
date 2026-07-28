@@ -20,18 +20,60 @@ export type DomainRefreshDetail = {
     | "rollback";
 };
 
+export type DomainLoadMode = "background" | "foreground";
+
 type AffectedDocumentInput = {
   collection?: unknown;
   documentId?: unknown;
 };
 
-type DomainRefreshLoader = () => (() => void) | Promise<void> | void;
+type DomainRefreshLoader = (
+  mode: DomainLoadMode,
+) => (() => void) | Promise<void> | void;
 
 type NotifyDomainRefreshOptions = {
   affectedDocuments?: unknown;
   fallback?: AffectedDocumentInput | null;
   reason: DomainRefreshDetail["reason"];
   target?: EventTarget | null;
+};
+
+type AgentTerminalDomainRefreshOptions = {
+  affectedDocuments?: unknown;
+  assistantMessage?: unknown;
+  pendingAction?: unknown;
+  responseOk: boolean;
+  target?: EventTarget | null;
+};
+
+type RollbackDomainRefreshResult = AffectedDocumentInput & {
+  affectedDocuments?: unknown;
+  strategy?: unknown;
+};
+
+type RollbackDomainRefreshOptions = {
+  responseOk: boolean;
+  result: RollbackDomainRefreshResult | null;
+  target?: EventTarget | null;
+};
+
+type ScheduleCompletionDomainRefreshOptions = {
+  affectedDocuments?: unknown;
+  item?: {
+    id?: unknown;
+    status?: unknown;
+  } | null;
+  responseOk: boolean;
+  target?: EventTarget | null;
+};
+
+type RetainedDomainRequestOptions<T> = {
+  clearError: () => void;
+  load: () => Promise<T>;
+  mode: DomainLoadMode;
+  onData: (data: T) => void;
+  onError: (error: unknown) => void;
+  setForegroundLoading: (loading: boolean) => void;
 };
 
 const collectionDomainEntries = [
@@ -73,10 +115,7 @@ export function buildDomainRefreshDetail(
   const ids = new Set<number>();
 
   for (const document of inputs) {
-    if (
-      typeof document.collection !== "string"
-      || !isPositiveSafeInteger(document.documentId)
-    ) {
+    if (typeof document.collection !== "string") {
       continue;
     }
 
@@ -86,7 +125,9 @@ export function buildDomainRefreshDetail(
     }
 
     domains.add(domain);
-    ids.add(document.documentId);
+    if (isPositiveSafeInteger(document.documentId)) {
+      ids.add(document.documentId);
+    }
   }
 
   const orderedDomains = collectionDomainEntries.flatMap(([, domain]) =>
@@ -160,6 +201,131 @@ export function notifyDomainRefresh({
   return true;
 }
 
+export function notifyAgentTerminalDomainRefresh({
+  affectedDocuments,
+  assistantMessage,
+  responseOk,
+  target,
+}: AgentTerminalDomainRefreshOptions): boolean {
+  if (
+    !responseOk
+    || typeof assistantMessage !== "string"
+    || assistantMessage.length === 0
+  ) {
+    return false;
+  }
+
+  return notifyDomainRefresh({
+    affectedDocuments,
+    reason: "agent_execute",
+    target,
+  });
+}
+
+export function notifyRollbackDomainRefresh({
+  responseOk,
+  result,
+  target,
+}: RollbackDomainRefreshOptions): boolean {
+  if (!responseOk || !result) {
+    return false;
+  }
+
+  return notifyDomainRefresh({
+    affectedDocuments: result.affectedDocuments,
+    fallback: result,
+    reason: "rollback",
+    target,
+  });
+}
+
+export function notifyScheduleCompletionDomainRefresh({
+  affectedDocuments,
+  item,
+  responseOk,
+  target,
+}: ScheduleCompletionDomainRefreshOptions): boolean {
+  if (
+    !responseOk
+    || !Array.isArray(affectedDocuments)
+    || !isPositiveSafeInteger(item?.id)
+    || typeof item.status !== "string"
+    || item.status.length === 0
+  ) {
+    return false;
+  }
+
+  return notifyDomainRefresh({
+    affectedDocuments,
+    reason: "completion",
+    target,
+  });
+}
+
+export function createRetainedDomainRequestRunner() {
+  let latestGeneration = 0;
+
+  return {
+    run<T>({
+      clearError,
+      load,
+      mode,
+      onData,
+      onError,
+      setForegroundLoading,
+    }: RetainedDomainRequestOptions<T>) {
+      const generation = ++latestGeneration;
+      let cancelled = false;
+
+      clearError();
+      if (mode === "foreground") {
+        setForegroundLoading(true);
+      }
+
+      void (async () => {
+        try {
+          const data = await load();
+          if (!cancelled && generation === latestGeneration) {
+            onData(data);
+          }
+        } catch (error) {
+          if (!cancelled && generation === latestGeneration) {
+            onError(error);
+          }
+        } finally {
+          if (!cancelled && mode === "foreground") {
+            setForegroundLoading(false);
+          }
+        }
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    },
+  };
+}
+
+export function createNavigationApplicationTracker() {
+  let lastAppliedKey: string | null = null;
+
+  return {
+    shouldApply(key: string | null, ready: boolean) {
+      if (key === null) {
+        lastAppliedKey = null;
+        return false;
+      }
+
+      if (!ready || lastAppliedKey === key) {
+        return false;
+      }
+
+      lastAppliedKey = key;
+      return true;
+    },
+  };
+}
+
 const getDomainRefreshDetail = (event: Event): DomainRefreshDetail | null => {
   const detail = (event as Event & { detail?: unknown }).detail;
   if (!detail || typeof detail !== "object" || Array.isArray(detail)) {
@@ -189,7 +355,7 @@ export function subscribeToDomainRefresh(
     }
 
     activeCleanup?.();
-    const cleanup = loader();
+    const cleanup = loader("background");
     activeCleanup = typeof cleanup === "function" ? cleanup : undefined;
   };
 
@@ -214,7 +380,7 @@ export function useDomainRefresh(
     () =>
       subscribeToDomainRefresh(
         domain,
-        () => loaderRef.current(),
+        (mode) => loaderRef.current(mode),
       ),
     [domain],
   );

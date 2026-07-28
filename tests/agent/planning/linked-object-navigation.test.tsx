@@ -363,10 +363,10 @@ test("all destinations receive typed target props and wire exact ID/date focus",
   assert.match(planCard, /navigationGeneration/);
   assert.match(planCard, /aria-expanded=\{isExpanded\}/);
   assert.match(checklist, /findExactNavigationTarget\(\s*checklists,\s*navigationTarget\?\.id/);
-  assert.match(checklist, /createLatestRequestGuard/);
+  assert.match(checklist, /createRetainedDomainRequestRunner/);
+  assert.match(checklist, /createNavigationApplicationTracker/);
   assert.match(checklist, /navigationGeneration/);
-  assert.match(checklist, /return \(\) => request\?\.cancel\(\)/);
-  assert.match(checklist, /return fetchChecklists\(\)/);
+  assert.match(checklist, /return fetchChecklists\("foreground"\)/);
   assert.match(schedule, /navigationTarget\.date/);
   assert.match(schedule, /findExactNavigationTarget\(\s*items,\s*navigationTarget\?\.id/);
   assert.match(schedule, /navigationGeneration/);

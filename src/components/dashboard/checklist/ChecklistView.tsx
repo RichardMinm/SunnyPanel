@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  createLatestRequestGuard,
+  createNavigationApplicationTracker,
+  createRetainedDomainRequestRunner,
   findExactNavigationTarget,
   LinkedObjectList,
   useDomainRefresh,
   useLinkedObjectFocus,
+  type DomainLoadMode,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
 import type { ChecklistViewSummary } from "@/lib/core-linkage/contracts";
@@ -41,11 +43,10 @@ export function ChecklistView({
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const requestGuardRef =
-    useRef<ReturnType<typeof createLatestRequestGuard> | null>(null);
-  if (requestGuardRef.current == null) {
-    requestGuardRef.current = createLatestRequestGuard();
-  }
+  const requestRunnerRef = useRef(createRetainedDomainRequestRunner());
+  const navigationApplicationRef = useRef(
+    createNavigationApplicationTracker(),
+  );
 
   useEffect(() => {
     if (navigationTarget) {
@@ -54,12 +55,10 @@ export function ChecklistView({
     }
   }, [navigationGeneration, navigationTarget]);
 
-  const fetchChecklists = useCallback(() => {
-    const request = requestGuardRef.current?.begin();
-    setLoading(true);
-    setError(null);
-    void (async () => {
-      try {
+  const fetchChecklists = useCallback((mode: DomainLoadMode) =>
+    requestRunnerRef.current.run({
+      clearError: () => setError(null),
+      load: async () => {
         const params = new URLSearchParams();
         if (filter) params.set("status", filter);
         params.set("limit", "20");
@@ -73,38 +72,41 @@ export function ChecklistView({
         const data = (await res.json()) as {
           checklists: ChecklistViewSummary[];
         };
-        request?.commit(() => setChecklists(data.checklists ?? []));
-      } catch {
-        request?.commit(() => setError("刷新失败，请重试"));
-      } finally {
-        request?.commit(() => setLoading(false));
-      }
-    })();
-
-    return () => request?.cancel();
-  }, [filter]);
+        return data.checklists ?? [];
+      },
+      mode,
+      onData: setChecklists,
+      onError: () => setError("刷新失败，请重试"),
+      setForegroundLoading: setLoading,
+    }), [filter]);
 
   useDomainRefresh("checklists", fetchChecklists);
 
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- data fetching pattern consistent with existing dashboard views */
-    return fetchChecklists();
-    /* eslint-enable react-hooks/set-state-in-effect */
+    return fetchChecklists("foreground");
   }, [fetchChecklists]);
 
   const navigationChecklist = findExactNavigationTarget(
     checklists,
     navigationTarget?.id,
   );
+  const navigationRequestKey = navigationTarget
+    ? `checklist:${navigationTarget.id}:${navigationGeneration ?? 0}`
+    : null;
+  const navigationChecklistId = navigationChecklist?.id ?? null;
   useEffect(() => {
-    if (navigationTarget && !loading) {
-      /* eslint-disable-next-line react-hooks/set-state-in-effect -- select the exact target only after the matching API data is available */
-      setExpandedId(navigationChecklist?.id ?? null);
+    if (
+      navigationApplicationRef.current.shouldApply(
+        navigationRequestKey,
+        Boolean(navigationTarget && navigationChecklistId && !loading),
+      )
+    ) {
+      setExpandedId(navigationChecklistId);
     }
   }, [
     loading,
-    navigationChecklist?.id,
-    navigationGeneration,
+    navigationChecklistId,
+    navigationRequestKey,
     navigationTarget,
   ]);
   const navigationFocusRef = useLinkedObjectFocus<HTMLDivElement>(

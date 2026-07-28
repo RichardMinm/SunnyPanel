@@ -6,12 +6,14 @@ import { AnimatePresence, motion } from "motion/react";
 import { AppButton } from "@/components/primitives/AppButton";
 import { AppEmptyState } from "@/components/primitives/AppEmptyState";
 import {
-  createLatestRequestGuard,
+  createNavigationApplicationTracker,
+  createRetainedDomainRequestRunner,
   findExactNavigationTarget,
   LinkedObjectList,
-  notifyDomainRefresh,
+  notifyScheduleCompletionDomainRefresh,
   useDomainRefresh,
   useLinkedObjectFocus,
+  type DomainLoadMode,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
 import type { ScheduleViewSummary } from "@/lib/core-linkage/contracts";
@@ -180,11 +182,10 @@ export function ScheduleMonthView({
   const [completionPendingId, setCompletionPendingId] = useState<number | null>(null);
   const [completionError, setCompletionError] = useState<null | string>(null);
   const completionRequestRef = useRef<number | null>(null);
-  const requestGuardRef =
-    useRef<ReturnType<typeof createLatestRequestGuard> | null>(null);
-  if (requestGuardRef.current == null) {
-    requestGuardRef.current = createLatestRequestGuard();
-  }
+  const requestRunnerRef = useRef(createRetainedDomainRequestRunner());
+  const navigationApplicationRef = useRef(
+    createNavigationApplicationTracker(),
+  );
 
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
 
@@ -192,20 +193,19 @@ export function ScheduleMonthView({
     if (!navigationTarget) {
       return;
     }
+    /* eslint-disable react-hooks/set-state-in-effect -- linked navigation synchronizes the exact destination month and date */
     setYear(Number(navigationTarget.date.slice(0, 4)));
     setMonth(Number(navigationTarget.date.slice(5, 7)));
     setSelectedDate(navigationTarget.date);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [navigationGeneration, navigationTarget]);
 
   /* ── Data Fetching ── */
 
-  const loadScheduleItems = useCallback(() => {
-    const request = requestGuardRef.current?.begin();
-    setLoading(true);
-    setError(null);
-
-    void (async () => {
-      try {
+  const loadScheduleItems = useCallback((mode: DomainLoadMode) =>
+    requestRunnerRef.current.run({
+      clearError: () => setError(null),
+      load: async () => {
         const res = await fetch(`/api/agent/schedule?month=${monthKey}`);
         if (!res.ok) {
           const data = await res.json().catch(() => null);
@@ -213,23 +213,19 @@ export function ScheduleMonthView({
         }
 
         const data = (await res.json()) as { items: ScheduleViewSummary[] };
-        request?.commit(() => setItems(data.items ?? []));
-      } catch (err) {
-        request?.commit(() =>
-          setError(err instanceof Error ? err.message : "加载日程失败"),
-        );
-      } finally {
-        request?.commit(() => setLoading(false));
-      }
-    })();
-
-    return () => request?.cancel();
-  }, [monthKey]);
+        return data.items ?? [];
+      },
+      mode,
+      onData: setItems,
+      onError: (error) =>
+        setError(error instanceof Error ? error.message : "加载日程失败"),
+      setForegroundLoading: setLoading,
+    }), [monthKey]);
 
   useDomainRefresh("schedule", loadScheduleItems);
 
   useEffect(() => {
-    return loadScheduleItems();
+    return loadScheduleItems("foreground");
   }, [loadScheduleItems]);
 
   /* ── Derived State ── */
@@ -239,6 +235,7 @@ export function ScheduleMonthView({
   useEffect(() => {
     const keys = new Set(days.map(formatDateKey));
     if (!keys.has(selectedDate)) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect -- month changes synchronize the selected date */
       setSelectedDate(pickDefaultDateForMonth(days, todayKey, month));
     }
   }, [days, month, selectedDate, todayKey]);
@@ -267,14 +264,23 @@ export function ScheduleMonthView({
     navigationScheduleCandidate.date.slice(0, 10) === navigationTarget?.date
       ? navigationScheduleCandidate
       : null;
+  const navigationRequestKey = navigationTarget
+    ? `schedule:${navigationTarget.id}:${navigationTarget.date}:${navigationGeneration ?? 0}`
+    : null;
+  const navigationScheduleId = navigationSchedule?.id ?? null;
   useEffect(() => {
-    if (navigationTarget && !loading) {
-      setExpandedId(navigationSchedule?.id ?? null);
+    if (
+      navigationApplicationRef.current.shouldApply(
+        navigationRequestKey,
+        Boolean(navigationTarget && navigationScheduleId && !loading),
+      )
+    ) {
+      setExpandedId(navigationScheduleId);
     }
   }, [
     loading,
-    navigationGeneration,
-    navigationSchedule?.id,
+    navigationRequestKey,
+    navigationScheduleId,
     navigationTarget,
   ]);
   const navigationFocusRef = useLinkedObjectFocus<HTMLDivElement>(
@@ -321,10 +327,18 @@ export function ScheduleMonthView({
         item?: { id?: unknown; status?: unknown };
       } | null;
       const completedItem = data?.item;
+      notifyScheduleCompletionDomainRefresh({
+        affectedDocuments: data?.affectedDocuments,
+        item: completedItem,
+        responseOk: response.ok,
+      });
       if (
         !response.ok
         || typeof completedItem?.id !== "number"
+        || !Number.isSafeInteger(completedItem.id)
+        || completedItem.id <= 0
         || typeof completedItem.status !== "string"
+        || completedItem.status.length === 0
         || !Array.isArray(data?.affectedDocuments)
       ) {
         throw new Error("schedule completion failed");
@@ -335,10 +349,6 @@ export function ScheduleMonthView({
       setItems((currentItems) => currentItems.map((currentItem) =>
         currentItem.id === completedItemId ? { ...currentItem, status: completedStatus } : currentItem,
       ));
-      notifyDomainRefresh({
-        affectedDocuments: data.affectedDocuments,
-        reason: "completion",
-      });
     } catch {
       setCompletionError("完成失败，请重试");
     } finally {

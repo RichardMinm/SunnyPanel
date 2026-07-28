@@ -31,9 +31,15 @@ export {
 export {
   DOMAIN_REFRESH_EVENT,
   buildDomainRefreshDetail,
+  createNavigationApplicationTracker,
+  createRetainedDomainRequestRunner,
+  notifyAgentTerminalDomainRefresh,
   notifyDomainRefresh,
+  notifyRollbackDomainRefresh,
+  notifyScheduleCompletionDomainRefresh,
   subscribeToDomainRefresh,
   useDomainRefresh,
   type DomainRefreshDetail,
   type DomainRefreshDomain,
+  type DomainLoadMode,
 } from "./useDomainRefresh";

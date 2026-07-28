@@ -5,11 +5,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { categoryDotClass, type CategoryId } from "@/lib/category-styles";
 import { AppEmptyState } from "@/components/primitives/AppEmptyState";
 import {
-  createLatestRequestGuard,
+  createNavigationApplicationTracker,
+  createRetainedDomainRequestRunner,
   findExactNavigationTarget,
   LinkedObjectList,
   useDomainRefresh,
   useLinkedObjectFocus,
+  type DomainLoadMode,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
 import type { TimelineViewSummary } from "@/lib/core-linkage/contracts";
@@ -108,11 +110,10 @@ export function TimelineView({
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const requestGuardRef =
-    useRef<ReturnType<typeof createLatestRequestGuard> | null>(null);
-  if (requestGuardRef.current == null) {
-    requestGuardRef.current = createLatestRequestGuard();
-  }
+  const requestRunnerRef = useRef(createRetainedDomainRequestRunner());
+  const navigationApplicationRef = useRef(
+    createNavigationApplicationTracker(),
+  );
 
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
 
@@ -127,36 +128,28 @@ export function TimelineView({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [navigationGeneration, navigationTarget]);
 
-  const loadTimelineEvents = useCallback(() => {
-    const request = requestGuardRef.current?.begin();
-    setLoading(true);
-    setError(null);
-
-    void (async () => {
-      try {
+  const loadTimelineEvents = useCallback((mode: DomainLoadMode) =>
+    requestRunnerRef.current.run({
+      clearError: () => setError(null),
+      load: async () => {
         const res = await fetch(`/api/agent/timeline?month=${monthKey}&limit=50`);
         if (!res.ok) {
           throw new Error("加载失败");
         }
 
         const data = (await res.json()) as { events: TimelineViewSummary[] };
-        request?.commit(() => setEvents(data.events ?? []));
-      } catch {
-        request?.commit(() => setError("刷新失败，请重试"));
-      } finally {
-        request?.commit(() => setLoading(false));
-      }
-    })();
-
-    return () => request?.cancel();
-  }, [monthKey]);
+        return data.events ?? [];
+      },
+      mode,
+      onData: setEvents,
+      onError: () => setError("刷新失败，请重试"),
+      setForegroundLoading: setLoading,
+    }), [monthKey]);
 
   useDomainRefresh("timeline", loadTimelineEvents);
 
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- month changes begin a fresh timeline load */
-    return loadTimelineEvents();
-    /* eslint-enable react-hooks/set-state-in-effect */
+    return loadTimelineEvents("foreground");
   }, [loadTimelineEvents]);
 
   const filteredEvents = useMemo(() => {
@@ -172,16 +165,30 @@ export function TimelineView({
     navigationTimelineCandidate.date.slice(0, 10) === navigationTarget?.date
       ? navigationTimelineCandidate
       : null;
+  const navigationRequestKey = navigationTarget
+    ? `timeline:${navigationTarget.id}:${navigationTarget.date}:${navigationGeneration ?? 0}`
+    : null;
+  const navigationTimelineId = navigationTimeline?.id ?? null;
   useEffect(() => {
-    if (navigationTarget && !loading) {
-      /* eslint-disable-next-line react-hooks/set-state-in-effect -- select the exact dated target only after its month is available */
-      setExpandedId(navigationTimeline?.id ?? null);
+    if (
+      navigationApplicationRef.current.shouldApply(
+        navigationRequestKey,
+        Boolean(
+          navigationTarget
+          && navigationTimelineId
+          && !loading
+          && typeFilter === "all"
+        ),
+      )
+    ) {
+      setExpandedId(navigationTimelineId);
     }
   }, [
     loading,
-    navigationGeneration,
+    navigationRequestKey,
     navigationTarget,
-    navigationTimeline?.id,
+    navigationTimelineId,
+    typeFilter,
   ]);
   const navigationFocusRef = useLinkedObjectFocus<HTMLDivElement>(
     !loading && Boolean(navigationTimeline) && typeFilter === "all",
