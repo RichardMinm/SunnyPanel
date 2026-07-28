@@ -11,10 +11,10 @@ export async function up({ db }: MigrateUpArgs): Promise<void> {
     CREATE INDEX "timeline_events_related_schedule_item_idx" ON "timeline_events" USING btree ("related_schedule_item_id");
 
     UPDATE "timeline_events" AS "timeline_event"
-    SET "related_plan_id" = "checklist"."plan_id"
+    SET "related_plan_id" = "checklist"."plan_id_id"
     FROM "checklists" AS "checklist"
     WHERE "timeline_event"."related_checklist_id" = "checklist"."id"
-      AND "checklist"."plan_id" IS NOT NULL;
+      AND "checklist"."plan_id_id" IS NOT NULL;
 
     INSERT INTO "plans_rels" ("parent_id", "path", "timeline_events_id")
     SELECT "timeline_event"."related_plan_id", 'linkedContent', "timeline_event"."id"

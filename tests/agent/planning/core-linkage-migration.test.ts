@@ -41,8 +41,9 @@ test("core timeline linkage migration deterministically backfills checklist Plan
   assert.match(sql, /ADD COLUMN "related_schedule_item_id" integer/);
   assert.match(
     sql,
-    /UPDATE "timeline_events" AS "timeline_event"\s+SET "related_plan_id" = "checklist"\."plan_id"\s+FROM "checklists" AS "checklist"\s+WHERE "timeline_event"\."related_checklist_id" = "checklist"\."id"\s+AND "checklist"\."plan_id" IS NOT NULL/i,
+    /UPDATE "timeline_events" AS "timeline_event"\s+SET "related_plan_id" = "checklist"\."plan_id_id"\s+FROM "checklists" AS "checklist"\s+WHERE "timeline_event"\."related_checklist_id" = "checklist"\."id"\s+AND "checklist"\."plan_id_id" IS NOT NULL/i,
   );
+  assert.doesNotMatch(sql, /"checklist"\."plan_id"/i);
   assert.match(sql, /INSERT INTO "plans_rels" \("parent_id", "path", "timeline_events_id"\)/);
   assert.match(sql, /SELECT "timeline_event"\."related_plan_id", 'linkedContent', "timeline_event"\."id"/);
   assert.match(sql, /'linkedContent'/);
