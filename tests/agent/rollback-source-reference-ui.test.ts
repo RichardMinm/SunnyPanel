@@ -29,3 +29,17 @@ test("both rollback UI actions POST sourceRunId without executable payloads", ()
   assert.match(dashboard, /JSON\.stringify\(\{\s*sourceRunId:\s*selectedRunDetail\.id\s*\}\)/s);
   assert.doesNotMatch(`${messaging}\n${dashboard}`, /JSON\.stringify\(\{[^}]*rollbackPayload/s);
 });
+
+test("a successful thread refresh preserves the current Receipt state when requested", () => {
+  const dashboard = read(
+    "src/components/dashboard/agent-chat/use-agent-dashboard-chat.ts",
+  );
+  const successfulLoadBranch = dashboard.slice(
+    dashboard.indexOf("setPendingAction(selectedThread.pendingAction)"),
+  );
+
+  assert.match(
+    successfulLoadBranch,
+    /if \(!options\?\.preserveInspector\) \{\s*setLastRollbackSourceRunId\(null\);\s*setLastRollbackResult\(null\);\s*setArtifactsRollbackError\(null\);\s*setSelectedRunRollbackError\(null\);\s*setActiveInspectorTab\(/s,
+  );
+});

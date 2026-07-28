@@ -164,11 +164,11 @@ export function useAgentDashboardChat({
       setStreamStages([]);
       setStreamProgress([]);
       setStreamChanges([]);
-      setLastRollbackSourceRunId(null);
-      setLastRollbackResult(null);
-      setArtifactsRollbackError(null);
-      setSelectedRunRollbackError(null);
       if (!options?.preserveInspector) {
+        setLastRollbackSourceRunId(null);
+        setLastRollbackResult(null);
+        setArtifactsRollbackError(null);
+        setSelectedRunRollbackError(null);
         setActiveInspectorTab(selectedThread.pendingAction ? "approval" : "context");
       }
       setStatusText("已就绪");
