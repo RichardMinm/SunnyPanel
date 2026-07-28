@@ -513,6 +513,24 @@ test("failed AgentRun compensation returns internal evidence and never source-le
   assert.doesNotMatch(JSON.stringify(result), /private audit|private plan/i);
 });
 
+test("non-linked source preserves baseline AgentRun failure behavior", async () => {
+  const state = setupPayload({ failAgentRun: true });
+
+  await assert.rejects(
+    run({
+      createEvent: true,
+      sourceId: 77,
+      sourceText: "发布 Agent Inbox。",
+      sourceType: "update",
+      visibility: "private",
+    }),
+    /private audit failure/,
+  );
+
+  assert.equal(state.has("timeline-events:101"), true);
+  assert.equal(writesFor("timeline-events", "delete").length, 0);
+});
+
 test("explicit Checklist composition remains create-only and never updates an existing exact event", async () => {
   setupPayload({
     existingEvents: [existingTimelineEvent],

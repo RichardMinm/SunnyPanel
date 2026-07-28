@@ -420,7 +420,11 @@ export const composeTimelineEventFromIntent = async (
       title: `Agent composed timeline event · ${timelineEvent.title}`,
       workflow: "sync",
     });
-  } catch {
+  } catch (error) {
+    if (!resolved.planId) {
+      throw error;
+    }
+
     const compensated = await compensateTimelineCreation({
       corePayload,
       payload,
