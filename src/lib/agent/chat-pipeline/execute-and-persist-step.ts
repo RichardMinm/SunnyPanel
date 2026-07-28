@@ -30,6 +30,7 @@ export type ExecuteAndPersistStepParams = {
   conversationState?: unknown;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
+  executeBatchIntents?: typeof executeAgentIntentsTransactional;
   executionApproved?: boolean;
   executedCapability?: (name: string) => void;
   isDirectAnswer: boolean;
@@ -86,6 +87,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     conversationState,
     emitStatus,
     emitToken,
+    executeBatchIntents = executeAgentIntentsTransactional,
     executionApproved = false,
     executedCapability,
     isDirectAnswer,
@@ -161,9 +163,10 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
       title: "开始批量执行已确认动作",
       toolName: "execute_batch",
     });
-    const batchResult = await executeAgentIntentsTransactional(batchExecuteIntents, pushTrace, {
+    const batchResult = await executeBatchIntents(batchExecuteIntents, pushTrace, {
       userId: user.id,
     });
+    const affectedDocuments = sanitizeAffectedDocuments(batchResult.affectedDocuments);
     const batchFailed = batchResult.status === "failed";
     lastPending = batchResult.pendingAction ?? (batchFailed ? null : nextPendingAfterExecute ?? null);
     const assistantMessage =
@@ -234,6 +237,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     });
 
     return {
+      ...(affectedDocuments ? { affectedDocuments } : {}),
       assistantMessage,
       confidence: resolution.intent.confidence,
       engine: resolution.engine,

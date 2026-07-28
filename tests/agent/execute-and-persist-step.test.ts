@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { executeAgentIntent } from "../../src/lib/agent/executor";
+import {
+  executeAgentIntent,
+  executeAgentIntentsTransactional,
+  type AgentIntentExecutionResult,
+} from "../../src/lib/agent/executor";
 import { runExecuteAndPersistStep } from "../../src/lib/agent/chat-pipeline/execute-and-persist-step";
 import type { AgentChatResponse, AgentIntent, AgentTraceStep } from "../../src/lib/agent/schemas";
 import type { AgentThread } from "../../src/payload-types";
@@ -48,6 +52,43 @@ test("batch execution path uses transactional execution trace", async () => {
     confirmedActionId: "batch",
     emitStatus: () => undefined,
     emitToken: () => undefined,
+    executeBatchIntents: (intents, onTrace, options) =>
+      executeAgentIntentsTransactional(intents, onTrace, {
+        ...options,
+        executeIntent: async (intent) => ({
+          affectedDocuments:
+            intent.intent === "answer_question" && intent.args.answer === "第一步完成"
+              ? [
+                  {
+                    collection: "plans",
+                    documentId: 11,
+                    extra: "must-not-cross",
+                    operation: "update",
+                    visibility: "private",
+                  },
+                ]
+              : [
+                  {
+                    collection: "users",
+                    documentId: -1,
+                    operation: "hack",
+                    visibility: "secret",
+                  },
+                  {
+                    collection: "schedule-items",
+                    documentId: 22,
+                    extra: "must-not-cross",
+                    operation: "create",
+                    visibility: "private",
+                  },
+                ],
+          assistantMessage:
+            intent.intent === "answer_question" && intent.args.answer === "第一步完成"
+              ? ""
+              : "第二步完成",
+          pendingAction: null,
+        }) as unknown as AgentIntentExecutionResult,
+      }),
     isDirectAnswer: false,
     persistAgentTurn: async (args) => {
       persisted.push({ nextPendingAction: args.nextPendingAction });
@@ -64,7 +105,22 @@ test("batch execution path uses transactional execution trace", async () => {
     user: { id: 1 },
   });
 
-  assert.equal(result.assistantMessage, "第一步完成\n\n第二步完成");
+  assert.equal(result.assistantMessage, "第二步完成");
+  assert.deepEqual(result.affectedDocuments, [
+    {
+      collection: "plans",
+      documentId: 11,
+      operation: "update",
+      visibility: "private",
+    },
+    {
+      collection: "schedule-items",
+      documentId: 22,
+      operation: "create",
+      visibility: "private",
+    },
+  ]);
+  assert.doesNotMatch(JSON.stringify(result.affectedDocuments), /must-not-cross|users|hack|secret/);
   assert.equal(result.pendingAction, null);
   assert.equal(persisted[0]?.nextPendingAction, null);
   assert.equal(trace.some((step) => step.id === "batch-execute-transactional"), true);
