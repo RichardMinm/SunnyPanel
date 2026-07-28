@@ -17,6 +17,7 @@ import {
   dispatchOrchestratorResult,
   type OrchestratorService,
 } from "@/lib/agent/orchestration/orchestrator-dispatcher";
+import { resolveExactScheduleCompletionIntent } from "@/lib/agent/orchestration/deterministic-existing-schedule-boundary";
 import { projectOrchestratorFailureToSafePlan } from "@/lib/agent/orchestration/langchain-orchestrator";
 import { composeFixedTaskPlan } from "@/lib/agent/orchestration/fixed-task-plan-composer";
 import {
@@ -737,6 +738,40 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         orchestratorPlanSource: "llm",
         orchestratorRuntime: "langchain",
         preResolvedIntent: canaryIntent,
+        tokenUsage,
+      },
+    };
+  }
+
+  const exactScheduleCompletionIntent =
+    !forcedPlan && !pendingAction
+      ? resolveExactScheduleCompletionIntent({
+          authenticatedActor: { collection: "users", id: user.id },
+          context,
+          originalRequest: message,
+        })
+      : null;
+
+  if (exactScheduleCompletionIntent) {
+    stream?.progress({
+      detail: `preResolved=${exactScheduleCompletionIntent.intent}; target=schedule#${exactScheduleCompletionIntent.args.targetId}`,
+      message: "精确日程目标已验证",
+      stageId: "stage-orchestration",
+    });
+    pushTrace({
+      detail: "执行模式中的日程 ID 与标题均匹配当前用户可见上下文；继续使用既有 Dry-run 与确认链路。",
+      id: "orchestrator-exact-schedule-completion",
+      kind: "analysis",
+      status: "done",
+      title: "已验证既有日程目标",
+    });
+
+    return {
+      outcome: "continue",
+      data: {
+        orchestratorPlanSource: "heuristic",
+        orchestratorRuntime: "langchain",
+        preResolvedIntent: exactScheduleCompletionIntent,
         tokenUsage,
       },
     };

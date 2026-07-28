@@ -526,3 +526,102 @@ test("LangChain hybrid residual planning propagates caller cancellation as a ter
     else process.env.AGENT_ORCHESTRATOR_RUNTIME = previousRuntime;
   }
 });
+
+test("LangChain runtime pre-resolves an exact schedule completion without an LLM call", async () => {
+  const previousDisabled = process.env.AGENT_DISABLE_LLM;
+  const previousRuntime = process.env.AGENT_ORCHESTRATOR_RUNTIME;
+  process.env.AGENT_DISABLE_LLM = "1";
+  process.env.AGENT_ORCHESTRATOR_RUNTIME = "langchain";
+  let orchestratorCalled = false;
+  try {
+    const result = await runOrchestrationStep({
+      context: {
+        ...promptContext,
+        schedules: [{
+          id: 41,
+          status: "planned",
+          title: "完成核心链路验收",
+        }],
+        workbenchMode: "execute",
+      },
+      emitStatus: () => undefined,
+      emitToken: () => undefined,
+      message: "将日程 #41「完成核心链路验收」标记为完成",
+      payload: {} as Payload,
+      pendingAction: null,
+      persistAgentTurn: async () =>
+        assert.fail("the exact boundary must continue to the existing dry-run path"),
+      pushTrace: () => undefined,
+      runOrchestratorResultFn: async () => {
+        orchestratorCalled = true;
+        assert.fail("the exact boundary must not call the Orchestrator");
+      },
+      tokenUsage,
+      trace: [],
+      user: { collection: "users", id: 7 },
+    });
+
+    assert.equal(orchestratorCalled, false);
+    assert.equal(result.outcome, "continue");
+    if (result.outcome !== "continue") return;
+    assert.equal(result.data.orchestratorRuntime, "langchain");
+    assert.equal(result.data.orchestratorPlanSource, "heuristic");
+    assert.deepEqual(result.data.preResolvedIntent, {
+      args: {
+        changeDescription: "标记为完成",
+        entityName: "完成核心链路验收",
+        entityType: "schedule",
+        patch: { status: "done" },
+        targetId: 41,
+      },
+      confidence: 1,
+      intent: "modify_record",
+    });
+  } finally {
+    if (previousDisabled === undefined) delete process.env.AGENT_DISABLE_LLM;
+    else process.env.AGENT_DISABLE_LLM = previousDisabled;
+    if (previousRuntime === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
+    else process.env.AGENT_ORCHESTRATOR_RUNTIME = previousRuntime;
+  }
+});
+
+test("LangChain runtime keeps an exact-looking schedule title conflict fail-closed", async () => {
+  const previousDisabled = process.env.AGENT_DISABLE_LLM;
+  const previousRuntime = process.env.AGENT_ORCHESTRATOR_RUNTIME;
+  process.env.AGENT_DISABLE_LLM = "1";
+  process.env.AGENT_ORCHESTRATOR_RUNTIME = "langchain";
+  try {
+    const result = await runOrchestrationStep({
+      context: {
+        ...promptContext,
+        schedules: [{
+          id: 41,
+          status: "planned",
+          title: "完成核心链路验收",
+        }],
+        workbenchMode: "execute",
+      },
+      emitStatus: () => undefined,
+      emitToken: () => undefined,
+      message: "将日程 #41「另一个日程」标记为完成",
+      payload: {} as Payload,
+      pendingAction: null,
+      persistAgentTurn: async () =>
+        assert.fail("the LLM-unavailable guard must not persist a fabricated action"),
+      pushTrace: () => undefined,
+      tokenUsage,
+      trace: [],
+      user: { collection: "users", id: 7 },
+    });
+
+    assert.equal(result.outcome, "early_exit");
+    if (result.outcome !== "early_exit") return;
+    assert.equal(result.response.intent, "clarify");
+    assert.equal(result.response.pendingAction, null);
+  } finally {
+    if (previousDisabled === undefined) delete process.env.AGENT_DISABLE_LLM;
+    else process.env.AGENT_DISABLE_LLM = previousDisabled;
+    if (previousRuntime === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
+    else process.env.AGENT_ORCHESTRATOR_RUNTIME = previousRuntime;
+  }
+});
