@@ -1,4 +1,5 @@
 import { getPayloadClient } from "@/lib/payload/client";
+import { removePlanLink } from "@/lib/core-linkage/plan-links";
 
 import { recordAgentRollbackExecuted } from "./audit";
 import { parseRollbackPayload } from "./rollback-parse";
@@ -502,8 +503,7 @@ export const executeRollbackFromPayload = async (
       if (collection === "schedule-items") {
         const cleanup = (rollbackPayload as { planCleanup?: Array<{ planId: number; scheduleItemIds: number[] }> }).planCleanup;
         if (cleanup && cleanup.length > 0) {
-          const deleteSet = new Set(ids);
-          for (const { planId } of cleanup) {
+          for (const { planId, scheduleItemIds } of cleanup) {
             const plan = await (payload as unknown as {
               findByID: (args: { collection: string; id: number; overrideAccess: boolean; depth: number }) => Promise<{ linkedContent?: unknown } | null>;
             }).findByID({
@@ -514,15 +514,14 @@ export const executeRollbackFromPayload = async (
             });
             if (!plan) continue;
             const current = plan.linkedContent;
-            if (!Array.isArray(current)) continue;
-            const cleaned = current.filter(
-              (link: unknown) =>
-                !(
-                  (link as { relationTo?: string }).relationTo === "schedule-items" &&
-                  deleteSet.has((link as { value?: number }).value as number)
-                ),
+            const cleaned = scheduleItemIds.reduce(
+              (linkedContent, scheduleItemId) => removePlanLink(linkedContent, {
+                relationTo: "schedule-items",
+                value: scheduleItemId,
+              }),
+              current,
             );
-            if (cleaned.length !== current.length) {
+            if (JSON.stringify(cleaned) !== JSON.stringify(current)) {
               await (payload as unknown as {
                 update: (args: { collection: string; data: Record<string, unknown>; id: number; overrideAccess: boolean; depth: number }) => Promise<unknown>;
               }).update({

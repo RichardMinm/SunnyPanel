@@ -12,7 +12,7 @@ import {
 
 type LinkedContentItem = {
   relationTo: string;
-  value: number;
+  value: unknown;
 };
 
 const makePlanStub = (planId: number, linkedContent: LinkedContentItem[]) => {
@@ -112,6 +112,29 @@ test("rollback preserves unrelated schedule-items link", async () => {
     !linkedContent?.some((l) => l.relationTo === "schedule-items" && l.value === 801),
     "deleted schedule-item 801 should be removed",
   );
+});
+
+test("rollback removes populated schedule relations and preserves unrelated links", async () => {
+  const deletedIds: number[] = [];
+  const planStub = makePlanStub(99, [
+    { relationTo: "schedule-items", value: { id: 801, title: "待删除日程" } },
+    { relationTo: "schedule-items", value: { id: 999, title: "保留日程" } },
+    { relationTo: "checklists", value: { id: 12, title: "关联清单" } },
+  ]);
+
+  await executeRollbackFromPayload(
+    buildPayload([801], [{ planId: 99, scheduleItemIds: [801] }]),
+    {
+      payload: { ...planStub, ...makeDeleteMock(deletedIds) } as never,
+      persistAudit: false,
+    },
+  );
+
+  assert.deepEqual(planStub.getLinkedContent(99), [
+    { relationTo: "schedule-items", value: 999 },
+    { relationTo: "checklists", value: 12 },
+  ]);
+  assert.deepEqual(deletedIds, [801]);
 });
 
 test("batch cleanup removes all created schedule-item links", async () => {
