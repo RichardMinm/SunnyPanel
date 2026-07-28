@@ -1,6 +1,6 @@
 import type { Checklist, TimelineEvent } from "@/payload-types";
 import type { Payload } from "payload";
-import { commitTransaction, createLocalReq, initTransaction, killTransaction } from "payload";
+import { commitTransaction, createLocalReq, initTransaction } from "payload";
 
 import type { ScheduleRecordPatch } from "@/lib/agent/schemas";
 import { buildChecklistGroupsAndTimelineRollbackPayload } from "@/lib/agent/tools/checklist-rollback";
@@ -86,6 +86,60 @@ const messages: Record<FailureCode, string> = {
 const fail = (code: FailureCode): Failure => ({ code, ok: false, safeMessage: messages[code] });
 const isFailure = (value: unknown): value is Failure => Boolean(value && typeof value === "object" && (value as { ok?: unknown }).ok === false);
 
+type TransactionRequest = {
+  transactionID?: number | Promise<number | string> | string;
+};
+
+const rollbackScheduleCompletionTransaction = async (input: {
+  payload: Pick<Payload, "db">;
+  req: TransactionRequest;
+}): Promise<boolean> => {
+  const transactionID = input.req.transactionID;
+  try {
+    if (transactionID == null) return false;
+    await input.payload.db.rollbackTransaction(await transactionID);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    delete input.req.transactionID;
+  }
+};
+
+/**
+ * Finalizes a started Payload transaction without the generic helper that
+ * intentionally swallows rollback errors. This small seam keeps rollback
+ * failure observable to the typed Schedule result.
+ */
+export const runScheduleCompletionTransaction = async (input: {
+  commit: () => Promise<void>;
+  operation: () => Promise<ScheduleCompletionResult>;
+  payload: Pick<Payload, "db">;
+  req: TransactionRequest;
+}): Promise<ScheduleCompletionResult> => {
+  let result: ScheduleCompletionResult;
+  try {
+    result = await input.operation();
+  } catch {
+    await rollbackScheduleCompletionTransaction(input);
+    return fail("compensation_failed");
+  }
+
+  if (!result.ok) {
+    return await rollbackScheduleCompletionTransaction(input)
+      ? result
+      : fail("compensation_failed");
+  }
+
+  try {
+    await input.commit();
+    return result;
+  } catch {
+    await rollbackScheduleCompletionTransaction(input);
+    return fail("compensation_failed");
+  }
+};
+
 /**
  * Production Local-API boundary. It is deliberately inert until
  * `completeScheduleItem` invokes `runInTransaction`: direct CRUD calls cannot
@@ -124,35 +178,12 @@ export const createTransactionalScheduleCompletionPayload = (input: {
         update: (args) => input.payload.update(withReq(args) as never),
       };
 
-      try {
-        const result = await operation(transactionPayload);
-        if (!result.ok) {
-          try {
-            await killTransaction(req);
-          } catch {
-            return fail("compensation_failed");
-          }
-          return result;
-        }
-        try {
-          await commitTransaction(req);
-          return result;
-        } catch {
-          try {
-            await killTransaction(req);
-          } catch {
-            // Commit already failed; no raw driver error escapes this boundary.
-          }
-          return fail("compensation_failed");
-        }
-      } catch {
-        try {
-          await killTransaction(req);
-        } catch {
-          return fail("compensation_failed");
-        }
-        return fail("compensation_failed");
-      }
+      return runScheduleCompletionTransaction({
+        commit: () => commitTransaction(req),
+        operation: () => operation(transactionPayload),
+        payload: input.payload,
+        req,
+      });
     },
   };
 };

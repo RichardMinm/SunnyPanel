@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { completeScheduleItem, createTransactionalScheduleCompletionPayload, type ScheduleCompletionPayload } from "../../../src/lib/schedule/complete-schedule-item";
+import { completeScheduleItem, createTransactionalScheduleCompletionPayload, runScheduleCompletionTransaction, type ScheduleCompletionPayload } from "../../../src/lib/schedule/complete-schedule-item";
 
 const withTransaction = (payload: ScheduleCompletionPayload): ScheduleCompletionPayload => ({
   ...payload,
@@ -109,4 +109,23 @@ test("production transaction factory keeps outer CRUD inert until the runner sta
     /requires its transaction runner/u,
   );
   assert.equal(payloadOperations, 0);
+});
+
+test("a rollback exception converts a typed business failure into sanitized compensation_failed", async () => {
+  const req = { transactionID: Promise.resolve("schedule-completion-tx") };
+  const result = await runScheduleCompletionTransaction({
+    commit: async () => { throw new Error("commit must not run"); },
+    operation: async () => ({ code: "timeline_write_failed", ok: false as const, safeMessage: "safe business failure" }),
+    payload: {
+      db: {
+        rollbackTransaction: async () => { throw new Error("raw rollback failure"); },
+      },
+    } as never,
+    req: req as never,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "compensation_failed");
+  assert.equal(result.safeMessage.includes("raw rollback failure"), false);
+  assert.equal("transactionID" in req, false);
 });
