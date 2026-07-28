@@ -1,6 +1,7 @@
 import type { Checklist, TimelineEvent } from "@/payload-types";
 
 import { getPayloadClient } from "@/lib/payload/client";
+import { buildChecklistItemReferenceKey } from "@/lib/core-linkage/checklist-item-key";
 
 import {
   CHECKLIST_TIMELINE_SOURCE_TYPE,
@@ -120,6 +121,13 @@ export const resolveChecklistItem = async ({
       group: filtered[0]!.group,
       groupIndex: filtered[0]!.groupIndex,
       item: filtered[0]!.item,
+      itemReferenceKey:
+        filtered[0]!.item.id ??
+        buildChecklistItemReferenceKey({
+          groupIndex: filtered[0]!.groupIndex,
+          itemIndex: filtered[0]!.itemIndex,
+          title: filtered[0]!.item.title,
+        }),
       itemIndex: filtered[0]!.itemIndex,
     },
   };

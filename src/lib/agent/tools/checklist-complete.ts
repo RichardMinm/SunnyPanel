@@ -1,15 +1,18 @@
-import type { Checklist } from "@/payload-types";
+import type { Checklist, User } from "@/payload-types";
 
+import {
+  completeChecklistItemByKey,
+  type ChecklistCompletionPayload,
+} from "@/lib/core-linkage/checklist-completion";
 import { getPayloadClient } from "@/lib/payload/client";
 
+import { getCurrentAgentUserId } from "../execution-context";
 import type { AppendPlanItemArgs, CompletePlanItemArgs } from "../schemas";
 import { validateChecklistGroupsData } from "../write-schemas";
 import {
   cloneChecklistGroups,
-  findChecklistTimelineEvent,
   resolveChecklistGroupForAppend,
   resolveChecklistItem,
-  upsertChecklistTimelineEvent,
 } from "../checklist-resolvers";
 import {
   buildChecklistGroupsAndTimelineRollbackPayload,
@@ -23,6 +26,25 @@ import {
   type AgentExecutionTraceReporter,
   type AgentToolResult,
 } from "../tool-shared";
+
+const bindChecklistCompletionPayload = (
+  payload: Awaited<ReturnType<typeof getPayloadClient>>,
+): ChecklistCompletionPayload => {
+  const userId = getCurrentAgentUserId();
+  const user = typeof userId === "number" && Number.isInteger(userId) && userId > 0
+    ? ({ collection: "users", id: userId } as User)
+    : undefined;
+  const withUser = <T extends Record<string, unknown>>(args: T) =>
+    user ? { ...args, user } : args;
+
+  return {
+    create: (args) => payload.create(withUser(args) as never),
+    delete: (args) => payload.delete(withUser(args) as never),
+    find: (args) => payload.find(withUser(args) as never),
+    findByID: (args) => payload.findByID(withUser(args) as never),
+    update: (args) => payload.update(withUser(args) as never),
+  } as ChecklistCompletionPayload;
+};
 
 export const appendPlanItemFromIntent = async (
   args: AppendPlanItemArgs,
@@ -302,8 +324,14 @@ export const completePlanItemFromIntent = async (
     };
   }
 
-  const { checklist, group, groupIndex, item, itemIndex } = target.resolved;
-  const beforeGroups = cloneChecklistGroups(checklist.groups);
+  const {
+    checklist,
+    group,
+    groupIndex,
+    item,
+    itemIndex,
+    itemReferenceKey,
+  } = target.resolved;
   onTrace?.({
     detail: `${checklist.title} / ${group.title} / ${item.title}`,
     id: "tool-complete-item-found",
@@ -324,19 +352,10 @@ export const completePlanItemFromIntent = async (
     };
   }
 
-  const groups = cloneChecklistGroups(checklist.groups);
   const nextCompletedAt = args.completedAt ?? item.completedAt ?? new Date().toISOString();
   const nextCompletionNote = args.completionNote ?? item.completionNote ?? null;
 
-  groups[groupIndex]!.items![itemIndex] = {
-    ...groups[groupIndex]!.items![itemIndex]!,
-    completedAt: nextCompletedAt,
-    completionNote: nextCompletionNote,
-    isCompleted: true,
-  };
-
   const payload = await getPayloadClient();
-  const validatedGroups = validateChecklistGroupsData(groups);
   onTrace?.({
     detail: `完成时间：${nextCompletedAt}`,
     id: "tool-complete-item-write",
@@ -344,14 +363,31 @@ export const completePlanItemFromIntent = async (
     status: "running",
     title: "正在更新清单完成状态",
   });
-  const updatedChecklist = (await payload.update({
-    collection: "checklists",
-    data: {
-      groups: validatedGroups,
-    },
-    id: checklist.id,
-    overrideAccess: true,
-  })) as Checklist;
+  const completion = await completeChecklistItemByKey({
+    checklistId: checklist.id,
+    completedAt: nextCompletedAt,
+    completionNote: nextCompletionNote,
+    itemKey: itemReferenceKey,
+    payload: bindChecklistCompletionPayload(payload),
+  });
+
+  if (!completion.ok) {
+    onTrace?.({
+      detail: completion.safeMessage,
+      id: "tool-complete-item-failed",
+      kind: "error",
+      status: "error",
+      title: "清单完成联动未能安全写入",
+    });
+
+    return {
+      assistantMessage: completion.safeMessage,
+      pendingAction: null,
+      status: "failed",
+    };
+  }
+
+  const updatedChecklist = completion.checklist;
   const updatedGroup = updatedChecklist.groups?.[groupIndex];
   const updatedItem = updatedGroup?.items?.[itemIndex];
 
@@ -373,15 +409,7 @@ export const completePlanItemFromIntent = async (
     status: "running",
     title: "正在同步时间线节点",
   });
-  const previousTimelineEvent = await findChecklistTimelineEvent({
-    checklist,
-    item,
-  });
-  const timelineEvent = await upsertChecklistTimelineEvent({
-    checklist: updatedChecklist,
-    group: updatedGroup,
-    item: updatedItem,
-  });
+  const timelineEvent = completion.timelineEvent;
   onTrace?.({
     detail: timelineEvent ? `TimelineEvent #${timelineEvent.id}` : "没有生成可同步的时间线节点。",
     id: "tool-complete-item-timeline-done",
@@ -391,37 +419,25 @@ export const completePlanItemFromIntent = async (
   });
   const rollbackPayload = buildChecklistGroupsAndTimelineRollbackPayload(
     updatedChecklist.id,
-    beforeGroups,
-    previousTimelineEvent as null | Record<string, unknown>,
-    timelineEvent?.id ?? previousTimelineEvent?.id ?? null,
+    completion.beforeGroups,
+    completion.previousTimelineEvent as null | Record<string, unknown>,
+    timelineEvent.id,
+    {
+      planId: completion.planId,
+      planLinkChanged: completion.planLinkChanged,
+      planLinkedContent: completion.planLinkedContent,
+    },
   );
 
   await createAgentRun({
-    affectedDocuments: [
-      {
-        collection: "checklists",
-        documentId: updatedChecklist.id,
-        operation: "update",
-        visibility: updatedChecklist.visibility,
-      },
-      ...(timelineEvent
-        ? [
-            {
-              collection: "timeline-events",
-              documentId: timelineEvent.id,
-              operation: "update",
-              visibility: timelineEvent.visibility,
-            },
-          ]
-        : []),
-    ],
+    affectedDocuments: completion.affectedDocuments,
     afterSnapshot: {
       checklistId: updatedChecklist.id,
       completedAt: updatedItem.completedAt ?? null,
       completionNote: updatedItem.completionNote ?? null,
       isCompleted: updatedItem.isCompleted,
       itemId: updatedItem.id ?? null,
-      timelineEventId: timelineEvent?.id ?? null,
+      timelineEventId: timelineEvent.id,
     },
     beforeSnapshot: {
       checklistId: checklist.id,
@@ -435,15 +451,12 @@ export const completePlanItemFromIntent = async (
         relationTo: "checklists",
         value: updatedChecklist.id,
       },
-      ...(timelineEvent
-        ? [
-            {
-              relationTo: "timeline-events" as const,
-              value: timelineEvent.id,
-            },
-          ]
-        : []),
+      {
+        relationTo: "timeline-events" as const,
+        value: timelineEvent.id,
+      },
     ],
+    relatedPlan: completion.planId ?? undefined,
     rollbackAvailable: true,
     rollbackPayload,
     status: "succeeded",

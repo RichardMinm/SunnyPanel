@@ -1,5 +1,10 @@
 import { getPayloadClient } from "@/lib/payload/client";
 import { removePlanLink } from "@/lib/core-linkage/plan-links";
+import {
+  unlinkTimelineFromPlan,
+  type CoreLinkagePayload,
+} from "@/lib/core-linkage/service";
+import type { User } from "@/payload-types";
 
 import { recordAgentRollbackExecuted } from "./audit";
 import { parseRollbackPayload } from "./rollback-parse";
@@ -36,6 +41,24 @@ type RollbackExecutionOptions = {
   persistAudit?: boolean;
   recordAudit?: RollbackAuditRecorder;
   userId?: number;
+};
+
+const bindRollbackCoreLinkagePayload = (
+  payload: RollbackPayloadClient,
+  userId?: number,
+): CoreLinkagePayload => {
+  const user = typeof userId === "number" && Number.isInteger(userId) && userId > 0
+    ? ({ collection: "users", id: userId } as User)
+    : undefined;
+  const withUser = (args: unknown) =>
+    user && args && typeof args === "object" && !Array.isArray(args)
+      ? { ...(args as Record<string, unknown>), user }
+      : args;
+
+  return {
+    findByID: (args) => payload.findByID(withUser(args)) as never,
+    update: (args) => payload.update(withUser(args)),
+  };
 };
 
 const scheduleStatusValues = new Set(["canceled", "done", "planned", "skipped"]);
@@ -212,11 +235,12 @@ const pickTimelineSnapshotData = (snapshot: unknown) => {
     "description",
     "eventDate",
     "isFeatured",
-    "relatedArticle",
     "relatedChecklist",
-    "relatedNow",
     "relatedPlan",
+    "relatedPost",
+    "relatedScheduleItem",
     "relatedTaskKey",
+    "relatedUpdate",
     "sortOrder",
     "sourceType",
     "status",
@@ -686,22 +710,37 @@ export const executeRollbackFromPayload = async (
       throw new Error(`restore_checklist_groups_and_timeline 期望 checklists，收到：${collection}`);
     }
 
-    const snapshot = parsed.beforeSnapshot as { groups?: unknown; timelineEvent?: unknown } | undefined;
+    const snapshot = parsed.beforeSnapshot as {
+      groups?: unknown;
+      planLinkChanged?: unknown;
+      planLinkedContent?: unknown;
+      timelineEvent?: unknown;
+    } | undefined;
 
     if (!snapshot || !Array.isArray(snapshot.groups)) {
       throw new Error("restore_checklist_groups_and_timeline 缺少有效的 beforeSnapshot.groups。");
     }
 
-    await payload.update({
-      collection: "checklists",
-      data: { groups: snapshot.groups as never },
-      id: documentId,
-      overrideAccess: true,
-    });
-
     const timelineData = pickTimelineSnapshotData(snapshot.timelineEvent);
+    const affectedDocuments: RollbackAffectedDocument[] = [];
 
-    const affectedDocuments = [affectedDocument(collection, documentId, "update")];
+    if (snapshot.planLinkChanged === true) {
+      if (typeof planId !== "number" || typeof timelineEventId !== "number") {
+        throw new Error("restore_checklist_groups_and_timeline 缺少 Plan 联动回滚目标。");
+      }
+
+      const planUnlink = await unlinkTimelineFromPlan({
+        payload: bindRollbackCoreLinkagePayload(payload as RollbackPayloadClient, userId),
+        planId,
+        timelineEventId,
+      });
+      if (!planUnlink.ok) {
+        throw new Error(planUnlink.safeMessage);
+      }
+      if (planUnlink.changed) {
+        affectedDocuments.push(affectedDocument("plans", planId, "update"));
+      }
+    }
 
     if (timelineData && typeof (snapshot.timelineEvent as { id?: unknown }).id === "number") {
       await payload.update({
@@ -719,6 +758,15 @@ export const executeRollbackFromPayload = async (
       });
       affectedDocuments.push(affectedDocument("timeline-events", timelineEventId, "delete"));
     }
+
+    await payload.update({
+      collection: "checklists",
+      context: { skipChecklistTimelineSync: true },
+      data: { groups: snapshot.groups as never },
+      id: documentId,
+      overrideAccess: true,
+    });
+    affectedDocuments.push(affectedDocument(collection, documentId, "update"));
 
     const result = buildRollbackResult({
       affectedDocuments,

@@ -1,4 +1,5 @@
 import type { AgentIntent, AgentTraceStep } from "../schemas";
+import { buildChecklistItemReferenceKey } from "@/lib/core-linkage/checklist-item-key";
 import { createDefaultSessionState, normalizeSessionState } from "../session/normalize-session";
 import type { AgentSessionState } from "../session/types";
 import {
@@ -160,7 +161,11 @@ const extractSourceSlotsFromPlanning = (
         if (item.done === true || !isNonEmptyString(item.title)) return;
         tasks.push(taskFromTitle(item.title, {
           priority: item.priority ?? null,
-          sourceChecklistItemKey: `${groupIndex + 1}-${itemIndex + 1}-${normalizeText(item.title)}`,
+          sourceChecklistItemKey: buildChecklistItemReferenceKey({
+            groupIndex,
+            itemIndex,
+            title: item.title,
+          }),
           sourcePlanId: checklistDraft.sourcePlanId ?? planning?.sourcePlanId ?? null,
           sourceTaskTitle: item.stageTitle ?? group.title,
         }));

@@ -11,6 +11,7 @@ import {
   getPayloadStubOperations,
   resetPayloadStub,
   setPayloadStubCreateHandler,
+  setPayloadStubFindByIDHandler,
   setPayloadStubFindHandler,
   setPayloadStubUpdateHandler,
 } from "../../stubs/payload-client";
@@ -125,6 +126,21 @@ const setupPayload = ({
       docs: [],
       totalDocs: 0,
     };
+  });
+
+  setPayloadStubFindByIDHandler(async (input) => {
+    const args = input as { collection?: string; id?: number };
+
+    if (args.collection === "checklists") {
+      return checklists.find(
+        (document) =>
+          document != null &&
+          typeof document === "object" &&
+          (document as { id?: unknown }).id === args.id,
+      ) ?? null;
+    }
+
+    return null;
   });
 
   setPayloadStubCreateHandler(async (input) => {

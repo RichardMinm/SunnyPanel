@@ -14,11 +14,12 @@ const timelineSnapshotFields = [
   "eventDate",
   "id",
   "isFeatured",
-  "relatedArticle",
   "relatedChecklist",
-  "relatedNow",
   "relatedPlan",
+  "relatedPost",
+  "relatedScheduleItem",
   "relatedTaskKey",
+  "relatedUpdate",
   "sortOrder",
   "sourceType",
   "status",
@@ -33,10 +34,20 @@ const snapshotTimelineEvent = (timelineEvent: null | Record<string, unknown>) =>
   }
 
   const snapshot: Record<string, unknown> = {};
+  const nullableRelationFields = new Set([
+    "relatedChecklist",
+    "relatedPlan",
+    "relatedPost",
+    "relatedScheduleItem",
+    "relatedTaskKey",
+    "relatedUpdate",
+  ]);
 
   for (const field of timelineSnapshotFields) {
     if (field in timelineEvent) {
       snapshot[field] = timelineEvent[field];
+    } else if (nullableRelationFields.has(field)) {
+      snapshot[field] = null;
     }
   }
 
@@ -48,15 +59,27 @@ export const buildChecklistGroupsAndTimelineRollbackPayload = (
   groups: unknown,
   previousTimelineEvent: null | Record<string, unknown>,
   timelineEventId: null | number | undefined,
+  planLink?: {
+    planId: null | number;
+    planLinkChanged: boolean;
+    planLinkedContent: unknown;
+  },
 ) => ({
   beforeSnapshot: {
     groups,
+    ...(planLink
+      ? {
+          planLinkChanged: planLink.planLinkChanged,
+          planLinkedContent: planLink.planLinkedContent,
+        }
+      : {}),
     timelineEvent: snapshotTimelineEvent(previousTimelineEvent),
   },
   strategy: "restore_checklist_groups_and_timeline",
   target: {
     collection: "checklists",
     documentId,
+    ...(typeof planLink?.planId === "number" ? { planId: planLink.planId } : {}),
     ...(typeof timelineEventId === "number" ? { timelineEventId } : {}),
   },
 });
