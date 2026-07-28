@@ -3,7 +3,7 @@ import type { Checklist, TimelineEvent } from "@/payload-types";
 import type { ScheduleRecordPatch } from "@/lib/agent/schemas";
 import { buildChecklistGroupsAndTimelineRollbackPayload } from "@/lib/agent/tools/checklist-rollback";
 import { completeChecklistItemByKey, type ChecklistCompletionPayload } from "@/lib/core-linkage/checklist-completion";
-import { linkTimelineToPlan, unlinkTimelineFromPlan, type CoreLinkageActor, type CoreLinkagePayload } from "@/lib/core-linkage/service";
+import { linkTimelineToPlan, type CoreLinkageActor, type CoreLinkagePayload } from "@/lib/core-linkage/service";
 
 if (typeof window !== "undefined") {
   throw new Error("The Schedule completion service is server-only.");
@@ -17,7 +17,7 @@ type UpdateArgs = { collection: Collection; context?: Record<string, unknown>; d
 
 export type ScheduleCompletionPayload = {
   create: (args: { collection: "timeline-events"; data: Record<string, unknown>; overrideAccess: boolean }) => Promise<unknown>;
-  delete: (args: { collection: "timeline-events"; id: number; overrideAccess: boolean }) => Promise<unknown>;
+  delete: (args: { collection: "timeline-events"; id?: number; overrideAccess: boolean; where?: unknown }) => Promise<unknown>;
   find: (args: FindArgs) => Promise<{ docs: unknown[]; totalDocs: number }>;
   findByID: (args: FindByIDArgs) => Promise<unknown>;
   update: (args: UpdateArgs) => Promise<unknown>;
@@ -51,7 +51,7 @@ export type ScheduleCompletionResult = Failure | {
   changed: boolean;
   ok: true;
   rollbackPayload: {
-    beforeSnapshot: { checklistCompletion?: ReturnType<typeof buildChecklistGroupsAndTimelineRollbackPayload>; checklistGroups: null | NonNullable<Checklist["groups"]>; schedule: Record<string, unknown>; timelineEvent: null | Record<string, unknown> };
+    beforeSnapshot: { checklistCompletion?: ReturnType<typeof buildChecklistGroupsAndTimelineRollbackPayload>; checklistGroups: null | NonNullable<Checklist["groups"]>; schedule: Record<string, unknown>; schedulePlanLink?: { afterLinkedContent: unknown; beforeLinkedContent: unknown; changed: boolean; planId: number }; timelineEvent: null | Record<string, unknown> };
     strategy: "restore_schedule_completion";
     target: { checklistId: number | null; itemId: number; planId: number | null; timelineEventId: number };
   };
@@ -145,7 +145,7 @@ const conditionalUpdate = async (input: {
       overrideAccess: true,
       where: { and: [{ id: { equals: input.after.id } }, { updatedAt: { equals: updatedAt } }] },
     });
-    return Boolean(result && typeof result === "object" && (result as { totalDocs?: unknown }).totalDocs === 1);
+    return Boolean(result && typeof result === "object" && Array.isArray((result as { docs?: unknown }).docs) && (result as { docs: Array<{ id?: unknown }>; errors?: unknown[] }).docs.length === 1 && (result as { docs: Array<{ id?: unknown }>; errors?: unknown[] }).docs[0]?.id === input.after.id && (!(result as { errors?: unknown[] }).errors || (result as { errors?: unknown[] }).errors?.length === 0));
   } catch { return false; }
 };
 
@@ -155,11 +155,10 @@ const conditionalDelete = async (input: { after: TimelineEvent; payload: Schedul
   try {
     const result = await input.payload.delete({
       collection: "timeline-events",
-      id: input.after.id,
       overrideAccess: true,
       where: { and: [{ id: { equals: input.after.id } }, { updatedAt: { equals: updatedAt } }] },
-    } as never);
-    return Boolean(result && typeof result === "object" && (result as { totalDocs?: unknown }).totalDocs === 1);
+    });
+    return Boolean(result && typeof result === "object" && Array.isArray((result as { docs?: unknown }).docs) && (result as { docs: Array<{ id?: unknown }>; errors?: unknown[] }).docs.length === 1 && (result as { docs: Array<{ id?: unknown }>; errors?: unknown[] }).docs[0]?.id === input.after.id && (!(result as { errors?: unknown[] }).errors || (result as { errors?: unknown[] }).errors?.length === 0));
   } catch { return false; }
 };
 
@@ -280,6 +279,7 @@ export async function completeScheduleItem(input: {
   }
 
   let planLinkChanged = false;
+  let schedulePlanLink: { afterLinkedContent: unknown; beforeLinkedContent: unknown; changed: boolean; planId: number } | undefined;
   if (planId != null) {
     const linked = await linkTimelineToPlan({ payload: input.payload as unknown as CoreLinkagePayload, planId, timelineEventId: timelineEvent.id });
     if (!linked.ok) {
@@ -295,6 +295,7 @@ export async function completeScheduleItem(input: {
       return fail("timeline_write_failed");
     }
     planLinkChanged = linked.changed;
+    schedulePlanLink = { afterLinkedContent: linked.afterLinkedContent, beforeLinkedContent: linked.beforeLinkedContent, changed: linked.changed, planId };
   }
 
   let beforeGroups: null | NonNullable<Checklist["groups"]> = null;
@@ -303,23 +304,7 @@ export async function completeScheduleItem(input: {
   if (checklist && itemKey) {
     const completed = await completeChecklistItemByKey({ checklistId: checklist.id, completedAt: input.completedAt ?? new Date().toISOString(), itemKey, payload: input.payload as unknown as ChecklistCompletionPayload });
     if (!completed.ok) {
-      let compensated = true;
-      if (planId != null && planLinkChanged) {
-        const unlinked = await unlinkTimelineFromPlan({ payload: input.payload as unknown as CoreLinkagePayload, planId, timelineEventId: timelineEvent.id });
-        compensated = unlinked.ok;
-      }
-      const current = await readExact(input.payload, "timeline-events", timelineEvent.id);
-      if (isFailure(current) || !isTimeline(current) || !sameData(snapshotTimeline(current), timelineData)) compensated = false;
-      if (compensated) {
-        try {
-          if (timelineCreated) await input.payload.delete({ collection: "timeline-events", id: timelineEvent.id, overrideAccess: true });
-          else await input.payload.update({ collection: "timeline-events", data: snapshotTimeline(previousTimeline!), id: timelineEvent.id, overrideAccess: true });
-          const currentSchedule = await readExact(input.payload, "schedule-items", schedule.id);
-          if (isFailure(currentSchedule) || !isSchedule(currentSchedule) || !sameData(snapshotSchedule(currentSchedule), { ...beforeSchedule, ...scheduleData })) compensated = false;
-          else await input.payload.update({ collection: "schedule-items", data: beforeSchedule, id: schedule.id, overrideAccess: true });
-        } catch { compensated = false; }
-      }
-      return compensated ? fail("checklist_completion_failed") : fail("compensation_failed");
+      return fail("compensation_failed");
     }
     beforeGroups = completed.beforeGroups;
     checklistCompletion = buildChecklistGroupsAndTimelineRollbackPayload(
@@ -340,5 +325,5 @@ export async function completeScheduleItem(input: {
   const dedupedAffectedDocuments = [...affectedDocuments, ...checklistAffectedDocuments].filter((document, index, documents) =>
     documents.findIndex((candidate) => candidate.collection === document.collection && candidate.documentId === document.documentId && candidate.operation === document.operation) === index,
   );
-  return { affectedDocuments: dedupedAffectedDocuments, changed: true, ok: true, rollbackPayload: { beforeSnapshot: { ...(checklistCompletion ? { checklistCompletion } : {}), checklistGroups: beforeGroups, schedule: beforeSchedule, timelineEvent: previousTimeline ? snapshotTimeline(previousTimeline) : null }, strategy: "restore_schedule_completion", target: { checklistId, itemId: input.itemId, planId, timelineEventId: timelineEvent.id } }, schedule: updatedSchedule, timelineEvent };
+  return { affectedDocuments: dedupedAffectedDocuments, changed: true, ok: true, rollbackPayload: { beforeSnapshot: { ...(checklistCompletion ? { checklistCompletion } : {}), checklistGroups: beforeGroups, schedule: beforeSchedule, ...(schedulePlanLink ? { schedulePlanLink } : {}), timelineEvent: previousTimeline ? snapshotTimeline(previousTimeline) : null }, strategy: "restore_schedule_completion", target: { checklistId, itemId: input.itemId, planId, timelineEventId: timelineEvent.id } }, schedule: updatedSchedule, timelineEvent };
 }
