@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
 import { buildPlansByIdMap, resolveChecklistPlanId } from "@/components/dashboard/agent/utils";
+import { executeAtomicScheduleStatusUpdate } from "@/lib/schedule/atomic-schedule-status-update";
 import { createScheduleStatusHandler, type ScheduleStatusDependencies } from "@/lib/schedule/schedule-status-handler";
 import {
   completeScheduleItem,
@@ -10,11 +11,11 @@ import {
 } from "@/lib/schedule/complete-schedule-item";
 
 const scheduleStatusDependencies: ScheduleStatusDependencies = {
-  atomicUpdateStatus: async ({ data, payload, user, where }) => (payload as Awaited<ReturnType<typeof getPayloadClient>>).db.updateOne({
-    collection: "schedule-items",
-    data: { ...data, updatedAt: new Date().toISOString() },
-    req: { user: user as never },
-    where,
+  atomicUpdateStatus: ({ data, itemId, payload }) => executeAtomicScheduleStatusUpdate({
+    adapter: payload as unknown as Parameters<typeof executeAtomicScheduleStatusUpdate>[0]["adapter"],
+    itemId,
+    status: data.status,
+    updatedAt: new Date().toISOString(),
   }),
   completeScheduleItem: (input) => completeScheduleItem({
     ...input,
