@@ -1,6 +1,7 @@
 import type { Checklist, TimelineEvent } from "@/payload-types";
 
 import type { ScheduleRecordPatch } from "@/lib/agent/schemas";
+import { buildChecklistGroupsAndTimelineRollbackPayload } from "@/lib/agent/tools/checklist-rollback";
 import { completeChecklistItemByKey, type ChecklistCompletionPayload } from "@/lib/core-linkage/checklist-completion";
 import { linkTimelineToPlan, unlinkTimelineFromPlan, type CoreLinkageActor, type CoreLinkagePayload } from "@/lib/core-linkage/service";
 
@@ -12,7 +13,7 @@ type Collection = "checklists" | "plans" | "schedule-items" | "timeline-events";
 
 type FindByIDArgs = { collection: Collection; depth: 0; id: number; overrideAccess: boolean };
 type FindArgs = { collection: "timeline-events"; depth: 0; limit: number; overrideAccess: boolean; pagination: false; where: unknown };
-type UpdateArgs = { collection: Collection; context?: Record<string, unknown>; data: Record<string, unknown>; depth?: 0; id: number; overrideAccess: boolean };
+type UpdateArgs = { collection: Collection; context?: Record<string, unknown>; data: Record<string, unknown>; depth?: 0; id?: number; overrideAccess: boolean; where?: unknown };
 
 export type ScheduleCompletionPayload = {
   create: (args: { collection: "timeline-events"; data: Record<string, unknown>; overrideAccess: boolean }) => Promise<unknown>;
@@ -50,7 +51,7 @@ export type ScheduleCompletionResult = Failure | {
   changed: boolean;
   ok: true;
   rollbackPayload: {
-    beforeSnapshot: { checklistGroups: null | NonNullable<Checklist["groups"]>; schedule: Record<string, unknown>; timelineEvent: null | Record<string, unknown> };
+    beforeSnapshot: { checklistCompletion?: ReturnType<typeof buildChecklistGroupsAndTimelineRollbackPayload>; checklistGroups: null | NonNullable<Checklist["groups"]>; schedule: Record<string, unknown>; timelineEvent: null | Record<string, unknown> };
     strategy: "restore_schedule_completion";
     target: { checklistId: number | null; itemId: number; planId: number | null; timelineEventId: number };
   };
@@ -124,6 +125,44 @@ const sameData = (left: Record<string, unknown>, right: Record<string, unknown>)
   return [...names].every((name) => JSON.stringify(left[name]) === JSON.stringify(right[name]));
 };
 
+const planHasTimelineLink = (plan: Record<string, unknown> | null, timelineEventId: number) =>
+  Array.isArray(plan?.linkedContent) && plan.linkedContent.some((link) =>
+    link && typeof link === "object" && (link as { relationTo?: unknown }).relationTo === "timeline-events" && relationId((link as { value?: unknown }).value) === timelineEventId,
+  );
+
+const conditionalUpdate = async (input: {
+  after: Record<string, unknown>;
+  before: Record<string, unknown>;
+  collection: Collection;
+  payload: ScheduleCompletionPayload;
+}) => {
+  const updatedAt = input.after.updatedAt;
+  if (typeof updatedAt !== "string" || !isId(input.after.id)) return false;
+  try {
+    const result = await input.payload.update({
+      collection: input.collection,
+      data: input.before,
+      overrideAccess: true,
+      where: { and: [{ id: { equals: input.after.id } }, { updatedAt: { equals: updatedAt } }] },
+    });
+    return Boolean(result && typeof result === "object" && (result as { totalDocs?: unknown }).totalDocs === 1);
+  } catch { return false; }
+};
+
+const conditionalDelete = async (input: { after: TimelineEvent; payload: ScheduleCompletionPayload }) => {
+  const updatedAt = input.after.updatedAt;
+  if (typeof updatedAt !== "string") return false;
+  try {
+    const result = await input.payload.delete({
+      collection: "timeline-events",
+      id: input.after.id,
+      overrideAccess: true,
+      where: { and: [{ id: { equals: input.after.id } }, { updatedAt: { equals: updatedAt } }] },
+    } as never);
+    return Boolean(result && typeof result === "object" && (result as { totalDocs?: unknown }).totalDocs === 1);
+  } catch { return false; }
+};
+
 export async function completeScheduleItem(input: {
   actor: CoreLinkageActor;
   additionalPatch?: Omit<ScheduleRecordPatch, "status">;
@@ -145,6 +184,7 @@ export async function completeScheduleItem(input: {
   const previousTimeline = await exactTimeline(input.payload, input.itemId);
   if (isFailure(previousTimeline)) return previousTimeline;
   const schedulePlanId = relationId(schedule.relatedPlan);
+  let planDocument: Record<string, unknown> | null = null;
   let checklist: Checklist | null = null;
   let checklistPlanId: number | null = null;
   if (checklistId != null && itemKey != null) {
@@ -156,14 +196,35 @@ export async function completeScheduleItem(input: {
   if (schedulePlanId != null) {
     const plan = await readExact(input.payload, "plans", schedulePlanId);
     if (isFailure(plan)) return plan;
+    planDocument = plan;
   }
   if (checklistPlanId != null) {
     const plan = await readExact(input.payload, "plans", checklistPlanId);
     if (isFailure(plan)) return plan;
+    planDocument = plan;
   }
   if (schedulePlanId != null && checklistPlanId != null && schedulePlanId !== checklistPlanId) return fail("invalid_reference");
   const planId = schedulePlanId ?? checklistPlanId;
-  const alreadyComplete = schedule.status === "done" && previousTimeline != null && (!checklist || checklistItemIsDone(checklist, itemKey!));
+  const eventDate = input.completedAt ?? (previousTimeline?.sourceType === "schedule" && typeof previousTimeline.eventDate === "string" ? previousTimeline.eventDate : new Date().toISOString());
+  const desiredTimelineData = {
+    description: `完成日程：${schedule.title}`,
+    eventDate,
+    isFeatured: false,
+    relatedChecklist: checklistId,
+    relatedPlan: planId,
+    relatedPost: relationId(previousTimeline?.relatedPost),
+    relatedScheduleItem: schedule.id,
+    relatedTaskKey: null,
+    relatedUpdate: relationId(previousTimeline?.relatedUpdate),
+    sortOrder: 0,
+    sourceType: "schedule",
+    status: "published",
+    title: `完成日程：${schedule.title}`,
+    type: "project",
+    visibility: "private",
+  };
+  const scheduleMatches = schedule.status === "done" && Object.entries(input.additionalPatch ?? {}).every(([key, value]) => schedule[key] === value);
+  const alreadyComplete = scheduleMatches && previousTimeline != null && sameData(snapshotTimeline(previousTimeline), desiredTimelineData) && (!checklist || checklistItemIsDone(checklist, itemKey!)) && (planId == null || planHasTimelineLink(planDocument, previousTimeline!.id));
   if (alreadyComplete) {
     return { affectedDocuments: [], changed: false, ok: true, rollbackPayload: { beforeSnapshot: { checklistGroups: checklist?.groups ?? null, schedule: snapshotSchedule(schedule), timelineEvent: previousTimeline ? snapshotTimeline(previousTimeline) : null }, strategy: "restore_schedule_completion", target: { checklistId, itemId: input.itemId, planId, timelineEventId: previousTimeline.id } }, schedule, timelineEvent: previousTimeline! };
   }
@@ -185,7 +246,7 @@ export async function completeScheduleItem(input: {
 
   const timelineData = {
     description: `完成日程：${updatedSchedule.title}`,
-    eventDate: input.completedAt ?? new Date().toISOString(),
+    eventDate,
     isFeatured: false,
     relatedChecklist: checklistId,
     relatedPlan: planId,
@@ -209,29 +270,36 @@ export async function completeScheduleItem(input: {
     if (!isTimeline(written)) throw new Error("invalid timeline response");
     timelineEvent = written;
   } catch {
-    try {
-      await input.payload.update({ collection: "schedule-items", data: beforeSchedule, id: schedule.id, overrideAccess: true });
-    } catch { return fail("compensation_failed"); }
-    return fail("timeline_write_failed");
+    const reconciled = await exactTimeline(input.payload, updatedSchedule.id);
+    if (isTimeline(reconciled) && sameData(snapshotTimeline(reconciled), timelineData)) {
+      timelineEvent = reconciled;
+    } else {
+      const restored = await conditionalUpdate({ after: updatedSchedule, before: beforeSchedule, collection: "schedule-items", payload: input.payload });
+      return restored ? fail("timeline_write_failed") : fail("compensation_failed");
+    }
   }
 
   let planLinkChanged = false;
   if (planId != null) {
     const linked = await linkTimelineToPlan({ payload: input.payload as unknown as CoreLinkagePayload, planId, timelineEventId: timelineEvent.id });
     if (!linked.ok) {
+      if (linked.code === "compensation_failed") return fail("compensation_failed");
       const current = await readExact(input.payload, "timeline-events", timelineEvent.id);
       if (isFailure(current) || !isTimeline(current) || !sameData(snapshotTimeline(current), timelineData)) return fail("compensation_failed");
-      try {
-        if (timelineCreated) await input.payload.delete({ collection: "timeline-events", id: timelineEvent.id, overrideAccess: true });
-        else await input.payload.update({ collection: "timeline-events", data: snapshotTimeline(previousTimeline!), id: timelineEvent.id, overrideAccess: true });
-        await input.payload.update({ collection: "schedule-items", data: beforeSchedule, id: schedule.id, overrideAccess: true });
-      } catch { return fail("compensation_failed"); }
+      const timelineRestored = timelineCreated
+        ? await conditionalDelete({ after: timelineEvent, payload: input.payload })
+        : await conditionalUpdate({ after: timelineEvent as unknown as Record<string, unknown>, before: snapshotTimeline(previousTimeline!), collection: "timeline-events", payload: input.payload });
+      if (!timelineRestored) return fail("compensation_failed");
+      const scheduleRestored = await conditionalUpdate({ after: updatedSchedule, before: beforeSchedule, collection: "schedule-items", payload: input.payload });
+      if (!scheduleRestored) return fail("compensation_failed");
       return fail("timeline_write_failed");
     }
     planLinkChanged = linked.changed;
   }
 
   let beforeGroups: null | NonNullable<Checklist["groups"]> = null;
+  let checklistCompletion: ReturnType<typeof buildChecklistGroupsAndTimelineRollbackPayload> | undefined;
+  let checklistAffectedDocuments: AffectedDocument[] = [];
   if (checklist && itemKey) {
     const completed = await completeChecklistItemByKey({ checklistId: checklist.id, completedAt: input.completedAt ?? new Date().toISOString(), itemKey, payload: input.payload as unknown as ChecklistCompletionPayload });
     if (!completed.ok) {
@@ -254,6 +322,14 @@ export async function completeScheduleItem(input: {
       return compensated ? fail("checklist_completion_failed") : fail("compensation_failed");
     }
     beforeGroups = completed.beforeGroups;
+    checklistCompletion = buildChecklistGroupsAndTimelineRollbackPayload(
+      checklist.id,
+      completed.beforeGroups,
+      completed.previousTimelineEvent as unknown as null | Record<string, unknown>,
+      completed.timelineEvent.id,
+      { planId: completed.planId, planLinkChanged: completed.planLinkChanged, planLinkedContent: completed.planLinkedContent },
+    );
+    checklistAffectedDocuments = completed.affectedDocuments.map((document) => ({ ...document }));
   }
 
   const affectedDocuments: AffectedDocument[] = [
@@ -261,6 +337,8 @@ export async function completeScheduleItem(input: {
     { collection: "timeline-events", documentId: timelineEvent.id, operation: timelineCreated ? "create" : "update", visibility: timelineEvent.visibility },
   ];
   if (planId != null) affectedDocuments.push({ collection: "plans", documentId: planId, operation: "update", visibility: "unknown" });
-  if (checklist) affectedDocuments.push({ collection: "checklists", documentId: checklist.id, operation: "update", visibility: checklist.visibility });
-  return { affectedDocuments, changed: true, ok: true, rollbackPayload: { beforeSnapshot: { checklistGroups: beforeGroups, schedule: beforeSchedule, timelineEvent: previousTimeline ? snapshotTimeline(previousTimeline) : null }, strategy: "restore_schedule_completion", target: { checklistId, itemId: input.itemId, planId, timelineEventId: timelineEvent.id } }, schedule: updatedSchedule, timelineEvent };
+  const dedupedAffectedDocuments = [...affectedDocuments, ...checklistAffectedDocuments].filter((document, index, documents) =>
+    documents.findIndex((candidate) => candidate.collection === document.collection && candidate.documentId === document.documentId && candidate.operation === document.operation) === index,
+  );
+  return { affectedDocuments: dedupedAffectedDocuments, changed: true, ok: true, rollbackPayload: { beforeSnapshot: { ...(checklistCompletion ? { checklistCompletion } : {}), checklistGroups: beforeGroups, schedule: beforeSchedule, timelineEvent: previousTimeline ? snapshotTimeline(previousTimeline) : null }, strategy: "restore_schedule_completion", target: { checklistId, itemId: input.itemId, planId, timelineEventId: timelineEvent.id } }, schedule: updatedSchedule, timelineEvent };
 }

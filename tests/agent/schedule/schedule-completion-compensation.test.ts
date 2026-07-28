@@ -13,7 +13,7 @@ test("returns a full rollback payload with sanitized affected documents", async 
     findByID: async ({ collection, id }) => collection === "schedule-items" && id === 701 ? schedule : null,
     update: async ({ collection, data, id }) => {
       if (collection === "schedule-items") Object.assign(schedule, data);
-      if (collection === "timeline-events" && event?.id === id) Object.assign(event, data);
+      if (collection === "timeline-events" && event?.id === id && event) Object.assign(event, data);
       return collection === "schedule-items" ? schedule : event;
     },
   };

@@ -99,6 +99,10 @@ test("completes the exact linked Checklist item and derives its Plan", async () 
   assert.equal(state.events[0]?.relatedScheduleItem, 701);
   assert.equal(state.events[0]?.relatedPlan, 77);
   assert.equal((state.plan.linkedContent as Array<{ relationTo: string; value: number }>).filter((link) => link.value === 801).length, 1);
+  if (!result.ok) return;
+  assert.equal(result.rollbackPayload.beforeSnapshot.checklistCompletion?.strategy, "restore_checklist_groups_and_timeline");
+  assert.equal(result.rollbackPayload.beforeSnapshot.checklistCompletion?.target.timelineEventId, 802);
+  assert.equal(result.affectedDocuments.filter((document) => document.collection === "timeline-events").length, 2);
 });
 
 test("uses a valid Schedule Plan only when it does not conflict with the Checklist Plan", async () => {
@@ -142,6 +146,18 @@ test("uses only the exact Schedule Timeline uniqueness query and is idempotent",
   assert.equal(state.events.length, 1);
   const eventQuery = operations.find((operation) => operation.collection === "timeline-events" && operation.type === "find");
   assert.deepEqual(eventQuery?.where, { relatedScheduleItem: { equals: 701 } });
+});
+
+test("does not call a mismatched event, patch, or missing Plan link idempotent", async () => {
+  state.schedule = schedule({ relatedPlan: 77, status: "done" });
+  state.events = [{ eventDate: "2026-07-01T00:00:00.000Z", id: 801, relatedPlan: 77, relatedScheduleItem: 701, sourceType: "schedule", status: "published", title: "旧完成记录", visibility: "private" }];
+
+  const result = await complete({ additionalPatch: { title: "新标题" }, completedAt: "2026-07-28T09:30:00.000Z" });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.changed, true);
+  assert.equal(state.schedule.title, "新标题");
+  assert.equal((state.plan.linkedContent as unknown[]).length > 0, true);
 });
 
 test("rejects invalid actors before every Payload operation", async () => {
