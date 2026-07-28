@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
+import { AppButton } from "@/components/primitives/AppButton";
 import { AppEmptyState } from "@/components/primitives/AppEmptyState";
 import { DashboardIcon } from "../icons";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
@@ -169,6 +170,9 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
   const [error, setError] = useState<null | string>(null);
   const [selectedDate, setSelectedDate] = useState<string>(todayKey);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [completionPendingId, setCompletionPendingId] = useState<number | null>(null);
+  const [completionError, setCompletionError] = useState<null | string>(null);
+  const completionRequestRef = useRef<number | null>(null);
 
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
 
@@ -247,6 +251,37 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
       if (nextMonth > 12) { setYear((y) => y + 1); return 1; }
       return nextMonth;
     });
+  };
+
+  const completeScheduleItem = async (itemId: number) => {
+    if (completionRequestRef.current !== null) return;
+    completionRequestRef.current = itemId;
+    setCompletionPendingId(itemId);
+    setCompletionError(null);
+
+    try {
+      const response = await fetch("/api/agent/schedule", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: itemId, status: "done" }),
+      });
+      const data = await response.json().catch(() => null) as { item?: { id?: unknown; status?: unknown } } | null;
+      const completedItem = data?.item;
+      if (!response.ok || typeof completedItem?.id !== "number" || typeof completedItem.status !== "string") {
+        throw new Error("schedule completion failed");
+      }
+      const completedItemId = completedItem.id;
+      const completedStatus = completedItem.status;
+
+      setItems((currentItems) => currentItems.map((currentItem) =>
+        currentItem.id === completedItemId ? { ...currentItem, status: completedStatus } : currentItem,
+      ));
+    } catch {
+      setCompletionError("完成失败，请重试");
+    } finally {
+      completionRequestRef.current = null;
+      setCompletionPendingId(null);
+    }
   };
 
   /* ── Calendar Helpers ── */
@@ -363,6 +398,7 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
                 {selectedItems.length > 0 ? `${selectedItems.length} 项` : "暂无安排"}
               </span>
             </div>
+            {completionError && <p className="sunny-schedule-empty-day" role="alert">{completionError}</p>}
 
             <AnimatePresence mode="wait">
               <motion.div
@@ -464,13 +500,15 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
                               )}
                               <div className="sunny-schedule-timeline-card-actions">
                                 {item.status !== "done" && (
-                                  <button
-                                    type="button"
+                                  <AppButton
                                     className="sunny-schedule-timeline-action-btn is-complete"
-                                    onClick={(e) => { e.stopPropagation(); }}
+                                    loading={completionPendingId === item.id}
+                                    onClick={(e) => { e.stopPropagation(); void completeScheduleItem(item.id); }}
+                                    size="sm"
+                                    variant="secondary"
                                   >
                                     完成
-                                  </button>
+                                  </AppButton>
                                 )}
                                 <button
                                   type="button"

@@ -133,6 +133,16 @@ test("ScheduleMonthView source: linkage fields are rendered in expanded card", (
   assert.ok(source.includes("冲突备注"), "must show 冲突备注 label");
 });
 
+test("ScheduleMonthView source: completion uses the shared button and keeps the view retryable", () => {
+  const source = read("src/components/dashboard/schedule/ScheduleMonthView.tsx");
+
+  assert.ok(source.includes("AppButton"), "completion must reuse AppButton");
+  assert.ok(source.includes('method: "PUT"'), "completion must use the status endpoint");
+  assert.ok(source.includes("completionPendingId"), "duplicate completion clicks must be prevented while pending");
+  assert.ok(source.includes("setItems"), "successful completion must update the current view");
+  assert.ok(source.includes("完成失败，请重试"), "failures must provide a bounded retryable error");
+});
+
 /* ── Schedule API route: linkage resolution in GET handler ── */
 
 test("schedule API route source: resolves relatedPlan and relatedChecklist", () => {
