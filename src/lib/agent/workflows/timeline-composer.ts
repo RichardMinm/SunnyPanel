@@ -26,6 +26,7 @@ export type TimelineEventProposal = {
   relatedContentLabel: string;
   relatedFields: {
     relatedChecklist?: number;
+    relatedPlan?: number;
     relatedPost?: number;
     relatedTaskKey?: string;
     relatedUpdate?: number;
@@ -48,6 +49,9 @@ const sourceTypeLabelMap: Record<TimelineComposerSourceType, string> = {
 
 const normalizeText = (value: null | string | undefined) => value?.trim().replace(/\s+/g, " ") ?? "";
 
+const isPersistedId = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+
 const compactText = (value: string, maxLength: number) =>
   value.length <= maxLength ? value : `${value.slice(0, maxLength).trimEnd()}...`;
 
@@ -62,12 +66,16 @@ const parseDate = (value?: null | string) => {
 };
 
 export const isTimelineComposerSourceAmbiguous = (args: ComposeTimelineEventArgs) => {
-  if (normalizeText(args.sourceText)) {
-    return false;
+  if (args.sourceType === "plan") {
+    return !isPersistedId(args.sourceId);
   }
 
   if (args.sourceType === "checklist_item") {
-    return !normalizeText(args.checklistTitle) || !normalizeText(args.itemTitle);
+    return !isPersistedId(args.sourceId) || !normalizeText(args.relatedTaskKey);
+  }
+
+  if (normalizeText(args.sourceText)) {
+    return false;
   }
 
   return !args.sourceId && !normalizeText(args.sourceTitle);
@@ -175,6 +183,12 @@ const buildRelatedFields = (args: ComposeTimelineEventArgs, sourceType: Timeline
     return {
       relatedChecklist: sourceId,
       ...(args.relatedTaskKey ? { relatedTaskKey: args.relatedTaskKey } : {}),
+    };
+  }
+
+  if (sourceType === "plan") {
+    return {
+      relatedPlan: sourceId,
     };
   }
 

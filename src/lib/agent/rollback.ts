@@ -1379,14 +1379,57 @@ export const executeRollbackFromPayload = async (
       throw new Error(`delete_created_timeline_event 期望 timeline-events，收到：${collection}`);
     }
 
+    const affectedDocuments: RollbackAffectedDocument[] = [];
+    if (typeof planId === "number") {
+      if (!isTrustedUserId(userId)) {
+        throw new RollbackExecutionError(
+          "The related resource is not available to this operation.",
+          "zero_effect",
+        );
+      }
+      if (
+        typeof timelineEventId !== "number" ||
+        timelineEventId !== documentId
+      ) {
+        throw new RollbackExecutionError(
+          "Timeline rollback target does not match its Plan link.",
+          "zero_effect",
+        );
+      }
+
+      const trustedPayload = bindRollbackPayloadToUser(
+        payload as RollbackPayloadClient,
+        userId,
+      );
+      const planUnlink = await unlinkTimelineFromPlan({
+        payload: trustedPayload as CoreLinkagePayload,
+        planId,
+        timelineEventId,
+      });
+      if (!planUnlink.ok) {
+        throw new RollbackExecutionError(
+          planUnlink.safeMessage,
+          planUnlink.code === "compensation_failed"
+            ? "indeterminate"
+            : "zero_effect",
+        );
+      }
+      if (planUnlink.changed) {
+        affectedDocuments.push(affectedDocument("plans", planId, "update"));
+      }
+    }
+
     await payload.delete({
       collection: "timeline-events",
       id: documentId,
       overrideAccess: true,
     });
+    affectedDocuments.push(
+      affectedDocument(collection, documentId, "delete"),
+    );
 
     const result = buildRollbackResult({
-      affectedDocuments: [affectedDocument(collection, documentId, "delete")],
+      affectedDocuments,
       collection,
       documentId,
       strategy: parsed.strategy,
