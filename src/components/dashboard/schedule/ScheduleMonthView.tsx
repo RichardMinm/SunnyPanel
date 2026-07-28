@@ -7,31 +7,13 @@ import { AppButton } from "@/components/primitives/AppButton";
 import { AppEmptyState } from "@/components/primitives/AppEmptyState";
 import {
   findExactNavigationTarget,
+  LinkedObjectList,
   useLinkedObjectFocus,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
+import type { ScheduleViewSummary } from "@/lib/core-linkage/contracts";
 import { DashboardIcon } from "../icons";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
-
-/* ── Types ── */
-
-type ScheduleItemSummary = {
-  id: number;
-  title: string;
-  date: string;
-  startTime: null | string;
-  endTime: null | string;
-  status: string;
-  priority: string;
-  sourceType: string;
-  category?: null | string;
-  planId: null | number;
-  description: null | string;
-  relatedPlan?: { id: number; title: string } | null;
-  relatedChecklist?: { id: number; title: string } | null;
-  relatedChecklistItemKey?: string | null;
-  conflictNote?: string | null;
-};
 
 type ScheduleMonthViewProps = {
   navigationGeneration?: number;
@@ -102,7 +84,7 @@ function formatAgendaDateLabel(dateKey: string): string {
   return `${y}年${m}月${d}日 · ${weekday}`;
 }
 
-function sortScheduleItems(items: ScheduleItemSummary[]): ScheduleItemSummary[] {
+function sortScheduleItems(items: ScheduleViewSummary[]): ScheduleViewSummary[] {
   return [...items].sort((a, b) => {
     if (!a.startTime && !b.startTime) return a.title.localeCompare(b.title, "zh-CN");
     if (!a.startTime) return 1;
@@ -111,30 +93,30 @@ function sortScheduleItems(items: ScheduleItemSummary[]): ScheduleItemSummary[] 
   });
 }
 
-function statusLabel(status: string): string {
+function statusLabel(status: string | null): string {
   if (status === "done") return "已完成";
   if (status === "canceled") return "已取消";
   if (status === "skipped") return "已跳过";
   return "计划中";
 }
 
-function statusPillClass(status: string): string {
+function statusPillClass(status: string | null): string {
   if (status === "done") return "is-done";
   if (status === "canceled" || status === "skipped") return "is-canceled";
   return "is-planned";
 }
 
-function formatTimeRange(item: ScheduleItemSummary): string {
+function formatTimeRange(item: ScheduleViewSummary): string {
   if (!item.startTime) return "全天";
   return item.endTime ? `${item.startTime} – ${item.endTime}` : item.startTime;
 }
 
-function formatStartTime(item: ScheduleItemSummary): string {
+function formatStartTime(item: ScheduleViewSummary): string {
   if (!item.startTime) return "—";
   return item.startTime.slice(0, 5);
 }
 
-function formatDuration(item: ScheduleItemSummary): string {
+function formatDuration(item: ScheduleViewSummary): string {
   if (!item.startTime || !item.endTime) return "";
   const [sh, sm] = item.startTime.split(":").map(Number);
   const [eh, em] = item.endTime.split(":").map(Number);
@@ -152,7 +134,7 @@ function pickDefaultDateForMonth(days: Date[], todayKey: string, targetMonth: nu
   return firstInMonth ? formatDateKey(firstInMonth) : formatDateKey(days[0]);
 }
 
-function inferCategory(item: ScheduleItemSummary): ScheduleCategory {
+function inferCategory(item: ScheduleViewSummary): ScheduleCategory {
   if (item.category && item.category in CATEGORY_LABELS) {
     return item.category as ScheduleCategory;
   }
@@ -185,7 +167,7 @@ export function ScheduleMonthView({
   const [month, setMonth] = useState(
     navigationTarget ? Number(navigationTarget.date.slice(5, 7)) : now.getMonth() + 1,
   );
-  const [items, setItems] = useState<ScheduleItemSummary[]>([]);
+  const [items, setItems] = useState<ScheduleViewSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<null | string>(null);
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -225,7 +207,7 @@ export function ScheduleMonthView({
         }
         return res.json();
       })
-      .then((data: { items: ScheduleItemSummary[] }) => {
+      .then((data: { items: ScheduleViewSummary[] }) => {
         if (!cancelled) setItems(data.items ?? []);
       })
       .catch((err) => {
@@ -253,7 +235,7 @@ export function ScheduleMonthView({
   }, [days, month, selectedDate, todayKey]);
 
   const itemsByDate = useMemo(() => {
-    const map = new Map<string, ScheduleItemSummary[]>();
+    const map = new Map<string, ScheduleViewSummary[]>();
     for (const item of items) {
       const dateKey = typeof item.date === "string" ? item.date.slice(0, 10) : String(item.date ?? "").slice(0, 10);
       const list = map.get(dateKey) ?? [];
@@ -514,41 +496,49 @@ export function ScheduleMonthView({
                         <span className="sunny-schedule-timeline-time">
                           {formatStartTime(item)}
                         </span>
-                        <button
-                          aria-expanded={isExpanded}
-                          type="button"
+                        <div
                           className={`sunny-schedule-timeline-card${isExpanded ? " is-expanded" : ""}${item.status === "done" ? " is-done" : ""}${item.status === "canceled" || item.status === "skipped" ? " is-canceled" : ""}`}
-                          onClick={() =>
-                            setExpandedId(isExpanded ? null : item.id)
-                          }
                         >
-                          <div className="sunny-schedule-timeline-row">
-                            <span className="sunny-schedule-timeline-title">{item.title}</span>
-                            <span className={`sunny-schedule-status-pill ${statusPillClass(item.status)}`}>
-                              {statusLabel(item.status)}
-                            </span>
-                          </div>
-                          <p className="sunny-schedule-timeline-meta">
-                            {formatDuration(item)}
-                            {formatDuration(item) && item.priority === "high" ? " · " : ""}
-                            {item.priority === "high" ? "高优先级" : ""}
-                          </p>
+                          <button
+                            aria-expanded={isExpanded}
+                            type="button"
+                            onClick={() =>
+                              setExpandedId(isExpanded ? null : item.id)
+                            }
+                            style={{
+                              appearance: "none",
+                              background: "none",
+                              border: 0,
+                              color: "inherit",
+                              cursor: "pointer",
+                              display: "block",
+                              font: "inherit",
+                              padding: 0,
+                              textAlign: "left",
+                              width: "100%",
+                            }}
+                          >
+                            <div className="sunny-schedule-timeline-row">
+                              <span className="sunny-schedule-timeline-title">{item.title}</span>
+                              <span className={`sunny-schedule-status-pill ${statusPillClass(item.status)}`}>
+                                {statusLabel(item.status)}
+                              </span>
+                            </div>
+                            <p className="sunny-schedule-timeline-meta">
+                              {formatDuration(item)}
+                              {formatDuration(item) && item.priority === "high" ? " · " : ""}
+                              {item.priority === "high" ? "高优先级" : ""}
+                            </p>
+                          </button>
                           {isExpanded && (
                             <div className="sunny-schedule-timeline-expand">
                               <p className="sunny-schedule-timeline-expand-time">{formatTimeRange(item)}</p>
                               {item.description && <p>{item.description}</p>}
-                              {item.relatedPlan && (
-                                <span className="sunny-schedule-timeline-link">
-                                  <DashboardIcon name="layers" />
-                                  所属计划：{item.relatedPlan.title}
-                                </span>
-                              )}
-                              {item.relatedChecklist && (
-                                <span className="sunny-schedule-timeline-link">
-                                  <DashboardIcon name="layers" />
-                                  关联清单：{item.relatedChecklist.title}
-                                </span>
-                              )}
+                              <h4>关联对象</h4>
+                              <LinkedObjectList
+                                defaultExpanded
+                                items={item.linkedObjects}
+                              />
                               {item.relatedChecklistItemKey && (
                                 <span className="sunny-schedule-timeline-link">
                                   <DashboardIcon name="layers" />
@@ -589,7 +579,7 @@ export function ScheduleMonthView({
                               </div>
                             </div>
                           )}
-                        </button>
+                        </div>
                       </div>
                       {showConnector && (
                         <div className={`sunny-schedule-timeline-connector${isGap ? " is-gap" : ""}`} />

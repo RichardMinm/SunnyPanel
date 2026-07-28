@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { PlanSummary } from "@/lib/core-linkage/contracts";
-import { useLinkedObjectFocus } from "@/components/dashboard/linked-objects";
+import {
+  LinkedObjectList,
+  useLinkedObjectFocus,
+} from "@/components/dashboard/linked-objects";
 
 type PersistedPlanSnapshotCardProps = {
   isNavigationTarget?: boolean;
@@ -28,7 +31,7 @@ export function PersistedPlanSnapshotCard({
   navigationGeneration,
   plan,
 }: PersistedPlanSnapshotCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(isNavigationTarget);
   const focusRef = useLinkedObjectFocus<HTMLElement>(
     isNavigationTarget,
     isNavigationTarget
@@ -47,6 +50,15 @@ export function PersistedPlanSnapshotCard({
   const updatedLabel = plan.updatedAt
     ? new Date(plan.updatedAt).toLocaleDateString("zh-CN", { month: "short", day: "numeric" })
     : null;
+  const checklistCount = plan.linkedObjects.filter(
+    (linkedObject) => linkedObject.type === "checklist",
+  ).length;
+  const scheduleCount = plan.linkedObjects.filter(
+    (linkedObject) => linkedObject.type === "schedule",
+  ).length;
+  const timelineCount = plan.linkedObjects.filter(
+    (linkedObject) => linkedObject.type === "timeline",
+  ).length;
 
   return (
     <article
@@ -95,51 +107,21 @@ export function PersistedPlanSnapshotCard({
 
       {/* Counts */}
       <div className="sunny-persisted-plan-card-counts">
-        {plan.checklists.length > 0 ? (
-          <span>关联清单 {plan.checklists.length}</span>
-        ) : null}
-        {plan.scheduleItems.length > 0 ? (
-          <span>关联日程 {plan.scheduleItems.length}</span>
-        ) : null}
-        {plan.checklists.length === 0 && plan.scheduleItems.length === 0 ? (
-          <span className="sunny-persisted-plan-card-counts-empty">暂无关联内容</span>
-        ) : null}
+        <span>关联清单 {checklistCount}</span>
+        <span>关联日程 {scheduleCount}</span>
+        <span>关联时间线 {timelineCount}</span>
       </div>
 
       {/* Expanded details */}
       {isExpanded ? (
         <div className="sunny-persisted-plan-card-details">
-          {plan.checklists.length > 0 ? (
-            <div className="sunny-persisted-plan-card-detail-section">
-              <h4>关联清单</h4>
-              <ul>
-                {plan.checklists.map((cl) => (
-                  <li key={cl.id}>
-                    <span>{cl.title}</span>
-                    <span className="sunny-persisted-plan-card-detail-stat">
-                      {cl.completedItems}/{cl.totalItems}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {plan.scheduleItems.length > 0 ? (
-            <div className="sunny-persisted-plan-card-detail-section">
-              <h4>关联日程</h4>
-              <ul>
-                {plan.scheduleItems.map((si) => (
-                  <li key={si.id}>
-                    <span>{si.title}</span>
-                    <span className="sunny-persisted-plan-card-detail-stat">
-                      {si.startsAt ? si.startsAt.slice(0, 10) : "—"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          <div className="sunny-persisted-plan-card-detail-section">
+            <h4>关联对象</h4>
+            <LinkedObjectList
+              defaultExpanded
+              items={plan.linkedObjects}
+            />
+          </div>
         </div>
       ) : null}
     </article>

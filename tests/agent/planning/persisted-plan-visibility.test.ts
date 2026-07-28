@@ -87,7 +87,7 @@ test("PersistedPlanSnapshotCard source: shows persisted progress as real percent
   assert.ok(source.includes("Math.min(100, Math.max(0"), "must clamp progress to 0-100 range");
 });
 
-test("PersistedPlanSnapshotCard source: shows checklist and schedule counts", () => {
+test("PersistedPlanSnapshotCard source: shows complete core-object counts through the shared list", () => {
   const source = read("src/components/dashboard/agent/PersistedPlanSnapshotCard.tsx");
 
   // Shows checklist count
@@ -96,8 +96,14 @@ test("PersistedPlanSnapshotCard source: shows checklist and schedule counts", ()
   // Shows schedule count
   assert.ok(source.includes("关联日程"), "must show 关联日程 label");
 
-  // Shows empty state when no linked content
-  assert.ok(source.includes("暂无关联内容"), "must show empty state for standalone plans");
+  // Shows timeline count
+  assert.ok(source.includes("关联时间线"), "must show 关联时间线 label");
+
+  // Complete summaries use the shared relationship renderer, including its
+  // safe empty state.
+  assert.ok(source.includes("LinkedObjectList"), "must reuse LinkedObjectList");
+  assert.match(source, /items=\{plan\.linkedObjects\}/);
+  assert.doesNotMatch(source, /plan\.(?:checklists|scheduleItems)\.map\(/);
 });
 
 /* ── Copy boundary ── */

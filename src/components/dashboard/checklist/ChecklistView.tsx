@@ -5,22 +5,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createLatestRequestGuard,
   findExactNavigationTarget,
+  LinkedObjectList,
   useLinkedObjectFocus,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
+import type { ChecklistViewSummary } from "@/lib/core-linkage/contracts";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
-
-type ChecklistItem = { key: string; label: string; completed: boolean };
-
-type ChecklistSummary = {
-  id: number;
-  title: string;
-  status: string;
-  relatedPlan?: { id: number; title: string } | null;
-  items: ChecklistItem[];
-  totalItems: number;
-  completedItems: number;
-};
 
 type ChecklistViewProps = {
   navigationGeneration?: number;
@@ -45,7 +35,7 @@ export function ChecklistView({
   onBackToWorkbench: _onBackToWorkbench,
 }: ChecklistViewProps) {
   void _onBackToWorkbench; // kept for prop compatibility
-  const [checklists, setChecklists] = useState<ChecklistSummary[]>([]);
+  const [checklists, setChecklists] = useState<ChecklistViewSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -75,7 +65,7 @@ export function ChecklistView({
         );
         if (res.ok) {
           const data = (await res.json()) as {
-            checklists: ChecklistSummary[];
+            checklists: ChecklistViewSummary[];
           };
           request?.commit(() => setChecklists(data.checklists ?? []));
         }
@@ -169,9 +159,6 @@ export function ChecklistView({
               >
                 <div>
                   <h3>{cl.title}</h3>
-                  {cl.relatedPlan ? (
-                    <small>关联 {cl.relatedPlan.title} 计划</small>
-                  ) : null}
                 </div>
                 <span
                   className={`sunny-checklist-status-badge is-${cl.status}`}
@@ -198,6 +185,15 @@ export function ChecklistView({
               <span className="sunny-checklist-progress-label">
                 {cl.completedItems}/{cl.totalItems} 项完成
               </span>
+              {expandedId === cl.id ? (
+                <div className="sunny-checklist-items-list">
+                  <h4>关联对象</h4>
+                  <LinkedObjectList
+                    defaultExpanded
+                    items={cl.linkedObjects}
+                  />
+                </div>
+              ) : null}
               {/* Expanded items */}
               {expandedId === cl.id && cl.items.length > 0 ? (
                 <ul className="sunny-checklist-items-list">

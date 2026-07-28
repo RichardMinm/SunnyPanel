@@ -111,24 +111,20 @@ test("schedule summary: relatedChecklist returns only id and title", () => {
 
 /* ── UI source: linkage fields rendered in ScheduleMonthView ── */
 
-test("ScheduleMonthView source: linkage fields are rendered in expanded card", () => {
+test("ScheduleMonthView source: complete core linkage uses the shared summary and list", () => {
   const source = read("src/components/dashboard/schedule/ScheduleMonthView.tsx");
 
-  // Type includes the new optional fields
-  assert.ok(source.includes("relatedPlan"), "ScheduleItemSummary must include relatedPlan");
-  assert.ok(source.includes("relatedChecklist"), "ScheduleItemSummary must include relatedChecklist");
-  assert.ok(source.includes("relatedChecklistItemKey"), "ScheduleItemSummary must include relatedChecklistItemKey");
-  assert.ok(source.includes("conflictNote"), "ScheduleItemSummary must include conflictNote");
+  assert.match(source, /ScheduleViewSummary/);
+  assert.doesNotMatch(source, /type ScheduleItemSummary\s*=/);
+  assert.ok(source.includes("LinkedObjectList"), "must reuse LinkedObjectList");
+  assert.match(source, /items=\{item\.linkedObjects\}/);
+  assert.doesNotMatch(source, /item\.relatedPlan\.title/);
+  assert.doesNotMatch(source, /item\.relatedChecklist\.title/);
 
-  // Expanded view renders linkage only when present (conditional rendering)
-  assert.ok(source.includes("item.relatedPlan &&"), "relatedPlan must be conditionally rendered");
-  assert.ok(source.includes("item.relatedChecklist &&"), "relatedChecklist must be conditionally rendered");
+  // The checklist item key is concise metadata rather than a core-object
+  // summary and remains separate from the shared list.
   assert.ok(source.includes("item.relatedChecklistItemKey &&"), "relatedChecklistItemKey must be conditionally rendered");
   assert.ok(source.includes("item.conflictNote &&"), "conflictNote must be conditionally rendered");
-
-  // Correct copy for linkage labels
-  assert.ok(source.includes("所属计划"), "must show 所属计划 label");
-  assert.ok(source.includes("关联清单"), "must show 关联清单 label");
   assert.ok(source.includes("清单项"), "must show 清单项 label");
   assert.ok(source.includes("冲突备注"), "must show 冲突备注 label");
 });
@@ -204,20 +200,15 @@ test("copy boundary: AgentApprovalCard uses safe scheduling language", () => {
   assert.doesNotMatch(source, /企业/);
 });
 
-/* ── ChecklistView: relatedPlan display ── */
+/* ── ChecklistView: complete linked object display ── */
 
-test("ChecklistView source: renders relatedPlan when present", () => {
+test("ChecklistView source: renders complete relationships through the shared list", () => {
   const source = read("src/components/dashboard/checklist/ChecklistView.tsx");
 
-  // Type includes relatedPlan
-  assert.ok(source.includes("relatedPlan"), "ChecklistView type must include relatedPlan");
-
-  // Renders plan title with label (conditional)
-  assert.ok(source.includes("relatedPlan.title"), "must display relatedPlan.title");
-  assert.ok(source.includes("关联"), "must label as 关联");
-
-  // Conditional rendering — no empty row for standalone checklists
-  assert.ok(source.includes("cl.relatedPlan ?"), "relatedPlan must be conditionally rendered");
+  assert.ok(source.includes("ChecklistViewSummary"));
+  assert.ok(source.includes("LinkedObjectList"));
+  assert.match(source, /items=\{cl\.linkedObjects\}/);
+  assert.doesNotMatch(source, /cl\.relatedPlan\.title/);
 });
 
 /* ── Dashboard agent safety keywords ── */

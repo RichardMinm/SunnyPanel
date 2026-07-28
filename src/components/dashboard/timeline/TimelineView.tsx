@@ -6,20 +6,13 @@ import { categoryDotClass, type CategoryId } from "@/lib/category-styles";
 import { AppEmptyState } from "@/components/primitives/AppEmptyState";
 import {
   findExactNavigationTarget,
+  LinkedObjectList,
   useLinkedObjectFocus,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
+import type { TimelineViewSummary } from "@/lib/core-linkage/contracts";
 import { DashboardIcon } from "../icons";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
-
-type TimelineEventSummary = {
-  id: number;
-  title: string;
-  date: string;
-  type: string;
-  description?: string | null;
-  sourceType?: string | null;
-};
 
 type TimelineViewProps = {
   navigationGeneration?: number;
@@ -70,8 +63,8 @@ const MONTH_NAMES = [
 
 /* ── Helpers ── */
 
-function groupByDate(events: TimelineEventSummary[]): Map<string, TimelineEventSummary[]> {
-  const map = new Map<string, TimelineEventSummary[]>();
+function groupByDate(events: TimelineViewSummary[]): Map<string, TimelineViewSummary[]> {
+  const map = new Map<string, TimelineViewSummary[]>();
   for (const event of events) {
     const key = event.date?.slice(0, 10) || "";
     const list = map.get(key) ?? [];
@@ -108,7 +101,7 @@ export function TimelineView({
   const [month, setMonth] = useState(
     navigationTarget ? Number(navigationTarget.date.slice(5, 7)) : now.getMonth() + 1,
   );
-  const [events, setEvents] = useState<TimelineEventSummary[]>([]);
+  const [events, setEvents] = useState<TimelineViewSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -133,8 +126,8 @@ export function TimelineView({
 
     fetch(`/api/agent/timeline?month=${monthKey}&limit=50`)
       .then(async (res) => {
-        if (!res.ok) return { events: [] as TimelineEventSummary[] };
-        return res.json() as Promise<{ events: TimelineEventSummary[] }>;
+        if (!res.ok) return { events: [] as TimelineViewSummary[] };
+        return res.json() as Promise<{ events: TimelineViewSummary[] }>;
       })
       .then((data) => {
         if (!cancelled) setEvents(data.events ?? []);
@@ -193,7 +186,7 @@ export function TimelineView({
     });
   };
 
-  const renderDateGroup = (dateKey: string, dateEvents: TimelineEventSummary[]) => (
+  const renderDateGroup = (dateKey: string, dateEvents: TimelineViewSummary[]) => (
     <div className="sunny-timeline-date-group">
       <div className="sunny-timeline-date-marker">
         <span className="sunny-timeline-date-dot" />
@@ -210,29 +203,44 @@ export function TimelineView({
               <div className="sunny-timeline-event-line">
                 {!isLast && <div className="sunny-timeline-event-connector" />}
               </div>
-              <button
-                aria-current={navigationTimeline?.id === event.id ? "true" : undefined}
-                aria-expanded={isExpanded}
-                type="button"
+              <div
                 className={`sunny-timeline-event-card${isExpanded ? " is-expanded" : ""}`}
-                onClick={() =>
-                  setExpandedId(isExpanded ? null : event.id)
-                }
-                ref={navigationTimeline?.id === event.id ? navigationFocusRef : undefined}
               >
-                <div className="sunny-timeline-event-head">
-                  <span
-                    className={`sunny-timeline-event-dot ${categoryDotClass}`}
-                    data-category={typeCfg.category}
-                  />
-                  <span className="sunny-timeline-event-type">{typeCfg.label}</span>
-                  {event.sourceType && (
-                    <span className="sunny-timeline-event-source">
-                      {SOURCE_LABELS[event.sourceType] ?? event.sourceType}
-                    </span>
-                  )}
-                </div>
-                <h3 className="sunny-timeline-event-title">{event.title}</h3>
+                <button
+                  aria-current={navigationTimeline?.id === event.id ? "true" : undefined}
+                  aria-expanded={isExpanded}
+                  type="button"
+                  onClick={() =>
+                    setExpandedId(isExpanded ? null : event.id)
+                  }
+                  ref={navigationTimeline?.id === event.id ? navigationFocusRef : undefined}
+                  style={{
+                    appearance: "none",
+                    background: "none",
+                    border: 0,
+                    color: "inherit",
+                    cursor: "pointer",
+                    display: "block",
+                    font: "inherit",
+                    padding: 0,
+                    textAlign: "left",
+                    width: "100%",
+                  }}
+                >
+                  <div className="sunny-timeline-event-head">
+                    <span
+                      className={`sunny-timeline-event-dot ${categoryDotClass}`}
+                      data-category={typeCfg.category}
+                    />
+                    <span className="sunny-timeline-event-type">{typeCfg.label}</span>
+                    {event.sourceType && (
+                      <span className="sunny-timeline-event-source">
+                        {SOURCE_LABELS[event.sourceType] ?? event.sourceType}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="sunny-timeline-event-title">{event.title}</h3>
+                </button>
                 {isExpanded && (
                   <div className="sunny-timeline-event-detail">
                     {event.description && <p>{event.description}</p>}
@@ -241,9 +249,14 @@ export function TimelineView({
                         来源：{SOURCE_LABELS[event.sourceType] ?? event.sourceType}
                       </span>
                     )}
+                    <h4>关联对象</h4>
+                    <LinkedObjectList
+                      defaultExpanded
+                      items={event.linkedObjects}
+                    />
                   </div>
                 )}
-              </button>
+              </div>
             </div>
           );
         })}
