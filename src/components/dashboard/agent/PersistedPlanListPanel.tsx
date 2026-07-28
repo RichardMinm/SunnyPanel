@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PersistedPlanSnapshotCard } from "./PersistedPlanSnapshotCard";
 import type { PlanSummary } from "@/lib/core-linkage/contracts";
 import {
+  createLatestRequestGuard,
   findExactNavigationTarget,
+  useDomainRefresh,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
 
@@ -23,33 +25,42 @@ export function PersistedPlanListPanel({
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestGuardRef =
+    useRef<ReturnType<typeof createLatestRequestGuard> | null>(null);
+  if (requestGuardRef.current == null) {
+    requestGuardRef.current = createLatestRequestGuard();
+  }
 
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- data fetching pattern consistent with dashboard views */
-    let cancelled = false;
+  const loadPlans = useCallback(() => {
+    const request = requestGuardRef.current?.begin();
     setLoading(true);
     setError(null);
 
-    fetch("/api/agent/plans")
-      .then(async (res) => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/agent/plans");
         if (!res.ok) throw new Error("加载失败");
-        return res.json() as Promise<{ plans: PlanSummary[] }>;
-      })
-      .then((data) => {
-        if (!cancelled) setPlans(data.plans ?? []);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "加载计划失败");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    /* eslint-enable react-hooks/set-state-in-effect */
+        const data = (await res.json()) as { plans: PlanSummary[] };
+        request?.commit(() => setPlans(data.plans ?? []));
+      } catch {
+        request?.commit(() => setError("刷新失败，请重试"));
+      } finally {
+        request?.commit(() => setLoading(false));
+      }
+    })();
 
-    return () => { cancelled = true; };
+    return () => request?.cancel();
   }, []);
 
-  if (loading) {
+  useDomainRefresh("plans", loadPlans);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- data fetching pattern consistent with dashboard views */
+    return loadPlans();
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [loadPlans]);
+
+  if (loading && plans.length === 0) {
     return (
       <div className="sunny-agent-inspector-panel">
         <p className="sunny-agent-inspector-empty">加载中…</p>
@@ -57,7 +68,7 @@ export function PersistedPlanListPanel({
     );
   }
 
-  if (error) {
+  if (error && plans.length === 0) {
     return (
       <div className="sunny-agent-inspector-panel">
         <p className="sunny-agent-inspector-empty">错误：{error}</p>
@@ -83,6 +94,11 @@ export function PersistedPlanListPanel({
 
   return (
     <div className="sunny-agent-inspector-panel sunny-persisted-plan-list">
+      {error ? (
+        <p className="sunny-agent-inspector-empty" role="alert">
+          {error}
+        </p>
+      ) : null}
       {plans.map((plan) => {
         const isNavigationTarget = navigationPlan?.id === plan.id;
         return (

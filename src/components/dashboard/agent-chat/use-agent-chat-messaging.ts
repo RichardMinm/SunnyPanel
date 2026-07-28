@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } fr
 
 import { engineLabelMap, initialMessages } from "@/components/dashboard/agent-chat/constants";
 import type { AgentInspectorTab, ContextPreferences } from "@/components/dashboard/agent";
+import { notifyDomainRefresh } from "@/components/dashboard/linked-objects";
 import {
   formatRollbackResultStatus,
   normalizeRollbackExecutionResult,
@@ -371,6 +372,11 @@ export function useAgentChatMessaging({
           throw new Error(assistantMessage || "Agent 暂时没有返回可用结果。");
         }
 
+        notifyDomainRefresh({
+          affectedDocuments: responseData.affectedDocuments,
+          reason: "agent_execute",
+        });
+
         if (!isStreamingResponse) {
           setMessages((current) => [
             ...current,
@@ -656,6 +662,13 @@ export function useAgentChatMessaging({
 
       const rollbackResult = normalizeRollbackExecutionResult(data.result);
 
+      if (rollbackResult) {
+        notifyDomainRefresh({
+          affectedDocuments: rollbackResult.affectedDocuments,
+          fallback: rollbackResult,
+          reason: "rollback",
+        });
+      }
       setLastRollbackSourceRunId(null);
       await loadThread(threadId ?? undefined, { preserveInspector: true });
       setLastRollbackResult(rollbackResult);

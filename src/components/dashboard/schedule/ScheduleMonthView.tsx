@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 import { AppButton } from "@/components/primitives/AppButton";
 import { AppEmptyState } from "@/components/primitives/AppEmptyState";
 import {
+  createLatestRequestGuard,
   findExactNavigationTarget,
   LinkedObjectList,
+  notifyDomainRefresh,
+  useDomainRefresh,
   useLinkedObjectFocus,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
@@ -177,6 +180,11 @@ export function ScheduleMonthView({
   const [completionPendingId, setCompletionPendingId] = useState<number | null>(null);
   const [completionError, setCompletionError] = useState<null | string>(null);
   const completionRequestRef = useRef<number | null>(null);
+  const requestGuardRef =
+    useRef<ReturnType<typeof createLatestRequestGuard> | null>(null);
+  if (requestGuardRef.current == null) {
+    requestGuardRef.current = createLatestRequestGuard();
+  }
 
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
 
@@ -184,54 +192,55 @@ export function ScheduleMonthView({
     if (!navigationTarget) {
       return;
     }
-    /* eslint-disable react-hooks/set-state-in-effect -- linked navigation synchronizes the exact destination month and date */
     setYear(Number(navigationTarget.date.slice(0, 4)));
     setMonth(Number(navigationTarget.date.slice(5, 7)));
     setSelectedDate(navigationTarget.date);
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, [navigationGeneration, navigationTarget]);
 
   /* ── Data Fetching ── */
 
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- data fetching pattern consistent with dashboard views */
-    let cancelled = false;
+  const loadScheduleItems = useCallback(() => {
+    const request = requestGuardRef.current?.begin();
     setLoading(true);
     setError(null);
 
-    fetch(`/api/agent/schedule?month=${monthKey}`)
-      .then(async (res) => {
+    void (async () => {
+      try {
+        const res = await fetch(`/api/agent/schedule?month=${monthKey}`);
         if (!res.ok) {
           const data = await res.json().catch(() => null);
           throw new Error(typeof data?.message === "string" ? data.message : "加载失败");
         }
-        return res.json();
-      })
-      .then((data: { items: ScheduleViewSummary[] }) => {
-        if (!cancelled) setItems(data.items ?? []);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "加载日程失败");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    /* eslint-enable react-hooks/set-state-in-effect */
 
-    return () => { cancelled = true; };
+        const data = (await res.json()) as { items: ScheduleViewSummary[] };
+        request?.commit(() => setItems(data.items ?? []));
+      } catch (err) {
+        request?.commit(() =>
+          setError(err instanceof Error ? err.message : "加载日程失败"),
+        );
+      } finally {
+        request?.commit(() => setLoading(false));
+      }
+    })();
+
+    return () => request?.cancel();
   }, [monthKey]);
+
+  useDomainRefresh("schedule", loadScheduleItems);
+
+  useEffect(() => {
+    return loadScheduleItems();
+  }, [loadScheduleItems]);
 
   /* ── Derived State ── */
 
   const days = useMemo(() => getDaysInMonth(year, month), [year, month]);
 
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- sync selectedDate when month changes */
     const keys = new Set(days.map(formatDateKey));
     if (!keys.has(selectedDate)) {
       setSelectedDate(pickDefaultDateForMonth(days, todayKey, month));
     }
-    /* eslint-enable react-hooks/set-state-in-effect */
   }, [days, month, selectedDate, todayKey]);
 
   const itemsByDate = useMemo(() => {
@@ -260,7 +269,6 @@ export function ScheduleMonthView({
       : null;
   useEffect(() => {
     if (navigationTarget && !loading) {
-      /* eslint-disable-next-line react-hooks/set-state-in-effect -- select the exact dated target only after its month is available */
       setExpandedId(navigationSchedule?.id ?? null);
     }
   }, [
@@ -308,9 +316,17 @@ export function ScheduleMonthView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: itemId, status: "done" }),
       });
-      const data = await response.json().catch(() => null) as { item?: { id?: unknown; status?: unknown } } | null;
+      const data = await response.json().catch(() => null) as {
+        affectedDocuments?: unknown;
+        item?: { id?: unknown; status?: unknown };
+      } | null;
       const completedItem = data?.item;
-      if (!response.ok || typeof completedItem?.id !== "number" || typeof completedItem.status !== "string") {
+      if (
+        !response.ok
+        || typeof completedItem?.id !== "number"
+        || typeof completedItem.status !== "string"
+        || !Array.isArray(data?.affectedDocuments)
+      ) {
         throw new Error("schedule completion failed");
       }
       const completedItemId = completedItem.id;
@@ -319,6 +335,10 @@ export function ScheduleMonthView({
       setItems((currentItems) => currentItems.map((currentItem) =>
         currentItem.id === completedItemId ? { ...currentItem, status: completedStatus } : currentItem,
       ));
+      notifyDomainRefresh({
+        affectedDocuments: data.affectedDocuments,
+        reason: "completion",
+      });
     } catch {
       setCompletionError("完成失败，请重试");
     } finally {
@@ -373,11 +393,11 @@ export function ScheduleMonthView({
       </header>
 
       {/* Loading / Error */}
-      {loading && <p className="sunny-schedule-empty-day">加载中…</p>}
+      {loading && items.length === 0 && <p className="sunny-schedule-empty-day">加载中…</p>}
       {error && <p className="sunny-schedule-empty-day">错误：{error}</p>}
 
       {/* Main Layout */}
-      {!loading && !error && (
+      {(!loading || items.length > 0) && (!error || items.length > 0) && (
         <DashboardStagger className="sunny-schedule-layout">
           {/* Calendar Grid */}
           <DashboardStaggerItem className="sunny-schedule-calendar-pane-wrap">

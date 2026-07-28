@@ -6,6 +6,7 @@ import {
   createLatestRequestGuard,
   findExactNavigationTarget,
   LinkedObjectList,
+  useDomainRefresh,
   useLinkedObjectFocus,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
@@ -37,6 +38,7 @@ export function ChecklistView({
   void _onBackToWorkbench; // kept for prop compatibility
   const [checklists, setChecklists] = useState<ChecklistViewSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const requestGuardRef =
@@ -55,6 +57,7 @@ export function ChecklistView({
   const fetchChecklists = useCallback(() => {
     const request = requestGuardRef.current?.begin();
     setLoading(true);
+    setError(null);
     void (async () => {
       try {
         const params = new URLSearchParams();
@@ -63,14 +66,16 @@ export function ChecklistView({
         const res = await fetch(
           `/api/agent/checklist?${params.toString()}`,
         );
-        if (res.ok) {
-          const data = (await res.json()) as {
-            checklists: ChecklistViewSummary[];
-          };
-          request?.commit(() => setChecklists(data.checklists ?? []));
+        if (!res.ok) {
+          throw new Error("加载失败");
         }
+
+        const data = (await res.json()) as {
+          checklists: ChecklistViewSummary[];
+        };
+        request?.commit(() => setChecklists(data.checklists ?? []));
       } catch {
-        // silent
+        request?.commit(() => setError("刷新失败，请重试"));
       } finally {
         request?.commit(() => setLoading(false));
       }
@@ -78,6 +83,8 @@ export function ChecklistView({
 
     return () => request?.cancel();
   }, [filter]);
+
+  useDomainRefresh("checklists", fetchChecklists);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- data fetching pattern consistent with existing dashboard views */
@@ -131,14 +138,19 @@ export function ChecklistView({
 
       {/* Checklist cards */}
       <DashboardStagger className="sunny-checklist-card-list">
-        {loading ? (
+        {error ? (
+          <p className="sunny-schedule-empty-day" role="alert">{error}</p>
+        ) : null}
+        {loading && checklists.length === 0 ? (
           <p className="sunny-schedule-empty-day">加载中…</p>
         ) : checklists.length === 0 ? (
-          <p className="sunny-schedule-empty-day">
-            暂无清单。
-            <br />
-            可以从 Payload 管理后台创建新清单。
-          </p>
+          error ? null : (
+            <p className="sunny-schedule-empty-day">
+              暂无清单。
+              <br />
+              可以从 Payload 管理后台创建新清单。
+            </p>
+          )
         ) : (
           checklists.map((cl, index) => {
             const card = (

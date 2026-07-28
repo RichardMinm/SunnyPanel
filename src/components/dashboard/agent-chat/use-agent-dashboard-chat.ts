@@ -13,6 +13,7 @@ import {
 import { useAgentChatMessaging } from "@/components/dashboard/agent-chat/use-agent-chat-messaging";
 import { useDashboardUrlThreadSync } from "@/components/dashboard/agent-chat/use-dashboard-url-thread-sync";
 import { useAgentThreadList } from "@/components/dashboard/agent-chat/use-agent-thread";
+import { notifyDomainRefresh } from "@/components/dashboard/linked-objects";
 import { canRollbackAgentRunDetail } from "@/lib/agent/run-summary";
 import { attachAgentActivityStepsToMessages } from "@/lib/agent/activity";
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
@@ -362,6 +363,13 @@ export function useAgentDashboardChat({
 
       const rollbackResult = normalizeRollbackExecutionResult(data.result);
 
+      if (rollbackResult) {
+        notifyDomainRefresh({
+          affectedDocuments: rollbackResult.affectedDocuments,
+          fallback: rollbackResult,
+          reason: "rollback",
+        });
+      }
       await loadThread(threadId ?? undefined, { preserveInspector: true });
       setLastRollbackSourceRunId(null);
       setLastRollbackResult(rollbackResult);

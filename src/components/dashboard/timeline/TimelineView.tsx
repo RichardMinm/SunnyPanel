@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { categoryDotClass, type CategoryId } from "@/lib/category-styles";
 import { AppEmptyState } from "@/components/primitives/AppEmptyState";
 import {
+  createLatestRequestGuard,
   findExactNavigationTarget,
   LinkedObjectList,
+  useDomainRefresh,
   useLinkedObjectFocus,
   type LinkedObjectNavigationTarget,
 } from "@/components/dashboard/linked-objects";
@@ -103,8 +105,14 @@ export function TimelineView({
   );
   const [events, setEvents] = useState<TimelineViewSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const requestGuardRef =
+    useRef<ReturnType<typeof createLatestRequestGuard> | null>(null);
+  if (requestGuardRef.current == null) {
+    requestGuardRef.current = createLatestRequestGuard();
+  }
 
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
 
@@ -119,26 +127,37 @@ export function TimelineView({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [navigationGeneration, navigationTarget]);
 
-  useEffect(() => {
-    let cancelled = false;
-    /* eslint-disable-next-line react-hooks/set-state-in-effect -- month changes begin a fresh timeline load */
+  const loadTimelineEvents = useCallback(() => {
+    const request = requestGuardRef.current?.begin();
     setLoading(true);
+    setError(null);
 
-    fetch(`/api/agent/timeline?month=${monthKey}&limit=50`)
-      .then(async (res) => {
-        if (!res.ok) return { events: [] as TimelineViewSummary[] };
-        return res.json() as Promise<{ events: TimelineViewSummary[] }>;
-      })
-      .then((data) => {
-        if (!cancelled) setEvents(data.events ?? []);
-      })
-      .catch(() => { /* silent */ })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    void (async () => {
+      try {
+        const res = await fetch(`/api/agent/timeline?month=${monthKey}&limit=50`);
+        if (!res.ok) {
+          throw new Error("加载失败");
+        }
 
-    return () => { cancelled = true; };
+        const data = (await res.json()) as { events: TimelineViewSummary[] };
+        request?.commit(() => setEvents(data.events ?? []));
+      } catch {
+        request?.commit(() => setError("刷新失败，请重试"));
+      } finally {
+        request?.commit(() => setLoading(false));
+      }
+    })();
+
+    return () => request?.cancel();
   }, [monthKey]);
+
+  useDomainRefresh("timeline", loadTimelineEvents);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- month changes begin a fresh timeline load */
+    return loadTimelineEvents();
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [loadTimelineEvents]);
 
   const filteredEvents = useMemo(() => {
     if (typeFilter === "all") return events;
@@ -296,10 +315,13 @@ export function TimelineView({
 
       {/* Timeline track */}
       <DashboardStagger className="sunny-timeline-track">
-        {loading ? (
+        {error ? (
+          <p className="sunny-schedule-empty-day" role="alert">{error}</p>
+        ) : null}
+        {loading && events.length === 0 ? (
           <p className="sunny-schedule-empty-day">加载中…</p>
         ) : groupedEvents.size === 0 ? (
-          <AppEmptyState
+          error ? null : <AppEmptyState
             className="sunny-timeline-empty-state"
             icon={
               <span className="sunny-timeline-empty-icon">
