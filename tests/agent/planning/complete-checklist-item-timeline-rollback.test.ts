@@ -382,7 +382,7 @@ test("rollback removes a newly created Timeline event and restores checklist gro
         timelineEventId: 802,
       },
     },
-    { payload: payload as never, persistAudit: false },
+    { payload: payload as never, persistAudit: false, userId: 1 },
   );
 
   assert.equal(operationsFor("update", "checklists").length, 1);
@@ -406,7 +406,7 @@ test("rollback restores an existing Timeline snapshot", async () => {
         timelineEventId: existingTimelineEvent.id,
       },
     },
-    { payload: payload as never, persistAudit: false },
+    { payload: payload as never, persistAudit: false, userId: 1 },
   );
 
   const timelineUpdate = operationsFor("update", "timeline-events")[0];

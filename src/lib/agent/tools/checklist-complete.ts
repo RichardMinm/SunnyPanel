@@ -27,15 +27,15 @@ import {
   type AgentToolResult,
 } from "../tool-shared";
 
+const isTrustedUserId = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value > 0;
+
 const bindChecklistCompletionPayload = (
   payload: Awaited<ReturnType<typeof getPayloadClient>>,
+  userId: number,
 ): ChecklistCompletionPayload => {
-  const userId = getCurrentAgentUserId();
-  const user = typeof userId === "number" && Number.isInteger(userId) && userId > 0
-    ? ({ collection: "users", id: userId } as User)
-    : undefined;
-  const withUser = <T extends Record<string, unknown>>(args: T) =>
-    user ? { ...args, user } : args;
+  const user = { collection: "users", id: userId } as User;
+  const withUser = <T extends Record<string, unknown>>(args: T) => ({ ...args, user });
 
   return {
     create: (args) => payload.create(withUser(args) as never),
@@ -298,6 +298,16 @@ export const completePlanItemFromIntent = async (
   args: CompletePlanItemArgs,
   onTrace?: AgentExecutionTraceReporter,
 ): Promise<AgentToolResult> => {
+  const userId = getCurrentAgentUserId();
+
+  if (!isTrustedUserId(userId)) {
+    return {
+      assistantMessage: "The related resource is not available to this operation.",
+      pendingAction: null,
+      status: "failed",
+    };
+  }
+
   onTrace?.({
     detail: args.groupTitle ? `${args.checklistTitle} / ${args.groupTitle} / ${args.itemTitle}` : `${args.checklistTitle} / ${args.itemTitle}`,
     id: "tool-complete-item-locate",
@@ -368,7 +378,7 @@ export const completePlanItemFromIntent = async (
     completedAt: nextCompletedAt,
     completionNote: nextCompletionNote,
     itemKey: itemReferenceKey,
-    payload: bindChecklistCompletionPayload(payload),
+    payload: bindChecklistCompletionPayload(payload, userId),
   });
 
   if (!completion.ok) {

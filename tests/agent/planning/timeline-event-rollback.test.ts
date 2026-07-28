@@ -116,6 +116,7 @@ test("rollback restores an existing Timeline sourceType and description", async 
     {
       payload: await getPayloadClient() as never,
       persistAudit: false,
+      userId: 1,
     },
   );
 
@@ -146,10 +147,12 @@ test("rollback complete item deletes newly created Timeline and is idempotent-fr
   await executeRollbackFromPayload(rollbackPayload, {
     payload: payload as never,
     persistAudit: false,
+    userId: 1,
   });
   await executeRollbackFromPayload(rollbackPayload, {
     payload: payload as never,
     persistAudit: false,
+    userId: 1,
   });
 
   assert.equal(operationsFor("update", "checklists").length, 2);
@@ -176,6 +179,7 @@ test("rollback complete item does not affect unrelated Timeline events", async (
     {
       payload: await getPayloadClient() as never,
       persistAudit: false,
+      userId: 1,
     },
   );
 

@@ -43,20 +43,23 @@ type RollbackExecutionOptions = {
   userId?: number;
 };
 
-const bindRollbackCoreLinkagePayload = (
+const isTrustedUserId = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value > 0;
+
+const bindRollbackPayloadToUser = (
   payload: RollbackPayloadClient,
-  userId?: number,
-): CoreLinkagePayload => {
-  const user = typeof userId === "number" && Number.isInteger(userId) && userId > 0
-    ? ({ collection: "users", id: userId } as User)
-    : undefined;
+  userId: number,
+): RollbackPayloadClient => {
+  const user = { collection: "users", id: userId } as User;
   const withUser = (args: unknown) =>
-    user && args && typeof args === "object" && !Array.isArray(args)
+    args && typeof args === "object" && !Array.isArray(args)
       ? { ...(args as Record<string, unknown>), user }
       : args;
 
   return {
-    findByID: (args) => payload.findByID(withUser(args)) as never,
+    create: (args) => payload.create(withUser(args)),
+    delete: (args) => payload.delete(withUser(args)),
+    findByID: (args) => payload.findByID(withUser(args)),
     update: (args) => payload.update(withUser(args)),
   };
 };
@@ -702,6 +705,12 @@ export const executeRollbackFromPayload = async (
   }
 
   if (parsed.strategy === "restore_checklist_groups_and_timeline") {
+    if (!isTrustedUserId(userId)) {
+      throw new Error("The related resource is not available to this operation.");
+    }
+
+    const trustedPayload = bindRollbackPayloadToUser(payload as RollbackPayloadClient, userId);
+
     if (!documentId) {
       throw new Error("restore_checklist_groups_and_timeline 需要 documentId。");
     }
@@ -730,7 +739,7 @@ export const executeRollbackFromPayload = async (
       }
 
       const planUnlink = await unlinkTimelineFromPlan({
-        payload: bindRollbackCoreLinkagePayload(payload as RollbackPayloadClient, userId),
+        payload: trustedPayload as CoreLinkagePayload,
         planId,
         timelineEventId,
       });
@@ -743,7 +752,7 @@ export const executeRollbackFromPayload = async (
     }
 
     if (timelineData && typeof (snapshot.timelineEvent as { id?: unknown }).id === "number") {
-      await payload.update({
+      await trustedPayload.update({
         collection: "timeline-events",
         data: timelineData as never,
         id: (snapshot.timelineEvent as { id: number }).id,
@@ -751,7 +760,7 @@ export const executeRollbackFromPayload = async (
       });
       affectedDocuments.push(affectedDocument("timeline-events", (snapshot.timelineEvent as { id: number }).id, "update"));
     } else if (typeof timelineEventId === "number") {
-      await payload.delete({
+      await trustedPayload.delete({
         collection: "timeline-events",
         id: timelineEventId,
         overrideAccess: true,
@@ -759,7 +768,7 @@ export const executeRollbackFromPayload = async (
       affectedDocuments.push(affectedDocument("timeline-events", timelineEventId, "delete"));
     }
 
-    await payload.update({
+    await trustedPayload.update({
       collection: "checklists",
       context: { skipChecklistTimelineSync: true },
       data: { groups: snapshot.groups as never },

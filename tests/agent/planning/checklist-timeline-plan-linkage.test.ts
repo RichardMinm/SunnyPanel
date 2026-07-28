@@ -431,6 +431,22 @@ test("confirmed checklist completion writes exact Timeline relationships, links 
         (operation.args as { user?: { id?: unknown } }).user?.id === 1,
     ),
   );
+  assert.ok(
+    getPayloadStubOperations()
+      .filter(
+        (operation) =>
+          (operation.type === "create" ||
+            operation.type === "delete" ||
+            operation.type === "update") &&
+          ["checklists", "plans", "timeline-events"].includes(
+            String((operation.args as { collection?: unknown }).collection),
+          ),
+      )
+      .every(
+        (operation) =>
+          (operation.args as { user?: { id?: unknown } }).user?.id === 1,
+      ),
+  );
 
   const agentRun = operationsFor("create", "agent-runs")[0];
   assert.ok(agentRun);
@@ -458,6 +474,22 @@ test("confirmed checklist completion writes exact Timeline relationships, links 
     ],
   );
   assert.ok(affectedDocuments?.every(({ documentId }) => Number.isInteger(documentId) && documentId! > 0));
+});
+
+test("completion fails closed before Payload access when the trusted user is missing or invalid", async () => {
+  for (const userId of [undefined, 0, -1, 1.5]) {
+    resetPayloadStub();
+    setupPayload();
+
+    const result = await executeAgentIntent(completionIntent, undefined, { userId });
+
+    assert.deepEqual(result, {
+      assistantMessage: "The related resource is not available to this operation.",
+      pendingAction: null,
+      status: "failed",
+    });
+    assert.deepEqual(getPayloadStubOperations(), []);
+  }
 });
 
 test("Plan-link failure compensates Timeline before Checklist and returns a sanitized failure", async () => {
@@ -661,12 +693,53 @@ test("rollback unlinks a newly created Timeline event before deleting it and the
   assert.ok(checklistRestoreIndex > timelineDeleteIndex);
   assert.ok(
     operations
-      .filter((operation) => operation.type === "findByID")
+      .filter(
+        (operation) =>
+          operation.type === "findByID" ||
+          operation.type === "update" ||
+          operation.type === "delete",
+      )
       .every(
         (operation) =>
           (operation.args as { user?: { id?: unknown } }).user?.id === 1,
       ),
   );
+});
+
+test("Task 4 rollback fails closed before Payload access when the trusted user is missing or invalid", async () => {
+  const rollbackPayload = {
+    beforeSnapshot: {
+      groups: checklist.groups,
+      planLinkChanged: true,
+      planLinkedContent: plan.linkedContent,
+      timelineEvent: null,
+    },
+    strategy: "restore_checklist_groups_and_timeline",
+    target: {
+      collection: "checklists",
+      documentId: checklist.id,
+      planId: plan.id,
+      timelineEventId: 802,
+    },
+  };
+
+  for (const userId of [undefined, 0, -1, 1.5]) {
+    resetPayloadStub();
+    setupPayload();
+    const payload = await getPayloadClient();
+
+    await assert.rejects(
+      executeRollbackFromPayload(rollbackPayload, {
+        payload: payload as never,
+        persistAudit: false,
+        userId,
+      }),
+      {
+        message: "The related resource is not available to this operation.",
+      },
+    );
+    assert.deepEqual(getPayloadStubOperations(), []);
+  }
 });
 
 test("rollback restores a pre-existing Timeline event with its prior Plan and Schedule relations", async () => {

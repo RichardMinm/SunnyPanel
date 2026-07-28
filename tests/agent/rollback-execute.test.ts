@@ -165,7 +165,7 @@ test("executeRollbackFromPayload restores checklist groups and deletes a newly c
         timelineEventId: 501,
       },
     },
-    { payload: payload as never, persistAudit: false },
+    { payload: payload as never, persistAudit: false, userId: 1 },
   );
 
   assert.deepEqual(
@@ -174,17 +174,22 @@ test("executeRollbackFromPayload restores checklist groups and deletes a newly c
       .map((operation) => operation.args),
     [
       {
+        collection: "timeline-events",
+        id: 501,
+        overrideAccess: true,
+        user: { collection: "users", id: 1 },
+      },
+      {
         collection: "checklists",
+        context: {
+          skipChecklistTimelineSync: true,
+        },
         data: {
           groups: [{ title: "原分组" }],
         },
         id: 101,
         overrideAccess: true,
-      },
-      {
-        collection: "timeline-events",
-        id: 501,
-        overrideAccess: true,
+        user: { collection: "users", id: 1 },
       },
     ],
   );
@@ -215,24 +220,25 @@ test("executeRollbackFromPayload records compound rollback audit with mixed oper
       recordAudit: async ({ result }) => {
         auditResults.push(result);
       },
+      userId: 1,
     },
   );
 
   assert.deepEqual(auditResults[0]?.affectedDocuments, [
-    {
-      collection: "checklists",
-      documentId: 101,
-      operation: "update",
-      visibility: "unknown",
-    },
     {
       collection: "timeline-events",
       documentId: 501,
       operation: "delete",
       visibility: "unknown",
     },
+    {
+      collection: "checklists",
+      documentId: 101,
+      operation: "update",
+      visibility: "unknown",
+    },
   ]);
-  assert.equal(auditResults[0]?.summary, "已执行回滚 restore_checklist_groups_and_timeline，影响 2 个对象：checklists#101 update；timeline-events#501 delete");
+  assert.equal(auditResults[0]?.summary, "已执行回滚 restore_checklist_groups_and_timeline，影响 2 个对象：timeline-events#501 delete；checklists#101 update");
 });
 
 test("executeRollbackFromPayload restores checklist groups and an existing timeline event snapshot", async () => {
@@ -263,7 +269,7 @@ test("executeRollbackFromPayload restores checklist groups and an existing timel
         timelineEventId: 501,
       },
     },
-    { payload: payload as never, persistAudit: false },
+    { payload: payload as never, persistAudit: false, userId: 1 },
   );
 
   assert.deepEqual(
@@ -271,14 +277,6 @@ test("executeRollbackFromPayload restores checklist groups and an existing timel
       .filter((operation) => operation.type === "update")
       .map((operation) => operation.args),
     [
-      {
-        collection: "checklists",
-        data: {
-          groups: [{ title: "原分组" }],
-        },
-        id: 101,
-        overrideAccess: true,
-      },
       {
         collection: "timeline-events",
         data: {
@@ -295,6 +293,19 @@ test("executeRollbackFromPayload restores checklist groups and an existing timel
         },
         id: 501,
         overrideAccess: true,
+        user: { collection: "users", id: 1 },
+      },
+      {
+        collection: "checklists",
+        context: {
+          skipChecklistTimelineSync: true,
+        },
+        data: {
+          groups: [{ title: "原分组" }],
+        },
+        id: 101,
+        overrideAccess: true,
+        user: { collection: "users", id: 1 },
       },
     ],
   );
