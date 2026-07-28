@@ -23,31 +23,15 @@ export type ScheduleCompletionPayload = {
   find: (args: FindArgs) => Promise<{ docs: unknown[]; totalDocs: number }>;
   findByID: (args: FindByIDArgs) => Promise<unknown>;
   update: (args: UpdateArgs) => Promise<unknown>;
-};
-
-/** Production Local-API boundary for the later tool integration.  Every call
- * shares one request, authenticated actor, and transaction. */
-export const createTransactionalScheduleCompletionPayload = async (input: {
-  actor: CoreLinkageActor;
-  payload: Payload;
-}) => {
-  const req = await createLocalReq({ user: { id: input.actor.userId } as never }, input.payload);
-  const started = await initTransaction(req);
-  if (!started) return null;
-  const withReq = <T extends Record<string, unknown>>(args: T) => ({ ...args, req });
-  const payload: ScheduleCompletionPayload = {
-    create: (args) => input.payload.create(withReq(args) as never),
-    delete: (args) => input.payload.delete(withReq(args) as never),
-    find: (args) => input.payload.find(withReq(args) as never) as never,
-    findByID: (args) => input.payload.findByID(withReq(args) as never),
-    update: (args) => input.payload.update(withReq(args) as never),
-  };
-  return {
-    abort: () => killTransaction(req),
-    commit: () => commitTransaction(req),
-    payload,
-    req,
-  };
+  /** Only the outer boundary owns transactions. Core business code receives the
+   * transaction-bound payload supplied to this callback. */
+  runInTransaction?: (
+    actor: CoreLinkageActor,
+    operation: (payload: ScheduleCompletionPayload) => Promise<ScheduleCompletionResult>,
+  ) => Promise<ScheduleCompletionResult>;
+  /** Lets nested services avoid local reverse writes when the outer transaction
+   * provides the rollback boundary. It is never forwarded to Payload. */
+  isTransactional?: boolean;
 };
 
 type ScheduleDocument = {
@@ -68,6 +52,7 @@ type FailureCode =
   | "resource_not_found"
   | "schedule_write_failed"
   | "timeline_write_failed"
+  | "transaction_unavailable"
   | "compensation_failed";
 
 type Failure = { code: FailureCode; ok: false; safeMessage: string };
@@ -95,10 +80,83 @@ const messages: Record<FailureCode, string> = {
   resource_not_found: "The related Schedule resource was not found.",
   schedule_write_failed: "The Schedule item could not be completed safely.",
   timeline_write_failed: "The Schedule completion Timeline event could not be updated.",
+  transaction_unavailable: "The Schedule completion transaction is unavailable.",
 };
 
 const fail = (code: FailureCode): Failure => ({ code, ok: false, safeMessage: messages[code] });
 const isFailure = (value: unknown): value is Failure => Boolean(value && typeof value === "object" && (value as { ok?: unknown }).ok === false);
+
+/**
+ * Production Local-API boundary. It is deliberately inert until
+ * `completeScheduleItem` invokes `runInTransaction`: direct CRUD calls cannot
+ * accidentally escape the all-or-nothing completion operation.
+ */
+export const createTransactionalScheduleCompletionPayload = (input: {
+  payload: Payload;
+}): ScheduleCompletionPayload => {
+  const outsideTransaction = async (): Promise<never> => {
+    throw new Error("Schedule completion CRUD requires its transaction runner.");
+  };
+
+  return {
+    create: outsideTransaction,
+    delete: outsideTransaction,
+    find: outsideTransaction,
+    findByID: outsideTransaction,
+    update: outsideTransaction,
+    runInTransaction: async (actor, operation) => {
+      let req: Awaited<ReturnType<typeof createLocalReq>>;
+      try {
+        req = await createLocalReq({ user: { id: actor.userId } as never }, input.payload);
+        const started = await initTransaction(req);
+        if (!started) return fail("transaction_unavailable");
+      } catch {
+        return fail("transaction_unavailable");
+      }
+
+      const withReq = <T extends Record<string, unknown>>(args: T) => ({ ...args, req });
+      const transactionPayload: ScheduleCompletionPayload = {
+        create: (args) => input.payload.create(withReq(args) as never),
+        delete: (args) => input.payload.delete(withReq(args) as never),
+        find: (args) => input.payload.find(withReq(args) as never) as never,
+        findByID: (args) => input.payload.findByID(withReq(args) as never),
+        isTransactional: true,
+        update: (args) => input.payload.update(withReq(args) as never),
+      };
+
+      try {
+        const result = await operation(transactionPayload);
+        if (!result.ok) {
+          try {
+            await killTransaction(req);
+          } catch {
+            return fail("compensation_failed");
+          }
+          return result;
+        }
+        try {
+          await commitTransaction(req);
+          return result;
+        } catch {
+          try {
+            await killTransaction(req);
+          } catch {
+            // Commit already failed; no raw driver error escapes this boundary.
+          }
+          return fail("compensation_failed");
+        }
+      } catch {
+        try {
+          await killTransaction(req);
+        } catch {
+          return fail("compensation_failed");
+        }
+        return fail("compensation_failed");
+      }
+    },
+  };
+};
+
 const isId = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value > 0;
 const relationId = (value: unknown): number | null => isId(value) ? value : value && typeof value === "object" && isId((value as { id?: unknown }).id) ? (value as { id: number }).id : null;
 const isActor = (actor: CoreLinkageActor): boolean => actor.isAdministrator === true && isId(actor.userId);
@@ -133,6 +191,32 @@ const exactTimeline = async (payload: ScheduleCompletionPayload, itemId: number)
   }
 };
 
+const exactChecklistTimeline = async (
+  payload: ScheduleCompletionPayload,
+  checklistId: number,
+  itemKey: string,
+): Promise<Failure | null | TimelineEvent> => {
+  try {
+    const result = await payload.find({
+      collection: "timeline-events",
+      depth: 0,
+      limit: 2,
+      overrideAccess: true,
+      pagination: false,
+      where: {
+        and: [
+          { relatedChecklist: { equals: checklistId } },
+          { relatedTaskKey: { equals: itemKey } },
+        ],
+      },
+    });
+    if (result.totalDocs > 1 || result.docs.length > 1) return fail("checklist_completion_failed");
+    return result.docs[0] == null ? null : isTimeline(result.docs[0]) ? result.docs[0] : fail("checklist_completion_failed");
+  } catch {
+    return fail("checklist_completion_failed");
+  }
+};
+
 const readExact = async (payload: ScheduleCompletionPayload, collection: Collection, id: number): Promise<Failure | Record<string, unknown>> => {
   try {
     const document = await payload.findByID({ collection, depth: 0, id, overrideAccess: true });
@@ -157,39 +241,7 @@ const planHasTimelineLink = (plan: Record<string, unknown> | null, timelineEvent
     link && typeof link === "object" && (link as { relationTo?: unknown }).relationTo === "timeline-events" && relationId((link as { value?: unknown }).value) === timelineEventId,
   );
 
-const conditionalUpdate = async (input: {
-  after: Record<string, unknown>;
-  before: Record<string, unknown>;
-  collection: Collection;
-  payload: ScheduleCompletionPayload;
-}) => {
-  const updatedAt = input.after.updatedAt;
-  if (typeof updatedAt !== "string" || !isId(input.after.id)) return false;
-  try {
-    const result = await input.payload.update({
-      collection: input.collection,
-      data: input.before,
-      overrideAccess: true,
-      where: { and: [{ id: { equals: input.after.id } }, { updatedAt: { equals: updatedAt } }] },
-    });
-    return Boolean(result && typeof result === "object" && Array.isArray((result as { docs?: unknown }).docs) && (result as { docs: Array<{ id?: unknown }>; errors?: unknown[] }).docs.length === 1 && (result as { docs: Array<{ id?: unknown }>; errors?: unknown[] }).docs[0]?.id === input.after.id && (!(result as { errors?: unknown[] }).errors || (result as { errors?: unknown[] }).errors?.length === 0));
-  } catch { return false; }
-};
-
-const conditionalDelete = async (input: { after: TimelineEvent; payload: ScheduleCompletionPayload }) => {
-  const updatedAt = input.after.updatedAt;
-  if (typeof updatedAt !== "string") return false;
-  try {
-    const result = await input.payload.delete({
-      collection: "timeline-events",
-      overrideAccess: true,
-      where: { and: [{ id: { equals: input.after.id } }, { updatedAt: { equals: updatedAt } }] },
-    });
-    return Boolean(result && typeof result === "object" && Array.isArray((result as { docs?: unknown }).docs) && (result as { docs: Array<{ id?: unknown }>; errors?: unknown[] }).docs.length === 1 && (result as { docs: Array<{ id?: unknown }>; errors?: unknown[] }).docs[0]?.id === input.after.id && (!(result as { errors?: unknown[] }).errors || (result as { errors?: unknown[] }).errors?.length === 0));
-  } catch { return false; }
-};
-
-export async function completeScheduleItem(input: {
+async function completeScheduleItemCore(input: {
   actor: CoreLinkageActor;
   additionalPatch?: Omit<ScheduleRecordPatch, "status">;
   completedAt?: string;
@@ -219,6 +271,10 @@ export async function completeScheduleItem(input: {
     checklist = rawChecklist;
     checklistPlanId = relationId(checklist.planId);
   }
+  const previousChecklistTimeline = checklistId != null && itemKey != null
+    ? await exactChecklistTimeline(input.payload, checklistId, itemKey)
+    : null;
+  if (isFailure(previousChecklistTimeline)) return previousChecklistTimeline;
   if (schedulePlanId != null) {
     const plan = await readExact(input.payload, "plans", schedulePlanId);
     if (isFailure(plan)) return plan;
@@ -250,7 +306,24 @@ export async function completeScheduleItem(input: {
     visibility: "private",
   };
   const scheduleMatches = schedule.status === "done" && Object.entries(input.additionalPatch ?? {}).every(([key, value]) => schedule[key] === value);
-  const alreadyComplete = scheduleMatches && previousTimeline != null && sameData(snapshotTimeline(previousTimeline), desiredTimelineData) && (!checklist || checklistItemIsDone(checklist, itemKey!)) && (planId == null || planHasTimelineLink(planDocument, previousTimeline!.id));
+  const checklistMatches = !checklist || (
+    checklistItemIsDone(checklist, itemKey!)
+    && previousChecklistTimeline != null
+    && relationId(previousChecklistTimeline.relatedChecklist) === checklistId
+    && typeof previousChecklistTimeline.relatedTaskKey === "string"
+    && previousChecklistTimeline.relatedTaskKey === itemKey
+    && relationId(previousChecklistTimeline.relatedPlan) === planId
+  );
+  const planMatches = planId == null || (
+    previousTimeline != null
+    && planHasTimelineLink(planDocument, previousTimeline.id)
+    && (!previousChecklistTimeline || planHasTimelineLink(planDocument, previousChecklistTimeline.id))
+  );
+  const alreadyComplete = scheduleMatches
+    && previousTimeline != null
+    && sameData(snapshotTimeline(previousTimeline), desiredTimelineData)
+    && checklistMatches
+    && planMatches;
   if (alreadyComplete) {
     return { affectedDocuments: [], changed: false, ok: true, rollbackPayload: { beforeSnapshot: { checklistGroups: checklist?.groups ?? null, schedule: snapshotSchedule(schedule), timelineEvent: previousTimeline ? snapshotTimeline(previousTimeline) : null }, strategy: "restore_schedule_completion", target: { checklistId, itemId: input.itemId, planId, timelineEventId: previousTimeline.id } }, schedule, timelineEvent: previousTimeline! };
   }
@@ -263,11 +336,7 @@ export async function completeScheduleItem(input: {
       const written = await input.payload.update({ collection: "schedule-items", data: scheduleData, id: schedule.id, overrideAccess: true });
       if (!isSchedule(written)) return fail("schedule_write_failed");
       updatedSchedule = written;
-    } catch {
-      const current = await readExact(input.payload, "schedule-items", schedule.id);
-      if (isFailure(current) || JSON.stringify(snapshotSchedule(current as ScheduleDocument)) !== JSON.stringify({ ...beforeSchedule, ...scheduleData })) return fail("compensation_failed");
-      return fail("schedule_write_failed");
-    }
+    } catch { return fail("schedule_write_failed"); }
   }
 
   const timelineData = {
@@ -295,15 +364,7 @@ export async function completeScheduleItem(input: {
       : await input.payload.create({ collection: "timeline-events", data: timelineData, overrideAccess: true });
     if (!isTimeline(written)) throw new Error("invalid timeline response");
     timelineEvent = written;
-  } catch {
-    const reconciled = await exactTimeline(input.payload, updatedSchedule.id);
-    if (isTimeline(reconciled) && sameData(snapshotTimeline(reconciled), timelineData)) {
-      timelineEvent = reconciled;
-    } else {
-      const restored = await conditionalUpdate({ after: updatedSchedule, before: beforeSchedule, collection: "schedule-items", payload: input.payload });
-      return restored ? fail("timeline_write_failed") : fail("compensation_failed");
-    }
-  }
+  } catch { return fail("timeline_write_failed"); }
 
   let planLinkChanged = false;
   let schedulePlanLink: { afterLinkedContent: unknown; beforeLinkedContent: unknown; changed: boolean; planId: number } | undefined;
@@ -311,14 +372,6 @@ export async function completeScheduleItem(input: {
     const linked = await linkTimelineToPlan({ payload: input.payload as unknown as CoreLinkagePayload, planId, timelineEventId: timelineEvent.id });
     if (!linked.ok) {
       if (linked.code === "compensation_failed") return fail("compensation_failed");
-      const current = await readExact(input.payload, "timeline-events", timelineEvent.id);
-      if (isFailure(current) || !isTimeline(current) || !sameData(snapshotTimeline(current), timelineData)) return fail("compensation_failed");
-      const timelineRestored = timelineCreated
-        ? await conditionalDelete({ after: timelineEvent, payload: input.payload })
-        : await conditionalUpdate({ after: timelineEvent as unknown as Record<string, unknown>, before: snapshotTimeline(previousTimeline!), collection: "timeline-events", payload: input.payload });
-      if (!timelineRestored) return fail("compensation_failed");
-      const scheduleRestored = await conditionalUpdate({ after: updatedSchedule, before: beforeSchedule, collection: "schedule-items", payload: input.payload });
-      if (!scheduleRestored) return fail("compensation_failed");
       return fail("timeline_write_failed");
     }
     planLinkChanged = linked.changed;
@@ -331,7 +384,7 @@ export async function completeScheduleItem(input: {
   if (checklist && itemKey) {
     const completed = await completeChecklistItemByKey({ checklistId: checklist.id, completedAt: input.completedAt ?? new Date().toISOString(), itemKey, payload: input.payload as unknown as ChecklistCompletionPayload });
     if (!completed.ok) {
-      return fail("compensation_failed");
+      return completed.code === "compensation_failed" ? fail("compensation_failed") : fail("checklist_completion_failed");
     }
     beforeGroups = completed.beforeGroups;
     checklistCompletion = buildChecklistGroupsAndTimelineRollbackPayload(
@@ -353,4 +406,26 @@ export async function completeScheduleItem(input: {
     documents.findIndex((candidate) => candidate.collection === document.collection && candidate.documentId === document.documentId && candidate.operation === document.operation) === index,
   );
   return { affectedDocuments: dedupedAffectedDocuments, changed: true, ok: true, rollbackPayload: { beforeSnapshot: { ...(checklistCompletion ? { checklistCompletion } : {}), checklistGroups: beforeGroups, schedule: beforeSchedule, ...(schedulePlanLink ? { schedulePlanLink } : {}), timelineEvent: previousTimeline ? snapshotTimeline(previousTimeline) : null }, strategy: "restore_schedule_completion", target: { checklistId, itemId: input.itemId, planId, timelineEventId: timelineEvent.id } }, schedule: updatedSchedule, timelineEvent };
+}
+
+export async function completeScheduleItem(input: {
+  actor: CoreLinkageActor;
+  additionalPatch?: Omit<ScheduleRecordPatch, "status">;
+  completedAt?: string;
+  itemId: number;
+  payload: ScheduleCompletionPayload;
+}): Promise<ScheduleCompletionResult> {
+  if (!isActor(input.actor)) return fail("invalid_actor");
+  if (!isId(input.itemId) || (input.completedAt != null && (typeof input.completedAt !== "string" || input.completedAt.length === 0))) {
+    return fail("invalid_reference");
+  }
+  if (!input.payload.runInTransaction) return fail("transaction_unavailable");
+  try {
+    return await input.payload.runInTransaction(
+      input.actor,
+      async (payload) => completeScheduleItemCore({ ...input, payload }),
+    );
+  } catch {
+    return fail("compensation_failed");
+  }
 }

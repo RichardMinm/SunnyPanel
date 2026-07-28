@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { completeScheduleItem, type ScheduleCompletionPayload } from "../../../src/lib/schedule/complete-schedule-item";
+import { completeScheduleItem, createTransactionalScheduleCompletionPayload, type ScheduleCompletionPayload } from "../../../src/lib/schedule/complete-schedule-item";
+
+const withTransaction = (payload: ScheduleCompletionPayload): ScheduleCompletionPayload => ({
+  ...payload,
+  runInTransaction: async (_actor, operation) => operation({ ...payload, isTransactional: true }),
+});
 
 test("returns a full rollback payload with sanitized affected documents", async () => {
   const schedule = { createdAt: "x", date: "2026-07-28", id: 701, isAllDay: false, priority: "medium", sourceType: "manual", status: "planned", title: "发布", updatedAt: "x" };
@@ -18,7 +23,7 @@ test("returns a full rollback payload with sanitized affected documents", async 
     },
   };
 
-  const result = await completeScheduleItem({ actor: { isAdministrator: true, userId: 9 }, completedAt: "2026-07-28T09:30:00.000Z", itemId: 701, payload });
+  const result = await completeScheduleItem({ actor: { isAdministrator: true, userId: 9 }, completedAt: "2026-07-28T09:30:00.000Z", itemId: 701, payload: withTransaction(payload) });
 
   assert.equal(result.ok, true);
   if (!result.ok) return;
@@ -27,7 +32,7 @@ test("returns a full rollback payload with sanitized affected documents", async 
   assert.deepEqual(result.affectedDocuments.map((document) => document.collection), ["schedule-items", "timeline-events"]);
 });
 
-test("compensates in reverse order and does not stale-restore divergent state", async () => {
+test("returns an uncertain Schedule write failure to the transaction runner without stale compensation", async () => {
   const schedule = { createdAt: "x", date: "2026-07-28", id: 701, isAllDay: false, priority: "medium", sourceType: "manual", status: "planned", title: "发布", updatedAt: "x" };
   const operations: string[] = [];
   let event: Record<string, unknown> | null = null;
@@ -47,9 +52,61 @@ test("compensates in reverse order and does not stale-restore divergent state", 
     },
   };
 
-  const result = await completeScheduleItem({ actor: { isAdministrator: true, userId: 9 }, completedAt: "2026-07-28T09:30:00.000Z", itemId: 701, payload });
+  const result = await completeScheduleItem({
+    actor: { isAdministrator: true, userId: 9 },
+    completedAt: "2026-07-28T09:30:00.000Z",
+    itemId: 701,
+    payload: {
+      ...payload,
+      runInTransaction: async (_actor, operation) => {
+        const before = structuredClone(schedule);
+        const result = await operation({ ...payload, isTransactional: true });
+        if (!result.ok) Object.assign(schedule, before);
+        return result;
+      },
+    },
+  });
 
   assert.equal(result.ok, false);
   assert.equal(operations.includes("delete-event"), false, "a failed first write must not compensate uncertain state");
-  assert.equal(schedule.status, "done");
+  assert.equal(operations.filter((operation) => operation === "update-schedule-items").length, 1);
+  assert.equal(schedule.status, "planned");
+});
+
+test("requires a transaction before it performs Schedule business operations", async () => {
+  const schedule = { createdAt: "x", date: "2026-07-28", id: 701, isAllDay: false, priority: "medium", sourceType: "manual", status: "planned", title: "发布", updatedAt: "x" };
+  const operations: string[] = [];
+  const payload: ScheduleCompletionPayload = {
+    create: async () => { operations.push("create"); return null; },
+    delete: async () => { operations.push("delete"); return null; },
+    find: async () => { operations.push("find"); return { docs: [], totalDocs: 0 }; },
+    findByID: async () => { operations.push("findByID"); return schedule; },
+    update: async () => { operations.push("update"); return schedule; },
+  };
+
+  const result = await completeScheduleItem({
+    actor: { isAdministrator: true, userId: 9 },
+    completedAt: "2026-07-28T09:30:00.000Z",
+    itemId: 701,
+    payload,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "transaction_unavailable");
+  assert.deepEqual(operations, []);
+});
+
+test("production transaction factory keeps outer CRUD inert until the runner starts", async () => {
+  let payloadOperations = 0;
+  const boundary = createTransactionalScheduleCompletionPayload({
+    payload: {
+      create: async () => { payloadOperations += 1; return null; },
+    } as never,
+  });
+
+  await assert.rejects(
+    boundary.create({ collection: "timeline-events", data: {}, overrideAccess: true }),
+    /requires its transaction runner/u,
+  );
+  assert.equal(payloadOperations, 0);
 });

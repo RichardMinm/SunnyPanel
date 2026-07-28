@@ -67,6 +67,8 @@ export type ChecklistCompletionPayload = {
   delete: (args: ChecklistCompletionDeleteArgs) => Promise<unknown>;
   find: (args: ChecklistCompletionFindArgs) => Promise<{ docs: unknown[]; totalDocs: number }>;
   findByID: (args: ChecklistCompletionFindByIDArgs) => Promise<null | unknown>;
+  /** The Schedule completion boundary owns rollback for this nested call. */
+  isTransactional?: boolean;
   update: (args: ChecklistCompletionUpdateArgs) => Promise<unknown>;
 };
 
@@ -449,6 +451,9 @@ export async function completeChecklistItemByKey(input: {
     }
     timelineEvent = written;
   } catch {
+    if (input.payload.isTransactional) {
+      return fail("timeline_write_failed");
+    }
     try {
       await input.payload.update({
         collection: "checklists",
@@ -474,6 +479,9 @@ export async function completeChecklistItemByKey(input: {
     });
 
     if (!planLink.ok) {
+      if (input.payload.isTransactional) {
+        return fail(planLink.code);
+      }
       const compensated = await compensateCompletion({
         beforeGroups,
         checklistId: checklist.id,
