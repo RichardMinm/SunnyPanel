@@ -37,7 +37,21 @@ test("confirmed schedule completion uses the shared completion operation once an
             { collection: "timeline-events", documentId: 82, operation: "create", visibility: "private" },
           ],
           ok: true,
-          rollbackPayload: { beforeSnapshot: { schedule: { priority: "medium", status: "planned" } }, strategy: "restore_schedule_completion", target: { itemId: 81 } },
+          rollbackPayload: {
+            afterSnapshot: {
+              checklistGroups: null,
+              checklistTimelineEvent: null,
+              schedule: { priority: "high", status: "done" },
+              timelineEvent: { title: "完成日程：晨间复习" },
+            },
+            beforeSnapshot: {
+              checklistGroups: null,
+              schedule: { priority: "medium", status: "planned" },
+              timelineEvent: null,
+            },
+            strategy: "restore_schedule_completion",
+            target: { checklistId: null, itemId: 81, planId: null, timelineEventId: 82 },
+          },
           schedule: { id: 81, status: "done", title: "晨间复习" },
           timelineEvent: { id: 82 },
         };
@@ -53,13 +67,27 @@ test("confirmed schedule completion uses the shared completion operation once an
   assert.equal((result.rollbackPayload as { strategy?: string } | undefined)?.strategy, "restore_schedule_completion");
 });
 
-test("schedule completion rollback payload is executable without exposing its snapshot", () => {
+test("schedule completion rollback payload requires bounded reconciliation snapshots", () => {
+  assert.equal(
+    isRollbackPayloadExecutable({
+      afterSnapshot: {
+        checklistGroups: null,
+        checklistTimelineEvent: null,
+        schedule: { status: "done" },
+        timelineEvent: { title: "完成日程：晨间复习" },
+      },
+      beforeSnapshot: { schedule: { status: "planned" } },
+      strategy: "restore_schedule_completion",
+      target: { itemId: 81, timelineEventId: 82 },
+    }),
+    true,
+  );
   assert.equal(
     isRollbackPayloadExecutable({
       beforeSnapshot: { schedule: { status: "planned" } },
       strategy: "restore_schedule_completion",
       target: { itemId: 81, timelineEventId: 82 },
     }),
-    true,
+    false,
   );
 });

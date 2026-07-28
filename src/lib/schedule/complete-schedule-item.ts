@@ -63,6 +63,12 @@ export type ScheduleCompletionResult = Failure | {
   changed: boolean;
   ok: true;
   rollbackPayload: {
+    afterSnapshot: {
+      checklistGroups: null | NonNullable<Checklist["groups"]>;
+      checklistTimelineEvent: null | Record<string, unknown>;
+      schedule: Record<string, unknown>;
+      timelineEvent: Record<string, unknown>;
+    };
     beforeSnapshot: { checklistCompletion?: ReturnType<typeof buildChecklistGroupsAndTimelineRollbackPayload>; checklistGroups: null | NonNullable<Checklist["groups"]>; schedule: Record<string, unknown>; schedulePlanLink?: { afterLinkedContent: unknown; beforeLinkedContent: unknown; changed: boolean; planId: number }; timelineEvent: null | Record<string, unknown> };
     strategy: "restore_schedule_completion";
     target: { checklistId: number | null; itemId: number; planId: number | null; timelineEventId: number };
@@ -195,9 +201,36 @@ const isSchedule = (value: unknown): value is ScheduleDocument => Boolean(value 
 const isTimeline = (value: unknown): value is TimelineEvent => Boolean(value && typeof value === "object" && isId((value as { id?: unknown }).id));
 const isChecklist = (value: unknown): value is Checklist => Boolean(value && typeof value === "object" && isId((value as { id?: unknown }).id) && typeof (value as { title?: unknown }).title === "string");
 
-const snapshotSchedule = (schedule: ScheduleDocument) => Object.fromEntries(
-  Object.entries(schedule).filter(([key]) => key !== "id" && key !== "createdAt" && key !== "updatedAt"),
-);
+const snapshotSchedule = (schedule: ScheduleDocument) => {
+  const names = [
+    "agentBrief",
+    "category",
+    "conflictNote",
+    "createdBy",
+    "date",
+    "description",
+    "endTime",
+    "isAllDay",
+    "priority",
+    "relatedChecklist",
+    "relatedChecklistItemKey",
+    "relatedPlan",
+    "sourceType",
+    "startTime",
+    "status",
+    "title",
+  ] as const;
+
+  return Object.fromEntries(
+    names.flatMap((name) => {
+      if (!(name in schedule)) return [];
+      const value = name === "relatedChecklist" || name === "relatedPlan"
+        ? relationId(schedule[name])
+        : schedule[name];
+      return [[name, value]];
+    }),
+  );
+};
 
 const snapshotTimeline = (event: TimelineEvent): Record<string, unknown> => {
   const names = ["description", "eventDate", "isFeatured", "sortOrder", "sourceType", "status", "title", "type", "visibility"] as const;
@@ -356,7 +389,33 @@ async function completeScheduleItemCore(input: {
     && checklistMatches
     && planMatches;
   if (alreadyComplete) {
-    return { affectedDocuments: [], changed: false, ok: true, rollbackPayload: { beforeSnapshot: { checklistGroups: checklist?.groups ?? null, schedule: snapshotSchedule(schedule), timelineEvent: previousTimeline ? snapshotTimeline(previousTimeline) : null }, strategy: "restore_schedule_completion", target: { checklistId, itemId: input.itemId, planId, timelineEventId: previousTimeline.id } }, schedule, timelineEvent: previousTimeline! };
+    return {
+      affectedDocuments: [],
+      changed: false,
+      ok: true,
+      rollbackPayload: {
+        afterSnapshot: {
+          checklistGroups: checklist?.groups ?? null,
+          checklistTimelineEvent: previousChecklistTimeline ? snapshotTimeline(previousChecklistTimeline) : null,
+          schedule: snapshotSchedule(schedule),
+          timelineEvent: snapshotTimeline(previousTimeline),
+        },
+        beforeSnapshot: {
+          checklistGroups: checklist?.groups ?? null,
+          schedule: snapshotSchedule(schedule),
+          timelineEvent: snapshotTimeline(previousTimeline),
+        },
+        strategy: "restore_schedule_completion",
+        target: {
+          checklistId,
+          itemId: input.itemId,
+          planId,
+          timelineEventId: previousTimeline.id,
+        },
+      },
+      schedule,
+      timelineEvent: previousTimeline,
+    };
   }
 
   const beforeSchedule = snapshotSchedule(schedule);
@@ -364,7 +423,13 @@ async function completeScheduleItemCore(input: {
   let updatedSchedule = schedule;
   if (schedule.status !== "done" || Object.keys(input.additionalPatch ?? {}).length > 0) {
     try {
-      const written = await input.payload.update({ collection: "schedule-items", data: scheduleData, id: schedule.id, overrideAccess: true });
+      const written = await input.payload.update({
+        collection: "schedule-items",
+        data: scheduleData,
+        depth: 0,
+        id: schedule.id,
+        overrideAccess: true,
+      });
       if (!isSchedule(written)) return fail("schedule_write_failed");
       updatedSchedule = written;
     } catch { return fail("schedule_write_failed"); }
@@ -397,7 +462,6 @@ async function completeScheduleItemCore(input: {
     timelineEvent = written;
   } catch { return fail("timeline_write_failed"); }
 
-  let planLinkChanged = false;
   let schedulePlanLink: { afterLinkedContent: unknown; beforeLinkedContent: unknown; changed: boolean; planId: number } | undefined;
   if (planId != null) {
     const linked = await linkTimelineToPlan({ payload: input.payload as unknown as CoreLinkagePayload, planId, timelineEventId: timelineEvent.id });
@@ -405,11 +469,12 @@ async function completeScheduleItemCore(input: {
       if (linked.code === "compensation_failed") return fail("compensation_failed");
       return fail("timeline_write_failed");
     }
-    planLinkChanged = linked.changed;
     schedulePlanLink = { afterLinkedContent: linked.afterLinkedContent, beforeLinkedContent: linked.beforeLinkedContent, changed: linked.changed, planId };
   }
 
   let beforeGroups: null | NonNullable<Checklist["groups"]> = null;
+  let completedGroups: null | NonNullable<Checklist["groups"]> = null;
+  let completedChecklistTimeline: null | Record<string, unknown> = null;
   let checklistCompletion: ReturnType<typeof buildChecklistGroupsAndTimelineRollbackPayload> | undefined;
   let checklistAffectedDocuments: AffectedDocument[] = [];
   if (checklist && itemKey) {
@@ -418,6 +483,8 @@ async function completeScheduleItemCore(input: {
       return completed.code === "compensation_failed" ? fail("compensation_failed") : fail("checklist_completion_failed");
     }
     beforeGroups = completed.beforeGroups;
+    completedGroups = completed.checklist.groups ?? [];
+    completedChecklistTimeline = snapshotTimeline(completed.timelineEvent);
     checklistCompletion = buildChecklistGroupsAndTimelineRollbackPayload(
       checklist.id,
       completed.beforeGroups,
@@ -436,7 +503,35 @@ async function completeScheduleItemCore(input: {
   const dedupedAffectedDocuments = [...affectedDocuments, ...checklistAffectedDocuments].filter((document, index, documents) =>
     documents.findIndex((candidate) => candidate.collection === document.collection && candidate.documentId === document.documentId && candidate.operation === document.operation) === index,
   );
-  return { affectedDocuments: dedupedAffectedDocuments, changed: true, ok: true, rollbackPayload: { beforeSnapshot: { ...(checklistCompletion ? { checklistCompletion } : {}), checklistGroups: beforeGroups, schedule: beforeSchedule, ...(schedulePlanLink ? { schedulePlanLink } : {}), timelineEvent: previousTimeline ? snapshotTimeline(previousTimeline) : null }, strategy: "restore_schedule_completion", target: { checklistId, itemId: input.itemId, planId, timelineEventId: timelineEvent.id } }, schedule: updatedSchedule, timelineEvent };
+  return {
+    affectedDocuments: dedupedAffectedDocuments,
+    changed: true,
+    ok: true,
+    rollbackPayload: {
+      afterSnapshot: {
+        checklistGroups: completedGroups,
+        checklistTimelineEvent: completedChecklistTimeline,
+        schedule: snapshotSchedule(updatedSchedule),
+        timelineEvent: snapshotTimeline(timelineEvent),
+      },
+      beforeSnapshot: {
+        ...(checklistCompletion ? { checklistCompletion } : {}),
+        checklistGroups: beforeGroups,
+        schedule: beforeSchedule,
+        ...(schedulePlanLink ? { schedulePlanLink } : {}),
+        timelineEvent: previousTimeline ? snapshotTimeline(previousTimeline) : null,
+      },
+      strategy: "restore_schedule_completion",
+      target: {
+        checklistId,
+        itemId: input.itemId,
+        planId,
+        timelineEventId: timelineEvent.id,
+      },
+    },
+    schedule: updatedSchedule,
+    timelineEvent,
+  };
 }
 
 export async function completeScheduleItem(input: {

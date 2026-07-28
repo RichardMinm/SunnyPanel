@@ -1,10 +1,16 @@
 import { getPayloadClient } from "@/lib/payload/client";
-import { removePlanLink } from "@/lib/core-linkage/plan-links";
+import {
+  normalizePlanLinkedContent,
+  removePlanLink,
+  type PlanLinkedContent,
+} from "@/lib/core-linkage/plan-links";
 import {
   unlinkTimelineFromPlan,
   type CoreLinkagePayload,
 } from "@/lib/core-linkage/service";
 import type { User } from "@/payload-types";
+import type { Payload } from "payload";
+import { commitTransaction, createLocalReq } from "payload";
 
 import { recordAgentRollbackExecuted } from "./audit";
 import { parseRollbackPayload } from "./rollback-parse";
@@ -29,10 +35,22 @@ export type RollbackAffectedDocument = {
   visibility: "unknown";
 };
 
+type RollbackTransactionOptions = {
+  accessMode: "read write";
+  isolationLevel: "serializable";
+};
+
+type RollbackTransactionRunner = <T>(
+  userId: number,
+  operation: (payload: RollbackPayloadClient) => Promise<T>,
+  options: RollbackTransactionOptions,
+) => Promise<T>;
+
 type RollbackPayloadClient = {
   create: (args: unknown) => Promise<unknown>;
   delete: (args: unknown) => Promise<unknown>;
   findByID: (args: unknown) => Promise<null | unknown>;
+  runInTransaction?: RollbackTransactionRunner;
   update: (args: unknown) => Promise<unknown>;
 };
 
@@ -61,6 +79,129 @@ const bindRollbackPayloadToUser = (
     delete: (args) => payload.delete(withUser(args)),
     findByID: (args) => payload.findByID(withUser(args)),
     update: (args) => payload.update(withUser(args)),
+  };
+};
+
+type RollbackTransactionRequest = {
+  transactionID?: number | Promise<number | string> | string;
+};
+
+class ScheduleRollbackTransactionUnavailableError extends Error {
+  constructor() {
+    super("Schedule completion rollback transaction is unavailable.");
+    this.name = "ScheduleRollbackTransactionUnavailableError";
+  }
+}
+
+const scheduleRollbackTransactionOptions: RollbackTransactionOptions = {
+  accessMode: "read write",
+  isolationLevel: "serializable",
+};
+
+const beginScheduleRollbackTransaction = async (input: {
+  options: RollbackTransactionOptions;
+  payload: Pick<Payload, "db">;
+  req: RollbackTransactionRequest;
+}): Promise<boolean> => {
+  if (input.req.transactionID != null) {
+    return false;
+  }
+
+  const transactionID = await input.payload.db.beginTransaction(input.options);
+  if (transactionID == null) {
+    return false;
+  }
+
+  input.req.transactionID = transactionID;
+  return true;
+};
+
+const rollbackPayloadTransaction = async (input: {
+  payload: Pick<Payload, "db">;
+  req: RollbackTransactionRequest;
+}): Promise<boolean> => {
+  const transactionID = input.req.transactionID;
+
+  try {
+    if (transactionID == null) {
+      return false;
+    }
+
+    await input.payload.db.rollbackTransaction(await transactionID);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    delete input.req.transactionID;
+  }
+};
+
+/**
+ * Production-only Schedule rollback boundary. Direct CRUD is inert so a
+ * missing/failed transaction can never degrade to partial reverse writes.
+ */
+const createTransactionalRollbackPayload = (input: {
+  payload: Payload;
+}): RollbackPayloadClient => {
+  const outsideTransaction = async (): Promise<never> => {
+    throw new Error("Schedule completion rollback CRUD requires its transaction runner.");
+  };
+
+  return {
+    create: outsideTransaction,
+    delete: outsideTransaction,
+    findByID: outsideTransaction,
+    update: outsideTransaction,
+    runInTransaction: async <T>(
+      userId: number,
+      operation: (payload: RollbackPayloadClient) => Promise<T>,
+      options: RollbackTransactionOptions,
+    ): Promise<T> => {
+      let req: Awaited<ReturnType<typeof createLocalReq>>;
+
+      try {
+        req = await createLocalReq({ user: { id: userId } as never }, input.payload);
+        const started = await beginScheduleRollbackTransaction({
+          options,
+          payload: input.payload,
+          req,
+        });
+
+        if (!started) {
+          throw new ScheduleRollbackTransactionUnavailableError();
+        }
+      } catch {
+        throw new ScheduleRollbackTransactionUnavailableError();
+      }
+
+      const withReq = (args: unknown) =>
+        args && typeof args === "object" && !Array.isArray(args)
+          ? { ...(args as Record<string, unknown>), req }
+          : args;
+      const transactionPayload: RollbackPayloadClient = {
+        create: (args) => input.payload.create(withReq(args) as never),
+        delete: (args) => input.payload.delete(withReq(args) as never),
+        findByID: (args) => input.payload.findByID(withReq(args) as never),
+        update: (args) => input.payload.update(withReq(args) as never),
+      };
+
+      try {
+        const result = await operation(transactionPayload);
+        await commitTransaction(req);
+        return result;
+      } catch (error) {
+        const rolledBack = await rollbackPayloadTransaction({
+          payload: input.payload,
+          req,
+        });
+
+        if (!rolledBack) {
+          throw new Error("Schedule completion rollback could not be reconciled safely.");
+        }
+
+        throw error;
+      }
+    },
   };
 };
 
@@ -203,7 +344,9 @@ const pickScheduleSnapshotData = (snapshot: unknown) => {
   const data: Record<string, unknown> = {};
   const fields = [
     "agentBrief",
+    "category",
     "conflictNote",
+    "createdBy",
     "date",
     "description",
     "endTime",
@@ -220,7 +363,14 @@ const pickScheduleSnapshotData = (snapshot: unknown) => {
 
   for (const field of fields) {
     if (field in record) {
-      data[field] = record[field];
+      const value = record[field];
+      data[field] = (
+        field === "relatedChecklist"
+        || field === "relatedPlan"
+      ) && value && typeof value === "object" && !Array.isArray(value)
+        && typeof (value as { id?: unknown }).id === "number"
+        ? (value as { id: number }).id
+        : value;
     }
   }
 
@@ -285,6 +435,564 @@ const pickChecklistSnapshotData = (snapshot: unknown) => {
   }
 
   return Object.keys(data).length > 0 ? data : null;
+};
+
+type ScheduleRollbackPosition = "after" | "before";
+
+type ScheduleRollbackPlanRemoval = {
+  planId: number;
+  timelineEventId: number;
+};
+
+const scheduleRollbackFailure = () =>
+  new Error("Schedule completion rollback state is divergent and cannot be reconciled safely.");
+
+const asRollbackRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+
+const canonicalRollbackValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(canonicalRollbackValue);
+  }
+
+  const record = asRollbackRecord(value);
+  if (!record) {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.keys(record)
+      .sort()
+      .flatMap((key) =>
+        record[key] === undefined
+          ? []
+          : [[key, canonicalRollbackValue(record[key])]],
+      ),
+  );
+};
+
+const sameRollbackValue = (left: unknown, right: unknown) =>
+  JSON.stringify(canonicalRollbackValue(left)) === JSON.stringify(canonicalRollbackValue(right));
+
+const requireTimelineSnapshotData = (
+  snapshot: unknown,
+): null | Record<string, unknown> => {
+  if (snapshot == null) {
+    return null;
+  }
+
+  const data = pickTimelineSnapshotData(snapshot);
+  if (!data) {
+    throw scheduleRollbackFailure();
+  }
+
+  return data;
+};
+
+const readScheduleRollbackDocument = async (
+  payload: RollbackPayloadClient,
+  collection: "checklists" | "plans" | "schedule-items" | "timeline-events",
+  id: number,
+): Promise<Record<string, unknown> | null> => {
+  try {
+    const document = await payload.findByID({
+      collection,
+      depth: 0,
+      id,
+      overrideAccess: true,
+    });
+    const record = asRollbackRecord(document);
+
+    if (!record) {
+      return null;
+    }
+
+    return record.id === id ? record : null;
+  } catch (error) {
+    if (isDocumentNotFoundError(error)) {
+      return null;
+    }
+
+    throw scheduleRollbackFailure();
+  }
+};
+
+const classifyExistingScheduleRollbackSnapshot = (input: {
+  after: unknown;
+  before: unknown;
+  current: unknown;
+}): ScheduleRollbackPosition => {
+  if (sameRollbackValue(input.current, input.before)) {
+    return "before";
+  }
+
+  if (sameRollbackValue(input.current, input.after)) {
+    return "after";
+  }
+
+  throw scheduleRollbackFailure();
+};
+
+const classifyTimelineScheduleRollbackSnapshot = (input: {
+  after: Record<string, unknown>;
+  before: null | Record<string, unknown>;
+  current: null | Record<string, unknown>;
+}): ScheduleRollbackPosition => {
+  if (!input.current) {
+    if (input.before == null) {
+      return "before";
+    }
+
+    throw scheduleRollbackFailure();
+  }
+
+  const current = pickTimelineSnapshotData(input.current);
+  if (!current) {
+    throw scheduleRollbackFailure();
+  }
+
+  if (input.before && sameRollbackValue(current, input.before)) {
+    return "before";
+  }
+
+  if (sameRollbackValue(current, input.after)) {
+    return "after";
+  }
+
+  throw scheduleRollbackFailure();
+};
+
+const normalizeScheduleRollbackPlanLinks = (value: unknown): PlanLinkedContent => {
+  try {
+    const links = normalizePlanLinkedContent(value);
+    const keys = links.map((link) => `${link.relationTo}:${link.value}`);
+
+    if (new Set(keys).size !== keys.length) {
+      throw scheduleRollbackFailure();
+    }
+
+    return links;
+  } catch {
+    throw scheduleRollbackFailure();
+  }
+};
+
+const countTimelinePlanLink = (links: PlanLinkedContent, timelineEventId: number) =>
+  links.filter((link) =>
+    link.relationTo === "timeline-events" && link.value === timelineEventId,
+  ).length;
+
+const validateScheduleRollbackPlanTransition = (input: {
+  afterLinkedContent?: unknown;
+  beforeLinkedContent: unknown;
+  timelineEventId: number;
+}) => {
+  const before = normalizeScheduleRollbackPlanLinks(input.beforeLinkedContent);
+  if (countTimelinePlanLink(before, input.timelineEventId) !== 0) {
+    throw scheduleRollbackFailure();
+  }
+
+  if (input.afterLinkedContent !== undefined) {
+    const after = normalizeScheduleRollbackPlanLinks(input.afterLinkedContent);
+    if (countTimelinePlanLink(after, input.timelineEventId) !== 1) {
+      throw scheduleRollbackFailure();
+    }
+  }
+};
+
+const dedupeRollbackAffectedDocuments = (
+  documents: RollbackAffectedDocument[],
+) => documents.filter((document, index) =>
+  documents.findIndex((candidate) =>
+    candidate.collection === document.collection
+    && candidate.documentId === document.documentId
+    && candidate.operation === document.operation,
+  ) === index,
+);
+
+const executeScheduleCompletionRollbackInTransaction = async (input: {
+  parsed: NonNullable<ReturnType<typeof parseRollbackPayload>>;
+  payload: RollbackPayloadClient;
+}): Promise<RollbackAffectedDocument[]> => {
+  const target = input.parsed.target;
+  const scheduleItemId = target?.itemId ?? target?.documentId;
+  const outerTimelineEventId = target?.timelineEventId;
+  if (
+    !target
+    || !isTrustedUserId(scheduleItemId)
+    || !isTrustedUserId(outerTimelineEventId)
+  ) {
+    throw scheduleRollbackFailure();
+  }
+
+  const beforeSnapshot = asRollbackRecord(input.parsed.beforeSnapshot);
+  const afterSnapshot = asRollbackRecord(input.parsed.afterSnapshot);
+  const beforeSchedule = pickScheduleSnapshotData(beforeSnapshot?.schedule);
+  const afterSchedule = pickScheduleSnapshotData(afterSnapshot?.schedule);
+  const afterOuterTimeline = requireTimelineSnapshotData(afterSnapshot?.timelineEvent);
+  const beforeOuterTimeline = requireTimelineSnapshotData(beforeSnapshot?.timelineEvent);
+  if (!beforeSnapshot || !afterSnapshot || !beforeSchedule || !afterSchedule || !afterOuterTimeline) {
+    throw scheduleRollbackFailure();
+  }
+
+  const checklistId = isTrustedUserId(target.checklistId)
+    ? target.checklistId
+    : null;
+  const checklistCompletion = asRollbackRecord(beforeSnapshot.checklistCompletion);
+  const checklistCompletionBefore = asRollbackRecord(checklistCompletion?.beforeSnapshot);
+  const checklistCompletionTarget = asRollbackRecord(checklistCompletion?.target);
+  const beforeChecklistGroups = checklistCompletionBefore?.groups ?? beforeSnapshot.checklistGroups;
+  const afterChecklistGroups = afterSnapshot.checklistGroups;
+  if (
+    checklistId != null
+    && (!Array.isArray(beforeChecklistGroups) || !Array.isArray(afterChecklistGroups))
+  ) {
+    throw scheduleRollbackFailure();
+  }
+
+  let nestedTimelineEventId: number | null = null;
+  let beforeNestedTimeline: null | Record<string, unknown> = null;
+  let afterNestedTimeline: null | Record<string, unknown> = null;
+  if (checklistCompletion) {
+    if (
+      checklistCompletion.strategy !== "restore_checklist_groups_and_timeline"
+      || checklistCompletionTarget?.collection !== "checklists"
+      || checklistCompletionTarget.documentId !== checklistId
+      || !isTrustedUserId(checklistCompletionTarget.timelineEventId)
+    ) {
+      throw scheduleRollbackFailure();
+    }
+
+    nestedTimelineEventId = checklistCompletionTarget.timelineEventId;
+    const nestedBeforeSnapshot = checklistCompletionBefore?.timelineEvent;
+    const nestedBeforeRecord = asRollbackRecord(nestedBeforeSnapshot);
+    if (
+      nestedBeforeRecord
+      && nestedBeforeRecord.id !== nestedTimelineEventId
+    ) {
+      throw scheduleRollbackFailure();
+    }
+    beforeNestedTimeline = requireTimelineSnapshotData(nestedBeforeSnapshot);
+    afterNestedTimeline = requireTimelineSnapshotData(afterSnapshot.checklistTimelineEvent);
+    if (!afterNestedTimeline) {
+      throw scheduleRollbackFailure();
+    }
+  } else if (
+    checklistId != null
+    && !sameRollbackValue(beforeChecklistGroups, afterChecklistGroups)
+  ) {
+    throw scheduleRollbackFailure();
+  }
+
+  const nestedPlanRemoval: ScheduleRollbackPlanRemoval | null = (() => {
+    if (checklistCompletionBefore?.planLinkChanged !== true) {
+      return null;
+    }
+
+    const planId = checklistCompletionTarget?.planId;
+    if (!isTrustedUserId(planId) || !isTrustedUserId(nestedTimelineEventId)) {
+      throw scheduleRollbackFailure();
+    }
+
+    validateScheduleRollbackPlanTransition({
+      beforeLinkedContent: checklistCompletionBefore.planLinkedContent,
+      timelineEventId: nestedTimelineEventId,
+    });
+    return {
+      planId,
+      timelineEventId: nestedTimelineEventId,
+    };
+  })();
+
+  const schedulePlanLink = asRollbackRecord(beforeSnapshot.schedulePlanLink);
+  const outerPlanRemoval: ScheduleRollbackPlanRemoval | null = (() => {
+    if (schedulePlanLink?.changed !== true) {
+      return null;
+    }
+
+    const planId = isTrustedUserId(schedulePlanLink.planId)
+      ? schedulePlanLink.planId
+      : target.planId;
+    if (!isTrustedUserId(planId)) {
+      throw scheduleRollbackFailure();
+    }
+
+    validateScheduleRollbackPlanTransition({
+      afterLinkedContent: schedulePlanLink.afterLinkedContent,
+      beforeLinkedContent: schedulePlanLink.beforeLinkedContent,
+      timelineEventId: outerTimelineEventId,
+    });
+    return {
+      planId,
+      timelineEventId: outerTimelineEventId,
+    };
+  })();
+
+  // Every read and classification happens before the first reverse write.
+  const currentSchedule = await readScheduleRollbackDocument(
+    input.payload,
+    "schedule-items",
+    scheduleItemId,
+  );
+  if (!currentSchedule) {
+    throw scheduleRollbackFailure();
+  }
+  const currentScheduleData = pickScheduleSnapshotData(currentSchedule);
+  if (!currentScheduleData) {
+    throw scheduleRollbackFailure();
+  }
+  const schedulePosition = classifyExistingScheduleRollbackSnapshot({
+    after: afterSchedule,
+    before: beforeSchedule,
+    current: currentScheduleData,
+  });
+
+  let checklistPosition: ScheduleRollbackPosition | null = null;
+  if (checklistId != null) {
+    const currentChecklist = await readScheduleRollbackDocument(
+      input.payload,
+      "checklists",
+      checklistId,
+    );
+    if (!currentChecklist) {
+      throw scheduleRollbackFailure();
+    }
+    checklistPosition = classifyExistingScheduleRollbackSnapshot({
+      after: afterChecklistGroups,
+      before: beforeChecklistGroups,
+      current: currentChecklist.groups,
+    });
+  }
+
+  const currentOuterTimeline = await readScheduleRollbackDocument(
+    input.payload,
+    "timeline-events",
+    outerTimelineEventId,
+  );
+  const outerTimelinePosition = classifyTimelineScheduleRollbackSnapshot({
+    after: afterOuterTimeline,
+    before: beforeOuterTimeline,
+    current: currentOuterTimeline,
+  });
+
+  let nestedTimelinePosition: ScheduleRollbackPosition | null = null;
+  if (
+    nestedTimelineEventId != null
+    && afterNestedTimeline
+  ) {
+    const currentNestedTimeline = await readScheduleRollbackDocument(
+      input.payload,
+      "timeline-events",
+      nestedTimelineEventId,
+    );
+    nestedTimelinePosition = classifyTimelineScheduleRollbackSnapshot({
+      after: afterNestedTimeline,
+      before: beforeNestedTimeline,
+      current: currentNestedTimeline,
+    });
+  }
+
+  const planRemovals = [nestedPlanRemoval, outerPlanRemoval].filter(
+    (removal): removal is ScheduleRollbackPlanRemoval => removal != null,
+  );
+  const currentPlanLinks = new Map<number, PlanLinkedContent>();
+  for (const planId of new Set(planRemovals.map((removal) => removal.planId))) {
+    const currentPlan = await readScheduleRollbackDocument(
+      input.payload,
+      "plans",
+      planId,
+    );
+    if (!currentPlan) {
+      throw scheduleRollbackFailure();
+    }
+    currentPlanLinks.set(
+      planId,
+      normalizeScheduleRollbackPlanLinks(currentPlan.linkedContent),
+    );
+  }
+
+  const planRemovalPositions = new Map<ScheduleRollbackPlanRemoval, ScheduleRollbackPosition>();
+  for (const removal of planRemovals) {
+    const links = currentPlanLinks.get(removal.planId);
+    if (!links) {
+      throw scheduleRollbackFailure();
+    }
+    const count = countTimelinePlanLink(links, removal.timelineEventId);
+    if (count > 1) {
+      throw scheduleRollbackFailure();
+    }
+    planRemovalPositions.set(removal, count === 0 ? "before" : "after");
+  }
+
+  const affectedDocuments: RollbackAffectedDocument[] = [];
+  const applyPlanRemoval = async (removal: ScheduleRollbackPlanRemoval | null) => {
+    if (!removal || planRemovalPositions.get(removal) === "before") {
+      return;
+    }
+
+    const current = currentPlanLinks.get(removal.planId);
+    if (!current) {
+      throw scheduleRollbackFailure();
+    }
+    const next = removePlanLink(current, {
+      relationTo: "timeline-events",
+      value: removal.timelineEventId,
+    });
+    if (sameRollbackValue(current, next)) {
+      throw scheduleRollbackFailure();
+    }
+
+    const written = asRollbackRecord(await input.payload.update({
+      collection: "plans",
+      data: { linkedContent: next },
+      depth: 0,
+      id: removal.planId,
+      overrideAccess: true,
+    }));
+    if (
+      !written
+      || written.id !== removal.planId
+      || !sameRollbackValue(
+        normalizeScheduleRollbackPlanLinks(written.linkedContent),
+        next,
+      )
+    ) {
+      throw scheduleRollbackFailure();
+    }
+    currentPlanLinks.set(removal.planId, next);
+    affectedDocuments.push(affectedDocument("plans", removal.planId, "update"));
+  };
+
+  const restoreTimeline = async (inputTimeline: {
+    before: null | Record<string, unknown>;
+    id: number;
+    position: ScheduleRollbackPosition | null;
+  }) => {
+    if (inputTimeline.position !== "after") {
+      return;
+    }
+
+    if (inputTimeline.before) {
+      const written = asRollbackRecord(await input.payload.update({
+        collection: "timeline-events",
+        data: inputTimeline.before,
+        depth: 0,
+        id: inputTimeline.id,
+        overrideAccess: true,
+      }));
+      if (
+        !written
+        || written.id !== inputTimeline.id
+        || !sameRollbackValue(
+          pickTimelineSnapshotData(written),
+          inputTimeline.before,
+        )
+      ) {
+        throw scheduleRollbackFailure();
+      }
+      affectedDocuments.push(
+        affectedDocument("timeline-events", inputTimeline.id, "update"),
+      );
+      return;
+    }
+
+    await input.payload.delete({
+      collection: "timeline-events",
+      id: inputTimeline.id,
+      overrideAccess: true,
+    });
+    affectedDocuments.push(
+      affectedDocument("timeline-events", inputTimeline.id, "delete"),
+    );
+  };
+
+  await applyPlanRemoval(nestedPlanRemoval);
+  if (nestedTimelineEventId != null) {
+    await restoreTimeline({
+      before: beforeNestedTimeline,
+      id: nestedTimelineEventId,
+      position: nestedTimelinePosition,
+    });
+  }
+  await applyPlanRemoval(outerPlanRemoval);
+  await restoreTimeline({
+    before: beforeOuterTimeline,
+    id: outerTimelineEventId,
+    position: outerTimelinePosition,
+  });
+
+  if (checklistId != null && checklistPosition === "after") {
+    const written = asRollbackRecord(await input.payload.update({
+      collection: "checklists",
+      context: { skipChecklistTimelineSync: true },
+      data: { groups: beforeChecklistGroups },
+      depth: 0,
+      id: checklistId,
+      overrideAccess: true,
+    }));
+    if (
+      !written
+      || written.id !== checklistId
+      || !sameRollbackValue(written.groups, beforeChecklistGroups)
+    ) {
+      throw scheduleRollbackFailure();
+    }
+    affectedDocuments.push(affectedDocument("checklists", checklistId, "update"));
+  }
+
+  if (schedulePosition === "after") {
+    const written = asRollbackRecord(await input.payload.update({
+      collection: "schedule-items",
+      data: beforeSchedule,
+      depth: 0,
+      id: scheduleItemId,
+      overrideAccess: true,
+    }));
+    if (
+      !written
+      || written.id !== scheduleItemId
+      || !sameRollbackValue(
+        pickScheduleSnapshotData(written),
+        beforeSchedule,
+      )
+    ) {
+      throw scheduleRollbackFailure();
+    }
+    affectedDocuments.push(
+      affectedDocument("schedule-items", scheduleItemId, "update"),
+    );
+  }
+
+  return dedupeRollbackAffectedDocuments(affectedDocuments);
+};
+
+const executeTransactionalScheduleCompletionRollback = async (input: {
+  parsed: NonNullable<ReturnType<typeof parseRollbackPayload>>;
+  payload: RollbackPayloadClient;
+  userId: number;
+}): Promise<RollbackAffectedDocument[]> => {
+  if (!input.payload.runInTransaction) {
+    throw new ScheduleRollbackTransactionUnavailableError();
+  }
+
+  try {
+    return await input.payload.runInTransaction(
+      input.userId,
+      async (transactionPayload) => executeScheduleCompletionRollbackInTransaction({
+        parsed: input.parsed,
+        payload: bindRollbackPayloadToUser(transactionPayload, input.userId),
+      }),
+      scheduleRollbackTransactionOptions,
+    );
+  } catch (error) {
+    if (error instanceof ScheduleRollbackTransactionUnavailableError) {
+      throw error;
+    }
+
+    throw new Error("Schedule completion rollback could not be reconciled safely.");
+  }
 };
 
 const modifiedRecordFields: Record<string, ReadonlySet<string>> = {
@@ -434,6 +1142,38 @@ export const executeRollbackFromPayload = async (
       strategy: parsed.strategy,
     });
     const auditWarning = shouldPersistAudit ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId) : undefined;
+
+    return auditWarning ? { ...result, auditWarning } : result;
+  }
+
+  if (parsed.strategy === "restore_schedule_completion") {
+    if (!isTrustedUserId(userId)) {
+      throw new Error("The related resource is not available to this operation.");
+    }
+
+    const transactionPayload = options.payload
+      ? payload as RollbackPayloadClient
+      : createTransactionalRollbackPayload({
+          payload: payload as unknown as Payload,
+        });
+    const affectedDocuments = await executeTransactionalScheduleCompletionRollback({
+      parsed,
+      payload: transactionPayload,
+      userId,
+    });
+    const scheduleItemId = itemId ?? documentId;
+    if (!isTrustedUserId(scheduleItemId)) {
+      throw scheduleRollbackFailure();
+    }
+    const result = buildRollbackResult({
+      affectedDocuments,
+      collection: "schedule-items",
+      documentId: scheduleItemId,
+      strategy: parsed.strategy,
+    });
+    const auditWarning = shouldPersistAudit
+      ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId)
+      : undefined;
 
     return auditWarning ? { ...result, auditWarning } : result;
   }
@@ -669,57 +1409,6 @@ export const executeRollbackFromPayload = async (
       ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId)
       : undefined;
 
-    return auditWarning ? { ...result, auditWarning } : result;
-  }
-
-  if (parsed.strategy === "restore_schedule_completion") {
-    if (!isTrustedUserId(userId)) {
-      throw new Error("The related resource is not available to this operation.");
-    }
-    const scheduleItemId = itemId ?? documentId;
-    if (!scheduleItemId || typeof timelineEventId !== "number") {
-      throw new Error("restore_schedule_completion 缺少有效的日程回滚目标。");
-    }
-    const snapshot = parsed.beforeSnapshot as Record<string, unknown> | undefined;
-    const scheduleData = pickScheduleSnapshotData(snapshot?.schedule);
-    if (!snapshot || !scheduleData) {
-      throw new Error("restore_schedule_completion 缺少有效的日程快照。");
-    }
-    const trustedPayload = bindRollbackPayloadToUser(payload as RollbackPayloadClient, userId);
-    const affectedDocuments: RollbackAffectedDocument[] = [];
-    const planLink = snapshot.schedulePlanLink as Record<string, unknown> | undefined;
-    const linkedPlanId = typeof planLink?.planId === "number" ? planLink.planId : planId;
-    if (linkedPlanId && planLink?.changed === true) {
-      const unlinked = await unlinkTimelineFromPlan({ payload: trustedPayload as CoreLinkagePayload, planId: linkedPlanId, timelineEventId });
-      if (!unlinked.ok) throw new Error(unlinked.safeMessage);
-      if (unlinked.changed) affectedDocuments.push(affectedDocument("plans", linkedPlanId, "update"));
-    }
-    const timelineData = pickTimelineSnapshotData(snapshot.timelineEvent);
-    const priorTimeline = snapshot.timelineEvent;
-    const priorTimelineId = priorTimeline && typeof priorTimeline === "object" && !Array.isArray(priorTimeline) && typeof (priorTimeline as { id?: unknown }).id === "number"
-      ? (priorTimeline as { id: number }).id
-      : null;
-    if (timelineData && priorTimelineId) {
-      await trustedPayload.update({ collection: "timeline-events", data: timelineData as never, id: priorTimelineId, overrideAccess: true });
-      affectedDocuments.push(affectedDocument("timeline-events", priorTimelineId, "update"));
-    } else {
-      try {
-        await trustedPayload.delete({ collection: "timeline-events", id: timelineEventId, overrideAccess: true });
-        affectedDocuments.push(affectedDocument("timeline-events", timelineEventId, "delete"));
-      } catch (error) { if (!isDocumentNotFoundError(error)) throw error; }
-    }
-    const completion = snapshot.checklistCompletion as Record<string, unknown> | undefined;
-    const checklistGroups = completion?.beforeSnapshot && typeof completion.beforeSnapshot === "object" && !Array.isArray(completion.beforeSnapshot)
-      ? (completion.beforeSnapshot as Record<string, unknown>).groups
-      : snapshot.checklistGroups;
-    if (typeof checklistId === "number" && Array.isArray(checklistGroups)) {
-      await trustedPayload.update({ collection: "checklists", context: { skipChecklistTimelineSync: true }, data: { groups: checklistGroups as never }, id: checklistId, overrideAccess: true });
-      affectedDocuments.push(affectedDocument("checklists", checklistId, "update"));
-    }
-    await trustedPayload.update({ collection: "schedule-items", data: scheduleData as never, id: scheduleItemId, overrideAccess: true });
-    affectedDocuments.push(affectedDocument("schedule-items", scheduleItemId, "update"));
-    const result = buildRollbackResult({ affectedDocuments, collection: "schedule-items", documentId: scheduleItemId, strategy: parsed.strategy });
-    const auditWarning = shouldPersistAudit ? await persistRollbackAudit(rollbackPayload, result, recordAudit, userId) : undefined;
     return auditWarning ? { ...result, auditWarning } : result;
   }
 

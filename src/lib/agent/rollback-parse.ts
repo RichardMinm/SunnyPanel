@@ -1,5 +1,6 @@
 import { isRecord } from "@/lib/shared/is-record";
 export type RollbackPayload = {
+  afterSnapshot?: unknown;
   beforeSnapshot?: unknown;
   reason?: string;
   strategy: string;
@@ -77,6 +78,7 @@ export const parseRollbackPayload = (value: unknown): null | RollbackPayload => 
       typeof target?.timelineEventId === "number");
 
   return {
+    afterSnapshot: isRecord(value.afterSnapshot) ? value.afterSnapshot : undefined,
     beforeSnapshot: isRecord(value.beforeSnapshot) ? value.beforeSnapshot : undefined,
     reason: typeof value.reason === "string" ? value.reason : undefined,
     strategy,
@@ -104,6 +106,7 @@ export const isRollbackPayloadExecutable = (value: unknown): boolean => {
     return (
       typeof parsed.target.itemId === "number" &&
       typeof parsed.target.timelineEventId === "number" &&
+      parsed.afterSnapshot != null &&
       parsed.beforeSnapshot != null
     );
   }

@@ -12,10 +12,11 @@ type State = {
 };
 
 let state: State;
-let operations: Array<{ collection: string; data?: Record<string, unknown>; request?: unknown; type: string; where?: unknown }>;
+let operations: Array<{ collection: string; data?: Record<string, unknown>; depth?: unknown; request?: unknown; type: string; where?: unknown }>;
 let transactionCommits: number;
 let transactionKills: number;
 let failurePoint: null | "checklist" | "schedule-plan" | "task4-plan";
+let populateScheduleRelationsOnWrite: boolean;
 
 const schedule = (overrides: Record<string, unknown> = {}) => ({
   createdAt: "2026-07-28T00:00:00.000Z",
@@ -43,6 +44,7 @@ const setup = (input: Partial<State> = {}) => {
   transactionCommits = 0;
   transactionKills = 0;
   failurePoint = null;
+  populateScheduleRelationsOnWrite = false;
 };
 
 const payload = (): ScheduleCompletionPayload => ({
@@ -74,7 +76,7 @@ const payload = (): ScheduleCompletionPayload => ({
     return source && source.id === args.id ? structuredClone(source) : null;
   },
   update: async (args) => {
-    operations.push({ collection: args.collection, data: args.data, request: (args as { req?: unknown }).req, type: "update" });
+    operations.push({ collection: args.collection, data: args.data, depth: args.depth, request: (args as { req?: unknown }).req, type: "update" });
     const linkedContent = args.collection === "plans" ? args.data.linkedContent as Array<{ value?: unknown }> : null;
     if (failurePoint === "schedule-plan" && args.collection === "plans" && linkedContent?.some((link) => link.value === 801)) throw new Error("schedule plan write failed");
     if (failurePoint === "checklist" && args.collection === "checklists") throw new Error("checklist write failed");
@@ -83,6 +85,13 @@ const payload = (): ScheduleCompletionPayload => ({
     if (args.collection === "checklists") state.checklist = { ...state.checklist, ...args.data };
     if (args.collection === "timeline-events") state.events = state.events.map((event) => event.id === args.id ? { ...event, ...args.data } : event);
     if (args.collection === "plans") state.plan = { ...state.plan, ...args.data };
+    if (args.collection === "schedule-items" && populateScheduleRelationsOnWrite) {
+      return structuredClone({
+        ...state.schedule,
+        relatedChecklist: { id: 501, title: "发布清单" },
+        relatedPlan: { id: 77, title: "发布计划" },
+      });
+    }
     return structuredClone(args.collection === "schedule-items" ? state.schedule : args.collection === "plans" ? state.plan : args.collection === "checklists" ? state.checklist : state.events.find((event) => event.id === args.id));
   },
 });
@@ -146,6 +155,108 @@ test("completes the exact linked Checklist item and derives its Plan", async () 
   assert.equal(result.rollbackPayload.beforeSnapshot.checklistCompletion?.strategy, "restore_checklist_groups_and_timeline");
   assert.equal(result.rollbackPayload.beforeSnapshot.checklistCompletion?.target.timelineEventId, 802);
   assert.equal(result.affectedDocuments.filter((document) => document.collection === "timeline-events").length, 2);
+});
+
+test("records bounded post-execution snapshots for every mutable Schedule rollback resource", async () => {
+  state.schedule = schedule({ relatedChecklist: 501, relatedChecklistItemKey: "item-release" });
+  state.checklist = { createdAt: "x", groups: [{ items: [{ completedAt: null, completionNote: null, id: "item-release", isCompleted: false, title: "发布" }], title: "阶段" }], id: 501, planId: 77, slug: "release", status: "draft", title: "发布清单", updatedAt: "x", visibility: "private" };
+
+  const result = await complete();
+
+  assert.equal(result.ok, true, JSON.stringify(result));
+  if (!result.ok) return;
+  const rollbackPayload = result.rollbackPayload as typeof result.rollbackPayload & {
+    afterSnapshot?: {
+      checklistGroups?: unknown;
+      checklistTimelineEvent?: Record<string, unknown>;
+      schedule?: Record<string, unknown>;
+      timelineEvent?: Record<string, unknown>;
+    };
+  };
+  assert.deepEqual(rollbackPayload.afterSnapshot?.schedule, {
+    date: "2026-07-28T00:00:00.000Z",
+    isAllDay: false,
+    priority: "medium",
+    relatedChecklist: 501,
+    relatedChecklistItemKey: "item-release",
+    sourceType: "manual",
+    status: "done",
+    title: "发布回归",
+  });
+  assert.deepEqual(rollbackPayload.afterSnapshot?.checklistGroups, [
+    {
+      items: [
+        {
+          completedAt: "2026-07-28T09:30:00.000Z",
+          completionNote: null,
+          description: null,
+          id: "item-release",
+          isCompleted: true,
+          title: "发布",
+        },
+      ],
+      title: "阶段",
+    },
+  ]);
+  assert.deepEqual(rollbackPayload.afterSnapshot?.timelineEvent, {
+    description: "完成日程：发布回归",
+    eventDate: "2026-07-28T09:30:00.000Z",
+    isFeatured: false,
+    relatedChecklist: 501,
+    relatedPlan: 77,
+    relatedPost: null,
+    relatedScheduleItem: 701,
+    relatedTaskKey: null,
+    relatedUpdate: null,
+    sortOrder: 0,
+    sourceType: "schedule",
+    status: "published",
+    title: "完成日程：发布回归",
+    type: "project",
+    visibility: "private",
+  });
+  assert.deepEqual(rollbackPayload.afterSnapshot?.checklistTimelineEvent, {
+    description: "清单：发布清单\n分组：阶段\n条目：发布",
+    eventDate: "2026-07-28T09:30:00.000Z",
+    isFeatured: false,
+    relatedChecklist: 501,
+    relatedPlan: 77,
+    relatedPost: null,
+    relatedScheduleItem: null,
+    relatedTaskKey: "item-release",
+    relatedUpdate: null,
+    sortOrder: 0,
+    sourceType: "checklist",
+    status: "draft",
+    title: "完成清单项：发布",
+    type: "project",
+    visibility: "private",
+  });
+  assert.equal("id" in (rollbackPayload.afterSnapshot?.timelineEvent ?? {}), false);
+  assert.equal("id" in (rollbackPayload.afterSnapshot?.checklistTimelineEvent ?? {}), false);
+});
+
+test("normalizes populated Schedule relationships in rollback evidence and requests a depth-zero write result", async () => {
+  state.schedule = schedule({
+    relatedChecklist: 501,
+    relatedChecklistItemKey: "item-release",
+    relatedPlan: 77,
+  });
+  state.checklist = { createdAt: "x", groups: [{ items: [{ completedAt: null, completionNote: null, id: "item-release", isCompleted: false, title: "发布" }], title: "阶段" }], id: 501, planId: 77, slug: "release", status: "draft", title: "发布清单", updatedAt: "x", visibility: "private" };
+  populateScheduleRelationsOnWrite = true;
+
+  const result = await complete();
+
+  assert.equal(result.ok, true, JSON.stringify(result));
+  if (!result.ok) return;
+  assert.deepEqual(result.rollbackPayload.afterSnapshot.schedule.relatedChecklist, 501);
+  assert.deepEqual(result.rollbackPayload.afterSnapshot.schedule.relatedPlan, 77);
+  assert.equal(
+    operations.find((operation) =>
+      operation.collection === "schedule-items" && operation.type === "update"
+    )?.depth,
+    0,
+  );
 });
 
 test("uses a valid Schedule Plan only when it does not conflict with the Checklist Plan", async () => {
