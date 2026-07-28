@@ -170,6 +170,7 @@ export const syncPlanProgressOnChecklistChange: CollectionAfterChangeHook = asyn
     id: planId,
     overrideAccess: true,
     depth: 0,
+    req,
   });
 
   /* Fetch all checklists linked to this plan via planId */
@@ -179,6 +180,7 @@ export const syncPlanProgressOnChecklistChange: CollectionAfterChangeHook = asyn
     limit: 200,
     overrideAccess: true,
     pagination: false,
+    req,
     where: { planId: { equals: planId } },
   });
 
@@ -199,6 +201,7 @@ export const syncPlanProgressOnChecklistChange: CollectionAfterChangeHook = asyn
     data: { progress: progress.completionRate },
     id: planId,
     overrideAccess: true,
+    req,
   });
 
   return doc;

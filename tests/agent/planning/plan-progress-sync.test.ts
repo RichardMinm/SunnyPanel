@@ -237,6 +237,67 @@ test("2/2 completed → progress 100", async () => {
   );
 });
 
+test("transaction-bound hook reads completed Checklist and writes Plan through the originating req", async () => {
+  const previousDoc = makeDoc({
+    id: 701,
+    planId: 88,
+    groups: [{
+      items: [{ id: "i1", isCompleted: false, title: "Todo" }],
+      title: "G1",
+    }],
+  });
+  const completedDoc = makeDoc({
+    id: 701,
+    planId: 88,
+    groups: [{
+      items: [{ id: "i1", isCompleted: true, title: "Done" }],
+      title: "G1",
+    }],
+  });
+  const calls: Array<{ args: Record<string, unknown>; type: string }> = [];
+  let transactionReq: HookArgs["req"];
+  transactionReq = {
+    context: {},
+    payload: {
+      findByID: async (args: Record<string, unknown>) => {
+        calls.push({ args, type: "findByID" });
+        return { id: 88, progress: 0 };
+      },
+      find: async (args: Record<string, unknown>) => {
+        calls.push({ args, type: "find" });
+        const checklistVisibleInThisTransaction =
+          args.req === transactionReq ? completedDoc : previousDoc;
+        return { docs: [checklistVisibleInThisTransaction], totalDocs: 1 };
+      },
+      update: async (args: Record<string, unknown>) => {
+        calls.push({ args, type: "update" });
+        return { id: args.id, ...(args.data as Record<string, unknown>) };
+      },
+    },
+  } as unknown as HookArgs["req"];
+
+  await syncPlanProgressOnChecklistChange({
+    collection: {} as HookArgs["collection"],
+    context: {} as HookArgs["context"],
+    data: {} as HookArgs["data"],
+    doc: completedDoc as HookArgs["doc"],
+    operation: "update",
+    previousDoc: previousDoc as HookArgs["previousDoc"],
+    req: transactionReq,
+  });
+
+  const planUpdate = calls.find((call) => call.type === "update");
+  assert.equal(
+    (planUpdate?.args.data as { progress?: unknown } | undefined)?.progress,
+    100,
+    "the hook must aggregate the Checklist state visible inside the Schedule transaction",
+  );
+  assert.ok(
+    calls.every((call) => call.args.req === transactionReq),
+    "all nested Payload reads and writes must remain bound to the originating transaction req",
+  );
+});
+
 test("0/2 completed (rollback / uncomplete) → progress 0", async () => {
   const stubs = makeStubs({
     findByID: async () => ({ id: 88, progress: 50 }),
