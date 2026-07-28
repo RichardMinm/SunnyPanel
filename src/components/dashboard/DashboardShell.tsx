@@ -14,6 +14,12 @@ import { DashboardModeProvider } from "./DashboardModeContext";
 import { DashboardRightPanel } from "./DashboardRightPanel";
 import { DashboardStatusBar } from "./DashboardStatusBar";
 import { InspectorPanelIcon } from "./icons";
+import {
+  getLinkedObjectNavigationDestination,
+  LinkedObjectNavigationProvider,
+  replaceDashboardModeInSearch,
+  type LinkedObjectNavigationTarget,
+} from "./linked-objects";
 import { MainWorkspace } from "./MainWorkspace";
 import { SidebarNav } from "./SidebarNav";
 import { WritingDocumentsProvider } from "./writing/WritingDocumentsContext";
@@ -209,6 +215,8 @@ export function DashboardShell({
   const sidebarExpanded = sidebarPinned || sidebarHoverExpanded;
   const [debugMode, setDebugMode] = useState(false);
   const [lastExecutedAction, setLastExecutedAction] = useState<ProposedAgentAction | null>(null);
+  const [linkedObjectNavigationTarget, setLinkedObjectNavigationTarget] =
+    useState<LinkedObjectNavigationTarget | null>(null);
   const suppressAutoOpenRef = useRef(false);
   const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
 
@@ -300,26 +308,44 @@ export function DashboardShell({
     };
   }, []);
 
-  const handleModeChange = useCallback(
-    (_mode: DashboardIconMode, prompt: string) => {
+  const transitionDashboardMode = useCallback(
+    (_mode: DashboardIconMode) => {
       setActiveMode(_mode);
-      const params = new URLSearchParams(window.location.search);
-      if (_mode === "agent") {
-        params.delete("mode");
-      } else {
-        params.set("mode", _mode);
-      }
-      const nextQuery = params.toString();
-      window.history.replaceState(null, "", nextQuery ? `/dashboard?${nextQuery}` : "/dashboard");
+      window.history.replaceState(
+        null,
+        "",
+        replaceDashboardModeInSearch(window.location.search, _mode),
+      );
       const wm = iconModeToWorkbenchMode[_mode];
       if (wm) {
         onWorkbenchModeChange?.(wm);
       }
+    },
+    [iconModeToWorkbenchMode, onWorkbenchModeChange],
+  );
+
+  const handleModeChange = useCallback(
+    (_mode: DashboardIconMode, prompt: string) => {
+      setLinkedObjectNavigationTarget(null);
+      transitionDashboardMode(_mode);
       if (prompt) {
         onRunPrompt(prompt);
       }
     },
-    [iconModeToWorkbenchMode, onRunPrompt, onWorkbenchModeChange],
+    [onRunPrompt, transitionDashboardMode],
+  );
+
+  const handleLinkedObjectNavigate = useCallback(
+    (target: LinkedObjectNavigationTarget) => {
+      const destination = getLinkedObjectNavigationDestination(target);
+      setLinkedObjectNavigationTarget(destination.target);
+      transitionDashboardMode(destination.activeMode);
+      if (destination.activeMode === "agent") {
+        onInspectorTabChange(destination.activeInspectorTab);
+        setPanelOpen(destination.panelOpen);
+      }
+    },
+    [onInspectorTabChange, transitionDashboardMode],
   );
 
   const handleNewThread = useCallback(() => {
@@ -412,6 +438,7 @@ export function DashboardShell({
   );
 
   return (
+    <LinkedObjectNavigationProvider onNavigate={handleLinkedObjectNavigate}>
     <AppShell
       panelOpen={activeMode !== "writing" && panelOpen}
       panelWidth={panelWidth}
@@ -482,6 +509,11 @@ export function DashboardShell({
                 onBackToWorkbench={() => setActiveMode("agent")}
                 threadId={threadId}
                 isSubmitting={isSubmitting}
+                navigationTarget={
+                  linkedObjectNavigationTarget?.type === "schedule"
+                    ? linkedObjectNavigationTarget
+                    : null
+                }
               />
             ) : activeMode === "memory" ? (
               <MemoryCardGrid
@@ -492,11 +524,21 @@ export function DashboardShell({
               <ChecklistView
                 onBackToWorkbench={() => setActiveMode("agent")}
                 threadId={threadId}
+                navigationTarget={
+                  linkedObjectNavigationTarget?.type === "checklist"
+                    ? linkedObjectNavigationTarget
+                    : null
+                }
               />
             ) : activeMode === "timeline" ? (
               <TimelineView
                 onBackToWorkbench={() => setActiveMode("agent")}
                 threadId={threadId}
+                navigationTarget={
+                  linkedObjectNavigationTarget?.type === "timeline"
+                    ? linkedObjectNavigationTarget
+                    : null
+                }
               />
             ) : (
               <DashboardInspectorControlProvider value={inspectorControl}>
@@ -517,6 +559,11 @@ export function DashboardShell({
             debugMode={debugMode}
             inputTokenEstimate={inputTokenEstimate}
             latestAssistantMessage={latestAssistantMessage}
+            linkedObjectNavigationTarget={
+              linkedObjectNavigationTarget?.type === "plan"
+                ? linkedObjectNavigationTarget
+                : null
+            }
             lastRollbackSourceRunId={lastRollbackSourceRunId}
             lastRollbackResult={lastRollbackResult}
             messages={messages}
@@ -560,5 +607,6 @@ export function DashboardShell({
         </>
       )}
     </AppShell>
+    </LinkedObjectNavigationProvider>
   );
 }

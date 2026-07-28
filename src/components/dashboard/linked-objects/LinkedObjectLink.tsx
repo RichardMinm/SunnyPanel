@@ -4,6 +4,11 @@ import { DashboardIcon, type DashboardIconName } from "@/components/dashboard/ic
 import { AppButton } from "@/components/primitives";
 import type { LinkedObjectSummary } from "@/lib/core-linkage/contracts";
 
+import {
+  resolveLinkedObjectSelectHandler,
+  useLinkedObjectNavigation,
+} from "./LinkedObjectNavigationContext";
+
 type LinkedObjectPresentation = {
   icon: DashboardIconName;
   label: string;
@@ -52,8 +57,47 @@ export function LinkedObjectLink({
   summary,
   unavailable = false,
 }: LinkedObjectLinkProps) {
+  if (onSelect) {
+    return LinkedObjectLinkButton({
+      select: onSelect,
+      summary,
+      unavailable,
+    });
+  }
+
+  return (
+    <ContextualLinkedObjectLink
+      summary={summary}
+      unavailable={unavailable}
+    />
+  );
+}
+
+function ContextualLinkedObjectLink({
+  summary,
+  unavailable,
+}: Omit<LinkedObjectLinkProps, "onSelect">) {
+  const contextualSelect = useLinkedObjectNavigation();
+  return (
+    <LinkedObjectLinkButton
+      select={resolveLinkedObjectSelectHandler(undefined, contextualSelect)}
+      summary={summary}
+      unavailable={unavailable}
+    />
+  );
+}
+
+function LinkedObjectLinkButton({
+  select,
+  summary,
+  unavailable = false,
+}: {
+  select?: LinkedObjectSelectHandler;
+  summary: LinkedObjectSummary;
+  unavailable?: boolean;
+}) {
   const presentation = getLinkedObjectPresentation(summary.type);
-  const enabled = Boolean(onSelect) && !unavailable;
+  const enabled = Boolean(select) && !unavailable;
   const accessibleName = enabled
     ? `打开${presentation.label}：${summary.title}`
     : `${presentation.label}不可用：${summary.title}`;
@@ -67,7 +111,7 @@ export function LinkedObjectLink({
       aria-label={accessibleName}
       className="sunny-linked-object-link"
       disabled={!enabled}
-      onClick={enabled ? () => onSelect?.(summary) : undefined}
+      onClick={enabled ? () => select?.(summary) : undefined}
       size="sm"
       variant="ghost"
     >

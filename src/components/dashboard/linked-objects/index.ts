@@ -11,3 +11,16 @@ export {
   LinkedObjectList,
   type LinkedObjectListProps,
 } from "./LinkedObjectList";
+export {
+  LinkedObjectNavigationProvider,
+  findExactNavigationTarget,
+  getLinkedObjectNavigationDestination,
+  replaceDashboardModeInSearch,
+  resolveLinkedObjectSelectHandler,
+  startLinkedObjectFocus,
+  toLinkedObjectNavigationTarget,
+  useLinkedObjectFocus,
+  useLinkedObjectNavigation,
+  type LinkedObjectNavigationDestination,
+  type LinkedObjectNavigationTarget,
+} from "./LinkedObjectNavigationContext";

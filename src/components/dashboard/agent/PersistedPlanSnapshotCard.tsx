@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PlanSummary } from "@/lib/core-linkage/contracts";
+import { useLinkedObjectFocus } from "@/components/dashboard/linked-objects";
 
 type PersistedPlanSnapshotCardProps = {
+  isNavigationTarget?: boolean;
   plan: PlanSummary;
 };
 
@@ -20,8 +22,22 @@ const statusLabelMap: Record<string, string> = {
   archived: "已归档",
 };
 
-export function PersistedPlanSnapshotCard({ plan }: PersistedPlanSnapshotCardProps) {
-  const [expanded, setExpanded] = useState(false);
+export function PersistedPlanSnapshotCard({
+  isNavigationTarget = false,
+  plan,
+}: PersistedPlanSnapshotCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const focusRef = useLinkedObjectFocus<HTMLElement>(
+    isNavigationTarget,
+    isNavigationTarget ? plan.id : null,
+  );
+
+  useEffect(() => {
+    if (isNavigationTarget) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect -- exact plan navigation expands the intended card after API data resolves */
+      setIsExpanded(true);
+    }
+  }, [isNavigationTarget, plan.id]);
   const stateLabel = (plan.state && stateLabelMap[plan.state]) ?? plan.state ?? "—";
   const statusLabel = (plan.status && statusLabelMap[plan.status]) ?? plan.status ?? "—";
   const updatedLabel = plan.updatedAt
@@ -29,15 +45,21 @@ export function PersistedPlanSnapshotCard({ plan }: PersistedPlanSnapshotCardPro
     : null;
 
   return (
-    <article className="sunny-persisted-plan-card" aria-label={`计划：${plan.title}`}>
+    <article
+      aria-current={isNavigationTarget ? "true" : undefined}
+      aria-label={`计划：${plan.title}`}
+      className="sunny-persisted-plan-card"
+      ref={focusRef}
+    >
       <button
+        aria-expanded={isExpanded}
         type="button"
         className="sunny-persisted-plan-card-header"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => setIsExpanded((value) => !value)}
       >
         <div className="sunny-persisted-plan-card-title-row">
           <h3>{plan.title}</h3>
-          <span className={`sunny-persisted-plan-card-arrow${expanded ? " is-expanded" : ""}`}>
+          <span className={`sunny-persisted-plan-card-arrow${isExpanded ? " is-expanded" : ""}`}>
             ▾
           </span>
         </div>
@@ -81,7 +103,7 @@ export function PersistedPlanSnapshotCard({ plan }: PersistedPlanSnapshotCardPro
       </div>
 
       {/* Expanded details */}
-      {expanded ? (
+      {isExpanded ? (
         <div className="sunny-persisted-plan-card-details">
           {plan.checklists.length > 0 ? (
             <div className="sunny-persisted-plan-card-detail-section">

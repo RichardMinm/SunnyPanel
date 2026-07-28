@@ -66,6 +66,7 @@ export function LinkedObjectList({
       </ul>
       {remainingCount > 0 ? (
         <AppButton
+          aria-expanded={false}
           className="sunny-linked-object-list__toggle"
           disabled={!canToggle}
           onClick={() => setExpanded(true)}
@@ -76,6 +77,7 @@ export function LinkedObjectList({
         </AppButton>
       ) : items.length > COLLAPSED_ITEM_LIMIT ? (
         <AppButton
+          aria-expanded={true}
           className="sunny-linked-object-list__toggle"
           disabled={!canToggle}
           onClick={() => setExpanded(false)}

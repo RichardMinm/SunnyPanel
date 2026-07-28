@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import { categoryDotClass, type CategoryId } from "@/lib/category-styles";
 import { AppEmptyState } from "@/components/primitives/AppEmptyState";
+import {
+  findExactNavigationTarget,
+  useLinkedObjectFocus,
+  type LinkedObjectNavigationTarget,
+} from "@/components/dashboard/linked-objects";
 import { DashboardIcon } from "../icons";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
 
@@ -17,6 +22,10 @@ type TimelineEventSummary = {
 };
 
 type TimelineViewProps = {
+  navigationTarget?: Extract<
+    LinkedObjectNavigationTarget,
+    { type: "timeline" }
+  > | null;
   onBackToWorkbench: () => void;
   onModeChange?: (mode: string) => void;
   onNewTimelineEvent?: () => void;
@@ -84,14 +93,19 @@ function getTypeConfig(type: string): { label: string; category: CategoryId } {
 /* ── Component ── */
 
 export function TimelineView({
+  navigationTarget = null,
   onBackToWorkbench: _onBackToWorkbench,
   onModeChange,
   onNewTimelineEvent,
 }: TimelineViewProps) {
   void _onBackToWorkbench;
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(
+    navigationTarget ? Number(navigationTarget.date.slice(0, 4)) : now.getFullYear(),
+  );
+  const [month, setMonth] = useState(
+    navigationTarget ? Number(navigationTarget.date.slice(5, 7)) : now.getMonth() + 1,
+  );
   const [events, setEvents] = useState<TimelineEventSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -100,7 +114,20 @@ export function TimelineView({
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
 
   useEffect(() => {
+    if (!navigationTarget) {
+      return;
+    }
+    /* eslint-disable react-hooks/set-state-in-effect -- linked navigation synchronizes the exact destination month and an inclusive filter */
+    setYear(Number(navigationTarget.date.slice(0, 4)));
+    setMonth(Number(navigationTarget.date.slice(5, 7)));
+    setTypeFilter("all");
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [navigationTarget]);
+
+  useEffect(() => {
     let cancelled = false;
+    /* eslint-disable-next-line react-hooks/set-state-in-effect -- month changes begin a fresh timeline load */
+    setLoading(true);
 
     fetch(`/api/agent/timeline?month=${monthKey}&limit=50`)
       .then(async (res) => {
@@ -122,6 +149,25 @@ export function TimelineView({
     if (typeFilter === "all") return events;
     return events.filter((e) => e.type === typeFilter);
   }, [events, typeFilter]);
+  const navigationTimelineCandidate = findExactNavigationTarget(
+    events,
+    navigationTarget?.id,
+  );
+  const navigationTimeline =
+    navigationTimelineCandidate &&
+    navigationTimelineCandidate.date.slice(0, 10) === navigationTarget?.date
+      ? navigationTimelineCandidate
+      : null;
+  useEffect(() => {
+    if (navigationTarget && !loading) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect -- select the exact dated target only after its month is available */
+      setExpandedId(navigationTimeline?.id ?? null);
+    }
+  }, [loading, navigationTarget, navigationTimeline?.id]);
+  const navigationFocusRef = useLinkedObjectFocus<HTMLButtonElement>(
+    !loading && Boolean(navigationTimeline) && typeFilter === "all",
+    navigationTimeline?.id ?? null,
+  );
 
   const groupedEvents = useMemo(() => {
     const sorted = [...filteredEvents].sort((a, b) => b.date.localeCompare(a.date));
@@ -156,9 +202,14 @@ export function TimelineView({
                 {!isLast && <div className="sunny-timeline-event-connector" />}
               </div>
               <button
+                aria-current={navigationTimeline?.id === event.id ? "true" : undefined}
+                aria-expanded={isExpanded}
                 type="button"
                 className={`sunny-timeline-event-card${isExpanded ? " is-expanded" : ""}`}
-                onClick={() => setExpandedId(isExpanded ? null : event.id)}
+                onClick={() =>
+                  setExpandedId(isExpanded ? null : event.id)
+                }
+                ref={navigationTimeline?.id === event.id ? navigationFocusRef : undefined}
               >
                 <div className="sunny-timeline-event-head">
                   <span

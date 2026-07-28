@@ -5,6 +5,11 @@ import { AnimatePresence, motion } from "motion/react";
 
 import { AppButton } from "@/components/primitives/AppButton";
 import { AppEmptyState } from "@/components/primitives/AppEmptyState";
+import {
+  findExactNavigationTarget,
+  useLinkedObjectFocus,
+  type LinkedObjectNavigationTarget,
+} from "@/components/dashboard/linked-objects";
 import { DashboardIcon } from "../icons";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
 
@@ -29,6 +34,10 @@ type ScheduleItemSummary = {
 };
 
 type ScheduleMonthViewProps = {
+  navigationTarget?: Extract<
+    LinkedObjectNavigationTarget,
+    { type: "schedule" }
+  > | null;
   onBackToWorkbench: () => void;
   threadId: null | number;
   isSubmitting?: boolean;
@@ -159,22 +168,44 @@ function inferCategory(item: ScheduleItemSummary): ScheduleCategory {
 
 /* ── Component ── */
 
-export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSubmitting, onNewSchedule }: ScheduleMonthViewProps) {
+export function ScheduleMonthView({
+  navigationTarget = null,
+  onBackToWorkbench: _onBackToWorkbench,
+  isSubmitting,
+  onNewSchedule,
+}: ScheduleMonthViewProps) {
   void _onBackToWorkbench; // kept for prop compatibility, not used in new design
   const now = new Date();
   const todayKey = formatDateKey(now);
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(
+    navigationTarget ? Number(navigationTarget.date.slice(0, 4)) : now.getFullYear(),
+  );
+  const [month, setMonth] = useState(
+    navigationTarget ? Number(navigationTarget.date.slice(5, 7)) : now.getMonth() + 1,
+  );
   const [items, setItems] = useState<ScheduleItemSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<null | string>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(todayKey);
+  const [selectedDate, setSelectedDate] = useState<string>(
+    navigationTarget?.date ?? todayKey,
+  );
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [completionPendingId, setCompletionPendingId] = useState<number | null>(null);
   const [completionError, setCompletionError] = useState<null | string>(null);
   const completionRequestRef = useRef<number | null>(null);
 
   const monthKey = `${year}-${String(month).padStart(2, "0")}`;
+
+  useEffect(() => {
+    if (!navigationTarget) {
+      return;
+    }
+    /* eslint-disable react-hooks/set-state-in-effect -- linked navigation synchronizes the exact destination month and date */
+    setYear(Number(navigationTarget.date.slice(0, 4)));
+    setMonth(Number(navigationTarget.date.slice(5, 7)));
+    setSelectedDate(navigationTarget.date);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [navigationTarget]);
 
   /* ── Data Fetching ── */
 
@@ -233,6 +264,27 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
   const selectedItems = useMemo(
     () => sortScheduleItems(selectedDate ? (itemsByDate.get(selectedDate) ?? []) : []),
     [itemsByDate, selectedDate],
+  );
+  const navigationScheduleCandidate = findExactNavigationTarget(
+    items,
+    navigationTarget?.id,
+  );
+  const navigationSchedule =
+    navigationScheduleCandidate &&
+    navigationScheduleCandidate.date.slice(0, 10) === navigationTarget?.date
+      ? navigationScheduleCandidate
+      : null;
+  useEffect(() => {
+    if (navigationTarget && !loading) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect -- select the exact dated target only after its month is available */
+      setExpandedId(navigationSchedule?.id ?? null);
+    }
+  }, [loading, navigationSchedule?.id, navigationTarget]);
+  const navigationFocusRef = useLinkedObjectFocus<HTMLDivElement>(
+    !loading &&
+      Boolean(navigationSchedule) &&
+      selectedDate === navigationTarget?.date,
+    navigationSchedule?.id ?? null,
   );
 
   /* ── Navigation ── */
@@ -444,14 +496,22 @@ export function ScheduleMonthView({ onBackToWorkbench: _onBackToWorkbench, isSub
 
                   return (
                     <div key={item.id}>
-                      <div className={`sunny-schedule-timeline-item${item.priority === "high" ? " is-priority-high" : ""}${item.status === "done" ? " is-done" : ""}`} data-category={cat}>
+                      <div
+                        aria-current={navigationSchedule?.id === item.id ? "true" : undefined}
+                        className={`sunny-schedule-timeline-item${item.priority === "high" ? " is-priority-high" : ""}${item.status === "done" ? " is-done" : ""}`}
+                        data-category={cat}
+                        ref={navigationSchedule?.id === item.id ? navigationFocusRef : undefined}
+                      >
                         <span className="sunny-schedule-timeline-time">
                           {formatStartTime(item)}
                         </span>
                         <button
+                          aria-expanded={isExpanded}
                           type="button"
                           className={`sunny-schedule-timeline-card${isExpanded ? " is-expanded" : ""}${item.status === "done" ? " is-done" : ""}${item.status === "canceled" || item.status === "skipped" ? " is-canceled" : ""}`}
-                          onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                          onClick={() =>
+                            setExpandedId(isExpanded ? null : item.id)
+                          }
                         >
                           <div className="sunny-schedule-timeline-row">
                             <span className="sunny-schedule-timeline-title">{item.title}</span>

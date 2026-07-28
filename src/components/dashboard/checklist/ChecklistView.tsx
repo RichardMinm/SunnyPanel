@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  findExactNavigationTarget,
+  useLinkedObjectFocus,
+  type LinkedObjectNavigationTarget,
+} from "@/components/dashboard/linked-objects";
 import { DashboardStagger, DashboardStaggerItem } from "../motion/DashboardStagger";
 
 type ChecklistItem = { key: string; label: string; completed: boolean };
@@ -17,6 +22,10 @@ type ChecklistSummary = {
 };
 
 type ChecklistViewProps = {
+  navigationTarget?: Extract<
+    LinkedObjectNavigationTarget,
+    { type: "checklist" }
+  > | null;
   onBackToWorkbench: () => void;
   threadId: number | null;
 };
@@ -29,6 +38,7 @@ const STATUS_FILTERS = [
 ];
 
 export function ChecklistView({
+  navigationTarget = null,
   onBackToWorkbench: _onBackToWorkbench,
 }: ChecklistViewProps) {
   void _onBackToWorkbench; // kept for prop compatibility
@@ -36,6 +46,13 @@ export function ChecklistView({
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (navigationTarget) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect -- linked navigation must load an unfiltered set that can contain the exact target */
+      setFilter("");
+    }
+  }, [navigationTarget]);
 
   const fetchChecklists = useCallback(async () => {
     setLoading(true);
@@ -64,6 +81,21 @@ export function ChecklistView({
     void fetchChecklists();
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [fetchChecklists]);
+
+  const navigationChecklist = findExactNavigationTarget(
+    checklists,
+    navigationTarget?.id,
+  );
+  useEffect(() => {
+    if (navigationTarget && !loading) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect -- select the exact target only after the matching API data is available */
+      setExpandedId(navigationChecklist?.id ?? null);
+    }
+  }, [loading, navigationChecklist?.id, navigationTarget]);
+  const navigationFocusRef = useLinkedObjectFocus<HTMLDivElement>(
+    !loading && Boolean(navigationChecklist),
+    navigationChecklist?.id ?? null,
+  );
 
   return (
     <div className="sunny-checklist-view">
@@ -101,9 +133,12 @@ export function ChecklistView({
           checklists.map((cl, index) => {
             const card = (
             <div
+              aria-current={navigationChecklist?.id === cl.id ? "true" : undefined}
               className={`sunny-checklist-card${expandedId === cl.id ? " is-expanded" : ""}`}
+              ref={navigationChecklist?.id === cl.id ? navigationFocusRef : undefined}
             >
               <button
+                aria-expanded={expandedId === cl.id}
                 type="button"
                 className="sunny-checklist-card-header"
                 onClick={() =>

@@ -3,8 +3,21 @@
 import { useEffect, useState } from "react";
 import { PersistedPlanSnapshotCard } from "./PersistedPlanSnapshotCard";
 import type { PlanSummary } from "@/lib/core-linkage/contracts";
+import {
+  findExactNavigationTarget,
+  type LinkedObjectNavigationTarget,
+} from "@/components/dashboard/linked-objects";
 
-export function PersistedPlanListPanel() {
+type PersistedPlanListPanelProps = {
+  navigationTarget?: Extract<
+    LinkedObjectNavigationTarget,
+    { type: "plan" }
+  > | null;
+};
+
+export function PersistedPlanListPanel({
+  navigationTarget = null,
+}: PersistedPlanListPanelProps) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,11 +74,23 @@ export function PersistedPlanListPanel() {
     );
   }
 
+  const navigationPlan = findExactNavigationTarget(
+    plans,
+    navigationTarget?.id,
+  );
+
   return (
     <div className="sunny-agent-inspector-panel sunny-persisted-plan-list">
-      {plans.map((plan) => (
-        <PersistedPlanSnapshotCard key={plan.id} plan={plan} />
-      ))}
+      {plans.map((plan) => {
+        const isNavigationTarget = navigationPlan?.id === plan.id;
+        return (
+          <PersistedPlanSnapshotCard
+            isNavigationTarget={isNavigationTarget}
+            key={plan.id}
+            plan={plan}
+          />
+        );
+      })}
     </div>
   );
 }

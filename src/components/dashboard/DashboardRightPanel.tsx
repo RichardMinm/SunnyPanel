@@ -13,6 +13,7 @@ import type { AgentInspectorTab, AgentRunDetail, ContextPreferences } from "@/co
 import type { AgentChatMessage, AgentTokenUsage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
 import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
+import type { LinkedObjectNavigationTarget } from "./linked-objects";
 
 /* ─── Inspector panels (dynamic: only the active tab's code is downloaded) ─── */
 
@@ -54,6 +55,10 @@ type DashboardRightPanelProps = {
   inputTokenEstimate: number;
   lastExecutedAction?: null | ProposedAgentAction;
   latestAssistantMessage?: AgentChatMessage;
+  linkedObjectNavigationTarget?: Extract<
+    LinkedObjectNavigationTarget,
+    { type: "plan" }
+  > | null;
   lastRollbackSourceRunId?: null | number;
   lastRollbackResult?: AgentRollbackExecutionResult | null;
   messages: AgentChatMessage[];
@@ -264,6 +269,7 @@ export function DashboardRightPanel({
   inputTokenEstimate,
   lastExecutedAction = null,
   latestAssistantMessage,
+  linkedObjectNavigationTarget = null,
   lastRollbackSourceRunId = null,
   lastRollbackResult = null,
   messages,
@@ -399,7 +405,11 @@ export function DashboardRightPanel({
           {activeInspectorTab === "memory" ? <MemoryInspectorPanel debugMode={debugMode} traceSteps={traceSteps} /> : null}
           {activeInspectorTab === "ops" ? <AgentOpsPanel /> : null}
           {activeInspectorTab === "inbox" ? <AgentInboxPanel onPrefillComposer={onPrefillComposer} /> : null}
-          {activeInspectorTab === "plans" ? <PersistedPlanListPanel /> : null}
+          {activeInspectorTab === "plans" ? (
+            <PersistedPlanListPanel
+              navigationTarget={linkedObjectNavigationTarget}
+            />
+          ) : null}
           {activeInspectorTab === "debug" ? (
             <AgentDebugPanel
               contextPreferences={contextPreferences}
