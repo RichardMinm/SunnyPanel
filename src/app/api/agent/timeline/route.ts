@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const monthEnd = new Date(Date.UTC(year, m, 0, 23, 59, 59, 999)).toISOString();
 
   const payload = await getPayloadClient();
-  const events = await loadTimelineSummaries(payload, { limit, monthEnd, monthStart });
+  const events = await loadTimelineSummaries(payload, authResult.user, { limit, monthEnd, monthStart });
 
   return NextResponse.json({ events });
 }

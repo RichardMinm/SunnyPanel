@@ -62,7 +62,7 @@ export async function GET(request: Request) {
   const monthEnd = new Date(Date.UTC(year, m, 0)).toISOString().slice(0, 10);
 
   const payload = await getPayloadClient();
-  const items = await loadScheduleSummaries(payload, { monthEnd, monthStart });
+  const items = await loadScheduleSummaries(payload, authResult.user, { monthEnd, monthStart });
 
   return NextResponse.json({ month: monthParam, items, count: items.length });
 }

@@ -15,14 +15,15 @@ type CoreLinkageCollection =
 
 type CoreLinkageDocument = Record<string, unknown> & { id?: unknown };
 
-export type CoreLinkageReadPayload = {
+export type CoreLinkageReadPayload<TActor> = {
   find(args: {
     collection: CoreLinkageCollection;
     depth?: number;
     limit?: number;
-    overrideAccess?: boolean;
+    overrideAccess: false;
     pagination?: boolean;
     sort?: string;
+    user: TActor;
     where?: Where;
   }): Promise<{
     docs: unknown[];
@@ -83,7 +84,11 @@ const asDate = (value: unknown): string | null => {
     candidate = value.toISOString().slice(0, 10);
   } else if (typeof value === "string") {
     const source = value.trim();
-    if (!/^\d{4}-\d{2}-\d{2}(?:$|T)/u.test(source)) {
+    const isExactDate = /^\d{4}-\d{2}-\d{2}$/u.test(source);
+    const isCompleteTimestamp =
+      /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))$/u.test(source)
+      && Number.isFinite(Date.parse(source));
+    if (!isExactDate && !isCompleteTimestamp) {
       return null;
     }
     candidate = source.slice(0, 10);
@@ -188,8 +193,9 @@ const appendByRelation = (
   target.set(relationId, entries);
 };
 
-const findRelated = async (
-  payload: CoreLinkageReadPayload,
+const findRelated = async <TActor>(
+  payload: CoreLinkageReadPayload<TActor>,
+  actor: TActor,
   collection: CoreLinkageCollection,
   field: string,
   ids: Set<number>,
@@ -201,8 +207,9 @@ const findRelated = async (
     collection,
     depth: 0,
     limit: 200,
-    overrideAccess: true,
+    overrideAccess: false,
     pagination: false,
+    user: actor,
     where: { [field]: { in: Array.from(ids) } },
   });
   return asDocuments(result.docs);
@@ -230,15 +237,17 @@ const flattenChecklistItems = (groups: unknown) => {
   return items;
 };
 
-export const loadPlanSummaries = async (
-  payload: CoreLinkageReadPayload,
+export const loadPlanSummaries = async <TActor>(
+  payload: CoreLinkageReadPayload<TActor>,
+  actor: TActor,
 ): Promise<PlanSummary[]> => {
   const planResult = await payload.find({
     collection: "plans",
     depth: 0,
     limit: 10,
-    overrideAccess: true,
+    overrideAccess: false,
     sort: "-updatedAt",
+    user: actor,
   });
   const plans = asDocuments(planResult.docs);
   const planIds = new Set(
@@ -247,9 +256,9 @@ export const loadPlanSummaries = async (
       .filter((id): id is number => id !== null),
   );
   const [checklists, scheduleItems, timelineEvents] = await Promise.all([
-    findRelated(payload, "checklists", "planId", planIds),
-    findRelated(payload, "schedule-items", "relatedPlan", planIds),
-    findRelated(payload, "timeline-events", "relatedPlan", planIds),
+    findRelated(payload, actor, "checklists", "planId", planIds),
+    findRelated(payload, actor, "schedule-items", "relatedPlan", planIds),
+    findRelated(payload, actor, "timeline-events", "relatedPlan", planIds),
   ]);
 
   const checklistsByPlanId = new Map<number, Array<{
@@ -342,16 +351,18 @@ export const loadPlanSummaries = async (
   });
 };
 
-export const loadChecklistSummaries = async (
-  payload: CoreLinkageReadPayload,
+export const loadChecklistSummaries = async <TActor>(
+  payload: CoreLinkageReadPayload<TActor>,
+  actor: TActor,
   options: { filterStatus: string; limit: number },
 ): Promise<ChecklistViewSummary[]> => {
   const result = await payload.find({
     collection: "checklists",
     depth: 1,
     limit: options.limit,
-    overrideAccess: true,
+    overrideAccess: false,
     sort: "-updatedAt",
+    user: actor,
     where: { status: { equals: "published" } },
   });
   const checklists = asDocuments(result.docs);
@@ -373,12 +384,13 @@ export const loadChecklistSummaries = async (
         collection: "plans",
         depth: 0,
         limit: planIds.size,
-        overrideAccess: true,
+        overrideAccess: false,
         pagination: false,
+        user: actor,
         where: { id: { in: Array.from(planIds) } },
       }),
-    findRelated(payload, "schedule-items", "relatedChecklist", checklistIds),
-    findRelated(payload, "timeline-events", "relatedChecklist", checklistIds),
+    findRelated(payload, actor, "schedule-items", "relatedChecklist", checklistIds),
+    findRelated(payload, actor, "timeline-events", "relatedChecklist", checklistIds),
   ]);
   const plansById = mapLinkedSummariesById("plan", asDocuments(planResult.docs));
   const scheduleLinksByChecklistId = new Map<number, LinkedObjectSummary[]>();
@@ -436,16 +448,18 @@ export const loadChecklistSummaries = async (
     .filter((checklist) => !options.filterStatus || checklist.status === options.filterStatus);
 };
 
-export const loadScheduleSummaries = async (
-  payload: CoreLinkageReadPayload,
+export const loadScheduleSummaries = async <TActor>(
+  payload: CoreLinkageReadPayload<TActor>,
+  actor: TActor,
   options: { monthEnd: string; monthStart: string },
 ): Promise<ScheduleViewSummary[]> => {
   const result = await payload.find({
     collection: "schedule-items",
     depth: 1,
     limit: 200,
-    overrideAccess: true,
+    overrideAccess: false,
     sort: "date",
+    user: actor,
     where: {
       and: [
         { date: { greater_than_equal: options.monthStart } },
@@ -476,8 +490,9 @@ export const loadScheduleSummaries = async (
         collection: "plans",
         depth: 0,
         limit: planIds.size,
-        overrideAccess: true,
+        overrideAccess: false,
         pagination: false,
+        user: actor,
         where: { id: { in: Array.from(planIds) } },
       }),
     checklistIds.size === 0
@@ -486,11 +501,12 @@ export const loadScheduleSummaries = async (
         collection: "checklists",
         depth: 0,
         limit: checklistIds.size,
-        overrideAccess: true,
+        overrideAccess: false,
         pagination: false,
+        user: actor,
         where: { id: { in: Array.from(checklistIds) } },
       }),
-    findRelated(payload, "timeline-events", "relatedScheduleItem", scheduleIds),
+    findRelated(payload, actor, "timeline-events", "relatedScheduleItem", scheduleIds),
   ]);
   const plansById = mapLinkedSummariesById("plan", asDocuments(planResult.docs));
   const checklistsById = mapLinkedSummariesById("checklist", asDocuments(checklistResult.docs));
@@ -540,16 +556,18 @@ export const loadScheduleSummaries = async (
   });
 };
 
-export const loadTimelineSummaries = async (
-  payload: CoreLinkageReadPayload,
+export const loadTimelineSummaries = async <TActor>(
+  payload: CoreLinkageReadPayload<TActor>,
+  actor: TActor,
   options: { limit: number; monthEnd: string; monthStart: string },
 ): Promise<TimelineViewSummary[]> => {
   const result = await payload.find({
     collection: "timeline-events",
     depth: 0,
     limit: options.limit,
-    overrideAccess: true,
+    overrideAccess: false,
     sort: "-eventDate",
+    user: actor,
     where: {
       and: [
         { eventDate: { greater_than_equal: options.monthStart } },
@@ -580,8 +598,9 @@ export const loadTimelineSummaries = async (
         collection: "plans",
         depth: 0,
         limit: planIds.size,
-        overrideAccess: true,
+        overrideAccess: false,
         pagination: false,
+        user: actor,
         where: { id: { in: Array.from(planIds) } },
       }),
     checklistIds.size === 0
@@ -590,8 +609,9 @@ export const loadTimelineSummaries = async (
         collection: "checklists",
         depth: 0,
         limit: checklistIds.size,
-        overrideAccess: true,
+        overrideAccess: false,
         pagination: false,
+        user: actor,
         where: { id: { in: Array.from(checklistIds) } },
       }),
     scheduleIds.size === 0
@@ -600,8 +620,9 @@ export const loadTimelineSummaries = async (
         collection: "schedule-items",
         depth: 0,
         limit: scheduleIds.size,
-        overrideAccess: true,
+        overrideAccess: false,
         pagination: false,
+        user: actor,
         where: { id: { in: Array.from(scheduleIds) } },
       }),
   ]);

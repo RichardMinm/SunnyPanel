@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(Number(url.searchParams.get("limit")) || 20, 50);
 
   const payload = await getPayloadClient();
-  const checklists = await loadChecklistSummaries(payload, { filterStatus, limit });
+  const checklists = await loadChecklistSummaries(payload, authResult.user, { filterStatus, limit });
 
   return NextResponse.json({ checklists });
 }

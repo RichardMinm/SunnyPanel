@@ -10,6 +10,8 @@ import {
 
 type FindArgs = {
   collection: string;
+  overrideAccess?: boolean;
+  user?: unknown;
   where?: unknown;
 };
 
@@ -27,6 +29,19 @@ const createPayload = (docsByCollection: Record<string, Array<Record<string, unk
       },
     },
   };
+};
+
+const actor = { collection: "users" as const, id: 7 };
+
+const assertAuthorizedBatchedReads = (
+  calls: FindArgs[],
+  expectedCollections: string[],
+) => {
+  assert.deepEqual(calls.map((call) => call.collection), expectedCollections);
+  for (const call of calls) {
+    assert.equal(call.overrideAccess, false, call.collection);
+    assert.equal(call.user, actor, call.collection);
+  }
 };
 
 const assertLinkedSummaryKeys = (linkedObjects: Array<Record<string, unknown>>) => {
@@ -65,7 +80,7 @@ test("plans API returns batched Checklist, Schedule and Timeline summaries witho
       { eventDate: "2026-07-06T09:00:00.000Z", id: 31, relatedPlan: 1, status: "draft", title: "duplicate" },
     ],
   });
-  const plans = await loadPlanSummaries(payload);
+  const plans = await loadPlanSummaries(payload, actor);
 
   assert.equal(plans.length, 1);
   assert.deepEqual(plans[0].linkedObjects, [
@@ -79,7 +94,7 @@ test("plans API returns batched Checklist, Schedule and Timeline summaries witho
   );
   assertLinkedSummaryKeys(plans[0].linkedObjects as Array<Record<string, unknown>>);
   assert.equal(calls.length, 4);
-  assert.deepEqual(calls.map((call) => call.collection), ["plans", "checklists", "schedule-items", "timeline-events"]);
+  assertAuthorizedBatchedReads(calls, ["plans", "checklists", "schedule-items", "timeline-events"]);
 });
 
 test("checklist API returns its owning Plan plus batched Schedule and Timeline summaries", async () => {
@@ -98,7 +113,7 @@ test("checklist API returns its owning Plan plus batched Schedule and Timeline s
     ],
     "timeline-events": [{ eventDate: "2026-07-05T09:00:00.000Z", id: 31, relatedChecklist: 11, status: "published", title: "Shipped" }],
   });
-  const checklists = await loadChecklistSummaries(payload, { filterStatus: "done", limit: 20 });
+  const checklists = await loadChecklistSummaries(payload, actor, { filterStatus: "done", limit: 20 });
 
   assert.deepEqual(checklists[0].linkedObjects, [
     { id: 1, title: "Launch plan", type: "plan" },
@@ -111,7 +126,7 @@ test("checklist API returns its owning Plan plus batched Schedule and Timeline s
   );
   assertLinkedSummaryKeys(checklists[0].linkedObjects as Array<Record<string, unknown>>);
   assert.equal(calls.length, 4);
-  assert.deepEqual(calls.map((call) => call.collection), ["checklists", "plans", "schedule-items", "timeline-events"]);
+  assertAuthorizedBatchedReads(calls, ["checklists", "plans", "schedule-items", "timeline-events"]);
 });
 
 test("schedule API returns Plan, Checklist and completion Timeline summaries while retaining its view fields", async () => {
@@ -140,7 +155,7 @@ test("schedule API returns Plan, Checklist and completion Timeline summaries whi
       { eventDate: "2026-07-05T09:00:00.000Z", id: 31, relatedScheduleItem: 21, status: "published", title: "duplicate" },
     ],
   });
-  const items = await loadScheduleSummaries(payload, {
+  const items = await loadScheduleSummaries(payload, actor, {
     monthEnd: "2026-07-31",
     monthStart: "2026-07-01",
   });
@@ -157,7 +172,7 @@ test("schedule API returns Plan, Checklist and completion Timeline summaries whi
   );
   assertLinkedSummaryKeys(items[0].linkedObjects as Array<Record<string, unknown>>);
   assert.equal(calls.length, 4);
-  assert.deepEqual(calls.map((call) => call.collection), ["schedule-items", "plans", "checklists", "timeline-events"]);
+  assertAuthorizedBatchedReads(calls, ["schedule-items", "plans", "checklists", "timeline-events"]);
 });
 
 test("timeline API returns Plan, Checklist and Schedule summaries with normalized dates and statuses", async () => {
@@ -179,7 +194,7 @@ test("timeline API returns Plan, Checklist and Schedule summaries with normalize
     checklists: [{ groups: [{ secret: "group-secret" }], id: 11, title: "Launch checklist" }],
     "schedule-items": [{ date: "2026-07-04T00:00:00.000Z", description: "private", id: 21, status: "done", title: "Ship slot" }],
   });
-  const events = await loadTimelineSummaries(payload, {
+  const events = await loadTimelineSummaries(payload, actor, {
     limit: 50,
     monthEnd: "2026-07-31T23:59:59.999Z",
     monthStart: "2026-07-01T00:00:00.000Z",
@@ -196,7 +211,7 @@ test("timeline API returns Plan, Checklist and Schedule summaries with normalize
   );
   assertLinkedSummaryKeys(events[0].linkedObjects as Array<Record<string, unknown>>);
   assert.equal(calls.length, 4);
-  assert.deepEqual(calls.map((call) => call.collection), ["timeline-events", "plans", "checklists", "schedule-items"]);
+  assertAuthorizedBatchedReads(calls, ["timeline-events", "plans", "checklists", "schedule-items"]);
 });
 
 test("all four APIs omit missing, inaccessible and malformed relationships", async () => {
@@ -212,7 +227,7 @@ test("all four APIs omit missing, inaccessible and malformed relationships", asy
         "schedule-items": [{ date: "2026-07-04garbage", id: 22, relatedPlan: 1, title: "bad" }],
         "timeline-events": [],
       },
-      load: loadPlanSummaries,
+      load: (payload) => loadPlanSummaries(payload, actor),
       name: "plans",
     },
     {
@@ -222,7 +237,7 @@ test("all four APIs omit missing, inaccessible and malformed relationships", asy
         "schedule-items": [{ date: "2026-07-04", id: "bad" as unknown as number, relatedChecklist: 11, title: "bad" }],
         "timeline-events": [],
       },
-      load: (payload) => loadChecklistSummaries(payload, { filterStatus: "", limit: 20 }),
+      load: (payload) => loadChecklistSummaries(payload, actor, { filterStatus: "", limit: 20 }),
       name: "checklists",
     },
     {
@@ -232,7 +247,7 @@ test("all four APIs omit missing, inaccessible and malformed relationships", asy
         checklists: [],
         "timeline-events": [{ eventDate: null, id: 31, relatedScheduleItem: 21, title: "bad" }],
       },
-      load: (payload) => loadScheduleSummaries(payload, { monthEnd: "2026-07-31", monthStart: "2026-07-01" }),
+      load: (payload) => loadScheduleSummaries(payload, actor, { monthEnd: "2026-07-31", monthStart: "2026-07-01" }),
       name: "items",
     },
     {
@@ -242,7 +257,7 @@ test("all four APIs omit missing, inaccessible and malformed relationships", asy
         checklists: [],
         "schedule-items": [],
       },
-      load: (payload) => loadTimelineSummaries(payload, {
+      load: (payload) => loadTimelineSummaries(payload, actor, {
         limit: 50,
         monthEnd: "2026-07-31T23:59:59.999Z",
         monthStart: "2026-07-01T00:00:00.000Z",
@@ -256,4 +271,63 @@ test("all four APIs omit missing, inaccessible and malformed relationships", asy
     const results = await scenario.load(payload);
     assert.deepEqual(results[0].linkedObjects, [], scenario.name);
   }
+});
+
+test("an access-filtered related document is omitted instead of exposing its raw relationship", async () => {
+  const calls: FindArgs[] = [];
+  const inaccessibleSchedule = {
+    date: "2026-07-04",
+    id: 21,
+    relatedPlan: 1,
+    secret: "must-not-leak",
+    status: "planned",
+    title: "Private schedule",
+  };
+  const payload = {
+    find: async (args: FindArgs) => {
+      calls.push(args);
+      if (args.collection === "plans") {
+        return { docs: [{ id: 1, title: "Plan" }], totalDocs: 1 };
+      }
+      if (args.collection === "schedule-items") {
+        const authorized = args.overrideAccess === false && args.user === actor;
+        return {
+          docs: authorized ? [] : [inaccessibleSchedule],
+          totalDocs: authorized ? 0 : 1,
+        };
+      }
+      return { docs: [], totalDocs: 0 };
+    },
+  };
+
+  const plans = await loadPlanSummaries(payload, actor);
+
+  assert.deepEqual(plans[0].linkedObjects, []);
+  assertAuthorizedBatchedReads(calls, ["plans", "checklists", "schedule-items", "timeline-events"]);
+});
+
+test("linked date summaries reject incomplete, invalid or tailed ISO timestamps", async () => {
+  const { payload } = createPayload({
+    plans: [{ id: 1, title: "Plan" }],
+    checklists: [],
+    "schedule-items": [
+      { date: "2026-07-04", id: 21, relatedPlan: 1, status: "planned", title: "Date only" },
+      { date: "2026-07-05T09:30:00.000Z", id: 22, relatedPlan: 1, status: "planned", title: "UTC timestamp" },
+      { date: "2026-07-06T09:30:00+08:00", id: 23, relatedPlan: 1, status: "planned", title: "Offset timestamp" },
+      { date: "2026-07-07T", id: 31, relatedPlan: 1, status: "planned", title: "Incomplete" },
+      { date: "2026-07-08Tgarbage", id: 32, relatedPlan: 1, status: "planned", title: "Garbage" },
+      { date: "2026-07-09T25:00:00Z", id: 33, relatedPlan: 1, status: "planned", title: "Invalid hour" },
+      { date: "2026-02-30T09:00:00Z", id: 34, relatedPlan: 1, status: "planned", title: "Invalid day" },
+      { date: "2026-07-10T09:00:00Ztail", id: 35, relatedPlan: 1, status: "planned", title: "Tail" },
+    ],
+    "timeline-events": [],
+  });
+
+  const plans = await loadPlanSummaries(payload, actor);
+
+  assert.deepEqual(plans[0].linkedObjects, [
+    { date: "2026-07-04", id: 21, status: "planned", title: "Date only", type: "schedule" },
+    { date: "2026-07-05", id: 22, status: "planned", title: "UTC timestamp", type: "schedule" },
+    { date: "2026-07-06", id: 23, status: "planned", title: "Offset timestamp", type: "schedule" },
+  ]);
 });

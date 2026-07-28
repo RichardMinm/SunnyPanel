@@ -12,7 +12,7 @@ export async function GET(_request: NextRequest) {
   }
 
   const payload = await getPayloadClient();
-  const plans = await loadPlanSummaries(payload);
+  const plans = await loadPlanSummaries(payload, authResult.user);
 
   return NextResponse.json({ plans });
 }
