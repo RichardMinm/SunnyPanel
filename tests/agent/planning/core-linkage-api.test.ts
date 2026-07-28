@@ -10,9 +10,55 @@ import {
 
 type FindArgs = {
   collection: string;
+  limit?: number;
   overrideAccess?: boolean;
+  pagination?: boolean;
+  sort?: string;
   user?: unknown;
-  where?: unknown;
+  where?: Record<string, unknown>;
+};
+
+const persistedRelationId = (value: unknown) =>
+  value && typeof value === "object"
+    ? (value as { id?: unknown }).id
+    : value;
+
+const matchesWhere = (
+  document: Record<string, unknown>,
+  where: Record<string, unknown> | undefined,
+): boolean => {
+  if (!where) {
+    return true;
+  }
+  if (Array.isArray(where.and)) {
+    return where.and.every((condition) =>
+      condition !== null
+      && typeof condition === "object"
+      && matchesWhere(document, condition as Record<string, unknown>));
+  }
+  return Object.entries(where).every(([field, rawConstraint]) => {
+    if (!rawConstraint || typeof rawConstraint !== "object") {
+      return false;
+    }
+    const constraint = rawConstraint as Record<string, unknown>;
+    const value = persistedRelationId(document[field]);
+    if (Array.isArray(constraint.in)) {
+      return constraint.in.includes(value);
+    }
+    if ("equals" in constraint) {
+      return value === constraint.equals;
+    }
+    if (typeof value !== "string") {
+      return false;
+    }
+    if (typeof constraint.greater_than_equal === "string" && value < constraint.greater_than_equal) {
+      return false;
+    }
+    if (typeof constraint.less_than_equal === "string" && value > constraint.less_than_equal) {
+      return false;
+    }
+    return true;
+  });
 };
 
 const createPayload = (docsByCollection: Record<string, Array<Record<string, unknown>>>) => {
@@ -22,9 +68,14 @@ const createPayload = (docsByCollection: Record<string, Array<Record<string, unk
     payload: {
       find: async (args: FindArgs) => {
         calls.push(args);
+        const matching = (docsByCollection[args.collection] ?? [])
+          .filter((document) => matchesWhere(document, args.where));
+        const docs = typeof args.limit === "number"
+          ? matching.slice(0, args.limit)
+          : matching;
         return {
-          docs: docsByCollection[args.collection] ?? [],
-          totalDocs: docsByCollection[args.collection]?.length ?? 0,
+          docs,
+          totalDocs: matching.length,
         };
       },
     },
@@ -35,12 +86,30 @@ const actor = { collection: "users" as const, id: 7 };
 
 const assertAuthorizedBatchedReads = (
   calls: FindArgs[],
-  expectedCollections: string[],
+  expected: Array<{
+    collection: string;
+    field?: string;
+    limit?: number;
+    reverse?: boolean;
+  }>,
 ) => {
-  assert.deepEqual(calls.map((call) => call.collection), expectedCollections);
-  for (const call of calls) {
+  assert.equal(calls.length, expected.length);
+  for (const [index, call] of calls.entries()) {
+    const expectation = expected[index];
+    assert.equal(call.collection, expectation.collection, `call ${index}`);
     assert.equal(call.overrideAccess, false, call.collection);
     assert.equal(call.user, actor, call.collection);
+    assert.equal(call.limit, expectation.limit, `${call.collection} limit`);
+    const field = call.where
+      ? Array.isArray(call.where.and)
+        ? "and"
+        : Object.keys(call.where)[0]
+      : undefined;
+    assert.equal(field, expectation.field, `${call.collection} where`);
+    if (expectation.reverse) {
+      assert.equal(call.pagination, false, `${call.collection} reverse pagination`);
+      assert.equal("limit" in call, false, `${call.collection} reverse limit`);
+    }
   }
 };
 
@@ -94,7 +163,12 @@ test("plans API returns batched Checklist, Schedule and Timeline summaries witho
   );
   assertLinkedSummaryKeys(plans[0].linkedObjects as Array<Record<string, unknown>>);
   assert.equal(calls.length, 4);
-  assertAuthorizedBatchedReads(calls, ["plans", "checklists", "schedule-items", "timeline-events"]);
+  assertAuthorizedBatchedReads(calls, [
+    { collection: "plans", limit: 10 },
+    { collection: "checklists", field: "planId", reverse: true },
+    { collection: "schedule-items", field: "relatedPlan", reverse: true },
+    { collection: "timeline-events", field: "relatedPlan", reverse: true },
+  ]);
 });
 
 test("checklist API returns its owning Plan plus batched Schedule and Timeline summaries", async () => {
@@ -126,7 +200,12 @@ test("checklist API returns its owning Plan plus batched Schedule and Timeline s
   );
   assertLinkedSummaryKeys(checklists[0].linkedObjects as Array<Record<string, unknown>>);
   assert.equal(calls.length, 4);
-  assertAuthorizedBatchedReads(calls, ["checklists", "plans", "schedule-items", "timeline-events"]);
+  assertAuthorizedBatchedReads(calls, [
+    { collection: "checklists", field: "status", limit: 20 },
+    { collection: "plans", field: "id", limit: 1 },
+    { collection: "schedule-items", field: "relatedChecklist", reverse: true },
+    { collection: "timeline-events", field: "relatedChecklist", reverse: true },
+  ]);
 });
 
 test("schedule API returns Plan, Checklist and completion Timeline summaries while retaining its view fields", async () => {
@@ -172,7 +251,12 @@ test("schedule API returns Plan, Checklist and completion Timeline summaries whi
   );
   assertLinkedSummaryKeys(items[0].linkedObjects as Array<Record<string, unknown>>);
   assert.equal(calls.length, 4);
-  assertAuthorizedBatchedReads(calls, ["schedule-items", "plans", "checklists", "timeline-events"]);
+  assertAuthorizedBatchedReads(calls, [
+    { collection: "schedule-items", field: "and", limit: 200 },
+    { collection: "plans", field: "id", limit: 1 },
+    { collection: "checklists", field: "id", limit: 1 },
+    { collection: "timeline-events", field: "relatedScheduleItem", reverse: true },
+  ]);
 });
 
 test("timeline API returns Plan, Checklist and Schedule summaries with normalized dates and statuses", async () => {
@@ -211,7 +295,12 @@ test("timeline API returns Plan, Checklist and Schedule summaries with normalize
   );
   assertLinkedSummaryKeys(events[0].linkedObjects as Array<Record<string, unknown>>);
   assert.equal(calls.length, 4);
-  assertAuthorizedBatchedReads(calls, ["timeline-events", "plans", "checklists", "schedule-items"]);
+  assertAuthorizedBatchedReads(calls, [
+    { collection: "timeline-events", field: "and", limit: 50 },
+    { collection: "plans", field: "id", limit: 1 },
+    { collection: "checklists", field: "id", limit: 1 },
+    { collection: "schedule-items", field: "id", limit: 1 },
+  ]);
 });
 
 test("all four APIs omit missing, inaccessible and malformed relationships", async () => {
@@ -303,7 +392,12 @@ test("an access-filtered related document is omitted instead of exposing its raw
   const plans = await loadPlanSummaries(payload, actor);
 
   assert.deepEqual(plans[0].linkedObjects, []);
-  assertAuthorizedBatchedReads(calls, ["plans", "checklists", "schedule-items", "timeline-events"]);
+  assertAuthorizedBatchedReads(calls, [
+    { collection: "plans", limit: 10 },
+    { collection: "checklists", field: "planId", reverse: true },
+    { collection: "schedule-items", field: "relatedPlan", reverse: true },
+    { collection: "timeline-events", field: "relatedPlan", reverse: true },
+  ]);
 });
 
 test("linked date summaries reject incomplete, invalid or tailed ISO timestamps", async () => {
@@ -330,4 +424,81 @@ test("linked date summaries reject incomplete, invalid or tailed ISO timestamps"
     { date: "2026-07-05", id: 22, status: "planned", title: "UTC timestamp", type: "schedule" },
     { date: "2026-07-06", id: 23, status: "planned", title: "Offset timestamp", type: "schedule" },
   ]);
+});
+
+test("reverse relationship batches return more than 200 matching documents in one unlimited query", async () => {
+  const scheduleItems = Array.from({ length: 205 }, (_, index) => ({
+    date: "2026-07-04",
+    id: index + 1,
+    relatedPlan: 1,
+    status: "planned",
+    title: `Schedule ${index + 1}`,
+  }));
+  const { calls, payload } = createPayload({
+    plans: [{ id: 1, title: "Plan" }],
+    checklists: [],
+    "schedule-items": scheduleItems,
+    "timeline-events": [],
+  });
+
+  const plans = await loadPlanSummaries(payload, actor);
+  const linkedSchedules = plans[0].linkedObjects.filter((item) => item.type === "schedule");
+
+  assert.equal(linkedSchedules.length, 205);
+  assert.equal(linkedSchedules.at(-1)?.id, 205);
+  assertAuthorizedBatchedReads(calls, [
+    { collection: "plans", limit: 10 },
+    { collection: "checklists", field: "planId", reverse: true },
+    { collection: "schedule-items", field: "relatedPlan", reverse: true },
+    { collection: "timeline-events", field: "relatedPlan", reverse: true },
+  ]);
+});
+
+test("all four loaders omit malformed primary documents before projection", async () => {
+  const planPayload = createPayload({
+    plans: [
+      { id: "bad" as unknown as number, title: "Bad id" },
+      { id: 1, title: "   " },
+      { id: 2, title: "Valid plan" },
+    ],
+  }).payload;
+  const checklistPayload = createPayload({
+    checklists: [
+      { groups: [], id: "bad" as unknown as number, status: "published", title: "Bad id" },
+      { groups: [], id: 11, status: "published", title: "" },
+      { groups: [], id: 12, status: "published", title: "Valid checklist" },
+    ],
+  }).payload;
+  const schedulePayload = createPayload({
+    "schedule-items": [
+      { date: "2026-07-04", id: "bad" as unknown as number, status: "planned", title: "Bad id" },
+      { date: "2026-07-04", id: 21, status: "planned", title: " " },
+      { date: "2026-07-04T25:00:00Z", id: 22, status: "planned", title: "Bad date" },
+      { date: "2026-07-04", id: 23, status: "planned", title: "Valid schedule" },
+    ],
+  }).payload;
+  const timelinePayload = createPayload({
+    "timeline-events": [
+      { eventDate: "2026-07-04", id: "bad" as unknown as number, title: "Bad id", type: "milestone" },
+      { eventDate: "2026-07-04", id: 31, title: "", type: "milestone" },
+      { eventDate: "2026-07-04Tgarbage", id: 32, title: "Bad date", type: "milestone" },
+      { eventDate: "2026-07-04", id: 33, title: "Valid timeline", type: "milestone" },
+    ],
+  }).payload;
+
+  const [plans, checklists, schedules, events] = await Promise.all([
+    loadPlanSummaries(planPayload, actor),
+    loadChecklistSummaries(checklistPayload, actor, { filterStatus: "", limit: 20 }),
+    loadScheduleSummaries(schedulePayload, actor, { monthEnd: "2026-07-31", monthStart: "2026-07-01" }),
+    loadTimelineSummaries(timelinePayload, actor, {
+      limit: 50,
+      monthEnd: "2026-07-31T23:59:59.999Z",
+      monthStart: "2026-07-01T00:00:00.000Z",
+    }),
+  ]);
+
+  assert.deepEqual(plans.map((item) => [item.id, item.title]), [[2, "Valid plan"]]);
+  assert.deepEqual(checklists.map((item) => [item.id, item.title]), [[12, "Valid checklist"]]);
+  assert.deepEqual(schedules.map((item) => [item.id, item.title, item.date]), [[23, "Valid schedule", "2026-07-04"]]);
+  assert.deepEqual(events.map((item) => [item.id, item.title, item.date]), [[33, "Valid timeline", "2026-07-04"]]);
 });

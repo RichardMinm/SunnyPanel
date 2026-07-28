@@ -206,7 +206,6 @@ const findRelated = async <TActor>(
   const result = await payload.find({
     collection,
     depth: 0,
-    limit: 200,
     overrideAccess: false,
     pagination: false,
     user: actor,
@@ -249,7 +248,9 @@ export const loadPlanSummaries = async <TActor>(
     sort: "-updatedAt",
     user: actor,
   });
-  const plans = asDocuments(planResult.docs);
+  const plans = asDocuments(planResult.docs).filter(
+    (plan) => asPersistedId(plan.id) !== null && asDisplayTitle(plan.title) !== null,
+  );
   const planIds = new Set(
     plans
       .map((plan) => asPersistedId(plan.id))
@@ -330,7 +331,7 @@ export const loadPlanSummaries = async <TActor>(
   }
 
   return plans.map((plan) => {
-    const id = asPersistedId(plan.id) ?? Number(plan.id);
+    const id = asPersistedId(plan.id) as number;
     return {
       agentState: typeof plan.agentState === "string" ? plan.agentState : null,
       checklists: checklistsByPlanId.get(id) ?? [],
@@ -345,7 +346,7 @@ export const loadPlanSummaries = async <TActor>(
       scheduleItems: schedulesByPlanId.get(id) ?? [],
       state: typeof plan.state === "string" ? plan.state : null,
       status: typeof plan.status === "string" ? plan.status : null,
-      title: typeof plan.title === "string" ? plan.title : "",
+      title: asDisplayTitle(plan.title) as string,
       updatedAt: typeof plan.updatedAt === "string" ? plan.updatedAt : null,
     };
   });
@@ -365,7 +366,11 @@ export const loadChecklistSummaries = async <TActor>(
     user: actor,
     where: { status: { equals: "published" } },
   });
-  const checklists = asDocuments(result.docs);
+  const checklists = asDocuments(result.docs).filter(
+    (checklist) =>
+      asPersistedId(checklist.id) !== null
+      && asDisplayTitle(checklist.title) !== null,
+  );
   const checklistIds = new Set(
     checklists
       .map((checklist) => asPersistedId(checklist.id))
@@ -412,7 +417,7 @@ export const loadChecklistSummaries = async <TActor>(
 
   return checklists
     .map((checklist): ChecklistViewSummary => {
-      const id = asPersistedId(checklist.id) ?? Number(checklist.id);
+      const id = asPersistedId(checklist.id) as number;
       const planId = asPersistedId(checklist.planId);
       const planSummary = planId === null ? undefined : plansById.get(planId);
       const items = flattenChecklistItems(checklist.groups);
@@ -441,7 +446,7 @@ export const loadChecklistSummaries = async <TActor>(
         ]),
         relatedPlan,
         status,
-        title: typeof checklist.title === "string" ? checklist.title : "",
+        title: asDisplayTitle(checklist.title) as string,
         totalItems: items.length,
       };
     })
@@ -467,7 +472,12 @@ export const loadScheduleSummaries = async <TActor>(
       ],
     },
   });
-  const schedules = asDocuments(result.docs);
+  const schedules = asDocuments(result.docs).filter(
+    (schedule) =>
+      asPersistedId(schedule.id) !== null
+      && asDisplayTitle(schedule.title) !== null
+      && asDate(schedule.date) !== null,
+  );
   const scheduleIds = new Set(
     schedules
       .map((schedule) => asPersistedId(schedule.id))
@@ -520,7 +530,7 @@ export const loadScheduleSummaries = async <TActor>(
   }
 
   return schedules.map((schedule): ScheduleViewSummary => {
-    const id = asPersistedId(schedule.id) ?? Number(schedule.id);
+    const id = asPersistedId(schedule.id) as number;
     const planId = asPersistedId(schedule.relatedPlan);
     const checklistId = asPersistedId(schedule.relatedChecklist);
     const planSummary = planId === null ? undefined : plansById.get(planId);
@@ -528,7 +538,7 @@ export const loadScheduleSummaries = async <TActor>(
     return {
       category: typeof schedule.category === "string" ? schedule.category : null,
       conflictNote: typeof schedule.conflictNote === "string" ? schedule.conflictNote : null,
-      date: asDate(schedule.date) ?? "",
+      date: asDate(schedule.date) as string,
       description: typeof schedule.description === "string" ? schedule.description : null,
       endTime: typeof schedule.endTime === "string" ? schedule.endTime : null,
       id,
@@ -551,7 +561,7 @@ export const loadScheduleSummaries = async <TActor>(
       sourceType: typeof schedule.sourceType === "string" ? schedule.sourceType : "manual",
       startTime: typeof schedule.startTime === "string" ? schedule.startTime : null,
       status: asStatus(schedule.status),
-      title: typeof schedule.title === "string" ? schedule.title : "",
+      title: asDisplayTitle(schedule.title) as string,
     };
   });
 };
@@ -575,7 +585,12 @@ export const loadTimelineSummaries = async <TActor>(
       ],
     },
   });
-  const events = asDocuments(result.docs);
+  const events = asDocuments(result.docs).filter(
+    (event) =>
+      asPersistedId(event.id) !== null
+      && asDisplayTitle(event.title) !== null
+      && asDate(event.eventDate) !== null,
+  );
   const planIds = new Set(
     events
       .map((event) => asPersistedId(event.relatedPlan))
@@ -635,16 +650,16 @@ export const loadTimelineSummaries = async <TActor>(
     const checklistId = asPersistedId(event.relatedChecklist);
     const scheduleId = asPersistedId(event.relatedScheduleItem);
     return {
-      date: asDate(event.eventDate) ?? "",
+      date: asDate(event.eventDate) as string,
       description: typeof event.description === "string" ? event.description : null,
-      id: asPersistedId(event.id) ?? Number(event.id),
+      id: asPersistedId(event.id) as number,
       linkedObjects: dedupeAndOrderLinkedObjects([
         planId === null ? null : (plansById.get(planId) ?? null),
         checklistId === null ? null : (checklistsById.get(checklistId) ?? null),
         scheduleId === null ? null : (schedulesById.get(scheduleId) ?? null),
       ]),
       sourceType: typeof event.sourceType === "string" ? event.sourceType : null,
-      title: typeof event.title === "string" ? event.title : "",
+      title: asDisplayTitle(event.title) as string,
       type: typeof event.type === "string" ? event.type : "",
     };
   });
