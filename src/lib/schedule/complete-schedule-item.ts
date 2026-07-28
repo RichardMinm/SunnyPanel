@@ -1,4 +1,6 @@
 import type { Checklist, TimelineEvent } from "@/payload-types";
+import type { Payload } from "payload";
+import { commitTransaction, createLocalReq, initTransaction, killTransaction } from "payload";
 
 import type { ScheduleRecordPatch } from "@/lib/agent/schemas";
 import { buildChecklistGroupsAndTimelineRollbackPayload } from "@/lib/agent/tools/checklist-rollback";
@@ -21,6 +23,31 @@ export type ScheduleCompletionPayload = {
   find: (args: FindArgs) => Promise<{ docs: unknown[]; totalDocs: number }>;
   findByID: (args: FindByIDArgs) => Promise<unknown>;
   update: (args: UpdateArgs) => Promise<unknown>;
+};
+
+/** Production Local-API boundary for the later tool integration.  Every call
+ * shares one request, authenticated actor, and transaction. */
+export const createTransactionalScheduleCompletionPayload = async (input: {
+  actor: CoreLinkageActor;
+  payload: Payload;
+}) => {
+  const req = await createLocalReq({ user: { id: input.actor.userId } as never }, input.payload);
+  const started = await initTransaction(req);
+  if (!started) return null;
+  const withReq = <T extends Record<string, unknown>>(args: T) => ({ ...args, req });
+  const payload: ScheduleCompletionPayload = {
+    create: (args) => input.payload.create(withReq(args) as never),
+    delete: (args) => input.payload.delete(withReq(args) as never),
+    find: (args) => input.payload.find(withReq(args) as never) as never,
+    findByID: (args) => input.payload.findByID(withReq(args) as never),
+    update: (args) => input.payload.update(withReq(args) as never),
+  };
+  return {
+    abort: () => killTransaction(req),
+    commit: () => commitTransaction(req),
+    payload,
+    req,
+  };
 };
 
 type ScheduleDocument = {
