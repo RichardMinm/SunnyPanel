@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  createLatestRequestGuard,
   findExactNavigationTarget,
   useLinkedObjectFocus,
   type LinkedObjectNavigationTarget,
@@ -22,6 +23,7 @@ type ChecklistSummary = {
 };
 
 type ChecklistViewProps = {
+  navigationGeneration?: number;
   navigationTarget?: Extract<
     LinkedObjectNavigationTarget,
     { type: "checklist" }
@@ -38,6 +40,7 @@ const STATUS_FILTERS = [
 ];
 
 export function ChecklistView({
+  navigationGeneration,
   navigationTarget = null,
   onBackToWorkbench: _onBackToWorkbench,
 }: ChecklistViewProps) {
@@ -46,39 +49,49 @@ export function ChecklistView({
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const requestGuardRef =
+    useRef<ReturnType<typeof createLatestRequestGuard> | null>(null);
+  if (requestGuardRef.current == null) {
+    requestGuardRef.current = createLatestRequestGuard();
+  }
 
   useEffect(() => {
     if (navigationTarget) {
       /* eslint-disable-next-line react-hooks/set-state-in-effect -- linked navigation must load an unfiltered set that can contain the exact target */
       setFilter("");
     }
-  }, [navigationTarget]);
+  }, [navigationGeneration, navigationTarget]);
 
-  const fetchChecklists = useCallback(async () => {
+  const fetchChecklists = useCallback(() => {
+    const request = requestGuardRef.current?.begin();
     setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filter) params.set("status", filter);
-      params.set("limit", "20");
-      const res = await fetch(
-        `/api/agent/checklist?${params.toString()}`,
-      );
-      if (res.ok) {
-        const data = (await res.json()) as {
-          checklists: ChecklistSummary[];
-        };
-        setChecklists(data.checklists ?? []);
+    void (async () => {
+      try {
+        const params = new URLSearchParams();
+        if (filter) params.set("status", filter);
+        params.set("limit", "20");
+        const res = await fetch(
+          `/api/agent/checklist?${params.toString()}`,
+        );
+        if (res.ok) {
+          const data = (await res.json()) as {
+            checklists: ChecklistSummary[];
+          };
+          request?.commit(() => setChecklists(data.checklists ?? []));
+        }
+      } catch {
+        // silent
+      } finally {
+        request?.commit(() => setLoading(false));
       }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
+    })();
+
+    return () => request?.cancel();
   }, [filter]);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- data fetching pattern consistent with existing dashboard views */
-    void fetchChecklists();
+    return fetchChecklists();
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [fetchChecklists]);
 
@@ -91,10 +104,17 @@ export function ChecklistView({
       /* eslint-disable-next-line react-hooks/set-state-in-effect -- select the exact target only after the matching API data is available */
       setExpandedId(navigationChecklist?.id ?? null);
     }
-  }, [loading, navigationChecklist?.id, navigationTarget]);
+  }, [
+    loading,
+    navigationChecklist?.id,
+    navigationGeneration,
+    navigationTarget,
+  ]);
   const navigationFocusRef = useLinkedObjectFocus<HTMLDivElement>(
     !loading && Boolean(navigationChecklist),
-    navigationChecklist?.id ?? null,
+    navigationChecklist
+      ? `${navigationChecklist.id}:${navigationGeneration ?? 0}`
+      : null,
   );
 
   return (

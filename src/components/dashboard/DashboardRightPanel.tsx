@@ -55,6 +55,7 @@ type DashboardRightPanelProps = {
   inputTokenEstimate: number;
   lastExecutedAction?: null | ProposedAgentAction;
   latestAssistantMessage?: AgentChatMessage;
+  linkedObjectNavigationGeneration?: number;
   linkedObjectNavigationTarget?: Extract<
     LinkedObjectNavigationTarget,
     { type: "plan" }
@@ -269,6 +270,7 @@ export function DashboardRightPanel({
   inputTokenEstimate,
   lastExecutedAction = null,
   latestAssistantMessage,
+  linkedObjectNavigationGeneration,
   linkedObjectNavigationTarget = null,
   lastRollbackSourceRunId = null,
   lastRollbackResult = null,
@@ -407,6 +409,7 @@ export function DashboardRightPanel({
           {activeInspectorTab === "inbox" ? <AgentInboxPanel onPrefillComposer={onPrefillComposer} /> : null}
           {activeInspectorTab === "plans" ? (
             <PersistedPlanListPanel
+              navigationGeneration={linkedObjectNavigationGeneration}
               navigationTarget={linkedObjectNavigationTarget}
             />
           ) : null}

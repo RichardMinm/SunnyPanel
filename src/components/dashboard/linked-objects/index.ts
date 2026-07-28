@@ -13,6 +13,9 @@ export {
 } from "./LinkedObjectList";
 export {
   LinkedObjectNavigationProvider,
+  createLatestRequestGuard,
+  createLinkedObjectFocusController,
+  createLinkedObjectNavigationRequest,
   findExactNavigationTarget,
   getLinkedObjectNavigationDestination,
   replaceDashboardModeInSearch,
@@ -22,5 +25,6 @@ export {
   useLinkedObjectFocus,
   useLinkedObjectNavigation,
   type LinkedObjectNavigationDestination,
+  type LinkedObjectNavigationRequest,
   type LinkedObjectNavigationTarget,
 } from "./LinkedObjectNavigationContext";

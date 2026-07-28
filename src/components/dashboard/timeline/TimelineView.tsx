@@ -22,6 +22,7 @@ type TimelineEventSummary = {
 };
 
 type TimelineViewProps = {
+  navigationGeneration?: number;
   navigationTarget?: Extract<
     LinkedObjectNavigationTarget,
     { type: "timeline" }
@@ -93,6 +94,7 @@ function getTypeConfig(type: string): { label: string; category: CategoryId } {
 /* ── Component ── */
 
 export function TimelineView({
+  navigationGeneration,
   navigationTarget = null,
   onBackToWorkbench: _onBackToWorkbench,
   onModeChange,
@@ -122,7 +124,7 @@ export function TimelineView({
     setMonth(Number(navigationTarget.date.slice(5, 7)));
     setTypeFilter("all");
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [navigationTarget]);
+  }, [navigationGeneration, navigationTarget]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,10 +165,17 @@ export function TimelineView({
       /* eslint-disable-next-line react-hooks/set-state-in-effect -- select the exact dated target only after its month is available */
       setExpandedId(navigationTimeline?.id ?? null);
     }
-  }, [loading, navigationTarget, navigationTimeline?.id]);
+  }, [
+    loading,
+    navigationGeneration,
+    navigationTarget,
+    navigationTimeline?.id,
+  ]);
   const navigationFocusRef = useLinkedObjectFocus<HTMLButtonElement>(
     !loading && Boolean(navigationTimeline) && typeFilter === "all",
-    navigationTimeline?.id ?? null,
+    navigationTimeline
+      ? `${navigationTimeline.id}:${navigationGeneration ?? 0}`
+      : null,
   );
 
   const groupedEvents = useMemo(() => {

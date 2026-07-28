@@ -7,7 +7,7 @@ import {
   useEffect,
   useRef,
   type ReactNode,
-  type RefObject,
+  type RefCallback,
 } from "react";
 
 import type { AgentInspectorTab } from "@/components/dashboard/agent/types";
@@ -19,6 +19,11 @@ export type LinkedObjectNavigationTarget =
   | { type: "checklist"; id: number }
   | { type: "schedule"; id: number; date: string }
   | { type: "timeline"; id: number; date: string };
+
+export type LinkedObjectNavigationRequest = {
+  generation: number;
+  target: LinkedObjectNavigationTarget;
+};
 
 export type LinkedObjectNavigationDestination =
   | {
@@ -153,6 +158,41 @@ export function getLinkedObjectNavigationDestination(
   }
 }
 
+export function createLinkedObjectNavigationRequest(
+  previousGeneration: number,
+  target: LinkedObjectNavigationTarget,
+): LinkedObjectNavigationRequest {
+  const generation =
+    Number.isSafeInteger(previousGeneration) && previousGeneration >= 0
+      ? previousGeneration + 1
+      : 1;
+  return { generation, target };
+}
+
+export function createLatestRequestGuard() {
+  let latestGeneration = 0;
+
+  return {
+    begin() {
+      const generation = ++latestGeneration;
+      let cancelled = false;
+
+      return {
+        cancel() {
+          cancelled = true;
+        },
+        commit(action: () => void) {
+          if (cancelled || generation !== latestGeneration) {
+            return false;
+          }
+          action();
+          return true;
+        },
+      };
+    },
+  };
+}
+
 export function resolveLinkedObjectSelectHandler(
   explicit: LinkedObjectSummarySelectHandler | undefined,
   contextual: LinkedObjectSummarySelectHandler | undefined,
@@ -196,8 +236,13 @@ export function startLinkedObjectFocus(
   runtime: FocusRuntime = defaultFocusRuntime,
 ): () => void {
   let delayHandle: FocusDelayHandle | undefined;
+  let cleaned = false;
   const frameHandle = runtime.requestFrame(() => {
-    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    try {
+      element.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    } catch {
+      // Scrolling is an enhancement; focus highlighting remains available.
+    }
     element.classList.add("is-linked-object-target");
     delayHandle = runtime.setDelay(() => {
       element.classList.remove("is-linked-object-target");
@@ -205,6 +250,10 @@ export function startLinkedObjectFocus(
   });
 
   return () => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
     runtime.cancelFrame(frameHandle);
     if (delayHandle !== undefined) {
       runtime.clearDelay(delayHandle);
@@ -213,20 +262,48 @@ export function startLinkedObjectFocus(
   };
 }
 
+export function createLinkedObjectFocusController<T extends HTMLElement>(
+  startFocus: (element: T) => () => void = (element) =>
+    startLinkedObjectFocus(element),
+) {
+  let cleanup: (() => void) | null = null;
+
+  return {
+    attach(element: T | null) {
+      cleanup?.();
+      cleanup = element ? startFocus(element) : null;
+    },
+  };
+}
+
 export function useLinkedObjectFocus<T extends HTMLElement>(
   active: boolean,
   focusKey: null | number | string,
-): RefObject<T | null> {
-  const ref = useRef<T>(null);
+): RefCallback<T> {
+  const focusControllerRef =
+    useRef<ReturnType<typeof createLinkedObjectFocusController<T>> | null>(
+      null,
+    );
+  if (focusControllerRef.current == null) {
+    focusControllerRef.current = createLinkedObjectFocusController<T>();
+  }
+  const requestKey = focusKey;
+
+  const focusRef = useCallback(
+    (element: T | null) => {
+      void requestKey;
+      focusControllerRef.current?.attach(active ? element : null);
+    },
+    [active, requestKey],
+  );
 
   useEffect(() => {
-    if (!active || !ref.current) {
-      return;
-    }
-    return startLinkedObjectFocus(ref.current);
-  }, [active, focusKey]);
+    return () => {
+      focusControllerRef.current?.attach(null);
+    };
+  }, []);
 
-  return ref;
+  return focusRef;
 }
 
 export function useLinkedObjectNavigation():

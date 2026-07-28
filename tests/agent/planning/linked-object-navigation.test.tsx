@@ -9,6 +9,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { LinkedObjectSummary } from "../../../src/lib/core-linkage/contracts";
 import {
   LinkedObjectNavigationProvider,
+  createLatestRequestGuard,
+  createLinkedObjectFocusController,
+  createLinkedObjectNavigationRequest,
   findExactNavigationTarget,
   getLinkedObjectNavigationDestination,
   replaceDashboardModeInSearch,
@@ -132,6 +135,33 @@ test("all target types map to the existing Dashboard destination without losing 
   }
 });
 
+test("same-target navigation receives a fresh monotonically increasing generation", () => {
+  const target = { id: 11, type: "plan" } as const;
+  const first = createLinkedObjectNavigationRequest(0, target);
+  const second = createLinkedObjectNavigationRequest(
+    first.generation,
+    target,
+  );
+
+  assert.deepEqual(first, { generation: 1, target });
+  assert.deepEqual(second, { generation: 2, target });
+  assert.notEqual(first, second);
+  assert.equal(second.target, target);
+});
+
+test("latest-request guard rejects out-of-order and cleaned-up request commits", () => {
+  const guard = createLatestRequestGuard();
+  const first = guard.begin();
+  const second = guard.begin();
+  const committed: string[] = [];
+
+  assert.equal(first.commit(() => committed.push("stale")), false);
+  assert.equal(second.commit(() => committed.push("latest")), true);
+  second.cancel();
+  assert.equal(second.commit(() => committed.push("after-cleanup")), false);
+  assert.deepEqual(committed, ["latest"]);
+});
+
 test("explicit LinkedObjectLink callbacks take precedence and callback identity is preserved", () => {
   const contextual = () => undefined;
   const explicit = () => undefined;
@@ -220,6 +250,69 @@ test("focus scheduling scrolls once, highlights temporarily and is cleanup-safe"
   ]);
 });
 
+test("missing or throwing scrollIntoView does not prevent safe highlighting", () => {
+  for (const scrollIntoView of [
+    undefined,
+    () => {
+      throw new Error("unsupported scroll");
+    },
+  ]) {
+    const classes = new Set<string>();
+    let highlighted = false;
+    const element = {
+      classList: {
+        add: (value: string) => {
+          classes.add(value);
+          highlighted = true;
+        },
+        remove: (value: string) => classes.delete(value),
+      },
+      scrollIntoView,
+    } as unknown as HTMLElement;
+    const cleanup = startLinkedObjectFocus(element, {
+      cancelFrame: () => undefined,
+      clearDelay: () => undefined,
+      requestFrame: (callback) => {
+        callback();
+        return 1;
+      },
+      setDelay: () => 2,
+    });
+
+    assert.equal(highlighted, true);
+    assert.equal(classes.has("is-linked-object-target"), true);
+    assert.doesNotThrow(cleanup);
+    assert.doesNotThrow(cleanup);
+    assert.equal(classes.has("is-linked-object-target"), false);
+  }
+});
+
+test("focus controller waits for an actually mounted element and cleans replacements", () => {
+  const calls: string[] = [];
+  const controller = createLinkedObjectFocusController<HTMLElement>(
+    (element) => {
+      calls.push(`focus:${element.dataset.target}`);
+      return () => calls.push(`cleanup:${element.dataset.target}`);
+    },
+  );
+  const first = { dataset: { target: "first" } } as unknown as HTMLElement;
+  const delayed = { dataset: { target: "delayed" } } as unknown as HTMLElement;
+
+  controller.attach(null);
+  assert.deepEqual(calls, []);
+  controller.attach(first);
+  controller.attach(null);
+  controller.attach(delayed);
+  controller.attach(null);
+
+  assert.deepEqual(calls, [
+    "focus:first",
+    "cleanup:first",
+    "focus:delayed",
+    "cleanup:delayed",
+  ]);
+});
+
 test("Dashboard mode query replacement preserves threadId and unrelated current query", () => {
   assert.equal(
     replaceDashboardModeInSearch("?threadId=33&debug=1", "schedule"),
@@ -240,7 +333,8 @@ test("DashboardShell owns navigation provider without route, tab or thread side 
   assert.ok(handler, "DashboardShell should expose the linked-object navigation controller");
   assert.match(shell, /<LinkedObjectNavigationProvider[\s\S]*<AppShell/);
   assert.match(handler[0], /getLinkedObjectNavigationDestination/);
-  assert.match(handler[0], /setLinkedObjectNavigationTarget/);
+  assert.match(handler[0], /createLinkedObjectNavigationRequest/);
+  assert.match(handler[0], /navigationGenerationRef\.current/);
   assert.doesNotMatch(
     handler[0],
     /setThreadId|onLoadThread|onNewThread|window\.location|router\.push|history\.pushState|window\.open|reload/,
@@ -261,16 +355,31 @@ test("all destinations receive typed target props and wire exact ID/date focus",
   assert.match(shell, /<TimelineView[\s\S]*navigationTarget=/);
   assert.match(shell, /<DashboardRightPanel[\s\S]*linkedObjectNavigationTarget=/);
   assert.match(rightPanel, /<PersistedPlanListPanel[\s\S]*navigationTarget=/);
+  assert.match(rightPanel, /navigationGeneration=/);
 
   assert.match(planList, /findExactNavigationTarget\(\s*plans,\s*navigationTarget\?\.id/);
   assert.match(planList, /isNavigationTarget=\{isNavigationTarget\}/);
   assert.match(planCard, /setIsExpanded\(true\)/);
+  assert.match(planCard, /navigationGeneration/);
   assert.match(planCard, /aria-expanded=\{isExpanded\}/);
   assert.match(checklist, /findExactNavigationTarget\(\s*checklists,\s*navigationTarget\?\.id/);
+  assert.match(checklist, /createLatestRequestGuard/);
+  assert.match(checklist, /navigationGeneration/);
+  assert.match(checklist, /return \(\) => request\?\.cancel\(\)/);
+  assert.match(checklist, /return fetchChecklists\(\)/);
   assert.match(schedule, /navigationTarget\.date/);
   assert.match(schedule, /findExactNavigationTarget\(\s*items,\s*navigationTarget\?\.id/);
+  assert.match(schedule, /navigationGeneration/);
   assert.match(timeline, /navigationTarget\.date/);
   assert.match(timeline, /findExactNavigationTarget\(\s*events,\s*navigationTarget\?\.id/);
+  assert.match(timeline, /navigationGeneration/);
+  assert.match(
+    read("src/components/dashboard/linked-objects/LinkedObjectNavigationContext.tsx"),
+    /const focusRef = useCallback\(/,
+  );
+  for (const source of [planCard, checklist, schedule, timeline]) {
+    assert.match(source, /navigationGeneration \?\? 0/);
+  }
 
   for (const source of [planList, checklist, schedule, timeline]) {
     assert.doesNotMatch(source, /find\([^)]*title\s*===/);

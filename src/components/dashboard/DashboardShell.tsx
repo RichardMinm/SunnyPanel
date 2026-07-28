@@ -15,9 +15,11 @@ import { DashboardRightPanel } from "./DashboardRightPanel";
 import { DashboardStatusBar } from "./DashboardStatusBar";
 import { InspectorPanelIcon } from "./icons";
 import {
+  createLinkedObjectNavigationRequest,
   getLinkedObjectNavigationDestination,
   LinkedObjectNavigationProvider,
   replaceDashboardModeInSearch,
+  type LinkedObjectNavigationRequest,
   type LinkedObjectNavigationTarget,
 } from "./linked-objects";
 import { MainWorkspace } from "./MainWorkspace";
@@ -215,8 +217,11 @@ export function DashboardShell({
   const sidebarExpanded = sidebarPinned || sidebarHoverExpanded;
   const [debugMode, setDebugMode] = useState(false);
   const [lastExecutedAction, setLastExecutedAction] = useState<ProposedAgentAction | null>(null);
-  const [linkedObjectNavigationTarget, setLinkedObjectNavigationTarget] =
-    useState<LinkedObjectNavigationTarget | null>(null);
+  const [linkedObjectNavigationRequest, setLinkedObjectNavigationRequest] =
+    useState<LinkedObjectNavigationRequest | null>(null);
+  const navigationGenerationRef = useRef(0);
+  const linkedObjectNavigationTarget =
+    linkedObjectNavigationRequest?.target ?? null;
   const suppressAutoOpenRef = useRef(false);
   const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
 
@@ -326,7 +331,7 @@ export function DashboardShell({
 
   const handleModeChange = useCallback(
     (_mode: DashboardIconMode, prompt: string) => {
-      setLinkedObjectNavigationTarget(null);
+      setLinkedObjectNavigationRequest(null);
       transitionDashboardMode(_mode);
       if (prompt) {
         onRunPrompt(prompt);
@@ -338,7 +343,12 @@ export function DashboardShell({
   const handleLinkedObjectNavigate = useCallback(
     (target: LinkedObjectNavigationTarget) => {
       const destination = getLinkedObjectNavigationDestination(target);
-      setLinkedObjectNavigationTarget(destination.target);
+      const request = createLinkedObjectNavigationRequest(
+        navigationGenerationRef.current,
+        destination.target,
+      );
+      navigationGenerationRef.current = request.generation;
+      setLinkedObjectNavigationRequest(request);
       transitionDashboardMode(destination.activeMode);
       if (destination.activeMode === "agent") {
         onInspectorTabChange(destination.activeInspectorTab);
@@ -514,6 +524,9 @@ export function DashboardShell({
                     ? linkedObjectNavigationTarget
                     : null
                 }
+                navigationGeneration={
+                  linkedObjectNavigationRequest?.generation
+                }
               />
             ) : activeMode === "memory" ? (
               <MemoryCardGrid
@@ -529,6 +542,9 @@ export function DashboardShell({
                     ? linkedObjectNavigationTarget
                     : null
                 }
+                navigationGeneration={
+                  linkedObjectNavigationRequest?.generation
+                }
               />
             ) : activeMode === "timeline" ? (
               <TimelineView
@@ -538,6 +554,9 @@ export function DashboardShell({
                   linkedObjectNavigationTarget?.type === "timeline"
                     ? linkedObjectNavigationTarget
                     : null
+                }
+                navigationGeneration={
+                  linkedObjectNavigationRequest?.generation
                 }
               />
             ) : (
@@ -563,6 +582,9 @@ export function DashboardShell({
               linkedObjectNavigationTarget?.type === "plan"
                 ? linkedObjectNavigationTarget
                 : null
+            }
+            linkedObjectNavigationGeneration={
+              linkedObjectNavigationRequest?.generation
             }
             lastRollbackSourceRunId={lastRollbackSourceRunId}
             lastRollbackResult={lastRollbackResult}

@@ -6,6 +6,7 @@ import { useLinkedObjectFocus } from "@/components/dashboard/linked-objects";
 
 type PersistedPlanSnapshotCardProps = {
   isNavigationTarget?: boolean;
+  navigationGeneration?: number;
   plan: PlanSummary;
 };
 
@@ -24,12 +25,15 @@ const statusLabelMap: Record<string, string> = {
 
 export function PersistedPlanSnapshotCard({
   isNavigationTarget = false,
+  navigationGeneration,
   plan,
 }: PersistedPlanSnapshotCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const focusRef = useLinkedObjectFocus<HTMLElement>(
     isNavigationTarget,
-    isNavigationTarget ? plan.id : null,
+    isNavigationTarget
+      ? `${plan.id}:${navigationGeneration ?? 0}`
+      : null,
   );
 
   useEffect(() => {
@@ -37,7 +41,7 @@ export function PersistedPlanSnapshotCard({
       /* eslint-disable-next-line react-hooks/set-state-in-effect -- exact plan navigation expands the intended card after API data resolves */
       setIsExpanded(true);
     }
-  }, [isNavigationTarget, plan.id]);
+  }, [isNavigationTarget, navigationGeneration, plan.id]);
   const stateLabel = (plan.state && stateLabelMap[plan.state]) ?? plan.state ?? "—";
   const statusLabel = (plan.status && statusLabelMap[plan.status]) ?? plan.status ?? "—";
   const updatedLabel = plan.updatedAt

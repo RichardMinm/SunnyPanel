@@ -34,6 +34,7 @@ type ScheduleItemSummary = {
 };
 
 type ScheduleMonthViewProps = {
+  navigationGeneration?: number;
   navigationTarget?: Extract<
     LinkedObjectNavigationTarget,
     { type: "schedule" }
@@ -169,6 +170,7 @@ function inferCategory(item: ScheduleItemSummary): ScheduleCategory {
 /* ── Component ── */
 
 export function ScheduleMonthView({
+  navigationGeneration,
   navigationTarget = null,
   onBackToWorkbench: _onBackToWorkbench,
   isSubmitting,
@@ -205,7 +207,7 @@ export function ScheduleMonthView({
     setMonth(Number(navigationTarget.date.slice(5, 7)));
     setSelectedDate(navigationTarget.date);
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [navigationTarget]);
+  }, [navigationGeneration, navigationTarget]);
 
   /* ── Data Fetching ── */
 
@@ -279,12 +281,19 @@ export function ScheduleMonthView({
       /* eslint-disable-next-line react-hooks/set-state-in-effect -- select the exact dated target only after its month is available */
       setExpandedId(navigationSchedule?.id ?? null);
     }
-  }, [loading, navigationSchedule?.id, navigationTarget]);
+  }, [
+    loading,
+    navigationGeneration,
+    navigationSchedule?.id,
+    navigationTarget,
+  ]);
   const navigationFocusRef = useLinkedObjectFocus<HTMLDivElement>(
     !loading &&
       Boolean(navigationSchedule) &&
       selectedDate === navigationTarget?.date,
-    navigationSchedule?.id ?? null,
+    navigationSchedule
+      ? `${navigationSchedule.id}:${navigationGeneration ?? 0}`
+      : null,
   );
 
   /* ── Navigation ── */

@@ -9,6 +9,7 @@ import {
 } from "@/components/dashboard/linked-objects";
 
 type PersistedPlanListPanelProps = {
+  navigationGeneration?: number;
   navigationTarget?: Extract<
     LinkedObjectNavigationTarget,
     { type: "plan" }
@@ -16,6 +17,7 @@ type PersistedPlanListPanelProps = {
 };
 
 export function PersistedPlanListPanel({
+  navigationGeneration,
   navigationTarget = null,
 }: PersistedPlanListPanelProps) {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
@@ -87,6 +89,7 @@ export function PersistedPlanListPanel({
           <PersistedPlanSnapshotCard
             isNavigationTarget={isNavigationTarget}
             key={plan.id}
+            navigationGeneration={navigationGeneration}
             plan={plan}
           />
         );
