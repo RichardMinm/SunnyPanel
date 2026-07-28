@@ -17,7 +17,6 @@ import type {
   CreateScheduleItemsArgs,
   DeleteRecordArgs,
   ModifyRecordArgs,
-  PendingAction,
   ProposedAgentAction,
   QueryPlanProgressArgs,
   QueryScheduleArgs,
@@ -27,6 +26,8 @@ import type {
   SaveMemoryArgs,
   WeeklyReviewArgs,
 } from "./schemas";
+import type { AgentToolResult } from "./tool-shared";
+export type { AgentToolResult } from "./tool-shared";
 import { parseAgentMemoryInput } from "./memory-schema";
 import {
   composePlanProposal,
@@ -174,16 +175,6 @@ type FindLocalBusyBlocks = (args: {
 }) => Promise<LocalBusyBlock[]>;
 type ResolvedChecklistItem = NonNullable<Awaited<ReturnType<ResolveChecklistItem>>["resolved"]>;
 type ResolvedChecklistGroup = NonNullable<Awaited<ReturnType<ResolveChecklistGroupForAppend>>["resolved"]>;
-
-export type AgentToolResult = {
-  assistantMessage: string;
-  pendingAction: null | PendingAction;
-  createdPlanId?: number;
-  planId?: number;
-  /** 写入成功后可供 `/api/agent/rollback` 使用的结构化回滚描述（若有）。 */
-  rollbackPayload?: unknown;
-  status?: "completed" | "failed";
-};
 
 export type AgentToolDryRunContext = {
   createActionId?: () => string;

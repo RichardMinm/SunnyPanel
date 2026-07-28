@@ -5,6 +5,7 @@ import {
   executeAgentIntentsTransactional,
   type AgentIntentExecutionResult,
 } from "../../src/lib/agent/executor";
+import { executeTrustedRollbackRequest } from "../../src/lib/agent/rollback-request";
 import type { AgentIntent } from "../../src/lib/agent/schemas";
 
 type AnswerIntent = Extract<AgentIntent, { intent: "answer_question" }>;
@@ -156,4 +157,285 @@ test("transactional batch never pairs a previous source run with a later executa
   );
 
   assert.equal(result.rollbackSourceRunId, undefined);
+});
+
+test("transactional batch treats a returned failed receipt as terminal and compensates prior successes", async () => {
+  const executed: string[] = [];
+  const rollbackCalls: unknown[] = [];
+  const firstRollback = {
+    strategy: "delete_created_document",
+    target: { collection: "plans", documentId: 101 },
+  };
+
+  const result = await executeAgentIntentsTransactional(
+    [
+      makeAnswerIntent("first"),
+      makeAnswerIntent("failed"),
+      makeAnswerIntent("must not run"),
+    ],
+    undefined,
+    {
+      executeIntent: async (intent): Promise<AgentIntentExecutionResult> => {
+        const answer = (intent as AnswerIntent).args.answer;
+        executed.push(answer);
+
+        if (answer === "first") {
+          return {
+            assistantMessage: "第一步已完成",
+            pendingAction: null,
+            rollbackPayload: firstRollback,
+          };
+        }
+
+        return {
+          assistantMessage: "第二步返回失败回执",
+          pendingAction: null,
+          status: "failed",
+        };
+      },
+      executeRollback: async (rollbackPayload) => {
+        rollbackCalls.push(rollbackPayload);
+        return {
+          collection: "plans",
+          documentId: 101,
+          strategy: "delete_created_document",
+        };
+      },
+    },
+  );
+
+  assert.deepEqual(executed, ["first", "failed"]);
+  assert.deepEqual(rollbackCalls, [firstRollback]);
+  assert.equal(result.status, "failed");
+  assert.match(result.assistantMessage, /第 2\/3 步失败/);
+  assert.match(result.assistantMessage, /第二步返回失败回执/);
+  assert.match(result.assistantMessage, /已完整补偿|已自动回滚 1 项/);
+});
+
+test("transactional batch compensates a failed child's trusted effects before prior successes", async () => {
+  const executed: string[] = [];
+  const rollbackCalls: unknown[] = [];
+  const previousRollback = {
+    strategy: "delete_created_document",
+    target: { collection: "plans", documentId: 101 },
+  };
+  const failedChildRollback = {
+    strategy: "restore_schedule_completion",
+    target: { itemId: 81, timelineEventId: 82 },
+    beforeSnapshot: { schedule: { status: "planned" } },
+    afterSnapshot: {
+      schedule: { status: "done" },
+      timelineEvent: { title: "完成日程" },
+    },
+  };
+
+  const result = await executeAgentIntentsTransactional(
+    [makeAnswerIntent("first"), makeAnswerIntent("failed"), makeAnswerIntent("must not run")],
+    undefined,
+    {
+      executeIntent: async (intent): Promise<AgentIntentExecutionResult> => {
+        const answer = (intent as AnswerIntent).args.answer;
+        executed.push(answer);
+
+        if (answer === "first") {
+          return {
+            assistantMessage: "第一步已完成",
+            pendingAction: null,
+            rollbackPayload: previousRollback,
+          };
+        }
+
+        if (answer === "failed") {
+          return {
+            assistantMessage: "日程已完成，但审计失败",
+            pendingAction: null,
+            rollbackPayload: failedChildRollback,
+            status: "failed",
+          };
+        }
+
+        throw new Error("later child must not execute");
+      },
+      executeRollback: async (rollbackPayload) => {
+        rollbackCalls.push(rollbackPayload);
+        const payload = rollbackPayload as {
+          strategy: string;
+          target: { documentId?: number; itemId?: number };
+        };
+
+        return {
+          collection: payload.strategy === "restore_schedule_completion"
+            ? "schedule-items"
+            : "plans",
+          documentId: payload.target.itemId ?? payload.target.documentId ?? 0,
+          strategy: payload.strategy,
+        };
+      },
+      userId: 7,
+    },
+  );
+
+  assert.deepEqual(executed, ["first", "failed"]);
+  assert.deepEqual(rollbackCalls, [failedChildRollback, previousRollback]);
+  assert.equal(result.status, "failed");
+  assert.match(result.assistantMessage, /日程已完成，但审计失败/);
+});
+
+test("transactional batch reports incomplete compensation without claiming success", async () => {
+  const rollbackPayload = {
+    strategy: "delete_created_document",
+    target: { collection: "plans", documentId: 101 },
+  };
+
+  const result = await executeAgentIntentsTransactional(
+    [makeAnswerIntent("first"), makeAnswerIntent("failed")],
+    undefined,
+    {
+      executeIntent: async (intent): Promise<AgentIntentExecutionResult> => {
+        if ((intent as AnswerIntent).args.answer === "first") {
+          return {
+            assistantMessage: "第一步已完成",
+            pendingAction: null,
+            rollbackPayload,
+          };
+        }
+
+        return {
+          assistantMessage: "第二步失败",
+          pendingAction: null,
+          status: "failed",
+        };
+      },
+      executeRollback: async () => {
+        throw new Error("rollback outcome unknown");
+      },
+    },
+  );
+
+  assert.equal(result.status, "failed");
+  assert.match(result.assistantMessage, /补偿未完整|补偿结果不确定/);
+  assert.doesNotMatch(result.assistantMessage, /已完整补偿/);
+});
+
+test("default Schedule batch compensation is owner-bound, receives the authenticated user, and consumes its AgentRun", async () => {
+  const storedScheduleRollback = {
+    afterSnapshot: {
+      schedule: { status: "done" },
+      timelineEvent: { title: "完成日程" },
+    },
+    beforeSnapshot: {
+      schedule: { status: "planned" },
+      timelineEvent: null,
+    },
+    strategy: "restore_schedule_completion",
+    target: { itemId: 81, timelineEventId: 82 },
+  };
+  let rollbackAvailable = true;
+  let lifecycle = "available";
+  let databaseMutations = 0;
+  const auditUpdates: unknown[] = [];
+  const executedPayloads: unknown[] = [];
+  const receivedUserIds: Array<number | undefined> = [];
+  const rollbackStore = {
+    db: {
+      primaryDrizzle: {
+        execute: async () => {
+          databaseMutations += 1;
+
+          if (databaseMutations === 1) {
+            if (!rollbackAvailable) return { rows: [] };
+            rollbackAvailable = false;
+            lifecycle = "in_progress";
+            return { rows: [{ id: 91 }] };
+          }
+
+          if (databaseMutations === 2 && lifecycle === "in_progress") {
+            lifecycle = "consumed";
+            rollbackAvailable = false;
+            return { rows: [{ id: 91 }] };
+          }
+
+          return { rows: [] };
+        },
+      },
+      tableNameMap: new Map([["agent_runs", "agent_runs"]]),
+    },
+    find: async () => ({
+      docs: [{
+        id: 91,
+        rollbackAvailable,
+        rollbackPayload: storedScheduleRollback,
+        status: "succeeded",
+        steps: [],
+        title: "Agent completed schedule",
+        user: 7,
+        workflow: "sync",
+      }],
+      totalDocs: 1,
+    }),
+    update: async (input: unknown) => {
+      auditUpdates.push(input);
+      return { id: 91 };
+    },
+  };
+
+  const result = await executeAgentIntentsTransactional(
+    [makeAnswerIntent("schedule"), makeAnswerIntent("failed")],
+    undefined,
+    {
+      executeIntent: async (intent): Promise<AgentIntentExecutionResult> => {
+        if ((intent as AnswerIntent).args.answer === "schedule") {
+          return {
+            assistantMessage: "日程已完成",
+            pendingAction: null,
+            rollbackPayload: storedScheduleRollback,
+            rollbackSourceRunId: 91,
+          };
+        }
+
+        return {
+          assistantMessage: "后续操作失败",
+          pendingAction: null,
+          status: "failed",
+        };
+      },
+      executeRollback: async (rollbackPayload, rollbackOptions) => {
+        executedPayloads.push(rollbackPayload);
+        receivedUserIds.push(rollbackOptions?.userId);
+
+        return {
+          collection: "schedule-items",
+          documentId: 81,
+          strategy: "restore_schedule_completion",
+        };
+      },
+      rollbackPayloadStore: rollbackStore as never,
+      userId: 7,
+    },
+  );
+
+  assert.equal(result.status, "failed");
+  assert.match(result.assistantMessage, /已完整补偿/);
+  assert.deepEqual(executedPayloads, [storedScheduleRollback]);
+  assert.deepEqual(receivedUserIds, [7]);
+  assert.equal(databaseMutations, 2);
+  assert.equal(auditUpdates.length, 1);
+  assert.equal(rollbackAvailable, false);
+  assert.equal(lifecycle, "consumed");
+
+  let laterManualExecutions = 0;
+  await assert.rejects(
+    executeTrustedRollbackRequest({
+      executeRollback: async () => {
+        laterManualExecutions += 1;
+        throw new Error("must not execute a consumed rollback");
+      },
+      payload: rollbackStore as never,
+      sourceRunId: 91,
+      userId: 7,
+    }),
+    /不可回滚/,
+  );
+  assert.equal(laterManualExecutions, 0);
+  assert.equal(databaseMutations, 2);
 });

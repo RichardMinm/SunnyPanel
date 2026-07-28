@@ -28,6 +28,22 @@ export type RollbackExecutionResult = {
   summary?: string;
 };
 
+export type RollbackEffectOutcome = "indeterminate" | "zero_effect";
+
+export class RollbackExecutionError extends Error {
+  readonly outcome: RollbackEffectOutcome;
+
+  constructor(
+    message: string,
+    outcome: RollbackEffectOutcome,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "RollbackExecutionError";
+    this.outcome = outcome;
+  }
+}
+
 export type RollbackAffectedDocument = {
   collection: string;
   documentId: number;
@@ -86,9 +102,12 @@ type RollbackTransactionRequest = {
   transactionID?: number | Promise<number | string> | string;
 };
 
-class ScheduleRollbackTransactionUnavailableError extends Error {
+class ScheduleRollbackTransactionUnavailableError extends RollbackExecutionError {
   constructor() {
-    super("Schedule completion rollback transaction is unavailable.");
+    super(
+      "Schedule completion rollback transaction is unavailable.",
+      "zero_effect",
+    );
     this.name = "ScheduleRollbackTransactionUnavailableError";
   }
 }
@@ -196,10 +215,18 @@ const createTransactionalRollbackPayload = (input: {
         });
 
         if (!rolledBack) {
-          throw new Error("Schedule completion rollback could not be reconciled safely.");
+          throw new RollbackExecutionError(
+            "Schedule completion rollback could not be reconciled safely.",
+            "indeterminate",
+            { cause: error },
+          );
         }
 
-        throw error;
+        throw new RollbackExecutionError(
+          "Schedule completion rollback could not be reconciled safely.",
+          "zero_effect",
+          { cause: error },
+        );
       }
     },
   };
@@ -328,8 +355,8 @@ const persistRollbackAudit = async (
       rollbackPayload,
       userId,
     });
-  } catch (error) {
-    return error instanceof Error ? error.message : "审计记录写入失败";
+  } catch {
+    return "回滚已执行，但审计记录写入失败。";
   }
 
   return undefined;
@@ -987,11 +1014,15 @@ const executeTransactionalScheduleCompletionRollback = async (input: {
       scheduleRollbackTransactionOptions,
     );
   } catch (error) {
-    if (error instanceof ScheduleRollbackTransactionUnavailableError) {
+    if (error instanceof RollbackExecutionError) {
       throw error;
     }
 
-    throw new Error("Schedule completion rollback could not be reconciled safely.");
+    throw new RollbackExecutionError(
+      "Schedule completion rollback could not be reconciled safely.",
+      "indeterminate",
+      { cause: error },
+    );
   }
 };
 
@@ -1060,11 +1091,17 @@ export const executeRollbackFromPayload = async (
   const parsed = parseRollbackPayload(rollbackPayload);
 
   if (!parsed?.target) {
-    throw new Error("rollbackPayload 缺少可执行的 target。");
+    throw new RollbackExecutionError(
+      "rollbackPayload 缺少可执行的 target。",
+      "zero_effect",
+    );
   }
 
   if (parsed.strategy !== "delete_created_checklist_and_restore_plan_links" && parsed.strategy !== "restore_schedule_completion" && !parsed.target.collection) {
-    throw new Error("rollbackPayload 缺少可执行的 target.collection。");
+    throw new RollbackExecutionError(
+      "rollbackPayload 缺少可执行的 target.collection。",
+      "zero_effect",
+    );
   }
 
   const payload = options.payload ?? (await getPayloadClient());
@@ -1148,7 +1185,10 @@ export const executeRollbackFromPayload = async (
 
   if (parsed.strategy === "restore_schedule_completion") {
     if (!isTrustedUserId(userId)) {
-      throw new Error("The related resource is not available to this operation.");
+      throw new RollbackExecutionError(
+        "The related resource is not available to this operation.",
+        "zero_effect",
+      );
     }
 
     const transactionPayload = options.payload
@@ -1163,7 +1203,10 @@ export const executeRollbackFromPayload = async (
     });
     const scheduleItemId = itemId ?? documentId;
     if (!isTrustedUserId(scheduleItemId)) {
-      throw scheduleRollbackFailure();
+      throw new RollbackExecutionError(
+        "Schedule completion rollback target could not be verified after execution.",
+        "indeterminate",
+      );
     }
     const result = buildRollbackResult({
       affectedDocuments,

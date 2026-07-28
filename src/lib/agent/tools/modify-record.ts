@@ -634,6 +634,7 @@ export const modifyRecordFromIntent = async (
         affectedDocuments,
         assistantMessage: `日程「${document.title}」已完成，但执行记录写入失败，未提供可撤销入口。`,
         pendingAction: null,
+        ...(rollbackAvailable ? { rollbackPayload } : {}),
         status: "failed",
       };
     }

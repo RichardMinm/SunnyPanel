@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
+import { RollbackExecutionError } from "../../src/lib/agent/rollback";
 import { executeTrustedRollbackRequest } from "../../src/lib/agent/rollback-request";
 import {
   getPayloadClient,
@@ -16,6 +17,20 @@ const storedRollbackPayload = {
     collection: "plans",
     documentId: 42,
   },
+};
+
+type TestClaimInput = {
+  claimToken: string;
+  sourceRunId: number;
+  updatedAt: string;
+  userId: number;
+};
+
+type TestTransitionInput = TestClaimInput & {
+  expectedState: string;
+  nextAction: string;
+  nextState: string;
+  rollbackAvailable: boolean;
 };
 
 beforeEach(() => {
@@ -168,6 +183,37 @@ test("trusted rollback cannot resolve a foreign source run through the owner bou
   );
 });
 
+test("trusted rollback bounds owner lookup failures without exposing database internals", async () => {
+  let claimed = false;
+  const payload = {
+    db: {},
+    find: async () => {
+      throw new Error("postgres://secret-user:secret-password lookup failed");
+    },
+    update: async () => ({ id: 12 }),
+  };
+
+  await assert.rejects(
+    executeTrustedRollbackRequest({
+      claimRollbackSourceRun: async () => {
+        claimed = true;
+        return true;
+      },
+      payload: payload as never,
+      sourceRunId: 12,
+      userId: 7,
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /暂时无法安全处理|稍后重试/);
+      assert.doesNotMatch(error.message, /postgres|secret-user|secret-password/i);
+      return true;
+    },
+  );
+
+  assert.equal(claimed, false);
+});
+
 test("trusted rollback rejects consumed or payload-unavailable source runs", async () => {
   const payload = await getPayloadClient();
   const sourceRuns = [
@@ -248,6 +294,7 @@ test("trusted rollback executes the server-stored payload for an owned source ru
     },
     payload: payload as never,
     sourceRunId: 12,
+    transitionRollbackSourceRun: async () => true,
     userId: 7,
   });
 
@@ -261,8 +308,6 @@ test("trusted rollback executes the server-stored payload for an owned source ru
         skipAgentRunPlanSync: true,
       },
       data: {
-        nextAction: "已执行撤销：已执行回滚 delete_created_document",
-        rollbackAvailable: false,
         steps: [
           {
             level: "warn",
@@ -328,13 +373,14 @@ test("trusted rollback default claim path uses the Payload database adapter", as
   });
 
   assert.equal(result.sourceRunId, 12);
-  assert.equal(claimQueries.length, 1);
+  assert.equal(claimQueries.length, 2);
   assert.equal(consumedUpdates.length, 1);
   assert.deepEqual(executedPayloads, [storedRollbackPayload]);
 });
 
 test("trusted rollback atomically claims a source run before concurrent execution", async () => {
   const payload = await getPayloadClient();
+  const claimTokens: string[] = [];
   let claimed = false;
   let executions = 0;
 
@@ -355,7 +401,8 @@ test("trusted rollback atomically claims a source run before concurrent executio
   }));
 
   const request = () => executeTrustedRollbackRequest({
-    claimRollbackSourceRun: async () => {
+    claimRollbackSourceRun: async (input: TestClaimInput) => {
+      claimTokens.push(input.claimToken);
       if (claimed) return false;
       claimed = true;
       return true;
@@ -372,14 +419,16 @@ test("trusted rollback atomically claims a source run before concurrent executio
     },
     payload: payload as never,
     sourceRunId: 12,
+    transitionRollbackSourceRun: async () => true,
     userId: 7,
-  } as Parameters<typeof executeTrustedRollbackRequest>[0] & {
-    claimRollbackSourceRun: () => Promise<boolean>;
-  });
+  } as never);
 
   const results = await Promise.allSettled([request(), request()]);
 
   assert.equal(executions, 1);
+  assert.equal(claimTokens.length, 2);
+  assert.equal(claimTokens.every((token) => typeof token === "string" && token.length > 0), true);
+  assert.equal(new Set(claimTokens).size, 2);
   assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
   assert.equal(results.filter((result) => result.status === "rejected").length, 1);
 });
@@ -425,12 +474,237 @@ test("trusted rollback stays claimed when the post-effect consumed update fails"
     },
     payload: payload as never,
     sourceRunId: 12,
+    transitionRollbackSourceRun: async () => true,
     userId: 7,
-  } as Parameters<typeof executeTrustedRollbackRequest>[0] & {
-    claimRollbackSourceRun: () => Promise<boolean>;
-  });
+  } as never);
 
-  await assert.rejects(request(), /consumed audit update unavailable/);
+  await assert.rejects(request(), /不确定|人工核查/);
   await assert.rejects(request(), /不可回滚|已被占用/);
   assert.equal(executions, 1);
+});
+
+test("guaranteed-zero-effect rollback failure records a safe step, releases availability, and permits retry", async () => {
+  let available = true;
+  let executions = 0;
+  let lifecycle = "available";
+  const lifecycleTransitions: TestTransitionInput[] = [];
+  const updates: unknown[] = [];
+  const payload = {
+    db: {},
+    find: async () => ({
+      docs: [{
+        id: 12,
+        rollbackAvailable: available,
+        rollbackPayload: storedRollbackPayload,
+        status: "succeeded",
+        steps: [],
+        title: "Agent created plan",
+        user: 7,
+        workflow: "planning",
+      }],
+      totalDocs: 1,
+    }),
+    update: async (input: unknown) => {
+      updates.push(input);
+      return { id: 12 };
+    },
+  };
+  const claimRollbackSourceRun = async () => {
+    if (!available) return false;
+    available = false;
+    lifecycle = "in_progress";
+    return true;
+  };
+  const transitionRollbackSourceRun = async (input: TestTransitionInput) => {
+    lifecycleTransitions.push(input);
+    if (lifecycle !== input.expectedState) return false;
+    lifecycle = input.nextState;
+    available = input.rollbackAvailable;
+    return true;
+  };
+  const request = () => executeTrustedRollbackRequest({
+    claimRollbackSourceRun,
+    executeRollback: async () => {
+      executions += 1;
+      if (executions === 1) {
+        throw new RollbackExecutionError(
+          "sensitive database validation detail",
+          "zero_effect",
+        );
+      }
+
+      return {
+        collection: "plans",
+        documentId: 42,
+        strategy: "delete_created_document",
+      };
+    },
+    payload: payload as never,
+    sourceRunId: 12,
+    transitionRollbackSourceRun,
+    userId: 7,
+  } as never);
+
+  await assert.rejects(
+    request(),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /未执行|重试/);
+      assert.doesNotMatch(error.message, /sensitive|database validation/i);
+      return true;
+    },
+  );
+  assert.equal(available, true);
+  assert.equal(lifecycle, "failed");
+  assert.equal(
+    JSON.stringify(updates).includes("ROLLBACK_FAILED_ZERO_EFFECT"),
+    true,
+  );
+  assert.equal(JSON.stringify(updates).includes("sensitive database"), false);
+
+  const retried = await request();
+  assert.equal(retried.sourceRunId, 12);
+  assert.equal(executions, 2);
+  assert.equal(available, false);
+  assert.equal(lifecycle, "consumed");
+  assert.deepEqual(
+    lifecycleTransitions.map((transition) => transition.nextState),
+    ["failed", "consumed"],
+  );
+});
+
+test("indeterminate rollback failure stays unavailable and cannot execute again", async () => {
+  let available = true;
+  let executions = 0;
+  let lifecycle = "available";
+  const transitions: TestTransitionInput[] = [];
+  const payload = {
+    db: {},
+    find: async () => ({
+      docs: [{
+        id: 12,
+        rollbackAvailable: available,
+        rollbackPayload: storedRollbackPayload,
+        status: "succeeded",
+        steps: [],
+        title: "Agent created plan",
+        user: 7,
+        workflow: "planning",
+      }],
+      totalDocs: 1,
+    }),
+    update: async () => ({ id: 12 }),
+  };
+  const request = () => executeTrustedRollbackRequest({
+    claimRollbackSourceRun: async () => {
+      if (!available) return false;
+      available = false;
+      lifecycle = "in_progress";
+      return true;
+    },
+    executeRollback: async () => {
+      executions += 1;
+      throw new Error("sensitive possibly-partial write detail");
+    },
+    payload: payload as never,
+    sourceRunId: 12,
+    transitionRollbackSourceRun: async (input: TestTransitionInput) => {
+      transitions.push(input);
+      if (lifecycle !== input.expectedState) return false;
+      lifecycle = input.nextState;
+      available = input.rollbackAvailable;
+      return true;
+    },
+    userId: 7,
+  } as never);
+
+  await assert.rejects(
+    request(),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /不确定|人工核查/);
+      assert.doesNotMatch(error.message, /sensitive|possibly-partial/i);
+      return true;
+    },
+  );
+  await assert.rejects(request(), /不可回滚|占用/);
+
+  assert.equal(executions, 1);
+  assert.equal(available, false);
+  assert.equal(lifecycle, "indeterminate");
+  assert.deepEqual(
+    transitions.map((transition) => transition.nextState),
+    ["indeterminate"],
+  );
+});
+
+test("post-effect success-audit failure stays unavailable and is best-effort marked indeterminate", async () => {
+  let available = true;
+  let executions = 0;
+  let lifecycle = "available";
+  const transitions: TestTransitionInput[] = [];
+  const payload = {
+    db: {},
+    find: async () => ({
+      docs: [{
+        id: 12,
+        rollbackAvailable: available,
+        rollbackPayload: storedRollbackPayload,
+        status: "succeeded",
+        steps: [],
+        title: "Agent created plan",
+        user: 7,
+        workflow: "planning",
+      }],
+      totalDocs: 1,
+    }),
+    update: async () => {
+      throw new Error("sensitive consumed audit detail");
+    },
+  };
+  const request = () => executeTrustedRollbackRequest({
+    claimRollbackSourceRun: async () => {
+      if (!available) return false;
+      available = false;
+      lifecycle = "in_progress";
+      return true;
+    },
+    executeRollback: async () => {
+      executions += 1;
+      return {
+        collection: "plans",
+        documentId: 42,
+        strategy: "delete_created_document",
+      };
+    },
+    payload: payload as never,
+    sourceRunId: 12,
+    transitionRollbackSourceRun: async (input: TestTransitionInput) => {
+      transitions.push(input);
+      if (lifecycle !== input.expectedState) return false;
+      lifecycle = input.nextState;
+      available = input.rollbackAvailable;
+      return true;
+    },
+    userId: 7,
+  } as never);
+
+  await assert.rejects(
+    request(),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /不确定|人工核查/);
+      assert.doesNotMatch(error.message, /sensitive|audit detail/i);
+      return true;
+    },
+  );
+  await assert.rejects(request(), /不可回滚|占用/);
+
+  assert.equal(executions, 1);
+  assert.equal(available, false);
+  assert.equal(lifecycle, "indeterminate");
+  assert.deepEqual(
+    transitions.map((transition) => transition.nextState),
+    ["consumed", "indeterminate"],
+  );
 });

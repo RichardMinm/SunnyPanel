@@ -1,3 +1,5 @@
+import { getPayloadClient } from "@/lib/payload/client";
+
 import { evaluatePlanFromIntent } from "./evaluation";
 import { runWithAgentExecutionContext } from "./execution-context";
 import { queryProgressFromIntent } from "./progress";
@@ -6,6 +8,11 @@ import {
   isRollbackPayloadExecutable,
   type RollbackExecutionResult,
 } from "./rollback";
+import {
+  executeTrustedRollbackRequest,
+  type RollbackPayloadStore,
+  type TrustedRollbackRequestInput,
+} from "./rollback-request";
 import type { AgentIntent, AgentTraceStep } from "./schemas";
 import { executeAgentTool } from "./tool-registry";
 import { executeWeeklyReviewFromIntent } from "./workflows/weekly-review-server";
@@ -39,12 +46,19 @@ export type AgentIntentExecutor = (
   options?: AgentExecutionOptions,
 ) => Promise<AgentIntentExecutionResult>;
 
-export type AgentRollbackExecutor = (rollbackPayload: unknown) => Promise<RollbackExecutionResult>;
+export type AgentRollbackExecutor = (
+  rollbackPayload: unknown,
+  options?: { userId?: number },
+) => Promise<RollbackExecutionResult>;
 
 export type TransactionalExecutionOptions = {
   executeIntent?: AgentIntentExecutor;
   executeRollback?: AgentRollbackExecutor;
+  executeTrustedRollbackRequest?: (
+    input: TrustedRollbackRequestInput,
+  ) => ReturnType<typeof executeTrustedRollbackRequest>;
   isRollbackExecutable?: (rollbackPayload: unknown) => boolean;
+  rollbackPayloadStore?: RollbackPayloadStore;
   userId?: number;
 };
 
@@ -82,6 +96,59 @@ const getErrorMessage = (error: unknown) => (error instanceof Error ? error.mess
 const formatRollbackResult = (result: RollbackExecutionResult) =>
   `${result.collection}#${result.documentIds?.join(",") ?? result.documentId} (${result.strategy})${result.auditWarning ? `，审计提示：${result.auditWarning}` : ""}`;
 
+type BatchRollbackEvidence = {
+  rollbackPayload: unknown;
+  rollbackSourceRunId?: number;
+};
+
+const isTrustedUserId = (value: unknown): value is number =>
+  typeof value === "number"
+  && Number.isSafeInteger(value)
+  && value > 0;
+
+const normalizeRollbackSourceRunId = (value: unknown) =>
+  typeof value === "number"
+  && Number.isSafeInteger(value)
+  && value > 0
+    ? value
+    : undefined;
+
+const executeBatchRollbackEvidence = async (
+  evidence: BatchRollbackEvidence,
+  options: TransactionalExecutionOptions,
+): Promise<RollbackExecutionResult> => {
+  if (evidence.rollbackSourceRunId !== undefined) {
+    if (!isTrustedUserId(options.userId)) {
+      throw new Error("自动补偿缺少已认证的用户上下文。");
+    }
+
+    const payload = options.rollbackPayloadStore ?? await getPayloadClient();
+    const trustedRollbackRequest =
+      options.executeTrustedRollbackRequest ?? executeTrustedRollbackRequest;
+    const trustedResult = await trustedRollbackRequest({
+      ...(options.executeRollback
+        ? {
+            executeRollback: (rollbackPayload) =>
+              options.executeRollback!(rollbackPayload, {
+                userId: options.userId,
+              }),
+          }
+        : {}),
+      payload: payload as RollbackPayloadStore,
+      sourceRunId: evidence.rollbackSourceRunId,
+      userId: options.userId,
+    });
+
+    return trustedResult.result;
+  }
+
+  const executeRollback = options.executeRollback ?? executeRollbackFromPayload;
+
+  return executeRollback(evidence.rollbackPayload, {
+    userId: options.userId,
+  });
+};
+
 export const executeAgentIntentsTransactional = async (
   intents: AgentIntent[],
   onTrace?: AgentExecutionTraceReporter,
@@ -96,14 +163,88 @@ export const executeAgentIntentsTransactional = async (
   }
 
   const executeIntent = options.executeIntent ?? executeAgentIntent;
-  const executeRollback = options.executeRollback ?? executeRollbackFromPayload;
   const isExecutable = options.isRollbackExecutable ?? isRollbackPayloadExecutable;
   const messages: string[] = [];
   const affectedDocuments: NonNullable<AgentIntentExecutionResult["affectedDocuments"]> = [];
-  const rollbackPayloads: unknown[] = [];
+  const rollbackEvidence: BatchRollbackEvidence[] = [];
   let pendingAction: AgentIntentExecutionResult["pendingAction"] = null;
   let rollbackPayload: unknown;
   let rollbackSourceRunId: number | undefined;
+
+  const failBatch = async (input: {
+    compensationEvidence: BatchRollbackEvidence[];
+    failureMessage: string;
+    failureType: "returned" | "thrown";
+    stepNumber: number;
+  }): Promise<AgentIntentExecutionResult> => {
+    const rollbackResults: RollbackExecutionResult[] = [];
+    let rollbackFailures = 0;
+
+    onTrace?.({
+      detail:
+        input.failureType === "returned"
+          ? "子操作返回失败回执，批量执行已停止。"
+          : input.failureMessage,
+      id: `batch-transaction-step-${input.stepNumber}`,
+      kind: "error",
+      status: "error",
+      title: `批量执行在第 ${input.stepNumber} 项失败`,
+    });
+
+    for (const [rollbackIndex, evidence] of input.compensationEvidence.entries()) {
+      const rollbackStep = rollbackIndex + 1;
+
+      onTrace?.({
+        detail: `正在补偿已确认副作用 ${rollbackStep}/${input.compensationEvidence.length}。`,
+        id: `batch-transaction-rollback-${rollbackStep}`,
+        kind: "action",
+        status: "running",
+        title: "自动补偿回滚",
+      });
+
+      try {
+        const rollbackResult = await executeBatchRollbackEvidence(evidence, options);
+        rollbackResults.push(rollbackResult);
+        onTrace?.({
+          detail: formatRollbackResult(rollbackResult),
+          id: `batch-transaction-rollback-${rollbackStep}`,
+          kind: "complete",
+          status: "done",
+          title: "自动补偿回滚完成",
+        });
+      } catch {
+        rollbackFailures += 1;
+        onTrace?.({
+          detail: "该项自动补偿未完成，结果可能不确定，需要人工核查。",
+          id: `batch-transaction-rollback-${rollbackStep}`,
+          kind: "error",
+          status: "error",
+          title: "自动补偿回滚未完成",
+        });
+      }
+    }
+
+    const rollbackSummary =
+      input.compensationEvidence.length === 0
+        ? "没有检测到可自动补偿的已执行动作。"
+        : rollbackFailures === 0
+          ? `已自动回滚 ${rollbackResults.length} 项，已完整补偿：${rollbackResults.map(formatRollbackResult).join("；")}。`
+          : `补偿未完整：已确认补偿 ${rollbackResults.length}/${input.compensationEvidence.length} 项，另有 ${rollbackFailures} 项失败或结果不确定，需要人工核查。`;
+
+    return {
+      assistantMessage: [
+        ...messages,
+        input.failureType === "returned"
+          ? `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步失败：${input.failureMessage}`
+          : `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步失败（抛出异常）：${input.failureMessage}`,
+        rollbackSummary,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      pendingAction: null,
+      status: "failed",
+    };
+  };
 
   for (const [index, intent] of intents.entries()) {
     const stepNumber = index + 1;
@@ -127,6 +268,32 @@ export const executeAgentIntentsTransactional = async (
         { userId: options.userId },
       );
 
+      const executableRollbackEvidence =
+        result.rollbackPayload && isExecutable(result.rollbackPayload)
+          ? {
+              rollbackPayload: result.rollbackPayload,
+              ...(normalizeRollbackSourceRunId(result.rollbackSourceRunId)
+                ? {
+                    rollbackSourceRunId: normalizeRollbackSourceRunId(
+                      result.rollbackSourceRunId,
+                    ),
+                  }
+                : {}),
+            }
+          : null;
+
+      if (result.status === "failed") {
+        return failBatch({
+          compensationEvidence: [
+            ...(executableRollbackEvidence ? [executableRollbackEvidence] : []),
+            ...rollbackEvidence.slice().reverse(),
+          ],
+          failureMessage: result.assistantMessage || "子操作返回失败回执。",
+          failureType: "returned",
+          stepNumber,
+        });
+      }
+
       if (result.assistantMessage) {
         messages.push(result.assistantMessage);
       }
@@ -136,17 +303,12 @@ export const executeAgentIntentsTransactional = async (
         pendingAction = result.pendingAction;
       }
 
-      if ("rollbackPayload" in result && result.rollbackPayload) {
+      if (result.rollbackPayload) {
         rollbackPayload = result.rollbackPayload;
 
-        if (isExecutable(result.rollbackPayload)) {
-          rollbackPayloads.push(result.rollbackPayload);
-          rollbackSourceRunId =
-            typeof result.rollbackSourceRunId === "number"
-            && Number.isSafeInteger(result.rollbackSourceRunId)
-            && result.rollbackSourceRunId > 0
-              ? result.rollbackSourceRunId
-              : undefined;
+        if (executableRollbackEvidence) {
+          rollbackEvidence.push(executableRollbackEvidence);
+          rollbackSourceRunId = executableRollbackEvidence.rollbackSourceRunId;
         }
       }
 
@@ -161,71 +323,12 @@ export const executeAgentIntentsTransactional = async (
         title: `事务批量执行完成 ${stepNumber}/${intents.length}`,
       });
     } catch (error) {
-      const failureMessage = getErrorMessage(error);
-      const rollbackResults: RollbackExecutionResult[] = [];
-      const rollbackFailures: string[] = [];
-
-      onTrace?.({
-        detail: failureMessage,
-        id: `batch-transaction-step-${stepNumber}`,
-        kind: "error",
-        status: "error",
-        title: `批量执行在第 ${stepNumber} 项失败`,
+      return failBatch({
+        compensationEvidence: rollbackEvidence.slice().reverse(),
+        failureMessage: getErrorMessage(error),
+        failureType: "thrown",
+        stepNumber,
       });
-
-      for (const [rollbackIndex, payload] of rollbackPayloads.slice().reverse().entries()) {
-        const rollbackStep = rollbackIndex + 1;
-
-        onTrace?.({
-          detail: `正在回滚已完成操作 ${rollbackStep}/${rollbackPayloads.length}。`,
-          id: `batch-transaction-rollback-${rollbackStep}`,
-          kind: "action",
-          status: "running",
-          title: "自动补偿回滚",
-        });
-
-        try {
-          const rollbackResult = await executeRollback(payload);
-          rollbackResults.push(rollbackResult);
-          onTrace?.({
-            detail: formatRollbackResult(rollbackResult),
-            id: `batch-transaction-rollback-${rollbackStep}`,
-            kind: "complete",
-            status: "done",
-            title: "自动补偿回滚完成",
-          });
-        } catch (rollbackError) {
-          const rollbackMessage = getErrorMessage(rollbackError);
-          rollbackFailures.push(rollbackMessage);
-          onTrace?.({
-            detail: rollbackMessage,
-            id: `batch-transaction-rollback-${rollbackStep}`,
-            kind: "error",
-            status: "error",
-            title: "自动补偿回滚失败",
-          });
-        }
-      }
-
-      const rollbackSummary =
-        rollbackResults.length > 0
-          ? `已自动回滚 ${rollbackResults.length} 项：${rollbackResults.map(formatRollbackResult).join("；")}。`
-          : "没有可自动回滚的已执行动作。";
-      const rollbackFailureSummary =
-        rollbackFailures.length > 0 ? `自动回滚有 ${rollbackFailures.length} 项失败：${rollbackFailures.join("；")}` : "";
-
-      return {
-        assistantMessage: [
-          ...messages,
-          `❌ 批量执行在第 ${stepNumber}/${intents.length} 步失败：${failureMessage}`,
-          rollbackSummary,
-          rollbackFailureSummary,
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
-        pendingAction: null,
-        status: "failed",
-      };
     }
   }
 

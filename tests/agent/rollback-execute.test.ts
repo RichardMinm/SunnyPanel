@@ -80,6 +80,31 @@ test("executeRollbackFromPayload records multi-document rollback audit with affe
   assert.equal(auditResults[0]?.summary, "已执行回滚 delete_created_documents，影响 2 个对象：schedule-items#11 delete；schedule-items#12 delete");
 });
 
+test("executeRollbackFromPayload returns a bounded audit warning without raw failure internals", async () => {
+  const payload = await getPayloadClient();
+  const result = await executeRollbackFromPayload(
+    {
+      strategy: "delete_created_documents",
+      target: {
+        collection: "schedule-items",
+        documentIds: [11],
+      },
+    },
+    {
+      payload: payload as never,
+      recordAudit: async () => {
+        throw new Error("postgres://secret-user:secret-password audit insert failed");
+      },
+    },
+  );
+
+  assert.equal(
+    result.auditWarning,
+    "回滚已执行，但审计记录写入失败。",
+  );
+  assert.doesNotMatch(result.auditWarning, /postgres|secret-user|secret-password/i);
+});
+
 test("executeRollbackFromPayload restores a schedule item snapshot", async () => {
   const payload = await getPayloadClient();
   const result = await executeRollbackFromPayload(

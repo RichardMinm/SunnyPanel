@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { executeRollbackFromPayload } from "../../../src/lib/agent/rollback";
+import {
+  executeRollbackFromPayload,
+  RollbackExecutionError,
+} from "../../../src/lib/agent/rollback";
 
 type Document = Record<string, unknown> & { id: number };
 
@@ -309,7 +312,11 @@ const transactionPayload = () => {
       } catch (error) {
         state = concurrentCommittedState ?? snapshot;
         transactionRollbacks += 1;
-        throw error;
+        throw new RollbackExecutionError(
+          "Schedule completion rollback could not be reconciled safely.",
+          "zero_effect",
+          { cause: error },
+        );
       }
     },
     update: outsideTransaction,
@@ -404,7 +411,15 @@ test("rejects divergent Schedule state before any reverse write", async () => {
   state.schedule.title = "用户后来改过的标题";
   const divergent = structuredClone(state);
 
-  await assert.rejects(execute(), reconciliationFailure);
+  await assert.rejects(
+    execute(),
+    (error: unknown) => {
+      assert.ok(error instanceof RollbackExecutionError);
+      assert.equal(error.outcome, "zero_effect");
+      assert.match(error.message, reconciliationFailure);
+      return true;
+    },
+  );
 
   assert.deepEqual(state, divergent);
   assert.deepEqual(writeOrder(), []);
@@ -492,7 +507,34 @@ test("missing Schedule rollback transaction support fails before direct CRUD", a
 
   await assert.rejects(
     execute(withoutTransaction),
-    /transaction.*unavailable|事务.*不可用/i,
+    (error: unknown) => {
+      assert.ok(error instanceof RollbackExecutionError);
+      assert.equal(error.outcome, "zero_effect");
+      assert.match(error.message, /transaction.*unavailable|事务.*不可用/i);
+      return true;
+    },
+  );
+
+  assert.equal(directOperations, 0);
+  assert.deepEqual(state, completedState());
+});
+
+test("Schedule rollback defaults an unproven transaction failure to indeterminate", async () => {
+  const transactionCapable = transactionPayload();
+  const unknownTransactionOutcome = {
+    ...transactionCapable,
+    runInTransaction: async () => {
+      throw new Error("driver disconnected after transaction dispatch");
+    },
+  };
+
+  await assert.rejects(
+    execute(unknownTransactionOutcome),
+    (error: unknown) => {
+      assert.ok(error instanceof RollbackExecutionError);
+      assert.equal(error.outcome, "indeterminate");
+      return true;
+    },
   );
 
   assert.equal(directOperations, 0);
