@@ -1990,7 +1990,7 @@ html[data-theme="dark"] .sunny-panel {
   color: inherit;
 }
 
-.sunny-checklist-card-header h3 {
+.sunny-checklist-card-title {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
@@ -2052,6 +2052,14 @@ html[data-theme="dark"] .sunny-panel {
   margin-top: 4px;
   font-size: 11px;
   color: var(--muted);
+}
+
+.sunny-checklist-relationship-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--surface-tint);
 }
 
 /* Items list */
@@ -2160,7 +2168,7 @@ html[data-theme="dark"] .sunny-checklist-card.is-expanded {
   box-shadow: var(--shadow-toggle-dark-lg);
 }
 
-html[data-theme="dark"] .sunny-checklist-card-header h3 {
+html[data-theme="dark"] .sunny-checklist-card-title {
   color: var(--surface-tint);
 }
 
@@ -2360,21 +2368,43 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
   border-radius: 16px;
   border: 1px solid var(--surface-tint);
   background: var(--surface-strong);
-  cursor: pointer;
   text-align: left;
   font: inherit;
   color: inherit;
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
-.sunny-timeline-event-card:hover {
-  border-color: var(--border);
-  box-shadow: var(--shadow-toggle-sm);
+.sunny-timeline-event-card-toggle {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.sunny-timeline-event-card-toggle:hover .sunny-timeline-event-title {
+  color: var(--accent-strong);
+}
+
+.sunny-timeline-event-card-toggle:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
 }
 
 .sunny-timeline-event-card.is-expanded {
   border-color: var(--border);
   box-shadow: var(--shadow-toggle-md);
+}
+
+.sunny-timeline-event-card.is-linked-object-target,
+.sunny-timeline-event-card[aria-current="true"] {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus-sm);
 }
 
 .sunny-timeline-event-head {
@@ -2412,6 +2442,7 @@ html[data-theme="dark"] .sunny-checklist-items-list li.is-done span:last-child {
 }
 
 .sunny-timeline-event-title {
+  display: block;
   margin: 0;
   font-size: 14px;
   font-weight: 600;

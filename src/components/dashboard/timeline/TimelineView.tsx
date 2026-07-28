@@ -164,7 +164,7 @@ export function TimelineView({
     navigationTarget,
     navigationTimeline?.id,
   ]);
-  const navigationFocusRef = useLinkedObjectFocus<HTMLButtonElement>(
+  const navigationFocusRef = useLinkedObjectFocus<HTMLDivElement>(
     !loading && Boolean(navigationTimeline) && typeFilter === "all",
     navigationTimeline
       ? `${navigationTimeline.id}:${navigationGeneration ?? 0}`
@@ -204,30 +204,19 @@ export function TimelineView({
                 {!isLast && <div className="sunny-timeline-event-connector" />}
               </div>
               <div
+                aria-current={navigationTimeline?.id === event.id ? "true" : undefined}
                 className={`sunny-timeline-event-card${isExpanded ? " is-expanded" : ""}`}
+                ref={navigationTimeline?.id === event.id ? navigationFocusRef : undefined}
               >
                 <button
-                  aria-current={navigationTimeline?.id === event.id ? "true" : undefined}
                   aria-expanded={isExpanded}
+                  className="sunny-timeline-event-card-toggle"
                   type="button"
                   onClick={() =>
                     setExpandedId(isExpanded ? null : event.id)
                   }
-                  ref={navigationTimeline?.id === event.id ? navigationFocusRef : undefined}
-                  style={{
-                    appearance: "none",
-                    background: "none",
-                    border: 0,
-                    color: "inherit",
-                    cursor: "pointer",
-                    display: "block",
-                    font: "inherit",
-                    padding: 0,
-                    textAlign: "left",
-                    width: "100%",
-                  }}
                 >
-                  <div className="sunny-timeline-event-head">
+                  <span className="sunny-timeline-event-head">
                     <span
                       className={`sunny-timeline-event-dot ${categoryDotClass}`}
                       data-category={typeCfg.category}
@@ -238,8 +227,8 @@ export function TimelineView({
                         {SOURCE_LABELS[event.sourceType] ?? event.sourceType}
                       </span>
                     )}
-                  </div>
-                  <h3 className="sunny-timeline-event-title">{event.title}</h3>
+                  </span>
+                  <span className="sunny-timeline-event-title">{event.title}</span>
                 </button>
                 {isExpanded && (
                   <div className="sunny-timeline-event-detail">

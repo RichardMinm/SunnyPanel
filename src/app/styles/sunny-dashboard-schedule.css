@@ -465,21 +465,44 @@
   border-radius: 14px;
   border: 1px solid var(--surface-tint);
   background: var(--background);
-  cursor: pointer;
   font: inherit;
   text-align: left;
   color: inherit;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.sunny-schedule-timeline-card:hover {
-  border-color: var(--border);
+.sunny-schedule-timeline-card-toggle {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.sunny-schedule-timeline-card-toggle:hover .sunny-schedule-timeline-title {
+  color: var(--accent-strong);
+}
+
+.sunny-schedule-timeline-card-toggle:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
 }
 
 .sunny-schedule-timeline-card.is-expanded {
   background: var(--surface-strong);
   border-color: var(--border);
   box-shadow: var(--shadow-chip-md);
+}
+
+.sunny-schedule-timeline-card.is-linked-object-target,
+.sunny-schedule-timeline-card[aria-current="true"] {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus-sm);
 }
 
 .sunny-schedule-timeline-card.is-done {
@@ -514,6 +537,7 @@
 }
 
 .sunny-schedule-timeline-meta {
+  display: block;
   margin: 4px 0 0;
   font-size: 11px;
   color: var(--muted);
@@ -546,7 +570,6 @@
   margin-top: 8px;
 }
 
-.sunny-schedule-timeline-card:hover .sunny-schedule-timeline-card-actions,
 .sunny-schedule-timeline-card.is-expanded .sunny-schedule-timeline-card-actions {
   display: flex;
 }

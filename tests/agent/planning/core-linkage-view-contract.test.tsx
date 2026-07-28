@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
@@ -253,5 +254,95 @@ test("Schedule and Timeline keep relationship/action controls outside expand but
     assert.match(source, /aria-expanded=\{isExpanded\}/);
     assert.match(source, /navigationFocusRef/);
     assert.match(source, /aria-current=/);
+  }
+});
+
+test("Checklist, Schedule and Timeline mounted views preserve complete relationship behavior", () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      "tests/agent/planning/core-linkage-view-mounted.fixture.tsx",
+      "all",
+    ],
+    {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        AGENT_DISABLE_LLM: "1",
+        PAYLOAD_SECRET:
+          process.env.PAYLOAD_SECRET ??
+          "sunnypanel-agent-test-secret-2026",
+        TSX_TSCONFIG_PATH:
+          process.env.TSX_TSCONFIG_PATH ?? "tsconfig.agent-test.json",
+      },
+      timeout: 10_000,
+    },
+  );
+
+  assert.equal(
+    result.status,
+    0,
+    [result.stdout, result.stderr].filter(Boolean).join("\n"),
+  );
+});
+
+test("relationship section and card toggle styles isolate lists and put affordance on real controls", () => {
+  const checklistSource = read(
+    "src/components/dashboard/checklist/ChecklistView.tsx",
+  );
+  const uiCss = read("src/app/styles/sunny-ui.css");
+  const scheduleCss = read("src/app/styles/sunny-dashboard-schedule.css");
+
+  assert.match(checklistSource, /sunny-checklist-relationship-section/);
+  assert.doesNotMatch(
+    checklistSource,
+    /className="sunny-checklist-items-list"[\s\S]{0,160}<LinkedObjectList/,
+  );
+  assert.match(uiCss, /\.sunny-checklist-relationship-section\s*\{/);
+  assert.doesNotMatch(uiCss, /\.sunny-checklist-card-header h3/);
+  assert.doesNotMatch(
+    uiCss,
+    /\.sunny-checklist-relationship-section\s+(?:li|span:first-child)/,
+  );
+
+  for (const [css, card, toggle] of [
+    [
+      scheduleCss,
+      ".sunny-schedule-timeline-card",
+      ".sunny-schedule-timeline-card-toggle",
+    ],
+    [
+      uiCss,
+      ".sunny-timeline-event-card",
+      ".sunny-timeline-event-card-toggle",
+    ],
+  ] as const) {
+    const cardRule = css.match(
+      new RegExp(`${card.replaceAll(".", "\\.")}\\s*\\{([^}]*)\\}`),
+    );
+    const toggleRule = css.match(
+      new RegExp(`${toggle.replaceAll(".", "\\.")}\\s*\\{([^}]*)\\}`),
+    );
+    assert.ok(cardRule);
+    assert.doesNotMatch(cardRule[1], /cursor:\s*pointer/);
+    assert.doesNotMatch(
+      css,
+      new RegExp(`${card.replaceAll(".", "\\.")}:hover\\s*\\{`),
+    );
+    assert.ok(toggleRule);
+    assert.match(toggleRule[1], /cursor:\s*pointer/);
+    assert.match(
+      css,
+      new RegExp(`${toggle.replaceAll(".", "\\.")}:focus-visible\\s*\\{`),
+    );
+    assert.match(
+      css,
+      new RegExp(
+        `${card.replaceAll(".", "\\.")}(?:\\.is-linked-object-target|\\[aria-current="true"\\])`,
+      ),
+    );
   }
 });

@@ -157,9 +157,7 @@ export function ChecklistView({
                   )
                 }
               >
-                <div>
-                  <h3>{cl.title}</h3>
-                </div>
+                <span className="sunny-checklist-card-title">{cl.title}</span>
                 <span
                   className={`sunny-checklist-status-badge is-${cl.status}`}
                 >
@@ -186,8 +184,8 @@ export function ChecklistView({
                 {cl.completedItems}/{cl.totalItems} 项完成
               </span>
               {expandedId === cl.id ? (
-                <div className="sunny-checklist-items-list">
-                  <h4>关联对象</h4>
+                <div className="sunny-checklist-relationship-section">
+                  <span>关联对象</span>
                   <LinkedObjectList
                     defaultExpanded
                     items={cl.linkedObjects}

@@ -488,47 +488,36 @@ export function ScheduleMonthView({
                   return (
                     <div key={item.id}>
                       <div
-                        aria-current={navigationSchedule?.id === item.id ? "true" : undefined}
                         className={`sunny-schedule-timeline-item${item.priority === "high" ? " is-priority-high" : ""}${item.status === "done" ? " is-done" : ""}`}
                         data-category={cat}
-                        ref={navigationSchedule?.id === item.id ? navigationFocusRef : undefined}
                       >
                         <span className="sunny-schedule-timeline-time">
                           {formatStartTime(item)}
                         </span>
                         <div
+                          aria-current={navigationSchedule?.id === item.id ? "true" : undefined}
                           className={`sunny-schedule-timeline-card${isExpanded ? " is-expanded" : ""}${item.status === "done" ? " is-done" : ""}${item.status === "canceled" || item.status === "skipped" ? " is-canceled" : ""}`}
+                          ref={navigationSchedule?.id === item.id ? navigationFocusRef : undefined}
                         >
                           <button
                             aria-expanded={isExpanded}
+                            className="sunny-schedule-timeline-card-toggle"
                             type="button"
                             onClick={() =>
                               setExpandedId(isExpanded ? null : item.id)
                             }
-                            style={{
-                              appearance: "none",
-                              background: "none",
-                              border: 0,
-                              color: "inherit",
-                              cursor: "pointer",
-                              display: "block",
-                              font: "inherit",
-                              padding: 0,
-                              textAlign: "left",
-                              width: "100%",
-                            }}
                           >
-                            <div className="sunny-schedule-timeline-row">
+                            <span className="sunny-schedule-timeline-row">
                               <span className="sunny-schedule-timeline-title">{item.title}</span>
                               <span className={`sunny-schedule-status-pill ${statusPillClass(item.status)}`}>
                                 {statusLabel(item.status)}
                               </span>
-                            </div>
-                            <p className="sunny-schedule-timeline-meta">
+                            </span>
+                            <span className="sunny-schedule-timeline-meta">
                               {formatDuration(item)}
                               {formatDuration(item) && item.priority === "high" ? " · " : ""}
                               {item.priority === "high" ? "高优先级" : ""}
-                            </p>
+                            </span>
                           </button>
                           {isExpanded && (
                             <div className="sunny-schedule-timeline-expand">
