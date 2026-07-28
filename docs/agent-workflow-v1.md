@@ -251,22 +251,29 @@ Plan
   → ScheduleItem.relatedPlan             (D2-A3a)
   → ScheduleItem.relatedChecklist
   → ScheduleItem.relatedChecklistItemKey
-  → Checklist item completion            (complete_plan_item)
+  → Schedule or Checklist item completion
   → Plan.progress auto-sync              (D2-A2)
-  → TimelineEvent from completion        (checklist afterChange hook)
+  → TimelineEvent.relatedPlan
+  → TimelineEvent.relatedChecklist
+  → TimelineEvent.relatedScheduleItem
+  → TimelineEvent.relatedTaskKey
   → Plan.linkedContent(schedule-items)   (D2-A3a)
   → Receipt (AgentRun + AgentActionReceipt)
-  → Rollback (with linkedContent cleanup)(D2-A3a-fix)
+  → Rollback (Schedule / Checklist / Plan / Timeline)
 ```
 
 ### Currently Implemented
 
 - Checklist.planId → Plan bidirectional link
 - Plan.progress auto-sync (hook, derived from checklist completion rate)
-- ScheduleItem → Plan.linkedContent (with dedup)
-- Rollback cleanup for schedule-items linkedContent
-- Completion → TimelineEvent (deterministic)
-- Receipt and Rollback for all write actions
+- ScheduleItem → Plan / Checklist / embedded ChecklistItem exact linkage
+- Manual and confirmed-Agent Schedule completion share one transactional service
+- Completion → linked TimelineEvent (deterministic)
+- Completion and rollback refresh Plan / Checklist / Schedule / Timeline views
+- Receipt and server-owned rollback source ID for supported write actions
+- Exact Schedule completion can be pre-resolved without a Provider only when
+  execute mode, actor-authorized context, positive ID, exact title, and
+  `planned` status all agree; all other forms remain fail-closed
 
 ### Not Yet Implemented (v1 scope boundary)
 
@@ -274,7 +281,6 @@ Plan
 - Task collection
 - Auto-rescheduling
 - External Calendar integration
-- TimelineEvent.relatedPlan (D2-A3b, deferred)
 - Legacy data planId backfill
 
 ---

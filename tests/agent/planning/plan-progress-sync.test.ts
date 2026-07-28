@@ -255,8 +255,7 @@ test("transaction-bound hook reads completed Checklist and writes Plan through t
     }],
   });
   const calls: Array<{ args: Record<string, unknown>; type: string }> = [];
-  let transactionReq: HookArgs["req"];
-  transactionReq = {
+  const transactionReq = {
     context: {},
     payload: {
       findByID: async (args: Record<string, unknown>) => {

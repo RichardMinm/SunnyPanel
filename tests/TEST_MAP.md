@@ -42,7 +42,7 @@ Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, a
 | Capability registry and tool gate | `tests/agent/capability-registry.test.ts`, `tests/agent/capability-pre-router.test.ts`, `tests/agent/capability-tool-gate.test.ts`, `tests/agent/capability-execute-path.test.ts` | Preview/execute pairing and no execute tools in preview gates. | protected |
 | Policy and confirmation | `tests/agent/policy-guard.test.ts`, `tests/agent/confirmation.test.ts`, `tests/agent/permission-resolver.test.ts` | Writes require the correct guard and confirmation behavior. | protected |
 | Receipts | `tests/agent/action-receipts.test.ts` | Stable action keys, execute/rollback isolation, idempotent replay. | protected |
-| Rollback | `tests/agent/rollback*.test.ts`, `tests/agent/tool-rollback-payloads.test.ts` | Executable rollback payloads and safe restore/delete strategies. | protected |
+| Rollback | `tests/agent/rollback*.test.ts`, `tests/agent/tool-rollback-payloads.test.ts` | Executable rollback payloads, server-owned source IDs, PostgreSQL claim/transition SQL, UI Receipt retention, and safe restore/delete strategies. | protected |
 | Pipeline execution | `tests/agent/execute-and-persist-step.test.ts`, `tests/agent/tool-dry-run.test.ts`, `tests/agent/safety.test.ts`, `tests/agent/tool-plan-consistency.test.ts` | Dry-run, proposed action, write safety, planned vs actual tool consistency. | protected |
 | LangGraph runtime | `tests/agent/langgraph-*.test.ts` | Runtime selection, checkpoint config, full adapter behavior, orchestration subgraph. | protected runtime contract group |
 | Orchestration | `tests/agent/orchestration-*.test.ts`, `tests/agent/execution-*.test.ts`, `tests/agent/transactional-executor.test.ts` | Observations, replanning, projections, transactional behavior. | normal |
@@ -111,6 +111,8 @@ Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, a
 | Create checklist | `tests/agent/planning/create-checklist-execute.test.ts`, `tests/agent/planning/create-checklist-idempotency.test.ts`, `tests/agent/planning/create-checklist-rollback.test.ts` | Confirmed checklist write, receipt replay, rollback. | protected |
 | Plan linkage | `tests/agent/planning/checklist-plan-linkage*.test.ts`, `tests/agent/planning/plan-to-checklist-source-plan-id.test.ts` | Checklist links to real plan id and rollback restores links. | protected |
 | Timeline semantics | `tests/agent/planning/timeline-event-semantics.test.ts`, `tests/agent/planning/timeline-event-rollback.test.ts`, `tests/agent/planning/complete-checklist-item-*.test.ts` | Checklist completion creates/restores the correct timeline event. | protected |
+| Core linkage | `tests/agent/planning/core-linkage-*.test.ts`, `tests/agent/planning/checklist-timeline-plan-linkage.test.ts`, `tests/agent/planning/plan-progress-sync.test.ts` | Exact Plan / Checklist / Schedule / Timeline relationships, fresh migration compatibility, progress synchronization, compensation, and idempotent Plan links. | protected |
+| Linked Dashboard experience | `tests/agent/planning/linked-object-*.test.tsx`, `tests/agent/planning/core-linkage-view-*.tsx`, `tests/agent/planning/domain-refresh.test.tsx` | Shared linked-object components, exact focus/navigation, access-safe summaries, and retained post-write refresh without whole-page reload. | protected |
 | Progress aggregation | `tests/agent/planning/plan-checklist-progress*.test.ts` | Progress is computed from linked checklists without writing `Plan.progress`. | protected |
 | Product experience | `tests/agent/planning/planning-ui-state-contract.test.tsx`, `tests/agent/planning/pending-confirmation-ux.test.tsx`, `tests/agent/planning/action-result-card.test.tsx` | User-visible planning states and results. | normal |
 | Full workflow | `tests/agent/planning/planning-full-workflow-e2e.test.ts` | Planning -> checklist -> timeline/progress closure. | protected |
@@ -124,6 +126,7 @@ Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, a
 | Revise draft | `tests/agent/schedule/schedule-draft-revise*.test.ts`, `tests/agent/schedule/schedule-local-suggestions-flow.test.ts` | Suggestions update drafts without writing. | protected |
 | Prepare schedule | `tests/agent/schedule/prepare-schedule-creation.test.ts`, `tests/agent/schedule/schedule-pending-confirmation.test.ts` | Draft converts to pending confirmation path. | protected |
 | Create schedule items | `tests/agent/schedule/create-schedule-items-*.test.ts` | Confirmed batch write, dry-run, idempotency, rollback. | protected |
+| Complete linked schedule | `tests/agent/schedule/schedule-completion-*.test.ts`, `tests/agent/schedule/schedule-status-*.test.ts` | Manual and Agent completion share actor authorization, atomic/transactional status changes, Checklist/Plan/Timeline propagation, compensation, terminal effects, and full rollback. | protected |
 | Conflict awareness | `tests/agent/schedule/schedule-conflict-*.test.ts`, `tests/agent/schedule/local-free-slots.test.ts` | Local conflict detection and suggestions without automatic rescheduling. | protected |
 | Legacy schedule compatibility | `tests/agent/schedule/schedule-legacy-pipeline-contract.test.ts`, `tests/agent/schedule/schedule-conflict-detection.test.ts` | Legacy single-item schedule proposal/result helpers and conflict detector compatibility. | normal |
 | Query schedule | `tests/agent/schedule/schedule-query-flow.test.ts` | Read-only schedule lookup does not enter creation workflow. | protected |
@@ -164,6 +167,7 @@ Ops tests protect read-only observability. They must not introduce execute or ro
 | Main shell | `tests/agent/dashboard.test.ts` | Dashboard opens as Agent Workspace rather than legacy stats. | protected |
 | Sidebar contract | `tests/agent/dashboard.test.ts`, `tests/layout/phase-e*.test.ts` | Collapsed 56px, hover expand, pin lock, icon-first navigation. | protected |
 | Inspector ownership | `tests/agent/dashboard.test.ts` | Right inspector stays separate from conversation rendering. | protected |
+| Exact existing Schedule boundary | `tests/agent/orchestration/deterministic-existing-schedule-boundary.test.ts`, `tests/agent/orchestration-step.test.ts` | Execute-mode exact ID/title completion can enter existing Dry-run without a Provider; unknown, conflicting, completed, ambiguous, or compound input remains fail-closed. | protected |
 | Suggestions sync | `tests/agent/dashboard.test.ts` | Server-side suggestions and UI ownership stay stable. | protected |
 
 `tests/layout` is outside the initial T1 scan but should be included in the next full map update.
@@ -195,6 +199,7 @@ The explicit non-CI Admin Query adoption command is `AGENT_LIVE_LLM_EVAL=1 AGENT
 | Spec | Requires server | Requires DB | Requires auth | Contract |
 | --- | --- | --- | --- | --- |
 | `tests/e2e/dashboard-agent.spec.ts` | Yes | Yes | Usually yes | Dashboard Agent shell smoke. |
+| `tests/e2e/dashboard-core-linkage.spec.ts` | Yes | Yes, disposable only | Yes | Serial manual completion and Agent-confirmed completion/Receipt/rollback; verifies Plan, Checklist, Schedule, Timeline, shared links, retained refresh, and stable `threadId` with all Providers disabled. |
 | `tests/e2e/dashboard-schedule-calendar.spec.ts` | Yes | Yes | Usually yes | Created schedule items appear in calendar view. |
 | `tests/e2e/dashboard-thread-actions.spec.ts` | Yes | Yes | Usually yes | Thread hover menu, archive dialog, and cancellation. |
 | `tests/e2e/dashboard-writing.spec.ts` | Yes | Yes | Usually yes | Writing workspace entry and preview switching. |

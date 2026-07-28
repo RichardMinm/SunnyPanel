@@ -84,9 +84,11 @@ Rules:
 Responsibilities:
 
 - Plan → Checklist.planId bidirectional linkage
-- Checklist item completion → TimelineEvent + Plan.progress auto-sync
-- ScheduleItem → Plan.linkedContent (with dedup)
-- Rollback cleanup for plan-linked content
+- Checklist item completion → TimelineEvent.relatedPlan + Plan.progress auto-sync
+- ScheduleItem → Plan / Checklist / embedded ChecklistItem exact linkage
+- Schedule completion → Checklist item completion → Plan progress → linked Timeline event
+- Rollback restores Schedule / Checklist / Plan and removes completion Timeline links
+- Dashboard linked-object navigation and retained domain refresh
 - Deterministic conflict detection for schedule items
 
 Implementation status:
@@ -95,7 +97,14 @@ Implementation status:
 - ✅ Plan.progress auto-sync hook (D2-A2)
 - ✅ ScheduleItem → Plan.linkedContent (D2-A3a)
 - ✅ Rollback linkedContent cleanup (D2-A3a-fix)
-- ⏳ TimelineEvent.relatedPlan (D2-A3b deferred)
+- ✅ TimelineEvent.relatedPlan / relatedScheduleItem / relatedTaskKey
+- ✅ Transactional Schedule completion and rollback closure
+- ✅ Plan / Checklist / Schedule / Timeline Dashboard linkage and refresh
+
+Completion remains deterministic. The model may classify or extract an
+authorized target, but it does not calculate progress, invent relationships, or
+write completion state. Both manual Dashboard completion and confirmed Agent
+completion call the same core linkage service.
 
 ---
 

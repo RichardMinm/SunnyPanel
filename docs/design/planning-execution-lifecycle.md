@@ -9,6 +9,8 @@ Plan
 → ScheduleItem
 → Completion
 → Plan Progress
+→ Timeline
+→ Receipt / Rollback
 ```
 
 ---
@@ -73,7 +75,10 @@ Non-goals:
 - ChecklistItem 可以关联一个 Plan
 - ScheduleItem 可以独立存在
 - ScheduleItem 可以关联 Plan
-- ScheduleItem 可以关联 ChecklistItem
+- ScheduleItem 可以通过 `relatedChecklist` 和稳定的
+  `relatedChecklistItemKey` 精确关联嵌入式 ChecklistItem
+- TimelineEvent 可以关联 Plan、Checklist、ScheduleItem 和稳定的 task key
+- Context 中只有一个资源不等于用户选择了该资源
 
 Recommended relationship:
 
@@ -114,7 +119,9 @@ Rules:
 
 - 可关联 Plan
 - 可关联 ChecklistItem
-- 完成后可反馈 Plan Progress
+- 完成后通过确定性服务同步 ChecklistItem、Plan Progress 和 Timeline
+- 手动完成与 Agent 确认完成使用同一业务链路
+- 回滚必须恢复完成前快照并清理新增 Timeline / Plan links
 
 ---
 
@@ -212,6 +219,11 @@ Supports:
 - ChecklistItem 完成后反馈 Plan.progress (afterChange hook, auto-sync)
 - Rollback 时清理 Plan.linkedContent 中的 schedule-items 链接
 - Receipt 和 Rollback payload 覆盖所有写入操作
+- Dashboard 的 Plan / Checklist / Schedule / Timeline 使用共享链接组件导航
+- Agent execute/rollback 通过受影响文档事件刷新已加载视图，不要求整页 reload
+- 精确既有日程完成在无 Provider 环境下仍可走
+  Dry-run → Confirmation → Executor → Receipt；目标必须同时通过授权上下文、
+  ID、标题和状态校验
 
 Not supported:
 
@@ -225,7 +237,6 @@ Not supported:
 - 企业级项目管理
 - 完全自主执行 Agent
 - ChecklistItem 独立 collection (v1 保持嵌入式)
-- TimelineEvent.relatedPlan (D2-A3b deferred)
 - 旧数据 planId backfill
 
 ---
@@ -241,5 +252,7 @@ Not supported:
 | ScheduleItem → Plan.linkedContent | ✅ Implemented | D2-A3a |
 | Rollback cleanup Plan.linkedContent | ✅ Implemented | D2-A3a-fix |
 | create_schedule_items rollback fail-fast | ✅ Implemented | D2-A3a-fix-test |
-| Protected tests coverage | ✅ 270 planning + 268 schedule | D2-S |
-| TimelineEvent.relatedPlan | ⏳ Deferred | D2-A3b |
+| TimelineEvent core relationships | ✅ Implemented | Core linkage closure |
+| Transactional Schedule completion / rollback | ✅ Implemented | Core linkage closure |
+| Shared linked-object Dashboard UI | ✅ Implemented | Core linkage closure |
+| Authenticated browser journeys | ✅ Manual completion + Agent completion/rollback | Core linkage closure |
