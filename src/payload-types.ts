@@ -588,6 +588,8 @@ export interface TimelineEvent {
   relatedPost?: (number | null) | Post;
   relatedUpdate?: (number | null) | Update;
   relatedChecklist?: (number | null) | Checklist;
+  relatedPlan?: (number | null) | Plan;
+  relatedScheduleItem?: (number | null) | ScheduleItem;
   /**
    * 系统内部使用，用来避免重复生成完成记录。
    */
@@ -1439,6 +1441,8 @@ export interface TimelineEventsSelect<T extends boolean = true> {
   relatedPost?: T;
   relatedUpdate?: T;
   relatedChecklist?: T;
+  relatedPlan?: T;
+  relatedScheduleItem?: T;
   relatedTaskKey?: T;
   isFeatured?: T;
   sortOrder?: T;

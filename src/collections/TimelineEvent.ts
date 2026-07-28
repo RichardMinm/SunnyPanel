@@ -107,6 +107,26 @@ export const TimelineEvent: CollectionConfig = {
       relationTo: "checklists",
     },
     {
+      name: "relatedPlan",
+      type: "relationship",
+      label: "关联计划",
+      admin: {
+        position: "sidebar",
+      },
+      relationTo: "plans",
+      index: true,
+    },
+    {
+      name: "relatedScheduleItem",
+      type: "relationship",
+      label: "关联日程",
+      admin: {
+        position: "sidebar",
+      },
+      relationTo: "schedule-items",
+      index: true,
+    },
+    {
       name: "relatedTaskKey",
       type: "text",
       label: "内部任务标识",

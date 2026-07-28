@@ -6,6 +6,7 @@ import * as migration_20260625_add_agent_thread_conversation_state from './20260
 import * as migration_20260708_052511 from './20260708_052511';
 import * as migration_20260708_055301 from './20260708_055301';
 import * as migration_20260708_062012 from './20260708_062012';
+import * as migration_20260728_add_core_timeline_linkage from './20260728_add_core_timeline_linkage';
 
 export const migrations = [
   {
@@ -47,5 +48,10 @@ export const migrations = [
     up: migration_20260708_062012.up,
     down: migration_20260708_062012.down,
     name: '20260708_062012'
+  },
+  {
+    up: migration_20260728_add_core_timeline_linkage.up,
+    down: migration_20260728_add_core_timeline_linkage.down,
+    name: '20260728_add_core_timeline_linkage',
   },
 ];
