@@ -3,133 +3,40 @@ import { NextResponse } from "next/server";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
 import { buildPlansByIdMap, resolveChecklistPlanId } from "@/components/dashboard/agent/utils";
+import { createScheduleStatusHandler, type ScheduleStatusDependencies } from "@/lib/schedule/schedule-status-handler";
 import {
   completeScheduleItem,
   createTransactionalScheduleCompletionPayload,
 } from "@/lib/schedule/complete-schedule-item";
 
-const validStatuses = ["planned", "done", "skipped", "canceled"] as const;
-type ScheduleStatus = typeof validStatuses[number];
-
-const isScheduleStatus = (value: unknown): value is ScheduleStatus =>
-  typeof value === "string" && validStatuses.includes(value as ScheduleStatus);
-
-const isPositiveItemId = (value: unknown): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value > 0;
-
-const boundedFailure = (status: number) =>
-  NextResponse.json({ message: "日程更新失败，请稍后重试" }, { status });
-
-const statusItem = (item: { id: number; status: unknown }) => ({
-  id: item.id,
-  status: typeof item.status === "string" ? item.status : "planned",
-});
-
-const affectedDocument = (document: {
-  collection: string;
-  documentId: number;
-  operation: "create" | "update";
-  visibility: "private" | "public" | "unknown";
-}) => ({
-  collection: document.collection,
-  documentId: document.documentId,
-  operation: document.operation,
-  visibility: document.visibility,
-});
-
-type ScheduleStatusDependencies = {
-  completeScheduleItem: typeof completeScheduleItem;
-  createTransactionalScheduleCompletionPayload: typeof createTransactionalScheduleCompletionPayload;
-  getPayloadAuthResult: typeof getPayloadAuthResult;
-  getPayloadClient: typeof getPayloadClient;
-};
-
-const defaultScheduleStatusDependencies: ScheduleStatusDependencies = {
-  completeScheduleItem,
-  createTransactionalScheduleCompletionPayload,
+const scheduleStatusDependencies: ScheduleStatusDependencies = {
+  atomicUpdateStatus: async ({ data, payload, user, where }) => (payload as Awaited<ReturnType<typeof getPayloadClient>>).db.updateOne({
+    collection: "schedule-items",
+    data: { ...data, updatedAt: new Date().toISOString() },
+    req: { user: user as never },
+    where,
+  }),
+  completeScheduleItem: (input) => completeScheduleItem({
+    ...input,
+    payload: input.payload as Parameters<typeof completeScheduleItem>[0]["payload"],
+  }),
+  createTransactionalScheduleCompletionPayload: ({ payload }) => createTransactionalScheduleCompletionPayload({
+    payload: payload as Parameters<typeof createTransactionalScheduleCompletionPayload>[0]["payload"],
+  }),
   getPayloadAuthResult,
   getPayloadClient,
-};
-
-/** Server-authenticated Schedule status mutation boundary. */
-export const createScheduleStatusHandler = (
-  dependencies: ScheduleStatusDependencies = defaultScheduleStatusDependencies,
-) => async (request: Request) => {
-  const authResult = await dependencies.getPayloadAuthResult();
-  if (!authResult.user) return NextResponse.json({ message: "未登录" }, { status: 401 });
-
-  let body: { id?: unknown; status?: unknown };
-  try {
-    body = await request.json() as { id?: unknown; status?: unknown };
-  } catch {
-    return NextResponse.json({ message: "缺少参数或状态无效" }, { status: 400 });
-  }
-
-  if (!isPositiveItemId(body.id) || !isScheduleStatus(body.status)) {
-    return NextResponse.json({ message: "缺少参数或状态无效" }, { status: 400 });
-  }
-
-  let payload: Awaited<ReturnType<typeof getPayloadClient>>;
-  try {
-    payload = await dependencies.getPayloadClient();
-  } catch {
-    return boundedFailure(500);
-  }
-
-  if (body.status === "done") {
-    const result = await dependencies.completeScheduleItem({
-      actor: { isAdministrator: true, userId: authResult.user.id },
-      itemId: body.id,
-      payload: dependencies.createTransactionalScheduleCompletionPayload({ payload }),
-    });
-
-    if (!result.ok) {
-      const status = result.code === "invalid_reference" ? 400
-        : result.code === "resource_not_found" ? 404
-          : result.code === "transaction_unavailable" ? 503
-            : 500;
-      return boundedFailure(status);
-    }
-
-    return NextResponse.json({
-      success: true,
-      affectedDocuments: result.affectedDocuments.map(affectedDocument),
-      item: statusItem(result.schedule),
-    });
-  }
-
-  try {
-    const existing = await payload.findByID({
-      collection: "schedule-items",
-      depth: 0,
-      id: body.id,
-      overrideAccess: true,
-    });
-
-    if (existing.status === "done") {
-      return NextResponse.json({ message: "已完成日程只能通过撤销恢复" }, { status: 409 });
-    }
-
-    const updated = await payload.update({
-      collection: "schedule-items",
-      data: { status: body.status },
-      id: body.id,
-      overrideAccess: true,
-    });
-
-    return NextResponse.json({
-      success: true,
-      affectedDocuments: [{
+  readCurrentScheduleStatus: async ({ itemId, payload, user }) => {
+    try {
+      const item = await (payload as Awaited<ReturnType<typeof getPayloadClient>>).db.findOne({
         collection: "schedule-items",
-        documentId: body.id,
-        operation: "update",
-        visibility: "private",
-      }],
-      item: statusItem(updated),
-    });
-  } catch {
-    return boundedFailure(500);
-  }
+        req: { user: user as never },
+        where: { id: { equals: itemId } },
+      });
+      return { item, ok: true };
+    } catch {
+      return { ok: false };
+    }
+  },
 };
 
 export async function GET(request: Request) {
@@ -253,5 +160,5 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  return createScheduleStatusHandler()(request);
+  return createScheduleStatusHandler(scheduleStatusDependencies)(request);
 }
