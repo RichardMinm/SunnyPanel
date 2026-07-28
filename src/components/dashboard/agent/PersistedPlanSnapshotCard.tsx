@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PlanSummary } from "@/app/api/agent/plans/route";
+import type { PlanSummary } from "@/lib/core-linkage/contracts";
 
 type PersistedPlanSnapshotCardProps = {
   plan: PlanSummary;

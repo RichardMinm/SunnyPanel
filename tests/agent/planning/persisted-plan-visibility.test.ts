@@ -27,10 +27,10 @@ test("plan summary: does not recompute progress", () => {
   assert.equal(planProgress, 30);
 });
 
-/* ── Source: API route data integrity ── */
+/* ── Source: API loader data integrity ── */
 
-test("plans API route source: uses persisted progress from Plan document", () => {
-  const source = read("src/app/api/agent/plans/route.ts");
+test("plans API loader source: uses persisted progress from Plan document", () => {
+  const source = read("src/lib/core-linkage/api-summaries.ts");
 
   // Reads Plan.progress from DB (persisted field)
   assert.ok(source.includes(".progress"), "must read Plan.progress from persisted field");
@@ -53,8 +53,8 @@ test("plans API route source: uses persisted progress from Plan document", () =>
 
 /* ── No full document leakage ── */
 
-test("plans API route source: does not leak full Plan/Checklist/ScheduleItem fields", () => {
-  const source = read("src/app/api/agent/plans/route.ts");
+test("plans API loader source: does not leak full Plan/Checklist/ScheduleItem fields", () => {
+  const source = read("src/lib/core-linkage/api-summaries.ts");
 
   // PlanSummary does NOT include:
   assert.doesNotMatch(source, /linkedContent/);

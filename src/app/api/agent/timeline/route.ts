@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { loadTimelineSummaries } from "@/lib/core-linkage/api-summaries";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
 
@@ -26,32 +27,7 @@ export async function GET(request: NextRequest) {
   const monthEnd = new Date(Date.UTC(year, m, 0, 23, 59, 59, 999)).toISOString();
 
   const payload = await getPayloadClient();
-
-  const result = await payload.find({
-    collection: "timeline-events",
-    depth: 0,
-    limit,
-    overrideAccess: true,
-    sort: "-eventDate",
-    where: {
-      and: [
-        { eventDate: { greater_than_equal: monthStart } },
-        { eventDate: { less_than_equal: monthEnd } },
-      ],
-    },
-  });
-
-  const events = result.docs.map((doc) => {
-    const event = doc as unknown as { description?: string | null; eventDate: string; id: number; sourceType?: string | null; title: string; type: string };
-    return {
-      date: event.eventDate?.slice(0, 10) ?? "",
-      description: event.description ?? null,
-      id: event.id,
-      sourceType: event.sourceType ?? null,
-      title: event.title,
-      type: event.type,
-    };
-  });
+  const events = await loadTimelineSummaries(payload, { limit, monthEnd, monthStart });
 
   return NextResponse.json({ events });
 }

@@ -1,22 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { loadChecklistSummaries } from "@/lib/core-linkage/api-summaries";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
-import { buildPlansByIdMap, getChecklistRelatedPlan, resolveChecklistPlanId } from "@/components/dashboard/agent/utils";
-
-type ChecklistItem = { completedAt?: null | string; completionNote?: null | string; description?: null | string; id?: string | null; isCompleted?: boolean | null; title?: string };
-
-type ChecklistGroup = { id?: string | null; items?: ChecklistItem[] | null; title?: string };
-
-function flattenItems(groups: ChecklistGroup[] | null | undefined) {
-  const items: ChecklistItem[] = [];
-  for (const group of groups ?? []) {
-    for (const item of group.items ?? []) {
-      if (item.title) items.push(item);
-    }
-  }
-  return items;
-}
 
 export async function GET(request: NextRequest) {
   const authResult = await getPayloadAuthResult();
@@ -30,71 +16,7 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(Number(url.searchParams.get("limit")) || 20, 50);
 
   const payload = await getPayloadClient();
-
-  const result = await payload.find({
-    collection: "checklists",
-    depth: 1,
-    limit,
-    overrideAccess: true,
-    sort: "-updatedAt",
-    where: { status: { equals: "published" } },
-  });
-
-  /* Resolve plan titles for checklists with planId */
-  const planIds = new Set<number>();
-  for (const doc of result.docs) {
-    const resolved = resolveChecklistPlanId((doc as unknown as { planId?: unknown }).planId);
-    if (resolved !== null) planIds.add(resolved);
-  }
-
-  let plansById = new Map<number, { id: number; title: string }>();
-  if (planIds.size > 0) {
-    const planResults = await payload.find({
-      collection: "plans",
-      depth: 0,
-      limit: planIds.size,
-      overrideAccess: true,
-      pagination: false,
-      where: { id: { in: Array.from(planIds) } },
-    });
-    plansById = buildPlansByIdMap(
-      planResults.docs.map((p) => ({ id: p.id, title: (p as { title?: string }).title })),
-    );
-  }
-
-  const checklists = result.docs
-    .map((doc) => {
-      const checklist = doc as unknown as { groups?: ChecklistGroup[] | null; id: number; planId?: number | { id: number } | null; status?: string; title: string };
-      const items = flattenItems(checklist.groups);
-      const completedItems = items.filter((item) => item.isCompleted).length;
-
-      // Compute display status
-      let displayStatus = "active";
-      if (items.length > 0 && completedItems === items.length) {
-        displayStatus = "done";
-      }
-
-      /* Resolve relatedPlan from planId */
-      const rawPlanId = checklist.planId;
-
-      return {
-        completedItems,
-        id: checklist.id,
-        items: items.map((item) => ({
-          completed: Boolean(item.isCompleted),
-          key: item.id ?? item.title ?? "",
-          label: item.title ?? "",
-        })),
-        relatedPlan: getChecklistRelatedPlan(rawPlanId, plansById),
-        status: displayStatus,
-        title: checklist.title,
-        totalItems: items.length,
-      };
-    })
-    .filter((cl) => {
-      if (!filterStatus) return true;
-      return cl.status === filterStatus;
-    });
+  const checklists = await loadChecklistSummaries(payload, { filterStatus, limit });
 
   return NextResponse.json({ checklists });
 }

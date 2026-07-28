@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PersistedPlanSnapshotCard } from "./PersistedPlanSnapshotCard";
-import type { PlanSummary } from "@/app/api/agent/plans/route";
+import type { PlanSummary } from "@/lib/core-linkage/contracts";
 
 export function PersistedPlanListPanel() {
   const [plans, setPlans] = useState<PlanSummary[]>([]);

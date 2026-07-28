@@ -143,16 +143,16 @@ test("ScheduleMonthView source: completion uses the shared button and keeps the 
   assert.ok(source.includes("完成失败，请重试"), "failures must provide a bounded retryable error");
 });
 
-/* ── Schedule API route: linkage resolution in GET handler ── */
+/* ── Schedule API loader: linkage resolution for GET handler ── */
 
-test("schedule API route source: resolves relatedPlan and relatedChecklist", () => {
-  const source = read("src/app/api/agent/schedule/route.ts");
+test("schedule API loader source: resolves relatedPlan and relatedChecklist", () => {
+  const source = read("src/lib/core-linkage/api-summaries.ts");
 
   // Uses depth: 1 to populate relationships
   assert.ok(source.includes("depth: 1"), "API must use depth: 1 to populate relationships");
 
-  // Uses resolveChecklistPlanId for both plan and checklist lookup
-  assert.ok(source.includes("resolveChecklistPlanId"), "API must use resolveChecklistPlanId");
+  // Uses strict persisted-ID resolution for both plan and checklist lookup
+  assert.ok(source.includes("asPersistedId"), "API must use strict persisted-ID resolution");
 
   // Batch queries plans
   assert.ok(source.includes('collection: "plans"'), "API must batch-query plans");
