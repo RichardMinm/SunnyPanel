@@ -2,7 +2,12 @@ import { getPayloadClient } from "@/lib/payload/client";
 
 import type { CreatePlanArgs } from "../schemas";
 import { validatePlanCreateData } from "../write-schemas";
-import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
+import {
+  createAgentRun,
+  createOwnedRollbackToolResult,
+  type AgentExecutionTraceReporter,
+  type AgentToolResult,
+} from "../tool-shared";
 
 export const createPlanFromIntent = async (
   args: CreatePlanArgs,
@@ -86,7 +91,7 @@ export const createPlanFromIntent = async (
     title: "已记录审计日志",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     affectedDocuments: [{ collection: "plans", documentId: createdPlan.id, operation: "create", visibility: createdPlan.visibility }],
     assistantMessage: `已帮你创建计划「${createdPlan.title}」。目前它会以私有草稿的形式进入待办队列，默认状态是“待开始”。你可以继续把它拆成清单，后续清单会关联到该计划。`,
     createdPlanId: createdPlan.id,
@@ -101,5 +106,5 @@ export const createPlanFromIntent = async (
       },
     },
     status: "completed",
-  };
+  });
 };

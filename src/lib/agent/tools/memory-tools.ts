@@ -1,6 +1,11 @@
 import { persistMemoryWithEmbedding, validateAgentMemoryData as validateAgentMemoryPayload } from "../memory";
 import type { SaveMemoryArgs } from "../schemas";
-import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
+import {
+  createAgentRun,
+  createOwnedRollbackToolResult,
+  type AgentExecutionTraceReporter,
+  type AgentToolResult,
+} from "../tool-shared";
 
 export const buildArchiveMemoryRollbackPayload = (documentId: number) => ({
   strategy: "archive_created_memory",
@@ -13,6 +18,10 @@ export const buildArchiveMemoryRollbackPayload = (documentId: number) => ({
 export const saveMemoryFromIntent = async (
   args: SaveMemoryArgs,
   onTrace?: AgentExecutionTraceReporter,
+  dependencies: {
+    createRun?: typeof createAgentRun;
+    persistMemory?: typeof persistMemoryWithEmbedding;
+  } = {},
 ): Promise<AgentToolResult> => {
   onTrace?.({
     detail: args.content,
@@ -26,7 +35,9 @@ export const saveMemoryFromIntent = async (
     lastUsedAt: new Date().toISOString(),
     status: "active",
   });
-  const memory = await persistMemoryWithEmbedding({
+  const persistMemory =
+    dependencies.persistMemory ?? persistMemoryWithEmbedding;
+  const memory = await persistMemory({
     confidence: data.confidence,
     content: data.content!,
     lastUsedAt: data.lastUsedAt ?? null,
@@ -42,7 +53,8 @@ export const saveMemoryFromIntent = async (
     title: "长期记忆已写入",
   });
 
-  await createAgentRun({
+  const createRun = dependencies.createRun ?? createAgentRun;
+  const agentRun = await createRun({
     affectedDocuments: [
       {
         collection: "agent-memories",
@@ -87,9 +99,10 @@ export const saveMemoryFromIntent = async (
     title: "已记录审计日志",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     assistantMessage: `已记住：${memory.content}`,
     pendingAction: null,
     rollbackPayload: buildArchiveMemoryRollbackPayload(memory.id),
-  };
+    rollbackSourceRunId: agentRun.id,
+  });
 };

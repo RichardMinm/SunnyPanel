@@ -1,17 +1,30 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { beforeEach, test } from "node:test";
 
 import {
   buildChecklistGroupsAndTimelineRollbackPayload,
   buildChecklistGroupsRollbackPayload,
 } from "../../src/lib/agent/tools/checklist-rollback";
-import { buildArchiveMemoryRollbackPayload } from "../../src/lib/agent/tools/memory-tools";
+import {
+  buildArchiveMemoryRollbackPayload,
+  saveMemoryFromIntent,
+} from "../../src/lib/agent/tools/memory-tools";
 import {
   buildDeleteCreatedScheduleItemsRollbackPayload,
   buildScheduleItemSnapshotRollbackPayload,
   buildScheduleItemStatusRollbackPayload,
+  cancelScheduleItemFromIntent,
+  rescheduleItemFromIntent,
 } from "../../src/lib/agent/tools/schedule-mutate";
 import type { ScheduleItemRecord } from "../../src/lib/schedule/items";
+import {
+  resetPayloadStub,
+  setPayloadStubCreateHandler,
+  setPayloadStubFindByIDHandler,
+  setPayloadStubUpdateHandler,
+} from "../stubs/payload-client";
+
+beforeEach(() => resetPayloadStub());
 
 const scheduleItem: ScheduleItemRecord = {
   date: "2026-06-01",
@@ -88,6 +101,78 @@ test("save memory rollback payload archives the created memory", () => {
       documentId: 7,
     },
   });
+});
+
+test("reschedule and cancel return the exact AgentRun IDs created for their rollback payloads", async () => {
+  let nextAgentRunId = 901;
+
+  setPayloadStubFindByIDHandler(async () => scheduleItem);
+  setPayloadStubUpdateHandler(async (input) => {
+    const args = input as { data?: Record<string, unknown> };
+
+    return {
+      ...scheduleItem,
+      ...(args.data ?? {}),
+    };
+  });
+  setPayloadStubCreateHandler(async (input) => {
+    const args = input as { collection?: string; data?: Record<string, unknown> };
+
+    if (args.collection !== "agent-runs") {
+      throw new Error(`unexpected create collection ${args.collection ?? "unknown"}`);
+    }
+
+    const id = nextAgentRunId;
+    nextAgentRunId += 1;
+
+    return {
+      id,
+      ...(args.data ?? {}),
+    };
+  });
+
+  const rescheduled = await rescheduleItemFromIntent({
+    itemId: scheduleItem.id,
+    newDate: "2026-06-02",
+  });
+  assert.equal(rescheduled.rollbackSourceRunId, 901);
+
+  const canceled = await cancelScheduleItemFromIntent({
+    itemId: scheduleItem.id,
+    reason: "用户取消",
+  });
+
+  assert.equal(canceled.rollbackSourceRunId, 902);
+});
+
+test("save memory returns the exact AgentRun ID created for its archive rollback", async () => {
+  const result = await saveMemoryFromIntent(
+    {
+      confidence: 0.9,
+      content: "批量写操作必须使用 AgentRun 所有权绑定的回滚来源。",
+      title: "批量回滚约束",
+      type: "workflow_rule",
+    },
+    undefined,
+    {
+      createRun: async () => ({ id: 903 }) as never,
+      persistMemory: async (memory) => ({
+        ...memory,
+        confidence: 0.9,
+        createdAt: "2026-07-28T00:00:00.000Z",
+        id: 701,
+        lastUsedAt: null,
+        status: "active",
+        title: memory.title ?? "批量回滚约束",
+        type: "workflow_rule",
+        updatedAt: "2026-07-28T00:00:00.000Z",
+        visibility: "private",
+      }),
+    },
+  );
+
+  assert.equal(result.rollbackSourceRunId, 903);
+  assert.deepEqual(result.rollbackPayload, buildArchiveMemoryRollbackPayload(701));
 });
 
 test("checklist write rollback payload captures the original groups snapshot", () => {

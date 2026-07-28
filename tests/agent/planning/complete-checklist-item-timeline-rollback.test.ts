@@ -244,7 +244,7 @@ test("create_checklist does not create Timeline events", async () => {
 test("append_plan_item does not create Timeline events", async () => {
   setupPayload();
 
-  await executeAgentIntent(
+  const result = await executeAgentIntent(
     {
       args: {
         checklistTitle: "SunnyPanel 发布清单",
@@ -261,6 +261,7 @@ test("append_plan_item does not create Timeline events", async () => {
   assert.equal(operationsFor("update", "checklists").length, 1);
   assert.equal(operationsFor("create", "timeline-events").length, 0);
   assert.equal(operationsFor("update", "timeline-events").length, 0);
+  assert.equal(result.rollbackSourceRunId, 1002);
 });
 
 test("complete_plan_item creates one Timeline event when none exists", async () => {
@@ -346,7 +347,7 @@ test("add_completion_note updates existing Timeline description", async () => {
     timelineEvents: [existingTimelineEvent],
   });
 
-  await executeAgentIntent(
+  const result = await executeAgentIntent(
     {
       args: {
         checklistTitle: "SunnyPanel 发布清单",
@@ -363,6 +364,7 @@ test("add_completion_note updates existing Timeline description", async () => {
   const timelineUpdate = operationsFor("update", "timeline-events")[0];
   assert.ok(timelineUpdate);
   assert.match(String((timelineUpdate.args as { data?: { description?: string } }).data?.description), /错误态和成功态/);
+  assert.equal(result.rollbackSourceRunId, 1002);
 });
 
 test("rollback removes a newly created Timeline event and restores checklist groups", async () => {

@@ -22,6 +22,7 @@ import {
   buildChecklistItemLabel,
   createAgentRun,
   createClarifyResult,
+  createOwnedRollbackToolResult,
   scoreTextMatch,
   type AgentExecutionTraceReporter,
   type AgentToolResult,
@@ -108,7 +109,7 @@ export const appendPlanItemFromIntent = async (
         title: "清单分组与计划项已写入",
       });
 
-      await createAgentRun({
+      const agentRun = await createAgentRun({
         affectedDocuments: [
           {
             collection: "checklists",
@@ -156,11 +157,12 @@ export const appendPlanItemFromIntent = async (
         title: "已记录审计日志",
       });
 
-      return {
+      return createOwnedRollbackToolResult({
         assistantMessage: `已新建分组「${updatedGroup.title}」，并把「${args.itemTitle}」追加到「${updatedChecklist.title} / ${updatedGroup.title}」。`,
         pendingAction: null,
         rollbackPayload,
-      };
+        rollbackSourceRunId: agentRun.id,
+      });
     }
 
     const assistantMessage = target.question ?? "我还没定位到要追加计划项的清单分组。";
@@ -240,7 +242,7 @@ export const appendPlanItemFromIntent = async (
     title: "计划项已写入清单",
   });
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: [
       {
         collection: "checklists",
@@ -287,11 +289,12 @@ export const appendPlanItemFromIntent = async (
     title: "已记录审计日志",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     assistantMessage: `已把「${args.itemTitle}」追加到「${updatedChecklist.title} / ${updatedGroup.title}」。`,
     pendingAction: null,
     rollbackPayload,
-  };
+    rollbackSourceRunId: agentRun.id,
+  });
 };
 
 export const completePlanItemFromIntent = async (
@@ -489,22 +492,22 @@ export const completePlanItemFromIntent = async (
   });
 
   if (args.completionNote) {
-    return {
+    return createOwnedRollbackToolResult({
       affectedDocuments: completion.affectedDocuments,
       assistantMessage: `已把 ${buildChecklistItemLabel(updatedChecklist.title, updatedGroup.title, updatedItem.title)} 标记完成，并把备注一起写进去了。对应 Timeline 节点也已经同步。`,
       pendingAction: null,
       rollbackPayload,
       rollbackSourceRunId: agentRun.id,
-    };
+    });
   }
 
   // 不再无条件挂起 await_completion_note 阻塞后续流程（尤其是复合编排）。
   // 完成动作本身已是终态；如果用户想补备注，可在后续消息里直接说，意图系统会路由到 add_completion_note。
-  return {
+  return createOwnedRollbackToolResult({
     affectedDocuments: completion.affectedDocuments,
     assistantMessage: `已把 ${buildChecklistItemLabel(updatedChecklist.title, updatedGroup.title, updatedItem.title)} 标记完成，对应 Timeline 节点也已同步。如果想补一句完成备注或感受，告诉我就好。`,
     pendingAction: null,
     rollbackPayload,
     rollbackSourceRunId: agentRun.id,
-  };
+  });
 };

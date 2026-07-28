@@ -1146,7 +1146,7 @@ const weeklyReviewDryRun = async (
       rollbackAvailable: false,
       rollbackPayload: persistReview
         ? {
-            reason: "PlanReview、AgentRun 和 AgentSuggestion 需要执行后才知道 documentId；后续可做删除/归档式回滚。",
+            reason: "PlanReview 和 AgentSuggestion 需要执行后才知道 documentId；AgentRun 将保留为所有权绑定的回滚审计。",
             strategy: "delete_created_weekly_review_artifacts",
             target: {
               agentRunId: null,

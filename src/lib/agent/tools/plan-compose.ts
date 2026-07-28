@@ -7,7 +7,12 @@ import {
   formatPlanProposalDescription,
 } from "../workflows/plan-composer";
 import { validatePlanCreateData } from "../write-schemas";
-import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
+import {
+  createAgentRun,
+  createOwnedRollbackToolResult,
+  type AgentExecutionTraceReporter,
+  type AgentToolResult,
+} from "../tool-shared";
 
 export const composePlanFromIntent = async (
   args: ComposePlanArgs,
@@ -114,7 +119,7 @@ export const composePlanFromIntent = async (
     ? `\n\n这个计划包含 ${decomposed.phases.length} 个阶段，共 ${decomposed.totalEstimatedDays} 天。你可以说「把这个计划排进日程」来自动生成每日学习安排。`
     : "";
 
-  return {
+  return createOwnedRollbackToolResult({
     assistantMessage: `已创建完整计划「${createdPlan.title}」。我已经把目标、关键步骤、验收标准、风险和 Agent Brief 写进计划详情。你可以继续把它拆成清单，后续清单会关联到该计划。${scheduleHint}`,
     createdPlanId: createdPlan.id,
     pendingAction: null,
@@ -128,5 +133,5 @@ export const composePlanFromIntent = async (
       },
     },
     status: "completed",
-  };
+  });
 };

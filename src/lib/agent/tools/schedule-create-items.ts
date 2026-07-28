@@ -9,7 +9,12 @@ import {
 } from "@/lib/schedule/items";
 
 import type { CreateScheduleItemsArgs } from "../schemas";
-import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
+import {
+  createAgentRun,
+  createOwnedRollbackToolResult,
+  type AgentExecutionTraceReporter,
+  type AgentToolResult,
+} from "../tool-shared";
 
 const MAX_CREATE_SCHEDULE_ITEMS = 24;
 const scheduleTimePattern = /^([01][0-9]|2[0-3]):[0-5][0-9]$/u;
@@ -473,7 +478,7 @@ export const createScheduleItemsFromIntent = async (
     title: "已记录批量日程审计",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     affectedDocuments: [
       ...createdItems.map((item) => ({ collection: "schedule-items", documentId: item.id, operation: "create" as const, visibility: "private" as const })),
       ...[...linkedPlanIds.keys()].map((planId) => ({ collection: "plans", documentId: planId, operation: "update" as const, visibility: "unknown" as const })),
@@ -491,5 +496,5 @@ export const createScheduleItemsFromIntent = async (
     rollbackSourceRunId,
     status: "completed",
     type: "create_schedule_items",
-  };
+  });
 };

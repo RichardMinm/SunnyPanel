@@ -4,6 +4,7 @@ import {
   createTransactionalScheduleCompletionPayload,
 } from "@/lib/schedule/complete-schedule-item";
 import { getCurrentAgentUserId } from "../execution-context";
+import { markServerInternalFailedAuditCompensation } from "../internal-rollback-evidence";
 import { isRecord } from "@/lib/shared/is-record";
 import { isRollbackPayloadExecutable } from "../rollback-parse";
 
@@ -19,6 +20,7 @@ import {
 } from "../schemas";
 import {
   createAgentRun,
+  createOwnedRollbackToolResult,
   sanitizeAffectedDocuments,
   type AffectedDocumentSummary,
   normalizeForSearch,
@@ -630,25 +632,30 @@ export const modifyRecordFromIntent = async (
         workflow: "sync",
       });
     } catch {
-      return {
+      return markServerInternalFailedAuditCompensation({
         affectedDocuments,
         assistantMessage: `日程「${document.title}」已完成，但执行记录写入失败，未提供可撤销入口。`,
         pendingAction: null,
         ...(rollbackAvailable ? { rollbackPayload } : {}),
         status: "failed",
-      };
+      });
+    }
+
+    if (rollbackAvailable) {
+      return createOwnedRollbackToolResult({
+        affectedDocuments,
+        assistantMessage: `已完成日程「${document.title}」。`,
+        pendingAction: null,
+        rollbackPayload,
+        rollbackSourceRunId: agentRun.id,
+        status: "completed",
+      });
     }
 
     return {
       affectedDocuments,
       assistantMessage: `已完成日程「${document.title}」。`,
       pendingAction: null,
-      ...(rollbackAvailable
-        ? {
-            rollbackPayload,
-            rollbackSourceRunId: agentRun.id,
-          }
-        : {}),
       status: "completed",
     };
   }
@@ -723,7 +730,7 @@ export const modifyRecordFromIntent = async (
     title: `已修改「${document.title}」`,
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     affectedDocuments: [
       {
         collection,
@@ -741,5 +748,5 @@ export const modifyRecordFromIntent = async (
     pendingAction: null,
     rollbackPayload,
     rollbackSourceRunId: agentRun.id,
-  };
+  });
 };

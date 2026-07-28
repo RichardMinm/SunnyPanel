@@ -5,6 +5,7 @@ import {
   executeAgentIntentsTransactional,
   type AgentIntentExecutionResult,
 } from "../../../src/lib/agent/executor";
+import { hasServerInternalFailedAuditCompensation } from "../../../src/lib/agent/internal-rollback-evidence";
 import type { AgentIntent } from "../../../src/lib/agent/schemas";
 import { modifyRecordFromIntent } from "../../../src/lib/agent/tools/modify-record";
 import { isRollbackPayloadExecutable } from "../../../src/lib/agent/rollback-parse";
@@ -181,6 +182,13 @@ test("confirmed Schedule completion does not rerun business execution when Agent
   assert.equal(completionCalls, 1);
   assert.equal(result.status, "failed");
   assert.equal(result.rollbackSourceRunId, undefined);
+  assert.equal(hasServerInternalFailedAuditCompensation(result), true);
+  assert.equal(
+    hasServerInternalFailedAuditCompensation(
+      JSON.parse(JSON.stringify(result)),
+    ),
+    false,
+  );
   assert.equal(
     (result.rollbackPayload as { strategy?: string } | undefined)?.strategy,
     "restore_schedule_completion",

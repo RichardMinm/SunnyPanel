@@ -15,6 +15,7 @@ import {
   buildChecklistItemLabel,
   createAgentRun,
   createClarifyResult,
+  createOwnedRollbackToolResult,
   type AgentExecutionTraceReporter,
   type AgentToolResult,
 } from "../tool-shared";
@@ -118,7 +119,7 @@ export const addCompletionNoteFromIntent = async (
     timelineEvent?.id ?? previousTimelineEvent?.id ?? null,
   );
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: [
       {
         collection: "checklists",
@@ -183,9 +184,10 @@ export const addCompletionNoteFromIntent = async (
     title: "已记录审计日志",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     assistantMessage: `已把备注补到 ${buildChecklistItemLabel(updatedChecklist.title, updatedGroup.title, updatedItem.title)} 上，并同步更新了 Timeline 说明。`,
     pendingAction: null,
     rollbackPayload,
-  };
+    rollbackSourceRunId: agentRun.id,
+  });
 };

@@ -1,8 +1,16 @@
 import { getPayloadClient } from "@/lib/payload/client";
-import { updateScheduleItemStatus, type ScheduleItemRecord } from "@/lib/schedule/items";
+import {
+  updateScheduleItemStatus,
+  type ScheduleItemRecord,
+} from "@/lib/schedule/items";
 
 import type { CancelScheduleItemArgs, RescheduleItemArgs, SchedulePlanArgs } from "../schemas";
-import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
+import {
+  createAgentRun,
+  createOwnedRollbackToolResult,
+  type AgentExecutionTraceReporter,
+  type AgentToolResult,
+} from "../tool-shared";
 
 const relationId = (value: ScheduleItemRecord["relatedChecklist"] | ScheduleItemRecord["relatedPlan"]) =>
   typeof value === "number" ? value : value?.id ?? null;
@@ -110,7 +118,7 @@ export const schedulePlanFromIntent = async (
     title: `已生成 ${items.length} 条日程`,
   });
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: items.map((item) => ({
       collection: "schedule-items",
       documentId: item.id,
@@ -139,14 +147,15 @@ export const schedulePlanFromIntent = async (
     workflow: "planning",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     assistantMessage: `已将计划「${plan.title}」排入日程，共生成 ${items.length} 条：\n${items
       .slice(0, 10)
       .map((item) => `- ${item.date} [${item.phaseTitle}] ${item.title}`)
       .join("\n")}${items.length > 10 ? `\n...等共 ${items.length} 条` : ""}`,
     pendingAction: null,
     rollbackPayload: buildDeleteCreatedScheduleItemsRollbackPayload(items),
-  };
+    rollbackSourceRunId: agentRun.id,
+  });
 };
 
 export const rescheduleItemFromIntent = async (
@@ -197,7 +206,7 @@ export const rescheduleItemFromIntent = async (
     title: "日程已改期",
   });
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: [
       {
         collection: "schedule-items",
@@ -237,11 +246,12 @@ export const rescheduleItemFromIntent = async (
     workflow: "planning",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     assistantMessage: `已将「${updated.title}」改期至 ${updated.date} ${updated.startTime ?? ""}${updated.endTime ? `-${updated.endTime}` : ""}。`,
     pendingAction: null,
     rollbackPayload,
-  };
+    rollbackSourceRunId: agentRun.id,
+  });
 };
 
 export const cancelScheduleItemFromIntent = async (
@@ -270,7 +280,13 @@ export const cancelScheduleItemFromIntent = async (
     title: `准备取消日程「${item.title}」`,
   });
 
-  const updated = await updateScheduleItemStatus(args.itemId, "canceled");
+  const updated = await updateScheduleItemStatus(
+    args.itemId,
+    "canceled",
+    payload as unknown as NonNullable<
+      Parameters<typeof updateScheduleItemStatus>[2]
+    >,
+  );
   const rollbackPayload = buildScheduleItemStatusRollbackPayload(item, updated.id);
 
   onTrace?.({
@@ -281,7 +297,7 @@ export const cancelScheduleItemFromIntent = async (
     title: "日程已取消",
   });
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: [
       {
         collection: "schedule-items",
@@ -317,11 +333,12 @@ export const cancelScheduleItemFromIntent = async (
     workflow: "planning",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     assistantMessage: args.reason
       ? `已取消日程「${item.title}」（${args.reason}）。`
       : `已取消日程「${item.title}」。`,
     pendingAction: null,
     rollbackPayload,
-  };
+    rollbackSourceRunId: agentRun.id,
+  });
 };

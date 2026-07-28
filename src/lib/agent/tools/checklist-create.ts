@@ -11,6 +11,7 @@ import { getCurrentAgentUserId } from "../execution-context";
 import type { CreateChecklistArgs } from "../schemas";
 import {
   createAgentRun,
+  createOwnedRollbackToolResult,
   type AgentExecutionTraceReporter,
   type AgentToolResult,
 } from "../tool-shared";
@@ -558,7 +559,7 @@ export const createChecklistFromIntent = async (
     title: "已记录审计日志",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     affectedDocuments: [
       { collection: "checklists", documentId: createdChecklist.id, operation: "create", visibility: createdChecklist.visibility },
       ...(linkedPlanId ? [{ collection: "plans", documentId: linkedPlanId, operation: "update" as const, visibility: "unknown" as const }] : []),
@@ -578,5 +579,5 @@ export const createChecklistFromIntent = async (
     rollbackSourceRunId: agentRun.id,
     title: createdChecklist.title,
     type: "create_checklist",
-  };
+  });
 };

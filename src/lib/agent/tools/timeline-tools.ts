@@ -8,6 +8,7 @@ import { validateTimelineEventData } from "../write-schemas";
 import {
   createAgentRun,
   createClarifyResult,
+  createOwnedRollbackToolResult,
   getTimelineComposerRelatedContent,
   type AgentExecutionTraceReporter,
   type AgentToolResult,
@@ -126,7 +127,7 @@ export const composeTimelineEventFromIntent = async (
     title: "已记录审计日志",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     affectedDocuments: [{ collection: "timeline-events", documentId: timelineEvent.id, operation: "create", visibility: timelineEvent.visibility }],
     assistantMessage: `已创建 TimelineEvent #${timelineEvent.id}：${timelineEvent.title}\n${proposal.reason}`,
     pendingAction: null,
@@ -138,5 +139,5 @@ export const composeTimelineEventFromIntent = async (
         documentId: timelineEvent.id,
       },
     },
-  };
+  });
 };

@@ -34,6 +34,22 @@ export type AgentToolResult = {
   status?: "completed" | "failed";
 };
 
+export type AgentOwnedRollbackToolResult = AgentToolResult & {
+  rollbackPayload: unknown;
+  rollbackSourceRunId: number;
+  status?: "completed";
+};
+
+/**
+ * Compile-time construction boundary for successful rollbackable tool
+ * receipts. Failed after-commit receipts use their separate internal marker.
+ */
+export const createOwnedRollbackToolResult = <
+  const TResult extends AgentOwnedRollbackToolResult,
+>(
+  result: TResult,
+): TResult => result;
+
 export type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
 
 export const normalizeForSearch = (value: string) =>

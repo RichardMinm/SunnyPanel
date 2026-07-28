@@ -7,6 +7,10 @@ import {
   createAgentChatStream,
 } from "../../src/lib/agent/chat-pipeline/stream-envelope";
 import { buildLangGraphFailureResponse } from "../../src/lib/agent/langgraph/failure-response";
+import {
+  hasServerInternalFailedAuditCompensation,
+  markServerInternalFailedAuditCompensation,
+} from "../../src/lib/agent/internal-rollback-evidence";
 import { parsePublicAgentChatResponse } from "../../src/lib/agent/public-chat-response";
 import { readAgentChatStream } from "../../src/lib/agent/read-agent-chat-stream";
 import type {
@@ -226,6 +230,34 @@ test("JSON chat terminal strips executable rollback fields and sanitizes public 
     },
   ]);
   assert.doesNotMatch(serialized, /lastRollbackPayload|rollbackPayload|beforeSnapshot|afterSnapshot|must-not-cross/);
+});
+
+test("public JSON and SSE projectors omit server-internal failed-audit compensation evidence", async () => {
+  const internallyMarkedTerminal = markServerInternalFailedAuditCompensation({
+    ...unsafeRollbackTerminal,
+  });
+
+  assert.equal(
+    hasServerInternalFailedAuditCompensation(internallyMarkedTerminal),
+    true,
+  );
+
+  const jsonResponse = createAgentChatResponse(internallyMarkedTerminal, false);
+  const jsonBody = await jsonResponse.json();
+  assert.equal(hasServerInternalFailedAuditCompensation(jsonBody), false);
+  assert.doesNotMatch(
+    JSON.stringify(jsonBody),
+    /server-internal-failed-audit-compensation/,
+  );
+
+  const streamResponse = createAgentChatStream(
+    async () => internallyMarkedTerminal,
+  );
+  const streamBody = await streamResponse.text();
+  assert.doesNotMatch(
+    streamBody,
+    /server-internal-failed-audit-compensation/,
+  );
 });
 
 test("SSE done terminal strips executable rollback fields and keeps only the bounded source ID", async () => {

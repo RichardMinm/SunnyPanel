@@ -173,6 +173,7 @@ test("delete_record executes a schedule delete, audits it, and returns an execut
       documentId: 41,
     },
   });
+  assert.equal(result.rollbackSourceRunId, 900);
   assert.equal(isRollbackPayloadExecutable(result.rollbackPayload), true);
 });
 

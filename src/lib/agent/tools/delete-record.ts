@@ -7,6 +7,7 @@ import type {
 } from "../schemas";
 import {
   createAgentRun,
+  createOwnedRollbackToolResult,
   normalizeForSearch,
   type AgentExecutionTraceReporter,
   type AgentToolResult,
@@ -438,7 +439,7 @@ export const deleteRecordFromIntent = async (
     title: `已删除${entityLabel[args.entityType]}「${title}」`,
   });
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: [
       {
         collection,
@@ -465,9 +466,10 @@ export const deleteRecordFromIntent = async (
     workflow: workflowByEntityType[args.entityType],
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     assistantMessage: `已删除${entityLabel[args.entityType]}「${title}」。`,
     pendingAction: null,
     rollbackPayload,
-  };
+    rollbackSourceRunId: agentRun.id,
+  });
 };

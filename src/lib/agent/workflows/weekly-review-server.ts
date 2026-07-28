@@ -3,8 +3,13 @@ import { getPayloadClient } from "@/lib/payload/client";
 import { getCurrentAgentUserId } from "../execution-context";
 import type { AgentTraceStep, WeeklyReviewArgs } from "../schemas";
 import { upsertSuggestion } from "../suggestions";
+import { createOwnedRollbackToolResult } from "../tool-shared";
 import { validateAgentRunData, validatePlanReviewData } from "../write-schemas";
-import { runWeeklyReviewWorkflow, type WeeklyReviewPayload } from "./weekly-review";
+import {
+  buildWeeklyReviewRollbackPayload,
+  runWeeklyReviewWorkflow,
+  type WeeklyReviewPayload,
+} from "./weekly-review";
 
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
 
@@ -29,30 +34,54 @@ export const executeWeeklyReviewFromIntent = async (
     validatePlanReviewData,
   });
 
+  const rollbackPayload = result.reviewId
+    ? buildWeeklyReviewRollbackPayload({
+        planReviewId: result.reviewId,
+        suggestionIds: result.suggestionIds,
+      })
+    : undefined;
+  const rollbackSourceRunId =
+    typeof result.agentRunId === "number"
+    && Number.isSafeInteger(result.agentRunId)
+    && result.agentRunId > 0
+      ? result.agentRunId
+      : undefined;
+
+  if (rollbackPayload && !rollbackSourceRunId) {
+    onTrace?.({
+      detail: `PlanReview #${result.reviewId} 已写入，但没有可用的 AgentRun 回滚来源。`,
+      id: "workflow-weekly-review",
+      kind: "error",
+      status: "error",
+      title: "本周回顾回滚来源不可用",
+    });
+
+    return {
+      assistantMessage: `${result.assistantMessage}\n\n本周回顾已写入，但 AgentRun 回滚来源不可用；本次执行已按安全策略标记失败，需要人工核查。`,
+      pendingAction: null,
+      status: "failed" as const,
+    };
+  }
+
   onTrace?.({
-    detail: result.reviewId ? `PlanReview #${result.reviewId}，AgentRun #${result.agentRunId ?? "n/a"}` : "预览已生成。",
+    detail: result.reviewId ? `PlanReview #${result.reviewId}，AgentRun #${rollbackSourceRunId}` : "预览已生成。",
     id: "workflow-weekly-review",
     kind: "complete",
     status: "done",
     title: "本周回顾已生成",
   });
 
-  const rollbackPayload = result.reviewId
-    ? {
-        reason: "删除本次 Weekly Review 创建的 PlanReview、AgentRun，并将自动生成的建议归档为 dismissed。",
-        strategy: "delete_created_weekly_review_artifacts" as const,
-        target: {
-          agentRunId: result.agentRunId ?? null,
-          collection: "plan-reviews" as const,
-          planReviewId: result.reviewId,
-          suggestionIds: result.suggestionIds ?? [],
-        },
-      }
-    : undefined;
+  if (rollbackPayload && rollbackSourceRunId) {
+    return createOwnedRollbackToolResult({
+      assistantMessage: result.assistantMessage,
+      pendingAction: null,
+      rollbackPayload,
+      rollbackSourceRunId,
+    });
+  }
 
   return {
     assistantMessage: result.assistantMessage,
     pendingAction: null,
-    ...(rollbackPayload ? { rollbackPayload } : {}),
   };
 };

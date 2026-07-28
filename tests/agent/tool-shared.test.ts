@@ -1,7 +1,37 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { sanitizeAffectedDocuments, scoreTextMatch } from "../../src/lib/agent/tool-shared";
+import {
+  createOwnedRollbackToolResult,
+  sanitizeAffectedDocuments,
+  scoreTextMatch,
+} from "../../src/lib/agent/tool-shared";
+
+test("owned rollback result construction requires its AgentRun source ID", () => {
+  const result = createOwnedRollbackToolResult({
+    assistantMessage: "done",
+    pendingAction: null,
+    rollbackPayload: {
+      strategy: "delete_created_document",
+      target: { collection: "plans", documentId: 1 },
+    },
+    rollbackSourceRunId: 91,
+  });
+
+  assert.equal(result.rollbackSourceRunId, 91);
+
+  if (false) {
+    // @ts-expect-error successful rollbackable results require their AgentRun source
+    createOwnedRollbackToolResult({
+      assistantMessage: "unsafe",
+      pendingAction: null,
+      rollbackPayload: {
+        strategy: "delete_created_document",
+        target: { collection: "plans", documentId: 1 },
+      },
+    });
+  }
+});
 
 test("scoreTextMatch returns 100 for exact match (case-insensitive)", () => {
   assert.equal(scoreTextMatch("高等数学", "高等数学"), 100);

@@ -117,6 +117,24 @@ export type WeeklyReviewWorkflowDeps = {
   validatePlanReviewData?: (value: unknown) => unknown;
 };
 
+export const buildWeeklyReviewRollbackPayload = ({
+  planReviewId,
+  suggestionIds = [],
+}: {
+  planReviewId: number;
+  suggestionIds?: number[];
+}) => ({
+  reason:
+    "删除本次 Weekly Review 创建的 PlanReview，并将自动生成的建议归档为 dismissed；AgentRun 保留为回滚审计。",
+  strategy: "delete_created_weekly_review_artifacts" as const,
+  target: {
+    agentRunId: null,
+    collection: "plan-reviews" as const,
+    planReviewId,
+    suggestionIds,
+  },
+});
+
 const dayInMs = 1000 * 60 * 60 * 24;
 
 const publicPublishedWhere = {
@@ -600,6 +618,10 @@ export const runWeeklyReviewWorkflow = async (
         : null,
     )
     .filter((id): id is number => id !== null);
+  const rollbackPayload = buildWeeklyReviewRollbackPayload({
+    planReviewId: planReview.id,
+    suggestionIds,
+  });
   const rawAgentRunData = {
     afterSnapshot: {
       llmEnhanced: Boolean(llmInsights),
@@ -618,6 +640,8 @@ export const runWeeklyReviewWorkflow = async (
       },
     ],
     startedAt: reviewedAt,
+    rollbackAvailable: true,
+    rollbackPayload,
     status: "succeeded",
     steps: [
       {

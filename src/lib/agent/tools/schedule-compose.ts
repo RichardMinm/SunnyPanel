@@ -3,7 +3,12 @@ import { createScheduleItem } from "@/lib/schedule/items";
 import type { ComposeScheduleItemArgs } from "../schemas";
 import { composeScheduleProposalAsync } from "../workflows/schedule-composer";
 import { validateScheduleItemData } from "../write-schemas";
-import { createAgentRun, type AgentExecutionTraceReporter, type AgentToolResult } from "../tool-shared";
+import {
+  createAgentRun,
+  createOwnedRollbackToolResult,
+  type AgentExecutionTraceReporter,
+  type AgentToolResult,
+} from "../tool-shared";
 
 export const composeScheduleItemFromIntent = async (
   args: ComposeScheduleItemArgs,
@@ -53,7 +58,7 @@ export const composeScheduleItemFromIntent = async (
     title: `已创建日程 #${createdScheduleItem.id}`,
   });
 
-  await createAgentRun({
+  const agentRun = await createAgentRun({
     affectedDocuments: [
       {
         collection: "schedule-items",
@@ -99,7 +104,7 @@ export const composeScheduleItemFromIntent = async (
     title: "已记录审计日志",
   });
 
-  return {
+  return createOwnedRollbackToolResult({
     assistantMessage: `已创建日程「${createdScheduleItem.title}」：${proposal.date} ${timeRange}。`,
     pendingAction: null,
     rollbackPayload: {
@@ -109,6 +114,6 @@ export const composeScheduleItemFromIntent = async (
         documentId: createdScheduleItem.id,
       },
     },
-  };
+    rollbackSourceRunId: agentRun.id,
+  });
 };
-

@@ -2,6 +2,7 @@ import { getPayloadClient } from "@/lib/payload/client";
 
 import { evaluatePlanFromIntent } from "./evaluation";
 import { runWithAgentExecutionContext } from "./execution-context";
+import { hasServerInternalFailedAuditCompensation } from "./internal-rollback-evidence";
 import { queryProgressFromIntent } from "./progress";
 import {
   executeRollbackFromPayload,
@@ -96,10 +97,16 @@ const getErrorMessage = (error: unknown) => (error instanceof Error ? error.mess
 const formatRollbackResult = (result: RollbackExecutionResult) =>
   `${result.collection}#${result.documentIds?.join(",") ?? result.documentId} (${result.strategy})${result.auditWarning ? `，审计提示：${result.auditWarning}` : ""}`;
 
-type BatchRollbackEvidence = {
-  rollbackPayload: unknown;
-  rollbackSourceRunId?: number;
-};
+type BatchRollbackEvidence =
+  | {
+      kind: "owned_agent_run";
+      rollbackPayload: unknown;
+      rollbackSourceRunId: number;
+    }
+  | {
+      kind: "server_internal_failed_audit";
+      rollbackPayload: unknown;
+    };
 
 const isTrustedUserId = (value: unknown): value is number =>
   typeof value === "number"
@@ -117,36 +124,36 @@ const executeBatchRollbackEvidence = async (
   evidence: BatchRollbackEvidence,
   options: TransactionalExecutionOptions,
 ): Promise<RollbackExecutionResult> => {
-  if (evidence.rollbackSourceRunId !== undefined) {
-    if (!isTrustedUserId(options.userId)) {
-      throw new Error("自动补偿缺少已认证的用户上下文。");
-    }
+  if (evidence.kind === "server_internal_failed_audit") {
+    const executeRollback = options.executeRollback ?? executeRollbackFromPayload;
 
-    const payload = options.rollbackPayloadStore ?? await getPayloadClient();
-    const trustedRollbackRequest =
-      options.executeTrustedRollbackRequest ?? executeTrustedRollbackRequest;
-    const trustedResult = await trustedRollbackRequest({
-      ...(options.executeRollback
-        ? {
-            executeRollback: (rollbackPayload) =>
-              options.executeRollback!(rollbackPayload, {
-                userId: options.userId,
-              }),
-          }
-        : {}),
-      payload: payload as RollbackPayloadStore,
-      sourceRunId: evidence.rollbackSourceRunId,
+    return executeRollback(evidence.rollbackPayload, {
       userId: options.userId,
     });
-
-    return trustedResult.result;
   }
 
-  const executeRollback = options.executeRollback ?? executeRollbackFromPayload;
+  if (!isTrustedUserId(options.userId)) {
+    throw new Error("自动补偿缺少已认证的用户上下文。");
+  }
 
-  return executeRollback(evidence.rollbackPayload, {
+  const payload = options.rollbackPayloadStore ?? await getPayloadClient();
+  const trustedRollbackRequest =
+    options.executeTrustedRollbackRequest ?? executeTrustedRollbackRequest;
+  const trustedResult = await trustedRollbackRequest({
+    ...(options.executeRollback
+      ? {
+          executeRollback: (rollbackPayload) =>
+            options.executeRollback!(rollbackPayload, {
+              userId: options.userId,
+            }),
+        }
+      : {}),
+    payload: payload as RollbackPayloadStore,
+    sourceRunId: evidence.rollbackSourceRunId,
     userId: options.userId,
   });
+
+  return trustedResult.result;
 };
 
 export const executeAgentIntentsTransactional = async (
@@ -174,7 +181,7 @@ export const executeAgentIntentsTransactional = async (
   const failBatch = async (input: {
     compensationEvidence: BatchRollbackEvidence[];
     failureMessage: string;
-    failureType: "returned" | "thrown";
+    failureType: "invariant" | "returned" | "thrown";
     stepNumber: number;
   }): Promise<AgentIntentExecutionResult> => {
     const rollbackResults: RollbackExecutionResult[] = [];
@@ -184,6 +191,8 @@ export const executeAgentIntentsTransactional = async (
       detail:
         input.failureType === "returned"
           ? "子操作返回失败回执，批量执行已停止。"
+          : input.failureType === "invariant"
+            ? "成功子操作缺少受信 AgentRun 回滚来源，批量执行已失败关闭。"
           : input.failureMessage,
       id: `batch-transaction-step-${input.stepNumber}`,
       kind: "error",
@@ -236,7 +245,9 @@ export const executeAgentIntentsTransactional = async (
         ...messages,
         input.failureType === "returned"
           ? `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步失败：${input.failureMessage}`
-          : `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步失败（抛出异常）：${input.failureMessage}`,
+          : input.failureType === "invariant"
+            ? `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步触发安全不变量：${input.failureMessage}`
+            : `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步失败（抛出异常）：${input.failureMessage}`,
         rollbackSummary,
       ]
         .filter(Boolean)
@@ -268,28 +279,53 @@ export const executeAgentIntentsTransactional = async (
         { userId: options.userId },
       );
 
-      const executableRollbackEvidence =
-        result.rollbackPayload && isExecutable(result.rollbackPayload)
+      const hasExecutableRollback =
+        Boolean(result.rollbackPayload)
+        && isExecutable(result.rollbackPayload);
+      const sourceRunId = normalizeRollbackSourceRunId(
+        result.rollbackSourceRunId,
+      );
+      const ownedRollbackEvidence =
+        hasExecutableRollback && sourceRunId
           ? {
+              kind: "owned_agent_run" as const,
               rollbackPayload: result.rollbackPayload,
-              ...(normalizeRollbackSourceRunId(result.rollbackSourceRunId)
-                ? {
-                    rollbackSourceRunId: normalizeRollbackSourceRunId(
-                      result.rollbackSourceRunId,
-                    ),
-                  }
-                : {}),
+              rollbackSourceRunId: sourceRunId,
+            }
+          : null;
+      const failedAuditRollbackEvidence =
+        result.status === "failed"
+        && hasExecutableRollback
+        && !sourceRunId
+        && hasServerInternalFailedAuditCompensation(result)
+          ? {
+              kind: "server_internal_failed_audit" as const,
+              rollbackPayload: result.rollbackPayload,
             }
           : null;
 
       if (result.status === "failed") {
         return failBatch({
           compensationEvidence: [
-            ...(executableRollbackEvidence ? [executableRollbackEvidence] : []),
+            ...(ownedRollbackEvidence
+              ? [ownedRollbackEvidence]
+              : failedAuditRollbackEvidence
+                ? [failedAuditRollbackEvidence]
+                : []),
             ...rollbackEvidence.slice().reverse(),
           ],
           failureMessage: result.assistantMessage || "子操作返回失败回执。",
           failureType: "returned",
+          stepNumber,
+        });
+      }
+
+      if (hasExecutableRollback && !ownedRollbackEvidence) {
+        return failBatch({
+          compensationEvidence: rollbackEvidence.slice().reverse(),
+          failureMessage:
+            "成功子操作返回了可执行回滚载荷，但没有正安全整数 rollbackSourceRunId；当前子操作未做裸补偿，结果需要人工核查。",
+          failureType: "invariant",
           stepNumber,
         });
       }
@@ -306,9 +342,9 @@ export const executeAgentIntentsTransactional = async (
       if (result.rollbackPayload) {
         rollbackPayload = result.rollbackPayload;
 
-        if (executableRollbackEvidence) {
-          rollbackEvidence.push(executableRollbackEvidence);
-          rollbackSourceRunId = executableRollbackEvidence.rollbackSourceRunId;
+        if (ownedRollbackEvidence) {
+          rollbackEvidence.push(ownedRollbackEvidence);
+          rollbackSourceRunId = ownedRollbackEvidence.rollbackSourceRunId;
         }
       }
 

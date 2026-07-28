@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { beforeEach, test } from "node:test";
 
+import { executeAgentIntent } from "../../src/lib/agent/executor";
 import {
   buildWeeklyReviewFromSnapshot,
   runWeeklyReviewWorkflow,
   type WeeklyReviewSnapshot,
 } from "../../src/lib/agent/workflows/weekly-review";
+import {
+  resetPayloadStub,
+  setPayloadStubCreateHandler,
+  setPayloadStubFindHandler,
+} from "../stubs/payload-client";
+
+beforeEach(() => resetPayloadStub());
 
 const snapshot: WeeklyReviewSnapshot = {
   agentRuns: [
@@ -120,6 +128,17 @@ test("weekly review workflow creates AgentRun", async () => {
   assert.equal(agentRunData["user"], 7);
   assert.equal(agentRunData["workflow"], "weekly-review");
   assert.equal(agentRunData["status"], "succeeded");
+  assert.equal(agentRunData["rollbackAvailable"], true);
+  assert.deepEqual(agentRunData["rollbackPayload"], {
+    reason: "删除本次 Weekly Review 创建的 PlanReview，并将自动生成的建议归档为 dismissed；AgentRun 保留为回滚审计。",
+    strategy: "delete_created_weekly_review_artifacts",
+    target: {
+      agentRunId: null,
+      collection: "plan-reviews",
+      planReviewId: 45,
+      suggestionIds: [],
+    },
+  });
   assert.deepEqual(agentRunData["relatedContent"], [
     {
       relationTo: "plan-reviews",
@@ -157,4 +176,103 @@ test("weekly review workflow creates suggestions for next actions", async () => 
   assert.ok(result.suggestionDrafts.length > 0);
   assert.ok(suggestionKeys.some((key) => key.includes("weekly-review:2026-05-08:overdue-plan:12")));
   assert.equal(result.suggestionDrafts.every((suggestion) => suggestion.source === "review"), true);
+});
+
+test("persisted weekly review returns and stores its durable rollback AgentRun source", async () => {
+  let storedAgentRunData: Record<string, unknown> | undefined;
+
+  setPayloadStubFindHandler(async () => ({ docs: [], totalDocs: 0 }));
+  setPayloadStubCreateHandler(async (input) => {
+    const args = input as {
+      collection?: string;
+      data?: Record<string, unknown>;
+    };
+
+    if (args.collection === "plan-reviews") {
+      return {
+        id: 45,
+        ...(args.data ?? {}),
+      };
+    }
+
+    if (args.collection === "agent-runs") {
+      storedAgentRunData = args.data;
+
+      return {
+        id: 88,
+        ...(args.data ?? {}),
+      };
+    }
+
+    throw new Error(`unexpected create collection ${args.collection ?? "unknown"}`);
+  });
+
+  const result = await executeAgentIntent(
+    {
+      args: {
+        createSuggestions: false,
+        now: "2026-07-28T00:00:00.000Z",
+        persistReview: true,
+      },
+      intent: "weekly_review",
+    },
+    undefined,
+    { userId: 7 },
+  );
+
+  assert.equal(result.rollbackSourceRunId, 88);
+  assert.deepEqual(result.rollbackPayload, storedAgentRunData?.rollbackPayload);
+  assert.equal(storedAgentRunData?.rollbackAvailable, true);
+  assert.equal(
+    (
+      result.rollbackPayload as {
+        target?: { agentRunId?: null | number };
+      }
+    ).target?.agentRunId,
+    null,
+  );
+});
+
+test("persisted weekly review fails closed when its AgentRun source is invalid", async () => {
+  setPayloadStubFindHandler(async () => ({ docs: [], totalDocs: 0 }));
+  setPayloadStubCreateHandler(async (input) => {
+    const args = input as {
+      collection?: string;
+      data?: Record<string, unknown>;
+    };
+
+    if (args.collection === "plan-reviews") {
+      return {
+        id: 45,
+        ...(args.data ?? {}),
+      };
+    }
+
+    if (args.collection === "agent-runs") {
+      return {
+        id: 0,
+        ...(args.data ?? {}),
+      };
+    }
+
+    throw new Error(`unexpected create collection ${args.collection ?? "unknown"}`);
+  });
+
+  const result = await executeAgentIntent(
+    {
+      args: {
+        createSuggestions: false,
+        now: "2026-07-28T00:00:00.000Z",
+        persistReview: true,
+      },
+      intent: "weekly_review",
+    },
+    undefined,
+    { userId: 7 },
+  );
+
+  assert.equal(result.status, "failed");
+  assert.equal(result.rollbackPayload, undefined);
+  assert.equal(result.rollbackSourceRunId, undefined);
+  assert.match(result.assistantMessage, /回滚来源不可用/);
 });
