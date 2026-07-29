@@ -25,33 +25,24 @@ const aggregateIntent: AgentIntent = {
   intent: "query_progress",
 };
 
-test("existing unset, empty, Legacy, and unknown Orchestrator values remain Legacy", () => {
+test("Orchestrator runtime is permanently LangChain while query adoption remains separately gated", () => {
   const previous = process.env.AGENT_ORCHESTRATOR_RUNTIME;
-  const previousWarn = console.warn;
   try {
-    console.warn = () => undefined;
-    for (const value of [undefined, "", "legacy", "unknown"]) {
-      if (value === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
-      else process.env.AGENT_ORCHESTRATOR_RUNTIME = value;
-      assert.equal(resolveOrchestratorRuntimeMode(), "legacy");
+    for (const value of ["", "legacy", "unknown"]) {
+      process.env.AGENT_ORCHESTRATOR_RUNTIME = value;
+      assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     }
     assert.equal(resolveQueryRuntime(undefined), "legacy");
     assert.equal(resolveQueryAdoption(undefined), "off");
   } finally {
-    console.warn = previousWarn;
     if (previous === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
     else process.env.AGENT_ORCHESTRATOR_RUNTIME = previous;
   }
 });
 
-test("the selected Legacy Orchestrator Runtime disables the Boundary", async () => {
-  const { isHybridQueryBoundaryEnabled } = await loadBoundary("runtime_gate_legacy_disabled");
-  assert.equal(isHybridQueryBoundaryEnabled("legacy"), false);
-});
-
-test("only explicit LangChain Orchestrator Runtime enables the Boundary", async () => {
+test("the Hybrid Query Boundary is permanently enabled", async () => {
   const { isHybridQueryBoundaryEnabled } = await loadBoundary("runtime_gate_langchain_enabled");
-  assert.equal(isHybridQueryBoundaryEnabled("langchain"), true);
+  assert.equal(isHybridQueryBoundaryEnabled(), true);
 });
 
 test("Pure Query adoption remains owned by the existing Query gate", () => {

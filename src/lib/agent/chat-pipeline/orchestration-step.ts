@@ -11,10 +11,10 @@ import {
 } from "@/lib/agent/execution-graph";
 import { runOrchestrationSubgraph } from "@/lib/agent/langgraph/orchestration-subgraph";
 import { orchestratorPlanToIntent } from "@/lib/agent/orchestrator";
-import type { runOrchestrator } from "@/lib/agent/orchestration/orchestrator";
 import {
   dispatchOrchestrator,
   dispatchOrchestratorResult,
+  type OrchestratorPlanService,
   type OrchestratorService,
 } from "@/lib/agent/orchestration/orchestrator-dispatcher";
 import { resolveExactScheduleCompletionIntent } from "@/lib/agent/orchestration/deterministic-existing-schedule-boundary";
@@ -190,7 +190,7 @@ export type OrchestrationStepParams = {
   conversationState?: import("@/lib/agent/conversation/types").AgentConversationState | null;
   resolvedHistory?: import("@/lib/agent/schemas").AgentChatMessage[];
   resolveRouterCanaryRoutingFn?: typeof resolveRouterCanaryRouting;
-  runOrchestratorFn?: typeof runOrchestrator;
+  runOrchestratorFn?: OrchestratorPlanService;
   runOrchestratorResultFn?: OrchestratorService;
   residualPlannerInvoke?: InjectedResidualInvoke;
   residualPlannerModelConfig?: ModelConfig;
@@ -225,7 +225,7 @@ export type OrchestrationStepResult =
       outcome: "continue";
       data: {
         orchestratorPlanSource?: "heuristic" | "llm" | null;
-        orchestratorRuntime?: "langchain" | "legacy" | null;
+        orchestratorRuntime?: "langchain" | null;
         preResolvedIntent: AgentIntent | null;
         tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
       };
@@ -781,7 +781,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
     hybridBoundaryMode === "runtime"
     && !forcedPlan
     && !pendingAction
-    && isHybridQueryBoundaryEnabled(configuredOrchestratorRuntime);
+    && isHybridQueryBoundaryEnabled();
 
   if (hybridBoundaryEnabled) {
     const snapshotResult = buildActorAuthorizedResourceSnapshot({

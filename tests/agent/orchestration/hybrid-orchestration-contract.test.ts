@@ -48,7 +48,6 @@ const runInput = (
     authenticatedActor: { collection: "users" as const, id: 7 },
     context: fixture.context,
     originalRequest: fixture.message,
-    orchestratorRuntime: "langchain",
     queryAdoption: "admin",
     queryRuntime: "langchain",
     runFullOrchestrator: async () => assert.fail("full Orchestrator must not run"),
@@ -179,19 +178,18 @@ test("unsupported Query mutations use the Full Orchestrator without a Residual c
   assert.equal(residualCalls, 0);
 });
 
-test("Legacy Orchestrator Runtime bypasses the Boundary and preserves the existing path", async () => {
-  const { runHybridOrchestration } = await loadHybrid("hybrid_legacy_runtime_bypass");
+test("the Query Boundary cannot be disabled by an Orchestrator runtime choice", async () => {
+  const { runHybridOrchestration } = await loadHybrid("hybrid_authoritative_boundary");
   let fullCalls = 0;
   const result = await runHybridOrchestration(runInput("qry-1", {
-    orchestratorRuntime: "legacy",
     runFullOrchestrator: async () => {
       fullCalls += 1;
       return singleOutput("query_progress");
     },
   }));
-  assert.equal(result.boundaryResolution, "not_applicable");
-  assert.equal(result.callAccounting.fullOrchestratorLogicalCalls, 1);
-  assert.equal(fullCalls, 1);
+  assert.equal(result.boundaryResolution, "pure_query");
+  assert.equal(result.callAccounting.fullOrchestratorLogicalCalls, 0);
+  assert.equal(fullCalls, 0);
 });
 
 test("model-call accounting exposes residual logical and Provider-attempt counters", () => {

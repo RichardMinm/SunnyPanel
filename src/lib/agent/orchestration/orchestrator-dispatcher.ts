@@ -1,22 +1,14 @@
-/** Orchestrator dispatcher — selects between legacy and LangChain implementations.
+/** Authoritative LangChain Orchestrator entry.
  *
- * This is the SINGLE decision point for orchestrator implementation selection.
- * The rest of the pipeline should not know which implementation is active.
+ * This is the single production entry for Orchestrator model decisions.
  *
  * Contract:
- *  - Default mode is ALWAYS "legacy".
- *  - LangChain mode only activates when AGENT_ORCHESTRATOR_RUNTIME=langchain.
  *  - On LangChain failure, the dispatcher returns the safe clarify result.
- *  - There is NO automatic fallback from langchain to legacy.
+ *  - There is no alternate Orchestrator or cross-mode fallback.
  */
 
 import type { AgentPromptContext } from "../prompts";
 import type { OrchestratorPlan } from "./types";
-import {
-  resolveOrchestratorRuntimeMode,
-  type OrchestratorRuntimeMode,
-} from "./runtime-config";
-import { runOrchestrator as runLegacyOrchestrator } from "./orchestrator";
 import {
   projectOrchestratorFailureToSafePlan,
   runLangChainOrchestratorResult,
@@ -40,43 +32,20 @@ export type OrchestratorService = (
   accounting?: OrchestratorCallAccountingOptions,
 ) => Promise<OrchestratorInvocationResult>;
 
+export type OrchestratorPlanService = (
+  message: string,
+  context: AgentPromptContext,
+  signal?: AbortSignal,
+  accounting?: OrchestratorCallAccountingOptions,
+) => Promise<OrchestratorPlan>;
+
 export const dispatchOrchestratorResultForRuntime = async (
   input: Readonly<{
     context: AgentPromptContext;
     message: string;
-    mode: OrchestratorRuntimeMode;
     runLangChain: () => Promise<OrchestratorInvocationResult>;
-    runLegacy: () => Promise<OrchestratorPlan>;
-    signal?: AbortSignal;
   }>,
-): Promise<OrchestratorInvocationResult> => {
-  if (input.mode === "langchain") {
-    return input.runLangChain();
-  }
-
-  try {
-    const plan = await input.runLegacy();
-    return {
-      plan,
-      schedulePlanReferenceCorrectionCode: null,
-      status: "success",
-    };
-  } catch {
-    if (input.signal?.aborted) {
-      return {
-        reason: "cancelled",
-        safeMessage: "请求已被取消。",
-        status: "unavailable",
-      };
-    }
-
-    return {
-      reason: "provider_error",
-      safeMessage: "AI 服务暂时不可用，请稍后重试。",
-      status: "unavailable",
-    };
-  }
-};
+): Promise<OrchestratorInvocationResult> => input.runLangChain();
 
 export const dispatchOrchestratorResult: OrchestratorService = async (
   message,
@@ -84,15 +53,12 @@ export const dispatchOrchestratorResult: OrchestratorService = async (
   signal,
   accounting = undefined,
 ) => {
-  const mode = resolveOrchestratorRuntimeMode();
   const role = accounting?.role ?? "orchestrator";
   const scopeId = accounting?.scopeId ?? "orchestrator";
 
   return dispatchOrchestratorResultForRuntime({
     context,
     message,
-    mode,
-    signal,
     runLangChain: () =>
       runLangChainOrchestratorResult({
         context,
@@ -102,18 +68,11 @@ export const dispatchOrchestratorResult: OrchestratorService = async (
         modelCallScopeId: scopeId,
         signal,
       }),
-    runLegacy: () =>
-      runLegacyOrchestrator(message, context, signal, {
-        modelCallRecorder: accounting?.modelCallRecorder,
-        role,
-        scopeId,
-      }),
   });
 };
 
-/** Dispatch to the active orchestrator based on AGENT_ORCHESTRATOR_RUNTIME.
- *  Signature matches legacy runOrchestrator for drop-in compatibility. */
-export const dispatchOrchestrator = async (
+/** Return a safe plan projection for compatibility with plan consumers. */
+export const dispatchOrchestrator: OrchestratorPlanService = async (
   message: string,
   context: AgentPromptContext,
   signal?: AbortSignal,
@@ -133,4 +92,3 @@ export const dispatchOrchestrator = async (
 /** Re-export for convenience — the mode that was actually used. */
 export { resolveOrchestratorRuntimeMode } from "./runtime-config";
 export { runLangChainOrchestrator } from "./langchain-orchestrator";
-export { runOrchestrator as runLegacyOrchestrator } from "./orchestrator";

@@ -95,39 +95,7 @@ test("complete answer terminal continues with a persistable final intent", async
   }
 });
 
-test("trusted Legacy answer reuses its existing text with zero Answer Renderer calls", async () => {
-  let answerRendererCalls = 0;
-  const emitted: string[] = [];
-  const preResolvedIntent = {
-    args: { answer: "旧路径已经给出的答案。" },
-    confidence: 0.9,
-    intent: "answer_question" as const,
-    reply: "旧路径已经给出的答案。",
-  };
-  const result = await resolveLegacyHeuristicStep({
-    ...answerStepInput(),
-    conversationalAnswerRunner: async () => {
-      answerRendererCalls += 1;
-      return {
-        answer: "不应生成的新答案",
-        persist: true,
-        status: "complete" as const,
-      };
-    },
-    emitToken: (token: string) => emitted.push(token),
-    orchestratorRuntime: "legacy",
-    preResolvedIntent,
-  } as never);
-
-  assert.equal(answerRendererCalls, 0);
-  assert.equal(emitted.join(""), preResolvedIntent.args.answer);
-  assert.equal(result.outcome, "continue");
-  if (result.outcome === "continue") {
-    assert.deepEqual(result.data.resolution.intent, preResolvedIntent);
-  }
-});
-
-test("explicit LangChain answer still uses the bounded Answer Renderer", async () => {
+test("authoritative LangChain answers use the bounded Answer Renderer", async () => {
   let answerRendererCalls = 0;
   const result = await resolveLegacyHeuristicStep({
     ...answerStepInput(),

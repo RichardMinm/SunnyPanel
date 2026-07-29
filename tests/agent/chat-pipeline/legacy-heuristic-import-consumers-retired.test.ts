@@ -48,12 +48,12 @@ test("heuristic-intent-resolver still exports confirmation safety functions", as
    3. orchestrator no longer imports parseHeuristicIntent
    ═══════════════════════════════════════════════════════════════ */
 
-test("orchestrator does NOT import parseHeuristicIntent", async () => {
-  const content = await import("node:fs").then((fs) =>
-    fs.readFileSync("src/lib/agent/orchestration/orchestrator.ts", "utf-8"),
+test("Legacy Orchestrator implementation is removed", async () => {
+  const { existsSync } = await import("node:fs");
+  assert.equal(
+    existsSync("src/lib/agent/orchestration/orchestrator.ts"),
+    false,
   );
-  assert.ok(!content.includes("parseHeuristicIntent"),
-    "orchestrator.ts must NOT contain parseHeuristicIntent import");
 });
 
 /* ═══════════════════════════════════════════════════════════════

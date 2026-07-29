@@ -22,13 +22,13 @@ describe("orchestrator-runtime-config", () => {
   });
 
   describe("resolveOrchestratorRuntimeMode", () => {
-    it("returns legacy when env is not set", () => {
-      assert.equal(resolveOrchestratorRuntimeMode(), "legacy");
+    it("returns langchain when env is not set", () => {
+      assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     });
 
-    it("returns legacy for explicit 'legacy'", () => {
+    it("ignores the retired explicit 'legacy' value", () => {
       process.env.AGENT_ORCHESTRATOR_RUNTIME = "legacy";
-      assert.equal(resolveOrchestratorRuntimeMode(), "legacy");
+      assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     });
 
     it("returns langchain for explicit 'langchain'", () => {
@@ -41,9 +41,9 @@ describe("orchestrator-runtime-config", () => {
       assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     });
 
-    it("returns legacy for mixed case LeGaCy", () => {
+    it("ignores mixed case retired values", () => {
       process.env.AGENT_ORCHESTRATOR_RUNTIME = "LeGaCy";
-      assert.equal(resolveOrchestratorRuntimeMode(), "legacy");
+      assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     });
 
     it("returns langchain for whitespace-padded langchain", () => {
@@ -51,14 +51,14 @@ describe("orchestrator-runtime-config", () => {
       assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     });
 
-    it("returns legacy for unknown value", () => {
+    it("ignores unknown values", () => {
       process.env.AGENT_ORCHESTRATOR_RUNTIME = "shadow";
-      assert.equal(resolveOrchestratorRuntimeMode(), "legacy");
+      assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     });
 
-    it("returns legacy for empty string", () => {
+    it("ignores empty values", () => {
       process.env.AGENT_ORCHESTRATOR_RUNTIME = "";
-      assert.equal(resolveOrchestratorRuntimeMode(), "legacy");
+      assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     });
 
     it("never throws", () => {
@@ -67,17 +67,17 @@ describe("orchestrator-runtime-config", () => {
     });
 
     it("does not read secrets or API keys", () => {
-      /* Config only reads AGENT_ORCHESTRATOR_RUNTIME — it doesn't touch
-       *   any API key or database env vars. */
+      /* Runtime selection is invariant and does not touch any environment
+       * secrets or database settings. */
       process.env.AGENT_ORCHESTRATOR_RUNTIME = "legacy";
       const result = resolveOrchestratorRuntimeMode();
-      assert.equal(result, "legacy");
+      assert.equal(result, "langchain");
     });
   });
 
   describe("isLangChainOrchestratorEnabled", () => {
-    it("returns false by default", () => {
-      assert.equal(isLangChainOrchestratorEnabled(), false);
+    it("returns true by default", () => {
+      assert.equal(isLangChainOrchestratorEnabled(), true);
     });
 
     it("returns true when langchain is set", () => {
@@ -85,9 +85,9 @@ describe("orchestrator-runtime-config", () => {
       assert.equal(isLangChainOrchestratorEnabled(), true);
     });
 
-    it("returns false for legacy", () => {
+    it("cannot be disabled by the retired legacy value", () => {
       process.env.AGENT_ORCHESTRATOR_RUNTIME = "legacy";
-      assert.equal(isLangChainOrchestratorEnabled(), false);
+      assert.equal(isLangChainOrchestratorEnabled(), true);
     });
   });
 });

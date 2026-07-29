@@ -34,7 +34,7 @@ import {
   type OrchestratorFailureReason,
 } from "./langchain-orchestrator";
 import type { ModelCallBudgetRecorder } from "./model-call-budget";
-import type { runOrchestrator } from "./orchestrator";
+import type { OrchestratorPlanService } from "./orchestrator-dispatcher";
 import type { DecisionConsistencyErrorCode } from "./orchestrator-decision-consistency";
 import type { QueryScopeErrorCode } from "./query-scope-contract";
 import type {
@@ -323,7 +323,7 @@ export const createProductionResidualObserver = (input: Readonly<{
   });
 };
 
-export type ProductionFullAdapter = typeof runOrchestrator & Readonly<{
+export type ProductionFullAdapter = OrchestratorPlanService & Readonly<{
   getRoleEvidence: () => ProductionFullRoleEvidence;
 }>;
 

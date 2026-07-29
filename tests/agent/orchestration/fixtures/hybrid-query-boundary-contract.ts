@@ -6,7 +6,6 @@ import type { StructuredProviderAttemptObserver } from "../../../../src/lib/agen
 import type { ModelConfig } from "../../../../src/lib/agent/llm/model-config";
 import type { ModelFactory } from "../../../../src/lib/agent/llm/model-factory";
 import type { QueryScopeProvenance } from "../../../../src/lib/agent/orchestration/query-scope-contract";
-import type { OrchestratorRuntimeMode } from "../../../../src/lib/agent/orchestration/runtime-config";
 import type { AgentPromptContext } from "../../../../src/lib/agent/prompts";
 import type { QueryAdoption, QueryRuntime } from "../../../../src/lib/agent/query/types";
 import type { AgentIntent } from "../../../../src/lib/agent/schemas";
@@ -97,7 +96,7 @@ export type HybridQueryBoundaryModule = Readonly<{
     context: AgentPromptContext;
     clientClaims?: unknown;
   }>) => SnapshotBuildResult;
-  isHybridQueryBoundaryEnabled: (runtime: OrchestratorRuntimeMode) => boolean;
+  isHybridQueryBoundaryEnabled: () => boolean;
   resolveHybridQueryBoundary: (input: Readonly<{
     authorizedSnapshot: ActorAuthorizedResourceSnapshot;
     originalRequest: string;
@@ -200,7 +199,6 @@ export type HybridOrchestrationModule = Readonly<{
     authenticatedActor: null | Readonly<{ collection: "users"; id: number }>;
     context: AgentPromptContext;
     originalRequest: string;
-    orchestratorRuntime?: OrchestratorRuntimeMode;
     queryAdoption?: QueryAdoption;
     queryRuntime?: QueryRuntime;
     runFullOrchestrator: () => Promise<OrchestratorOutput>;

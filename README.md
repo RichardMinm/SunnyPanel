@@ -220,6 +220,7 @@ npm run agent:checkpoint:setup
 - 空工作区 onboarding 使用 PostgreSQL advisory lock 串行化跨 worker 初始化，避免首请求重复 seed。
 - `AGENT_GRAPH_RUNTIME` 默认不设置或设为 `langgraph`，所有有效意图、确认恢复和复合编排均走 LangGraph。
 - `AGENT_GRAPH_RUNTIME=legacy` 仅是显式紧急开关；legacy 与 LangGraph 共享同一事件历史。
+- Orchestrator 固定使用 LangChain Structured Output；没有 Legacy Orchestrator 运行分支或跨模式回退。
 - Payload migration 和 checkpoint setup 都必须作为部署步骤显式执行；HTTP 请求不会自动执行 DDL。
 
 5. 启动开发服务：
@@ -261,7 +262,7 @@ npm run dev
 6. 执行 `npm run build`。
 7. 启动服务并运行 Agent JSON/SSE 冒烟验证。
 
-如果需要紧急回滚 Agent runtime，可临时设置 `AGENT_GRAPH_RUNTIME=legacy` 并重启服务；这不会删除 checkpoint 或事件流数据。
+Orchestrator 不提供运行时回退开关。`AGENT_GRAPH_RUNTIME=legacy` 只回滚工作流运行时，不会恢复已经移除的 Legacy Orchestrator。
 
 ### Docker 完整部署
 

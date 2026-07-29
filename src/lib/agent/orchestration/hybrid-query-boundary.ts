@@ -18,14 +18,9 @@ import type {
 } from "./hybrid-query-boundary-types";
 import {
   buildActorAuthorizedResourceSnapshot,
-  isHybridQueryBoundaryEnabled,
   resolveHybridQueryBoundary,
 } from "./query-boundary-resolver";
 import type { ResidualPlannerResult } from "./residual-langchain-planner";
-import {
-  resolveOrchestratorRuntimeMode,
-  type OrchestratorRuntimeMode,
-} from "./runtime-config";
 
 export type HybridCallAccounting = Readonly<{
   fullOrchestratorLogicalCalls: number;
@@ -66,7 +61,6 @@ export type RunHybridOrchestrationInput = Readonly<{
   authenticatedActor: null | Readonly<{ collection: "users"; id: number }>;
   context: AgentPromptContext;
   originalRequest: string;
-  orchestratorRuntime?: OrchestratorRuntimeMode;
   queryAdoption?: QueryAdoption;
   queryRuntime?: QueryRuntime;
   runFullOrchestrator: () => Promise<OrchestratorOutput>;
@@ -120,11 +114,6 @@ const runFullPath = async (
 export const runHybridOrchestration = async (
   input: RunHybridOrchestrationInput,
 ): Promise<HybridOrchestrationResult> => {
-  const runtime = input.orchestratorRuntime ?? resolveOrchestratorRuntimeMode();
-  if (!isHybridQueryBoundaryEnabled(runtime)) {
-    return runFullPath(input);
-  }
-
   const snapshot = buildActorAuthorizedResourceSnapshot({
     authenticatedActor: input.authenticatedActor,
     context: input.context,

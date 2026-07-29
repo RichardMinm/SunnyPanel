@@ -233,18 +233,14 @@ test("legitimate numeric aggregate values remain accepted", () => {
   }
 });
 
-test("unset, empty, and unknown runtime values remain Legacy", () => {
+test("Orchestrator runtime is permanently LangChain", () => {
   const original = process.env.AGENT_ORCHESTRATOR_RUNTIME;
-  const warn = console.warn;
-  console.warn = () => undefined;
   try {
-    for (const value of [undefined, "", "unknown-r1"]) {
-      if (value === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
-      else process.env.AGENT_ORCHESTRATOR_RUNTIME = value;
-      assert.equal(resolveOrchestratorRuntimeMode(), "legacy");
+    for (const value of ["", "legacy", "unknown-r1"]) {
+      process.env.AGENT_ORCHESTRATOR_RUNTIME = value;
+      assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     }
   } finally {
-    console.warn = warn;
     if (original === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
     else process.env.AGENT_ORCHESTRATOR_RUNTIME = original;
   }

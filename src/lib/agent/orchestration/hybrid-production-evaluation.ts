@@ -40,7 +40,7 @@ import type {
   ResidualRejectionReason,
 } from "./residual-langchain-planner";
 import type { HybridCandidateValidationErrorCode } from "./hybrid-candidate-validator";
-import type { runOrchestrator } from "./orchestrator";
+import type { OrchestratorPlanService } from "./orchestrator-dispatcher";
 import type {
   L3BEvaluationFixture,
   L3BKnownIdDiagnostic,
@@ -155,7 +155,7 @@ export type HybridProductionEvaluationInput = Readonly<{
   context: AgentPromptContext;
   expectation?: HybridFocusedFixtureExpectation;
   fixtureId: string;
-  fullOrchestratorAdapter?: typeof runOrchestrator;
+  fullOrchestratorAdapter?: OrchestratorPlanService;
   message: string;
   queryAdoption: "admin" | "off";
   queryCommentaryAdapter?: (
@@ -252,14 +252,12 @@ const withFrozenRuntime = async <T>(
   run: () => Promise<T>,
 ): Promise<T> => {
   const names = [
-    "AGENT_ORCHESTRATOR_RUNTIME",
     "AGENT_QUERY_ADOPTION",
     "AGENT_QUERY_RUNTIME",
   ] as const;
   const previous = Object.fromEntries(
     names.map((name) => [name, process.env[name]]),
   );
-  process.env.AGENT_ORCHESTRATOR_RUNTIME = "langchain";
   process.env.AGENT_QUERY_ADOPTION = input.queryAdoption;
   process.env.AGENT_QUERY_RUNTIME = input.queryRuntime;
   try {
@@ -515,14 +513,12 @@ const withProductionGateRuntime = async <T>(
   run: () => Promise<T>,
 ): Promise<T> => {
   const names = [
-    "AGENT_ORCHESTRATOR_RUNTIME",
     "AGENT_QUERY_ADOPTION",
     "AGENT_QUERY_RUNTIME",
   ] as const;
   const previous = Object.fromEntries(
     names.map((name) => [name, process.env[name]]),
   );
-  process.env.AGENT_ORCHESTRATOR_RUNTIME = "langchain";
   process.env.AGENT_QUERY_ADOPTION = "admin";
   process.env.AGENT_QUERY_RUNTIME = "langchain";
   try {

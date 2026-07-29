@@ -76,6 +76,9 @@ Responsibilities:
 
 Rules:
 
+- LangChain Structured Orchestrator 是唯一生产 Orchestrator
+- 不存在 Orchestrator 运行时选择开关或 Legacy 回退分支
+- LangChain 失败返回 typed safe failure，不调用第二个 Orchestrator
 - 不展示 hidden reasoning
 - 不将 raw prompt 进入 UI
 

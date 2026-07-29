@@ -26,21 +26,6 @@ const tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]> = {
   totalTokens: 2,
 };
 
-const withEnv = async <T>(
-  name: string,
-  value: string,
-  run: () => Promise<T>,
-): Promise<T> => {
-  const previous = process.env[name];
-  process.env[name] = value;
-  try {
-    return await run();
-  } finally {
-    if (previous === undefined) delete process.env[name];
-    else process.env[name] = previous;
-  }
-};
-
 const singlePlan = (
   intent: OrchestratorPlan["tasks"][number]["intent"],
 ): OrchestratorPlan => ({
@@ -89,75 +74,46 @@ const runStepForFixture = async (
 };
 
 test("keeps the Hybrid Boundary active when the Full adapter is injected", async () => {
-  await withEnv("AGENT_ORCHESTRATOR_RUNTIME", "langchain", async () => {
-    let fullCalls = 0;
-    const result = await runStepForFixture("qry-4", {
-      runOrchestratorFn: async () => {
-        fullCalls += 1;
-        return singlePlan("query_plan_progress");
-      },
-    });
-
-    assert.equal(result.outcome, "continue");
-    if (result.outcome === "continue") {
-      assert.equal(result.data.preResolvedIntent?.intent, "clarify");
-    }
-    assert.equal(fullCalls, 0);
+  let fullCalls = 0;
+  const result = await runStepForFixture("qry-4", {
+    runOrchestratorFn: async () => {
+      fullCalls += 1;
+      return singlePlan("query_plan_progress");
+    },
   });
+
+  assert.equal(result.outcome, "continue");
+  if (result.outcome === "continue") {
+    assert.equal(result.data.preResolvedIntent?.intent, "clarify");
+  }
+  assert.equal(fullCalls, 0);
 });
 
 test("calls an injected Full adapter only after not_applicable", async () => {
-  await withEnv("AGENT_ORCHESTRATOR_RUNTIME", "langchain", async () => {
-    let fullCalls = 0;
-    const result = await runStepForFixture("wrt-1", {
-      runOrchestratorFn: async () => {
-        fullCalls += 1;
-        return singlePlan("compose_plan");
-      },
-    });
-
-    assert.equal(result.outcome, "continue");
-    assert.equal(fullCalls, 1);
+  let fullCalls = 0;
+  const result = await runStepForFixture("wrt-1", {
+    runOrchestratorFn: async () => {
+      fullCalls += 1;
+      return singlePlan("compose_plan");
+    },
   });
+
+  assert.equal(result.outcome, "continue");
+  assert.equal(fullCalls, 1);
 });
 
-for (const runtime of ["legacy", "unknown", ""] as const) {
-  test(`bypasses the Hybrid Boundary for ${runtime || "empty"} runtime values`, async () => {
-    const warn = console.warn;
-    console.warn = () => undefined;
-    try {
-      await withEnv("AGENT_ORCHESTRATOR_RUNTIME", runtime, async () => {
-        let fullCalls = 0;
-        const result = await runStepForFixture("qry-4", {
-          runOrchestratorFn: async () => {
-            fullCalls += 1;
-            return singlePlan("query_plan_progress");
-          },
-        });
-
-        assert.equal(result.outcome, "continue");
-        assert.equal(fullCalls, 1);
-      });
-    } finally {
-      console.warn = warn;
-    }
-  });
-}
-
 test("allows lower-seam tests to disable the Hybrid Boundary", async () => {
-  await withEnv("AGENT_ORCHESTRATOR_RUNTIME", "langchain", async () => {
-    let fullCalls = 0;
-    const result = await runStepForFixture("qry-4", {
-      hybridBoundaryMode: "disabled",
-      runOrchestratorFn: async () => {
-        fullCalls += 1;
-        return singlePlan("query_plan_progress");
-      },
-    });
-
-    assert.equal(result.outcome, "continue");
-    assert.equal(fullCalls, 1);
+  let fullCalls = 0;
+  const result = await runStepForFixture("qry-4", {
+    hybridBoundaryMode: "disabled",
+    runOrchestratorFn: async () => {
+      fullCalls += 1;
+      return singlePlan("query_plan_progress");
+    },
   });
+
+  assert.equal(result.outcome, "continue");
+  assert.equal(fullCalls, 1);
 });
 
 test("production compound path validates the candidate before Mapper", async () => {
@@ -205,11 +161,7 @@ test("production compound path validates the candidate before Mapper", async () 
     },
   };
 
-  const result = await withEnv(
-    "AGENT_ORCHESTRATOR_RUNTIME",
-    "langchain",
-    () => runOrchestrationStep(params),
-  );
+  const result = await runOrchestrationStep(params);
 
   assert.equal(validatorCalls, 1);
   assert.equal(mapperCalls, 0);
@@ -230,37 +182,35 @@ test("passes the Residual structured observer through unchanged", async () => {
   };
   let observerIdentityMatched = false;
 
-  await withEnv("AGENT_ORCHESTRATOR_RUNTIME", "langchain", async () => {
-    await runOrchestrationStep({
-      context: focusedFixture("cmp-4").context,
-      deferCompoundExecution: true,
-      emitStatus: () => undefined,
-      emitToken: () => undefined,
-      message: focusedFixture("cmp-4").message,
-      payload: {} as Payload,
-      pendingAction: null,
-      persistAgentTurn: async () => ({ id: 1 }) as AgentThread,
-      pushTrace: () => undefined,
-      residualPlannerProviderAttemptObserver: observer,
-      runResidualPlannerFn: async (options) => {
-        observerIdentityMatched = options.providerAttemptObserver === observer;
-        options.providerAttemptObserver?.({
-          attempt: 1,
-          passed: true,
-          phase: "semanticValidationCompleted",
-          safeProtocol: createSafeProtocolDiagnostics(),
-        });
-        return {
-          logicalCalls: 1,
-          providerAttempts: 1,
-          status: "success",
-          tasks: [residualWriteTask()],
-        };
-      },
-      tokenUsage,
-      trace: [],
-      user: { collection: "users", id: 1 },
-    });
+  await runOrchestrationStep({
+    context: focusedFixture("cmp-4").context,
+    deferCompoundExecution: true,
+    emitStatus: () => undefined,
+    emitToken: () => undefined,
+    message: focusedFixture("cmp-4").message,
+    payload: {} as Payload,
+    pendingAction: null,
+    persistAgentTurn: async () => ({ id: 1 }) as AgentThread,
+    pushTrace: () => undefined,
+    residualPlannerProviderAttemptObserver: observer,
+    runResidualPlannerFn: async (options) => {
+      observerIdentityMatched = options.providerAttemptObserver === observer;
+      options.providerAttemptObserver?.({
+        attempt: 1,
+        passed: true,
+        phase: "semanticValidationCompleted",
+        safeProtocol: createSafeProtocolDiagnostics(),
+      });
+      return {
+        logicalCalls: 1,
+        providerAttempts: 1,
+        status: "success",
+        tasks: [residualWriteTask()],
+      };
+    },
+    tokenUsage,
+    trace: [],
+    user: { collection: "users", id: 1 },
   });
 
   assert.equal(observerIdentityMatched, true);

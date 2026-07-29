@@ -2,7 +2,6 @@ import type {
   OrchestratorOutput,
   OrchestratorTask,
 } from "../llm/schemas/orchestrator-output";
-import type { OrchestratorRuntimeMode } from "./runtime-config";
 import type { AgentPromptContext } from "../prompts";
 import { normalizePlanTitle } from "../query/plan-title";
 import type {
@@ -95,9 +94,7 @@ export const createActorAuthorizedResourceSnapshot = (input: Readonly<{
 export const buildActorAuthorizedResourceSnapshot =
   createActorAuthorizedResourceSnapshot;
 
-export const isHybridQueryBoundaryEnabled = (
-  runtime: OrchestratorRuntimeMode,
-): boolean => runtime === "langchain";
+export const isHybridQueryBoundaryEnabled = (): true => true;
 
 const collectExplicitPlanIds = (message: string): number[] => {
   const normalized = message.normalize("NFKC");
