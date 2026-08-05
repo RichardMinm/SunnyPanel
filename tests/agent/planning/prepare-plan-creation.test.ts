@@ -305,8 +305,8 @@ test("LangGraph prepares draft creation through dry-run and does not execute", a
   assert.equal(dryRunIntentTitle, sampleDraft.title);
 });
 
-test("legacy pipeline is wired through the same prepare helper before readiness gate", () => {
-  const source = readFileSync("src/lib/agent/chat-pipeline/run-agent-chat-pipeline.ts", "utf8");
+test("Full LangGraph adapter is wired through the same prepare helper before readiness gate", () => {
+  const source = readFileSync("src/lib/agent/langgraph/full-adapter.ts", "utf8");
 
   assert.match(source, /evaluatePlanCreationPreparation/);
   assert.match(source, /applyPlanCreationPreparationToResolution/);

@@ -365,8 +365,8 @@ test("LangGraph prepares ChecklistDraft creation through dry-run and does not ex
   assert.equal(dryRunGroupCount, 1);
 });
 
-test("legacy pipeline is wired through checklist preparation before plan preparation", () => {
-  const source = readFileSync("src/lib/agent/chat-pipeline/run-agent-chat-pipeline.ts", "utf8");
+test("Full LangGraph adapter is wired through checklist preparation before plan preparation", () => {
+  const source = readFileSync("src/lib/agent/langgraph/full-adapter.ts", "utf8");
 
   assert.match(source, /evaluateChecklistCreationPreparation/);
   assert.match(source, /applyChecklistCreationPreparationToResolution/);

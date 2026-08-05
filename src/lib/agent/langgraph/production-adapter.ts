@@ -5,7 +5,7 @@ import { runDryRunAndProposeStep } from "@/lib/agent/chat-pipeline/dry-run-and-p
 import { runExecuteAndPersistStep } from "@/lib/agent/chat-pipeline/execute-and-persist-step";
 import { runOrchestrationStep } from "@/lib/agent/chat-pipeline/orchestration-step";
 import { runResolveIntentStep } from "@/lib/agent/chat-pipeline/resolve-intent-step";
-import type { RunAgentChatPipelineDeps } from "@/lib/agent/chat-pipeline/run-agent-chat-pipeline";
+import type { RunAgentChatPipelineDeps } from "@/lib/agent/chat-pipeline/runtime-deps";
 import {
   createRunFullLangGraphAgentChatPipeline,
   type FullLangGraphAdapterSteps,

@@ -128,13 +128,14 @@ test("failure-response.ts source does not contain banned words in user message",
   assert.ok(source.includes("USER_FAILURE_MESSAGE"));
 });
 
-test("handle-agent-chat-post.ts legacy fallback message is also user-safe", () => {
+test("handle-agent-chat-post.ts uses the safe LangGraph failure builder exclusively", () => {
   const source = read("src/lib/agent/chat-pipeline/handle-agent-chat-post.ts");
 
-  // The legacy mode failure message must also be clean
+  assert.match(source, /buildLangGraphFailureResponse/);
+  assert.doesNotMatch(source, /runtimeConfig\.mode/);
+  assert.doesNotMatch(source, /createRunAgentChatPipeline/);
   assert.doesNotMatch(source, /Agent 运行失败.*没有自动重试/);
   assert.doesNotMatch(source, /请检查最近的 AgentRun/);
-  assert.match(source, /会话状态已保留，请稍后重试/);
 });
 
 /* ── D0-BLOCKER-1: No retired heuristic reintroduction ── */

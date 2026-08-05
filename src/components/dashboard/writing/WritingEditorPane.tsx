@@ -108,11 +108,6 @@ const createOptions = dashboardContentCollections.map((collection) => ({
   label: `新${dashboardContentLabels[collection]}`,
 }));
 
-type WritingAssistExtra = {
-  replaceSelection?: (result: string) => void;
-  text?: string;
-};
-
 export function WritingEditorPane({
   document,
   draft,
@@ -129,7 +124,7 @@ export function WritingEditorPane({
   onUpdateDraft,
   saveState,
 }: WritingEditorPaneProps) {
-  const { error: aiError, isLoading: aiLoading, rememberStyle, runAssist } = useWritingAssist();
+  const { error: aiError, isLoading: aiLoading, runAssist } = useWritingAssist();
   const [publishError, setPublishError] = useState<null | string>(null);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
@@ -149,7 +144,7 @@ export function WritingEditorPane({
   }, [document]);
 
   const handleAssist = useCallback(
-    async (action: WritingAssistAction, extra?: WritingAssistExtra) => {
+    async (action: WritingAssistAction) => {
       if (!document || !draft) {
         return;
       }
@@ -158,7 +153,6 @@ export function WritingEditorPane({
         collection: document.collection,
         contentRich: draft.contentRich,
         summary: draft.summary,
-        text: extra?.text,
         title: draft.title,
       });
 
@@ -208,15 +202,6 @@ export function WritingEditorPane({
           return;
         }
 
-        if (extra?.text && extra.replaceSelection) {
-          extra.replaceSelection(response.result);
-          if (["condense", "expand", "polish", "rewrite"].includes(action)) {
-            void rememberStyle(action, response.result, {
-              collection: document.collection,
-              text: extra.text,
-            });
-          }
-        }
       }
 
       if (response.tags?.length) {
@@ -228,7 +213,7 @@ export function WritingEditorPane({
         });
       }
     },
-    [document, draft, onUpdateDraft, rememberStyle, runAssist],
+    [document, draft, onUpdateDraft, runAssist],
   );
 
   const handleWorkflow = useCallback(

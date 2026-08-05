@@ -20,7 +20,6 @@ const messageCardPath = "src/components/dashboard/agent/MessageCard.tsx";
 const conversationPath = "src/components/dashboard/agent/AgentConversation.tsx";
 const workbenchPath = "src/components/dashboard/agent/AgentWorkbench.tsx";
 const clientPath = "src/components/dashboard/agent-chat/use-agent-chat-messaging.ts";
-const legacyPipelinePath = "src/lib/agent/chat-pipeline/run-agent-chat-pipeline.ts";
 const langGraphPath = "src/lib/agent/langgraph/full-adapter.ts";
 
 const sampleDraft: ScheduleDraft = {
@@ -117,10 +116,8 @@ test("client attaches schedulingDraft from agent response", () => {
 });
 
 test("agent responses carry schedulingDraft from schedule readiness gate", () => {
-  const legacySource = read(legacyPipelinePath);
   const langGraphSource = read(langGraphPath);
 
-  assert.match(legacySource, /schedulingDraft: scheduleReadinessGate\.scheduleDraft/);
   assert.match(langGraphSource, /schedulingDraft: scheduleReadinessGate\.scheduleDraft/);
 });
 

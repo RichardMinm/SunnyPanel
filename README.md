@@ -218,8 +218,7 @@ npm run agent:checkpoint:setup
 - `Plan.agentContext/subtasks` 仅是业务展示投影，不参与确认前执行决策。
 - `agent-action-receipts` 使用 thread、action 和 `execute | rollback` 操作键保护业务写入与补偿重放。
 - 空工作区 onboarding 使用 PostgreSQL advisory lock 串行化跨 worker 初始化，避免首请求重复 seed。
-- `AGENT_GRAPH_RUNTIME` 默认不设置或设为 `langgraph`，所有有效意图、确认恢复和复合编排均走 LangGraph。
-- `AGENT_GRAPH_RUNTIME=legacy` 仅是显式紧急开关；legacy 与 LangGraph 共享同一事件历史。
+- 顶层 Agent runtime 固定使用 LangGraph。运行时回滚通过部署上一版本完成，不提供进程内 Legacy 切换。
 - Orchestrator 固定使用 LangChain Structured Output；没有 Legacy Orchestrator 运行分支或跨模式回退。
 - Payload migration 和 checkpoint setup 都必须作为部署步骤显式执行；HTTP 请求不会自动执行 DDL。
 
@@ -247,7 +246,6 @@ npm run dev
    - `DATABASE_URL` — 指向可访问的 PostgreSQL（Supabase、Neon、Railway 等）
    - `PAYLOAD_DB_PUSH` — 设为 `false`
    - `NEXT_PUBLIC_SERVER_URL` — 设为实际 HTTPS 域名
-   - `AGENT_GRAPH_RUNTIME` — 默认 `langgraph`；仅紧急回退时设为 `legacy`
 4. 部署后运行 `npm run seed` 或通过 `/admin` 创建管理员用户
 
 生产环境还需在数据库上执行 Payload migration（`npx payload migrate` 或 `npm run migrate`），并在应用接流量前显式执行一次 `npm run agent:checkpoint:setup`。
@@ -262,7 +260,7 @@ npm run dev
 6. 执行 `npm run build`。
 7. 启动服务并运行 Agent JSON/SSE 冒烟验证。
 
-Orchestrator 不提供运行时回退开关。`AGENT_GRAPH_RUNTIME=legacy` 只回滚工作流运行时，不会恢复已经移除的 Legacy Orchestrator。
+如需回滚顶层 Agent runtime，请部署上一已验证版本；当前版本不提供进程内 Legacy 切换。
 
 ### Docker 完整部署
 
@@ -277,7 +275,6 @@ docker compose up --build -d
 - `PAYLOAD_DB_PUSH` — 设为 `false`，通过 `npx payload migrate` 管理 schema
 - `DATABASE_URL` — PostgreSQL 连接串
 - `NEXT_PUBLIC_SERVER_URL` — 实际 HTTPS 域名（Docker 部署需前置反向代理做 SSL 终止）
-- `AGENT_GRAPH_RUNTIME` — `langgraph`（默认）；`legacy` 仅作紧急开关
 - LLM API key — 可选，未配置时 Agent 使用规则降级
 
 ### 本机生产模拟

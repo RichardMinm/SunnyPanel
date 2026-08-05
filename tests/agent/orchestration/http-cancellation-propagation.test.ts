@@ -5,9 +5,6 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { Payload } from "payload";
 
 import {
-  createRunAgentChatPipeline,
-} from "../../../src/lib/agent/chat-pipeline/run-agent-chat-pipeline";
-import {
   runOrchestrationStep,
 } from "../../../src/lib/agent/chat-pipeline/orchestration-step";
 import type {
@@ -39,59 +36,7 @@ const context = {
   plans: [],
 };
 
-// Mutation caught: removing the runner's terminal abort guard would allow
-// context loading, finalization, or persistence for a disconnected request.
-test("legacy runner terminates an already-cancelled turn without downstream work", async () => {
-  const caller = new AbortController();
-  caller.abort(new DOMException("Client disconnected", "AbortError"));
-  let finalizerCalls = 0;
-  let payloadAccesses = 0;
-  const payload = new Proxy({} as Payload, {
-    get() {
-      payloadAccesses += 1;
-      throw new Error("Payload access is forbidden after caller cancellation.");
-    },
-  });
-  const thread = {
-    id: 17,
-    lastIntent: null,
-    messages: [],
-    pendingAction: null,
-  } as unknown as AgentThread;
-  const run = createRunAgentChatPipeline({
-    baseTokenUsage: tokenUsage,
-    contextPreferences: null,
-    finalizeTurn: async ({ response }) => {
-      finalizerCalls += 1;
-      return response;
-    },
-    generateIntentWithAgentModel: async () => {
-      throw new Error("Intent resolution is forbidden after caller cancellation.");
-    },
-    intentModelEngine: "heuristic",
-    message: "帮我制定发布计划",
-    payload,
-    pendingAction: null,
-    resolvedHistory: [],
-    signal: caller.signal,
-    structuredConfirmation: null,
-    thread,
-    user: { id: 1 },
-    userPreferences: null,
-    workbenchMode: "plan",
-  });
-
-  const result = await run();
-
-  assert.equal(result.assistantMessage, "请求已被取消。");
-  assert.equal(result.intent, "clarify");
-  assert.equal(result.pendingAction, null);
-  assert.equal(result.threadId, thread.id);
-  assert.equal(finalizerCalls, 0);
-  assert.equal(payloadAccesses, 0);
-});
-
-// Mutation caught: dropping the request signal before the dispatcher would
+// Mutation caught: dropping the request signal before orchestration would
 // leave the structured Full Orchestrator running and eligible for recovery.
 test("caller cancellation reaches the production orchestration seam exactly once", async () => {
   const caller = new AbortController();

@@ -478,14 +478,14 @@ test("LangGraph prepares ScheduleDraft creation through dry-run and does not exe
   assert.equal(dryRunItemCount, 2);
 });
 
-test("legacy pipeline is wired through schedule preparation before readiness gate", () => {
-  const source = readFileSync("src/lib/agent/chat-pipeline/run-agent-chat-pipeline.ts", "utf8");
+test("Full LangGraph adapter is wired through schedule preparation before readiness gate", () => {
+  const source = readFileSync("src/lib/agent/langgraph/full-adapter.ts", "utf8");
 
   assert.match(source, /evaluateScheduleCreationPreparation/);
   assert.match(source, /applyScheduleCreationPreparationToResolution/);
   assert.ok(
     source.indexOf("const scheduleCreationPreparation = evaluateScheduleCreationPreparation") <
-      source.indexOf("const scheduleReadinessGate = effectiveScheduleCreationPreparation"),
+      source.indexOf("const scheduleReadinessGate = scheduleCreationPreparation.status"),
     "schedule prepare should run before schedule readiness",
   );
 });

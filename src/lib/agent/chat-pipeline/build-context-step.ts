@@ -1,7 +1,7 @@
 import type { Payload } from "payload";
 
 import { buildAgentContext, DEFAULT_AGENT_CONTEXT_BUDGET } from "@/lib/agent/context-builder";
-import type { ContextPreferences } from "@/lib/agent/chat-pipeline/handle-agent-chat-post";
+import type { ContextPreferences } from "@/lib/agent/chat-pipeline/runtime-deps";
 import { buildSharedContextSnapshot } from "@/lib/agent/shared-context";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { StreamTokenCallback } from "@/lib/agent/client";
@@ -43,7 +43,7 @@ export type BuildContextStepResult = {
 
 /**
  * 并行拉取工作台上下文源与相关记忆，再合成 buildAgentContext 结果。
- * 与 chat route 原 L453–468 对齐，供 run-agent-chat-pipeline 单点调用。
+ * 为 Full LangGraph runtime 构建统一的工作区上下文。
  */
 export const runBuildContextStep = async ({
   baseTokenUsage,

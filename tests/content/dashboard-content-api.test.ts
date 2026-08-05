@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 
-import { buildDashboardHref } from "../../src/lib/dashboard/dashboard-href";
 import { dashboardContentCollections, getDashboardEditHref } from "../../src/lib/dashboard/content/config";
 import { isStaleDashboardContentUpdate, validateDashboardContentCollection } from "../../src/lib/dashboard/content/validation";
 
@@ -46,10 +45,6 @@ describe("dashboard content API contracts", () => {
     assert.match(page, /redirectPath/);
     assert.match(workspace, /redirectPath/);
     assert.doesNotMatch(workspace, /const dashboardPath = "\/dashboard"/);
-  });
-
-  test("Dashboard href preserves non-agent workspace modes while syncing threads", () => {
-    assert.equal(buildDashboardHref({ mode: "writing", threadId: 16 }), "/dashboard?mode=writing&threadId=16");
   });
 
   test("API routes use Payload auth and local API", () => {

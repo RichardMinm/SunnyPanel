@@ -279,29 +279,13 @@ test("LangGraph ChecklistDraft generation returns before dry-run or execute", as
   assert.equal(trace.some((step) => /policy/i.test(step.id) || /Policy Guard/i.test(step.title)), false);
 });
 
-test("legacy pipeline is wired to generate checklist drafts before prepare/readiness/dry-run", () => {
-  const source = readFileSync("src/lib/agent/chat-pipeline/run-agent-chat-pipeline.ts", "utf8");
-
-  assert.match(source, /evaluateChecklistDraftGeneration/);
-  assert.ok(
-    source.indexOf("const checklistDraftGeneration = evaluateChecklistDraftGeneration") <
-      source.indexOf("const planCreationPreparation = checklistCreationPreparation.status"),
-    "checklist draft generation should run before prepare creation",
-  );
-  assert.ok(
-    source.indexOf("const checklistDraftGeneration = evaluateChecklistDraftGeneration") <
-      source.indexOf("const dryResult = await runDryRunAndProposeStep"),
-    "checklist draft generation should run before dry-run",
-  );
-});
-
-test("LangGraph path is wired through checklist draft helper before dry-run", () => {
+test("Full LangGraph adapter is wired through checklist draft helper before dry-run", () => {
   const source = readFileSync("src/lib/agent/langgraph/full-adapter.ts", "utf8");
 
   assert.match(source, /evaluateChecklistDraftGeneration/);
   assert.ok(
     source.indexOf("const checklistDraftGeneration = evaluateChecklistDraftGeneration") <
       source.indexOf("const planCreationPreparation = checklistCreationPreparation.status"),
-    "checklist draft generation should run before prepare creation in LangGraph",
+    "checklist draft generation should run before prepare creation in Full LangGraph",
   );
 });

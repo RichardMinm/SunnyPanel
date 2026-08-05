@@ -25,7 +25,7 @@ import {
   type runOrchestrationStep,
 } from "@/lib/agent/chat-pipeline/orchestration-step";
 import type { runResolveIntentStep } from "@/lib/agent/chat-pipeline/resolve-intent-step";
-import type { RunAgentChatPipelineDeps } from "@/lib/agent/chat-pipeline/run-agent-chat-pipeline";
+import type { RunAgentChatPipelineDeps } from "@/lib/agent/chat-pipeline/runtime-deps";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import {
   executeAgentIntent,

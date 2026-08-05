@@ -3,15 +3,13 @@ import "server-only";
 import { NextResponse } from "next/server";
 import type { Payload } from "payload";
 
-import { createRunAgentChatPipeline } from "@/lib/agent/chat-pipeline/run-agent-chat-pipeline";
 import { parseStructuredConfirmation } from "@/lib/agent/chat-pipeline/confirmation-step";
+import type { ContextPreferences } from "@/lib/agent/chat-pipeline/runtime-deps";
 import {
   createAgentChatResponse,
   createAgentChatStream,
 } from "@/lib/agent/chat-pipeline/stream-envelope";
 import { generateIntentWithAgentModel, getAgentIntentModelEngine } from "@/lib/agent/client";
-import { getAgentGraphRuntimeConfig } from "@/lib/agent/langgraph/config";
-import { createAgentRuntimeRunner } from "@/lib/agent/langgraph/dispatcher";
 import { buildLangGraphFailureResponse } from "@/lib/agent/langgraph/failure-response";
 import { createRunProductionLangGraphAgentChatPipeline } from "@/lib/agent/langgraph/production-adapter";
 import { logAgentEvent } from "@/lib/agent/logger";
@@ -71,11 +69,6 @@ const parseWorkbenchMode = (value: unknown): AgentWorkbenchMode | null => {
   }
 
   return (WORKBENCH_MODES as readonly string[]).includes(value) ? (value as AgentWorkbenchMode) : null;
-};
-
-export type ContextPreferences = {
-  excluded: string[];
-  pinned: string[];
 };
 
 const parseContextPreferences = (value: unknown): ContextPreferences | null => {
@@ -289,13 +282,8 @@ export const handleAgentChatPost = async (input: {
     userPreferences,
     workbenchMode,
   };
-  const runtimeConfig = getAgentGraphRuntimeConfig();
-  const selectedRunner = createAgentRuntimeRunner({
-    config: runtimeConfig,
-    createLangGraphRunner: () =>
-      createRunProductionLangGraphAgentChatPipeline(pipelineDeps),
-    createLegacyRunner: () => createRunAgentChatPipeline(pipelineDeps),
-  });
+  const selectedRunner =
+    createRunProductionLangGraphAgentChatPipeline(pipelineDeps);
   const runPipeline: typeof selectedRunner = async (...args) => {
     try {
       const result = await selectedRunner(...args);
@@ -359,27 +347,13 @@ export const handleAgentChatPost = async (input: {
         });
       }
 
-      const response =
-        runtimeConfig.mode === "legacy"
-          ? {
-              assistantMessage:
-                "处理请求时遇到问题，你的会话状态已保留，请稍后重试。",
-              confidence: 0,
-              engine: "workflow" as const,
-              intent: "clarify" as const,
-              pendingAction,
-              threadId: thread.id,
-              tokenUsage: baseTokenUsage,
-              turnId,
-              workbenchMode: workbenchMode ?? undefined,
-            }
-          : buildLangGraphFailureResponse({
-              baseTokenUsage,
-              error,
-              pendingAction,
-              threadId: thread.id,
-              workbenchMode,
-            });
+      const response = buildLangGraphFailureResponse({
+        baseTokenUsage,
+        error,
+        pendingAction,
+        threadId: thread.id,
+        workbenchMode,
+      });
 
       return finalizeTurn({
         existingMemories: [],

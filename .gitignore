@@ -15,6 +15,7 @@
 /.agent-test-dist
 /test-results
 /playwright-report
+/.playwright-cli
 /tests/agent-test-results.txt
 
 # local IDE / agent tooling
@@ -59,6 +60,9 @@ tsconfig.*.tsbuildinfo
 
 # database backups
 /backups
+
+# local generated artifacts
+/outputs
 
 # internal planning / generated reports
 /docs/superpowers/

@@ -285,34 +285,13 @@ test("LangGraph revise_plan_draft returns draft response without dry-run or exec
   assert.ok(response.planningDraft?.stages.some((stage) => /测试|修复/u.test(stage.title)));
 });
 
-test("legacy pipeline is wired to revise drafts before prepare/readiness/dry-run", () => {
-  const source = readFileSync("src/lib/agent/chat-pipeline/run-agent-chat-pipeline.ts", "utf8");
-
-  assert.match(source, /evaluatePlanDraftRevision/);
-  assert.ok(
-    source.indexOf("const planDraftRevision = evaluatePlanDraftRevision") <
-      source.indexOf("const planCreationPreparation = checklistCreationPreparation.status"),
-    "draft revision should run before prepare creation",
-  );
-  assert.ok(
-    source.indexOf("const planDraftRevision = evaluatePlanDraftRevision") <
-      source.indexOf("const planReadinessGate ="),
-    "draft revision should run before readiness gate",
-  );
-  assert.ok(
-    source.indexOf("const planDraftRevision = evaluatePlanDraftRevision") <
-      source.indexOf("const dryResult = await runDryRunAndProposeStep"),
-    "draft revision should be before dry-run",
-  );
-});
-
-test("LangGraph path is wired through the same revise helper before dry-run", () => {
+test("Full LangGraph adapter is wired through the same revise helper before dry-run", () => {
   const source = readFileSync("src/lib/agent/langgraph/full-adapter.ts", "utf8");
 
   assert.match(source, /evaluatePlanDraftRevision/);
   assert.ok(
     source.indexOf("const planDraftRevision = evaluatePlanDraftRevision") <
       source.indexOf("const planCreationPreparation = checklistCreationPreparation.status"),
-    "draft revision should run before prepare creation in LangGraph",
+    "draft revision should run before prepare creation in Full LangGraph",
   );
 });
