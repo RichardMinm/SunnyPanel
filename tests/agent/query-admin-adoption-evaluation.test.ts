@@ -171,7 +171,4 @@ test("evaluation report is aggregate-only and source requires explicit live dual
   assert.match(script, /AGENT_QUERY_ADOPTION/);
   assert.doesNotMatch(script, /writeFileSync|\/tmp\/|payload\.(?:create|delete|update)/);
 
-  const testMap = fs.readFileSync("tests/TEST_MAP.md", "utf8");
-  assert.match(testMap, /query-admin-adoption-evaluation\.mjs/);
-  assert.match(testMap, /AGENT_QUERY_ADOPTION=admin/);
 });

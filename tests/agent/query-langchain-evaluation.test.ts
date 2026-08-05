@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 import { AIMessageChunk } from "@langchain/core/messages";
@@ -204,7 +203,7 @@ test("evaluation result retains no raw prompt, response, facts, reasoning, or co
   assert.doesNotMatch(serialized, /"(userMessage|facts|prompt|response|reasoning|answer|commentary|secret)"/i);
 });
 
-test("script refuses database access and TEST_MAP documents explicit DB-free live execution", () => {
+test("script refuses database access without exposing the connection string", () => {
   const script = resolve(process.cwd(), "scripts/query-langchain-evaluation.mjs");
   const child = spawnSync(process.execPath, ["--import", "tsx", script], {
     encoding: "utf8",
@@ -213,6 +212,4 @@ test("script refuses database access and TEST_MAP documents explicit DB-free liv
   assert.equal(child.status, 1);
   assert.match(child.stderr, /must not connect to a database/);
   assert.doesNotMatch(child.stdout + child.stderr, /postgresql:\/\//);
-  const testMap = readFileSync(resolve(process.cwd(), "tests/TEST_MAP.md"), "utf8");
-  assert.match(testMap, /DATABASE_URL= AGENT_LIVE_LLM_EVAL=1 AGENT_QUERY_RUNTIME=langchain/);
 });

@@ -9,6 +9,7 @@ export type DashboardIconName =
   | "checklist"
   | "chevronDown"
   | "command"
+  | "copy"
   | "debug"
   | "document"
   | "inbox"
@@ -65,6 +66,12 @@ const ICON_PATHS: Record<DashboardIconName, ReactNode> = {
     <>
       <path d="M7.25 7.25h5.5v5.5h-5.5z" />
       <path d="M7.25 7.25H6a1.75 1.75 0 1 1 1.75-1.75v1.75M12.75 7.25V5.5a1.75 1.75 0 1 1 1.75 1.75h-1.75M12.75 12.75H14a1.75 1.75 0 1 1-1.75 1.75v-1.75M7.25 12.75v1.75A1.75 1.75 0 1 1 5.5 12.75h1.75" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="7.25" y="7.25" width="8" height="8" rx="1.25" />
+      <path d="M12.75 7.25V5.5a.75.75 0 0 0-.75-.75H5.5a.75.75 0 0 0-.75.75V12a.75.75 0 0 0 .75.75h1.75" />
     </>
   ),
   debug: (

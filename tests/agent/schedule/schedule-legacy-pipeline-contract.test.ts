@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-// R6-C1-E: heuristic module deleted — stub mimicking old shape
-const parseComposeScheduleItemIntent = (_msg: string) => ({ args: { sourceText: _msg, title: null } as Record<string, unknown>, confidence: 0.7, intent: "compose_schedule_item" as const });
 import { dryRunAgentIntent } from "../../../src/lib/agent/safety";
 import { restoreConfirmedIntent } from "../../../src/lib/agent/chat-pipeline/confirmation-step";
 import type { AgentToolDryRunContext } from "../../../src/lib/agent/tool-registry";
@@ -30,17 +27,6 @@ const dryRunContext: AgentToolDryRunContext = {
   resolveChecklistGroupForAppend: async () => ({ question: null, resolved: null }),
   resolveChecklistItem: async () => ({ question: null, resolved: null }),
 };
-
-test("legacy schedule pipeline resolves compose_schedule_item from a single-item request", () => {
-  const intent = parseComposeScheduleItemIntent(userMessage);
-
-  assert.ok(intent, "intent should not be null");
-  assert.equal(intent?.intent, "compose_schedule_item");
-  assert.equal(intent?.args.sourceText, userMessage);
-  assert.equal(intent?.confidence, 0.7);
-  // No quoted title in this message format
-  assert.equal(intent?.args.title, null);
-});
 
 test("legacy schedule pipeline composes a deterministic proposal", () => {
   const proposal = composeScheduleProposal({ sourceText: userMessage }, { now: fixedNow });
@@ -327,34 +313,4 @@ test("legacy schedule UI helper falls back to args proposal", () => {
 
   const extracted = getScheduleProposalFromAction(action);
   assert.deepEqual(extracted, proposal);
-});
-
-test("architecture guard: legacy schedule result and approval UI remain wired", () => {
-  const read = (relativePath: string) => readFileSync(relativePath, "utf8");
-
-  const messageCard = read("src/components/dashboard/agent/MessageCard.tsx");
-  const scheduleCard = read("src/components/dashboard/agent/ScheduleResultCard.tsx");
-  const approvalCard = read("src/components/dashboard/agent/AgentApprovalCard.tsx");
-  const conversation = read("src/components/dashboard/agent/AgentConversation.tsx");
-
-  // MessageCard wires ScheduleResultCard when parseScheduleResultMessage returns data
-  assert.match(messageCard, /parseScheduleResultMessage/);
-  assert.match(messageCard, /ScheduleResultCard/);
-  assert.match(messageCard, /structuredCard\.data/);
-
-  // ScheduleResultCard renders schedule details
-  assert.match(scheduleCard, /aria-label="日程创建结果"/);
-  assert.match(scheduleCard, /已创建日程/);
-  assert.match(scheduleCard, /result\.title/);
-  assert.match(scheduleCard, /result\.date/);
-  assert.match(scheduleCard, /result\.timeRange/);
-  assert.match(scheduleCard, /查看日程/);
-
-  // AgentApprovalCard renders schedule proposal details
-  assert.match(approvalCard, /getScheduleProposalFromAction/);
-  assert.match(approvalCard, /scheduleProposal/);
-
-  // AgentConversation wires approval card for awaiting confirmation
-  assert.match(conversation, /AgentApprovalCard/);
-  assert.match(conversation, /await_confirmation/);
 });

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 
-import { engineLabelMap, initialMessages } from "@/components/dashboard/agent-chat/constants";
+import { initialMessages } from "@/components/dashboard/agent-chat/constants";
 import type { AgentInspectorTab, ContextPreferences } from "@/components/dashboard/agent";
+import { shouldCancelPendingActionKey } from "@/components/dashboard/agent/composer-keyboard";
 import {
   notifyAgentTerminalDomainRefresh,
   notifyRollbackDomainRefresh,
@@ -268,7 +269,7 @@ export function useAgentChatMessaging({
       setArtifactsRollbackError(null);
       setLastRollbackResult(null);
       setMessages(nextHistory);
-      setStatusText("正在让 Agent 解析并执行...");
+      setStatusText("Sunny 正在处理...");
       setStreamingState("thinking");
       setTraceSteps([]);
       setTurnAudit(null);
@@ -438,7 +439,7 @@ export function useAgentChatMessaging({
         if (responseData.tokenUsage) {
           setTokenUsage(responseData.tokenUsage);
         }
-        setStatusText(responseData.engine ? `最近一次：${engineLabelMap[responseData.engine]}` : "已完成");
+        setStatusText("已完成");
         if (suggestionSource) {
           setActiveSuggestionSource(null);
         }
@@ -525,7 +526,17 @@ export function useAgentChatMessaging({
 
     const action = pendingAction.action;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
+      const target = event.target;
+      const targetIsEditable =
+        target instanceof HTMLElement &&
+        (
+          target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT"
+        );
+
+      if (!shouldCancelPendingActionKey(event, targetIsEditable)) {
         return;
       }
 
@@ -552,7 +563,7 @@ export function useAgentChatMessaging({
     setThreadId(null);
     setPendingAction(null);
     setMessages(initialMessages);
-    setStatusText("已开启新任务");
+    setStatusText("等待输入");
     setIsSubmitting(false);
     setStreamingState("idle");
     setTraceSteps([]);

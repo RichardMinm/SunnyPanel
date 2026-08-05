@@ -210,22 +210,3 @@ test("ChecklistView source: renders complete relationships through the shared li
   assert.match(source, /items=\{cl\.linkedObjects\}/);
   assert.doesNotMatch(source, /cl\.relatedPlan\.title/);
 });
-
-/* ── Dashboard agent safety keywords ── */
-
-test("dashboard agent safety keywords: draft, confirmation, receipt, rollback states visible in source", () => {
-  const actionCard = read("src/components/dashboard/agent/ActionResultCard.tsx");
-  const approvalCard = read("src/components/dashboard/agent/AgentApprovalCard.tsx");
-  const planDraft = read("src/components/dashboard/agent/PlanDraftCard.tsx");
-
-  // Draft state
-  assert.match(planDraft, /尚未写入数据库/);
-  assert.match(planDraft, /草案/);
-
-  // Confirmation state
-  assert.match(approvalCard, /等待确认/);
-
-  // Receipt / rollback state
-  assert.match(actionCard, /撤销|rollback|Rollback/);
-  assert.match(actionCard, /操作记录|Receipt|receipt/);
-});

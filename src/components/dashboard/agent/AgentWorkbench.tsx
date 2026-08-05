@@ -9,19 +9,17 @@ import type {
 } from "@/lib/agent/schemas";
 import type {
   AgentStreamChangeEvent,
-  AgentStreamProgressEvent,
   AgentStreamStageEvent,
 } from "@/lib/agent/stream-events";
-import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 import { AgentComposer } from "./AgentComposer";
 import { AgentConversation } from "./AgentConversation";
 import { AgentErrorBoundary } from "./AgentErrorBoundary";
 import { MemoryWorkspace } from "./MemoryWorkspace";
-import { useDashboardInspectorControl } from "../DashboardInspectorControlContext";
 import { useDashboardMode } from "../DashboardModeContext";
 
 type AgentWorkbenchProps = {
+  composerFocusRequestKey: number;
   errorMessage: null | string;
   input: string;
   isSubmitting: boolean;
@@ -36,22 +34,19 @@ type AgentWorkbenchProps = {
   onSendMessage?: (message: string) => Promise<void> | void;
   onStop?: () => void;
   onSubmit: () => void;
-  onWorkbenchModeChange: (mode: AgentWorkbenchMode) => void;
   pendingAction: null | PendingAction;
   statusLabel: string;
   streamChanges: AgentStreamChangeEvent[];
-  streamProgress: AgentStreamProgressEvent[];
   streamStages: AgentStreamStageEvent[];
-  thinkingContent: string;
   threadId: null | number;
   threadTitle: string;
   traceSteps: AgentTraceStep[];
   transcriptRef: RefObject<HTMLDivElement | null>;
-  workbenchMode: AgentWorkbenchMode;
 };
 
 export function AgentWorkbench(props: AgentWorkbenchProps) {
   const {
+    composerFocusRequestKey,
     errorMessage,
     input,
     isSubmitting,
@@ -66,22 +61,17 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     onSendMessage,
     onStop,
     onSubmit,
-    onWorkbenchModeChange,
     pendingAction,
     statusLabel,
     streamChanges,
-    streamProgress,
     streamStages,
-    thinkingContent,
     threadId,
     threadTitle,
     traceSteps,
     transcriptRef,
-    workbenchMode,
   } = props;
 
   const dashboardMode = useDashboardMode();
-  const { debugMode } = useDashboardInspectorControl();
 
   const displayTitle = useMemo(() => {
     if (threadTitle && threadTitle !== "Agent Thread") return threadTitle;
@@ -108,11 +98,6 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
               messages={messages}
               onArchiveThread={onArchiveThread}
               onCancelApproval={onCancelApproval}
-              onCapabilitySelect={(prompt) => {
-                onInputChange(prompt);
-                // Use setTimeout to let the input update before submitting
-                setTimeout(() => onSubmit(), 0);
-              }}
               onConfirmApproval={onConfirmApproval}
               onEditApproval={onEditApproval}
               onChecklistDraftPrepareCreate={
@@ -164,24 +149,20 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
                   : () => onEditApproval("plan")
               }
               onRenameThread={onRenameThread}
-              debugMode={debugMode}
               pendingAction={pendingAction}
               statusLabel={statusLabel}
               streamChanges={streamChanges}
-              streamProgress={streamProgress}
               streamStages={streamStages}
-              thinkingContent={thinkingContent}
               threadId={threadId}
               traceSteps={traceSteps}
               transcriptRef={transcriptRef}
-              workbenchMode={workbenchMode}
             />
           )}
         </div>
         <AgentComposer
+          focusRequestKey={composerFocusRequestKey}
           disabled={isSubmitting}
           input={input}
-          modelName="DeepSeek V3"
           onCancelApproval={onCancelApproval}
           onConfirmApproval={onConfirmApproval}
           onEditApproval={onEditApproval}
@@ -195,10 +176,8 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
           }
           onStop={onStop}
           onSubmit={onSubmit}
-          onWorkbenchModeChange={onWorkbenchModeChange}
           pendingAction={pendingAction}
           placeholder="例如：整理今天最应该推进的一个动作"
-          workbenchMode={workbenchMode}
         />
       </div>
     </AgentErrorBoundary>

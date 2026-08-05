@@ -66,7 +66,6 @@ test("AgentComposer has pending confirmation mode without changing ordinary inpu
   assert.match(source, /取消/);
   assert.match(source, /type="button"/);
   assert.match(source, /type="submit"/);
-  assert.match(source, /activeMode\.placeholder \|\| placeholder/);
 });
 
 test("AgentWorkbench wires Composer pending actions to existing approval handlers", () => {

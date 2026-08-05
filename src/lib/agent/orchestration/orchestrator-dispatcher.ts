@@ -8,6 +8,7 @@
  */
 
 import type { AgentPromptContext } from "../prompts";
+import type { AgentChatMessage } from "../schemas";
 import type { OrchestratorPlan } from "./types";
 import {
   projectOrchestratorFailureToSafePlan,
@@ -20,6 +21,7 @@ import type {
 } from "./model-call-budget";
 
 export type OrchestratorCallAccountingOptions = Readonly<{
+  history?: readonly AgentChatMessage[];
   modelCallRecorder?: ModelCallBudgetRecorder;
   role?: Extract<ModelCallRole, "orchestrator" | "replan">;
   scopeId?: string;
@@ -66,6 +68,7 @@ export const dispatchOrchestratorResult: OrchestratorService = async (
         modelCallRecorder: accounting?.modelCallRecorder,
         modelCallRole: role,
         modelCallScopeId: scopeId,
+        history: accounting?.history,
         signal,
       }),
   });
@@ -85,7 +88,7 @@ export const dispatchOrchestrator: OrchestratorPlanService = async (
     accounting,
   );
   return result.status === "unavailable"
-    ? projectOrchestratorFailureToSafePlan()
+    ? projectOrchestratorFailureToSafePlan(result.reason)
     : result.plan;
 };
 

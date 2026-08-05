@@ -265,7 +265,7 @@ test("executed plan and checklist messages render ActionResultCard result states
   assert.match(planMarkup, /sunny-action-result-card/);
   assert.match(planMarkup, /计划已创建/);
   assert.match(planMarkup, /SunnyPanel 第一版上线/);
-  assert.match(planMarkup, /可回滚/);
+  assert.match(planMarkup, /可撤销/);
   assert.doesNotMatch(planMarkup, /计划草案/);
   assert.doesNotMatch(planMarkup, /等待确认/);
 
@@ -274,7 +274,7 @@ test("executed plan and checklist messages render ActionResultCard result states
   assert.match(checklistMarkup, /2 个分组/);
   assert.match(checklistMarkup, /8 个条目/);
   assert.match(checklistMarkup, /已关联到计划 #42/);
-  assert.match(checklistMarkup, /可回滚/);
+  assert.match(checklistMarkup, /可撤销/);
   assert.doesNotMatch(checklistMarkup, /清单草案/);
   assert.doesNotMatch(checklistMarkup, /等待确认/);
 });
@@ -291,9 +291,9 @@ test("completed checklist item result keeps Timeline feedback in result state", 
   assert.match(markup, /sunny-action-result-card/);
   assert.match(markup, /清单项已完成/);
   assert.match(markup, /修复登录页/);
-  assert.match(markup, /Timeline/);
+  assert.match(markup, /时间线/);
   assert.match(markup, /已记录\/更新/);
-  assert.match(markup, /可回滚/);
+  assert.match(markup, /可撤销/);
   assert.doesNotMatch(markup, /清单草案/);
 });
 

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AgentResultDelivery } from "./AgentResultDelivery";
 import type { PlanOverviewData } from "./utils";
 
 type PlanOverviewCardProps = {
@@ -30,11 +30,7 @@ export function PlanOverviewCard({ data }: PlanOverviewCardProps) {
           </div>
         ) : null}
       </div>
-      <div className="sunny-agent-result-card-actions">
-        <Link className="sunny-agent-result-card-link" href="/dashboard">
-          查看计划
-        </Link>
-      </div>
+      <AgentResultDelivery statusLabel="计划信息已整理" workspace="plan" />
     </section>
   );
 }

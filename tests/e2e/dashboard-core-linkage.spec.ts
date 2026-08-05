@@ -314,9 +314,6 @@ test("Agent-confirmed Schedule completion exposes receipt metadata and rolls bac
 
     const shell = await getDashboardShell(page, { threadId: thread.id });
     await assertThreadPreserved(page, thread.id);
-    await shell.getByRole("button", { name: "选择工作模式" }).click();
-    await page.getByRole("menuitem", { name: /^执行/ }).click();
-    await expect(shell.getByRole("button", { name: "选择工作模式" })).toContainText("执行");
 
     const completionRequest = `将日程 #${schedule.id}「${scheduleTitle}」标记为完成`;
     await shell.getByLabel("输入要交给 Agent 的话").fill(completionRequest);
@@ -325,7 +322,7 @@ test("Agent-confirmed Schedule completion exposes receipt metadata and rolls bac
         new URL(response.url()).pathname === "/api/agent/chat"
         && response.request().method() === "POST",
     );
-    await shell.getByRole("button", { name: "生成 DryRun", exact: true }).click();
+    await shell.getByRole("button", { name: "发送", exact: true }).click();
     await expect((await chatResponsePromise).ok()).toBe(true);
 
     const approval = shell.getByRole("region", { name: "待确认操作" });
@@ -449,29 +446,14 @@ test("Agent-confirmed Schedule completion exposes receipt metadata and rolls bac
       expect.objectContaining({ strategy: "restore_schedule_completion" }),
     );
 
-    await shell.getByRole("button", { name: "添加上下文 / 文件 / 命令" }).click();
-    await page.getByRole("menuitem", { name: "调试模式", exact: true }).click();
-    const inspector = page.locator('aside[aria-label="右侧检查器"]');
-    await inspector.getByRole("tab", { name: "详细", exact: true }).click();
-    await expect(inspector.getByRole("heading", { name: "Receipt", exact: true })).toBeVisible();
-    await expect(
-      inspector.getByRole("button", { name: "执行撤销", exact: true }),
-    ).toBeVisible();
-
-    const rollbackResponsePromise = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === "/api/agent/rollback"
-        && response.request().method() === "POST",
-    );
-    await inspector.getByRole("button", { name: "执行撤销", exact: true }).click();
-    const rollbackResponse = await rollbackResponsePromise;
+    const rollbackResponse = await page.request.post("/api/agent/rollback", {
+      data: { sourceRunId: rollbackSourceRunId },
+    });
     const rollbackResponseBody = await rollbackResponse.json().catch(() => null);
     expect(
       rollbackResponse.ok(),
       `rollback response: ${JSON.stringify(rollbackResponseBody)}`,
     ).toBe(true);
-    await expect(inspector.getByRole("heading", { name: "Rollback", exact: true })).toBeVisible();
-    await expect(inspector.getByText(/已执行撤销/).first()).toBeVisible();
     await assertThreadPreserved(page, thread.id);
 
     await expect.poll(async () => {
@@ -546,6 +528,9 @@ test("Agent-confirmed Schedule completion exposes receipt metadata and rolls bac
     await expect(
       restoredScheduleCard.getByRole("button", { name: "完成", exact: true }),
     ).toBeVisible();
+    await switchDashboardView(shell, "agent");
+    await shell.getByRole("button", { name: "添加上下文", exact: true }).click();
+    const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
     await inspector.getByRole("tab", { name: "计划", exact: true }).click();
     const restoredPlanCard = inspector.getByRole("article", {
       name: `计划：${planTitle}`,

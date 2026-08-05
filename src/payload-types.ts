@@ -603,6 +603,37 @@ export interface TimelineEvent {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "schedule-items".
+ */
+export interface ScheduleItem {
+  id: number;
+  title: string;
+  description?: string | null;
+  date: string;
+  /**
+   * 使用 HH:mm，例如 09:30。全天事项可留空。
+   */
+  startTime?: string | null;
+  /**
+   * 使用 HH:mm，例如 10:30。全天事项可留空。
+   */
+  endTime?: string | null;
+  isAllDay?: boolean | null;
+  status: 'planned' | 'done' | 'skipped' | 'canceled';
+  priority: 'low' | 'medium' | 'high';
+  sourceType: 'plan' | 'checklist' | 'manual' | 'agent';
+  category?: ('course' | 'study' | 'plan_action' | 'agent' | 'exam' | 'default') | null;
+  relatedPlan?: (number | null) | Plan;
+  relatedChecklist?: (number | null) | Checklist;
+  relatedChecklistItemKey?: string | null;
+  agentBrief?: string | null;
+  createdBy: 'manual' | 'agent';
+  conflictNote?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "pages".
  */
 export interface Page {
@@ -652,37 +683,6 @@ export interface Page {
   status: 'draft' | 'published' | 'archived';
   visibility: 'public' | 'private';
   writingCategory?: (number | null) | WritingCategory;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "schedule-items".
- */
-export interface ScheduleItem {
-  id: number;
-  title: string;
-  description?: string | null;
-  date: string;
-  /**
-   * 使用 HH:mm，例如 09:30。全天事项可留空。
-   */
-  startTime?: string | null;
-  /**
-   * 使用 HH:mm，例如 10:30。全天事项可留空。
-   */
-  endTime?: string | null;
-  isAllDay?: boolean | null;
-  status: 'planned' | 'done' | 'skipped' | 'canceled';
-  priority: 'low' | 'medium' | 'high';
-  sourceType: 'plan' | 'checklist' | 'manual' | 'agent';
-  category?: ('course' | 'study' | 'plan_action' | 'agent' | 'exam' | 'default') | null;
-  relatedPlan?: (number | null) | Plan;
-  relatedChecklist?: (number | null) | Checklist;
-  relatedChecklistItemKey?: string | null;
-  agentBrief?: string | null;
-  createdBy: 'manual' | 'agent';
-  conflictNote?: string | null;
   updatedAt: string;
   createdAt: string;
 }

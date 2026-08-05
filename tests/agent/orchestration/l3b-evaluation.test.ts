@@ -460,7 +460,7 @@ test("freezes and hashes the exact secret-free evaluation configuration", () => 
   );
   assert.equal(
     L3B_PROMPT_PROTOCOL_VERSION,
-    "l3b-request-semantic-boundary-v1",
+    "l3b-capability-manifest-v1",
   );
   assert.doesNotMatch(JSON.stringify(L3B_EVALUATION_CONFIG), /apiKey|secret|sk-/i);
   assert.match(L3B_EVALUATION_CONFIG_HASH, /^[a-f0-9]{64}$/);
@@ -470,7 +470,7 @@ test("freezes and hashes the exact secret-free evaluation configuration", () => 
   );
   assert.equal(
     L3B_EVALUATION_CONFIG_HASH,
-    "4f435d40d8a0d777973c92ade0f8161c2c64a04bd4751768c56eca7afe60adcb",
+    "59da803359b893f3fde5fd687af8d924b21f4e53ad1af45750fe0ee667fa1216",
   );
 
   const reversed = Object.fromEntries(

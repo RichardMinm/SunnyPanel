@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AgentResultDelivery } from "./AgentResultDelivery";
 import type { ScheduleResultSummary } from "./utils";
 
 type ScheduleResultCardProps = {
@@ -20,11 +20,10 @@ export function ScheduleResultCard({ result }: ScheduleResultCardProps) {
           <strong>{result.timeRange}</strong>
         </div>
       </div>
-      <div className="sunny-agent-result-card-actions">
-        <Link className="sunny-agent-result-card-link" href="/dashboard">
-          查看日程
-        </Link>
-      </div>
+      <AgentResultDelivery
+        statusLabel="日程已保存"
+        workspace="schedule"
+      />
     </section>
   );
 }

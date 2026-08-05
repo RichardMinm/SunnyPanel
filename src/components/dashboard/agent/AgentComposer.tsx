@@ -1,22 +1,22 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 
 import type { PendingAction } from "@/lib/agent/schemas";
-import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 import { AppButton } from "@/components/primitives/AppButton";
 import { AppIconButton } from "@/components/primitives/AppIconButton";
 import { useDashboardInspectorControl } from "../DashboardInspectorControlContext";
-import { DashboardIcon, InspectorPanelIcon } from "../icons";
-import { ComposerAddMenu } from "./ComposerAddMenu";
-import { ComposerModeSelect, getComposerModeOption } from "./ComposerModeSelect";
+import { InspectorPanelIcon } from "../icons";
+import { useDashboardMotion } from "../motion/dashboard-motion";
+import { shouldSubmitComposerKey } from "./composer-keyboard";
 import { formatIntentLabel } from "./constants";
 
 type AgentComposerProps = {
   disabled?: boolean;
+  focusRequestKey: number;
   input: string;
-  modelName?: string;
   onCancelApproval?: () => void;
   onConfirmApproval?: () => void;
   onEditApproval?: (kind: "plan" | "schedule" | "generic") => void;
@@ -24,18 +24,16 @@ type AgentComposerProps = {
   onReturnToEditApproval?: () => void;
   onStop?: () => void;
   onSubmit: () => void;
-  onWorkbenchModeChange: (mode: AgentWorkbenchMode) => void;
   pendingAction: null | PendingAction;
   placeholder: string;
-  workbenchMode: AgentWorkbenchMode;
 };
 
 const COMPOSER_INPUT_MAX_HEIGHT_PX = 120;
 
 export function AgentComposer({
   disabled,
+  focusRequestKey,
   input,
-  modelName = "DeepSeek V3",
   onCancelApproval,
   onConfirmApproval,
   onEditApproval,
@@ -43,17 +41,22 @@ export function AgentComposer({
   onReturnToEditApproval,
   onStop,
   onSubmit,
-  onWorkbenchModeChange,
   pendingAction,
   placeholder,
-  workbenchMode,
 }: AgentComposerProps) {
-  const { debugMode, openInspector, panelOpen, setDebugMode, togglePanel } =
-    useDashboardInspectorControl();
-  const [modeMenuOpen, setModeMenuOpen] = useState(false);
-  const [quickMenuOpen, setQuickMenuOpen] = useState(false);
+  const { openInspector, panelOpen, togglePanel } = useDashboardInspectorControl();
+  const { agentDisclosureView, agentStatusView } = useDashboardMotion();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const activeMode = getComposerModeOption(workbenchMode);
+  const isComposingRef = useRef(false);
+  const suppressNextEnterRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      textareaRef.current?.focus({ preventScroll: true });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusRequestKey]);
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -68,9 +71,28 @@ export function AgentComposer({
   >([]);
   const mentionDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const closeMentionSearch = useCallback(() => {
+    if (mentionDebounce.current) {
+      clearTimeout(mentionDebounce.current);
+      mentionDebounce.current = undefined;
+    }
+    setMentionOpen(false);
+    setMentionResults([]);
+  }, []);
+
+  useEffect(() => () => {
+    if (mentionDebounce.current) {
+      clearTimeout(mentionDebounce.current);
+    }
+  }, []);
+
   const handleInputChange = useCallback(
     (value: string) => {
       onInputChange(value);
+
+      if (isComposingRef.current) {
+        return;
+      }
 
       const atMatch = value.match(/@([^\s@]*)$/);
       if (atMatch) {
@@ -92,23 +114,19 @@ export function AgentComposer({
           }
         }, 200);
       } else {
-        setMentionOpen(false);
-        setMentionResults([]);
+        closeMentionSearch();
       }
     },
-    [onInputChange],
+    [closeMentionSearch, onInputChange],
   );
 
-  const sendLabel = workbenchMode === "execute" ? "生成 DryRun" : "发送";
   const sendTitle =
     disabled && onStop
       ? "停止"
       : disabled
         ? "运行中"
-        : workbenchMode === "execute"
-          ? "生成 DryRun"
-          : "发送任务";
-  const panelLabel = panelOpen ? "收起当前上下文" : "打开当前上下文";
+        : "发送";
+  const panelLabel = panelOpen ? "收起上下文" : "添加上下文";
   const singlePendingAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
   const isAwaitingSingleConfirmation = Boolean(singlePendingAction);
   const pendingOperationLabel = singlePendingAction
@@ -138,43 +156,56 @@ export function AgentComposer({
       className="sunny-agent-composer"
       onSubmit={(event) => {
         event.preventDefault();
+        if (isComposingRef.current) {
+          return;
+        }
         onSubmit();
       }}
     >
       <div className="sunny-agent-composer-row">
-        <div className="sunny-agent-composer-mode-control">
-          <ComposerModeSelect
-            modelName={modelName}
-            onOpenChange={setModeMenuOpen}
-            onWorkbenchModeChange={onWorkbenchModeChange}
-            open={modeMenuOpen}
-            triggerAriaLabel="选择工作模式"
-            triggerClassName="sunny-agent-composer-mode-trigger"
-            workbenchMode={workbenchMode}
-            trigger={
-              <>
-                <span>
-                  <span className="sunny-agent-composer-mode-label">{activeMode.label}</span>{" "}
-                  <span className="sunny-agent-composer-model-name">· {modelName}</span>
-                </span>
-                <DashboardIcon name="chevronDown" />
-              </>
-            }
-          />
-        </div>
         <div className={`sunny-agent-composer-input-wrap${isAwaitingSingleConfirmation ? " is-pending" : ""}`}>
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(event) => handleInputChange(event.target.value)}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+              suppressNextEnterRef.current = false;
+              closeMentionSearch();
+            }}
+            onCompositionEnd={(event) => {
+              isComposingRef.current = false;
+              suppressNextEnterRef.current = true;
+              handleInputChange(event.currentTarget.value);
+              window.setTimeout(() => {
+                suppressNextEnterRef.current = false;
+              }, 0);
+            }}
             onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (
+                e.key === "Enter" &&
+                !e.shiftKey &&
+                suppressNextEnterRef.current
+              ) {
                 e.preventDefault();
-                if (!disabled && input.trim().length > 0) {
-                  onSubmit();
-                }
+                suppressNextEnterRef.current = false;
+                return;
+              }
+
+              if (
+                isComposingRef.current ||
+                !shouldSubmitComposerKey(e.nativeEvent)
+              ) {
+                return;
+              }
+
+              e.preventDefault();
+              if (!disabled && input.trim().length > 0) {
+                onSubmit();
               }
             }}
+            enterKeyHint="send"
+            lang="zh-CN"
             rows={1}
             aria-label={
               isAwaitingSingleConfirmation
@@ -190,83 +221,89 @@ export function AgentComposer({
                 ? "补充修改要求，或直接确认执行"
                 : pendingAction?.type === "await_queue_resume"
                   ? "回复“继续”恢复延后队列，或“取消”放弃。"
-                  : pendingAction?.type === "await_learning_followup"
+                : pendingAction?.type === "await_learning_followup"
                     ? "可以继续说“拆成学习计划”或“取消”。"
-                    : activeMode.placeholder || placeholder
+                    : placeholder
             }
             className="sunny-agent-composer-input"
           />
-          {mentionOpen && mentionResults.length > 0 ? (
-            <div
-              className="sunny-agent-composer-mention-dropdown"
-              role="listbox"
-              aria-label="上下文引用建议"
-            >
-              {mentionResults.map((r, i) => (
-                <button
-                  key={`${r.collection}-${r.id}-${i}`}
-                  type="button"
-                  role="option"
-                  aria-selected={false}
-                  onClick={() => {
-                    const newValue = input.replace(/@[^\s@]*$/, `@${r.title} `);
-                    onInputChange(newValue);
-                    setMentionOpen(false);
-                  }}
-                >
-                  <span>{r.title}</span>
-                  <small>{r.collection}</small>
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {isAwaitingSingleConfirmation ? (
-            <div className="sunny-agent-composer-pending-mode" role="status">
-              <span>等待确认 · {pendingOperationLabel}</span>
-              <div className="sunny-agent-composer-pending-actions" role="toolbar" aria-label="待确认快捷操作">
-                <AppButton
-                  disabled={disabled || !onCancelApproval}
-                  onClick={onCancelApproval}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  取消
-                </AppButton>
-                <AppButton
-                  disabled={disabled || (!onEditApproval && !onReturnToEditApproval)}
-                  onClick={handleReturnToEdit}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  返回修改
-                </AppButton>
-                <AppButton
-                  disabled={disabled || !onConfirmApproval}
-                  onClick={onConfirmApproval}
-                  size="sm"
-                  type="button"
-                  variant="primary"
-                >
-                  确认执行
-                </AppButton>
-              </div>
-            </div>
-          ) : null}
+          <AnimatePresence initial={false}>
+            {mentionOpen && mentionResults.length > 0 ? (
+              <motion.div
+                animate={agentDisclosureView.animate}
+                className="sunny-agent-composer-mention-dropdown"
+                exit={agentDisclosureView.exit}
+                initial={agentDisclosureView.initial}
+                key="mention-results"
+                role="listbox"
+                aria-label="上下文引用建议"
+                transition={agentDisclosureView.transition}
+              >
+                {mentionResults.map((r, i) => (
+                  <button
+                    key={`${r.collection}-${r.id}-${i}`}
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    onClick={() => {
+                      const newValue = input.replace(/@[^\s@]*$/, `@${r.title} `);
+                      onInputChange(newValue);
+                      setMentionOpen(false);
+                    }}
+                  >
+                    <span>{r.title}</span>
+                    <small>{r.collection}</small>
+                  </button>
+                ))}
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+          <AnimatePresence initial={false}>
+            {isAwaitingSingleConfirmation ? (
+              <motion.div
+                animate={agentDisclosureView.animate}
+                className="sunny-agent-composer-pending-mode"
+                exit={agentDisclosureView.exit}
+                initial={agentDisclosureView.initial}
+                key="pending-confirmation"
+                role="status"
+                transition={agentDisclosureView.transition}
+              >
+                <span>等待确认 · {pendingOperationLabel}</span>
+                <div className="sunny-agent-composer-pending-actions" role="toolbar" aria-label="待确认快捷操作">
+                  <AppButton
+                    disabled={disabled || !onCancelApproval}
+                    onClick={onCancelApproval}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    取消
+                  </AppButton>
+                  <AppButton
+                    disabled={disabled || (!onEditApproval && !onReturnToEditApproval)}
+                    onClick={handleReturnToEdit}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    返回修改
+                  </AppButton>
+                  <AppButton
+                    disabled={disabled || !onConfirmApproval}
+                    onClick={onConfirmApproval}
+                    size="sm"
+                    type="button"
+                    variant="primary"
+                  >
+                    确认执行
+                  </AppButton>
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
         </div>
         <div className="sunny-agent-composer-actions">
-          <ComposerAddMenu
-            debugMode={debugMode}
-            input={input}
-            onDebugModeChange={setDebugMode}
-            onInputChange={onInputChange}
-            onOpenChange={setQuickMenuOpen}
-            open={quickMenuOpen}
-            triggerAriaLabel="添加上下文 / 文件 / 命令"
-            triggerClassName={`sunny-agent-composer-icon-button sunny-agent-composer-plus-button${quickMenuOpen ? " is-active" : ""}`}
-            trigger={<DashboardIcon name="plus" />}
-          />
           <AppIconButton
             active={panelOpen}
             aria-label={panelLabel}
@@ -289,6 +326,7 @@ export function AgentComposer({
               type="button"
               onClick={onStop}
               className="sunny-agent-run-button sunny-agent-composer-send"
+              data-state="running"
               aria-label="停止"
               title="停止"
             >
@@ -299,13 +337,22 @@ export function AgentComposer({
               type="submit"
               disabled={disabled || input.trim().length === 0}
               className="sunny-agent-run-button sunny-agent-composer-send"
-              aria-label={disabled ? "运行中" : sendLabel}
+              data-state={disabled ? "running" : input.trim().length > 0 ? "ready" : "idle"}
+              aria-label={disabled ? "运行中" : "发送"}
               title={sendTitle}
             >
               {disabled ? (
                 <span className="sunny-agent-run-spinner" aria-hidden="true" />
               ) : (
-                <span aria-hidden="true">{workbenchMode === "execute" ? sendLabel : "↑"}</span>
+                <motion.span
+                  animate={agentStatusView.animate}
+                  aria-hidden="true"
+                  initial={agentStatusView.initial}
+                  key="send-arrow"
+                  transition={agentStatusView.transition}
+                >
+                  ↑
+                </motion.span>
               )}
             </button>
           )}

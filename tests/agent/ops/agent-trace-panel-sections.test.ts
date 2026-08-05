@@ -238,7 +238,8 @@ test("Rollback section labels: does not render raw rollbackPayload", () => {
 
 test("AgentActivityTimeline source: does not expose raw details to user", () => {
   const source = read("src/components/dashboard/agent/AgentActivityTimeline.tsx");
-  assert.match(source, /不展示内部推理/);
+  assert.match(source, /step\.visibility !== "developer"/);
+  assert.match(source, /aria-expanded=\{expanded\}/);
   assert.doesNotMatch(source, /raw prompt/i);
   assert.doesNotMatch(source, /raw response/i);
   assert.doesNotMatch(source, /Authorization/);

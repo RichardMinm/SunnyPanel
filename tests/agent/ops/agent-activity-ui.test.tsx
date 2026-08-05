@@ -21,6 +21,9 @@ const loadAgentTracePanel = async () =>
 const loadMessageCard = async () =>
   (await import("../../../src/components/dashboard/agent/MessageCard")).MessageCard;
 
+const loadAgentMarkdownBubble = async () =>
+  (await import("../../../src/components/dashboard/agent/AgentMarkdownBubble")).AgentMarkdownBubble;
+
 const baseStep = (overrides: Partial<AgentActivityStep>): AgentActivityStep => ({
   id: overrides.id ?? "step",
   kind: overrides.kind ?? "understanding",
@@ -55,18 +58,14 @@ test("AgentActivityTimeline renders visible status states", async () => {
     }),
   );
 
-  assert.match(markup, /Agent 正在处理|执行过程/);
-  assert.match(markup, /正在读取本地日程/);
-  assert.match(markup, /已完成/);
-  assert.match(markup, /等待确认/);
-  assert.match(markup, /错误/);
-  assert.match(markup, /跳过/);
-  assert.match(markup, /data-state="running"/);
-  assert.match(markup, /data-active="true"/);
-  assert.match(markup, /不展示内部推理/);
+  assert.match(markup, /Sunny 正在处理/);
+  assert.match(markup, /等待你确认/);
+  assert.match(markup, /aria-expanded="false"/);
+  assert.doesNotMatch(markup, /已完成查询|执行失败|草案尚未写入日程/);
+  assert.doesNotMatch(markup, /sunny-agent-activity-list/);
 });
 
-test("AgentActivityTimeline collapses long step lists by default", async () => {
+test("AgentActivityTimeline collapses every completed step list by default", async () => {
   const AgentActivityTimeline = await loadAgentActivityTimeline();
   const steps = Array.from({ length: 8 }, (_, index) =>
     baseStep({
@@ -76,10 +75,11 @@ test("AgentActivityTimeline collapses long step lists by default", async () => {
   );
   const markup = renderToStaticMarkup(createElement(AgentActivityTimeline, { steps }));
 
-  assert.match(markup, /展开全部 8 步/);
+  assert.match(markup, /处理过程 · 8 步/);
+  assert.match(markup, />展开/);
+  assert.match(markup, /sunny-agent-activity-chevron/);
   assert.doesNotMatch(markup, /步骤 1/);
-  assert.match(markup, /步骤 3/);
-  assert.match(markup, /步骤 8/);
+  assert.doesNotMatch(markup, /步骤 8/);
 });
 
 test("AgentActivityTimeline can expand to show all steps", async () => {
@@ -98,6 +98,7 @@ test("AgentActivityTimeline can expand to show all steps", async () => {
   );
 
   assert.match(markup, /收起/);
+  assert.match(markup, /aria-expanded="true"/);
   assert.match(markup, /步骤 1/);
   assert.match(markup, /步骤 8/);
 });
@@ -129,6 +130,27 @@ test("AgentActivityTimeline CSS supports subtle motion and reduced-motion fallba
   assert.match(css, /sunny-agent-activity-pulse/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /data-active="true"/);
+});
+
+test("Agent interaction motion uses one semantic contract across conversation states", () => {
+  const conversation = readFileSync("src/components/dashboard/agent/AgentConversation.tsx", "utf8");
+  const composer = readFileSync("src/components/dashboard/agent/AgentComposer.tsx", "utf8");
+  const messageCard = readFileSync("src/components/dashboard/agent/MessageCard.tsx", "utf8");
+  const motionSource = readFileSync("src/components/dashboard/motion/dashboard-motion.ts", "utf8");
+  const tokens = readFileSync("src/app/styles/sunny-tokens.css", "utf8");
+
+  assert.match(motionSource, /agentSurfaceView/);
+  assert.match(motionSource, /agentDisclosureView/);
+  assert.match(motionSource, /agentStatusView/);
+  assert.match(motionSource, /prefersReducedMotion/);
+  assert.match(conversation, /AnimatePresence/);
+  assert.match(conversation, /sunny-agent-thread-action-area/);
+  assert.match(conversation, /sunny-agent-error-card-v2/);
+  assert.match(composer, /mention-results/);
+  assert.match(composer, /pending-confirmation/);
+  assert.match(messageCard, /sunny-agent-content-transition/);
+  assert.match(tokens, /--motion-ease-agent/);
+  assert.match(tokens, /--motion-duration-agent-enter/);
 });
 
 test("AgentTracePanel renders developer details with redacted sensitive fields", async () => {
@@ -218,7 +240,8 @@ test("MessageCard activity timeline does not render raw JSON details", async () 
     }),
   );
 
-  assert.match(markup, /已完成查询/);
+  assert.match(markup, /处理过程 · 1 步/);
+  assert.doesNotMatch(markup, /已完成查询/);
   assert.doesNotMatch(markup, /token/);
   assert.doesNotMatch(markup, /\{&quot;/);
 });
@@ -241,8 +264,9 @@ test("query_schedule activity does not show confirmation-write language", async 
     }),
   );
 
-  assert.match(markup, /已识别为日程查询/);
-  assert.match(markup, /已确认这是只读操作/);
+  assert.match(markup, /处理过程 · 2 步/);
+  assert.doesNotMatch(markup, /已识别为日程查询/);
+  assert.doesNotMatch(markup, /已确认这是只读操作/);
   assert.doesNotMatch(markup, /确认后才会写入/);
   assert.doesNotMatch(markup, /等待你确认/);
 });
@@ -263,8 +287,9 @@ test("MessageCard keeps product cards and activity timeline side by side", async
 
   assert.match(markup, /计划草案/);
   assert.match(markup, /准备创建计划/);
-  assert.match(markup, /已生成计划草案/);
-  assert.match(markup, /草案尚未写入数据库/);
+  assert.match(markup, /处理过程 · 2 步/);
+  assert.doesNotMatch(markup, /已生成计划草案/);
+  assert.doesNotMatch(markup, /草案尚未写入数据库/);
 });
 
 /* ── M6-C2: Loading Text Cleanup ── */
@@ -284,7 +309,7 @@ test("MessageCard does not show loading text when activitySteps are present", as
   );
 
   assert.match(markup, /正在理解你的请求/);
-  assert.match(markup, /已读取工作区上下文/);
+  assert.doesNotMatch(markup, /已读取工作区上下文/);
   assert.doesNotMatch(markup, /正在处理请求/);
 });
 
@@ -337,7 +362,7 @@ test("MessageCard does not expose developer vocabulary in main chat area", async
     }),
   );
 
-  assert.match(markup, /正在处理/);
+  assert.match(markup, /处理过程 · 1 步/);
   assert.match(markup, /正常回复内容/);
   assert.doesNotMatch(markup, /LangGraph/);
   assert.doesNotMatch(markup, /tool_call/);
@@ -345,6 +370,53 @@ test("MessageCard does not expose developer vocabulary in main chat area", async
   assert.doesNotMatch(markup, /policy_guard/);
   assert.doesNotMatch(markup, /backendTraceEvents/);
   assert.doesNotMatch(markup, /raw JSON/);
+});
+
+test("ordinary assistant messages render as a flat conversation stream", async () => {
+  const MessageCard = await loadMessageCard();
+  const markup = renderToStaticMarkup(
+    createElement(MessageCard, {
+      content: "这是一个普通回答。",
+      role: "assistant",
+    }),
+  );
+
+  assert.match(markup, /sunny-message-card-assistant/);
+  assert.match(markup, /这是一个普通回答/);
+  assert.match(markup, /sunny-message-card-assistant-mark/);
+  assert.doesNotMatch(markup, /sunny-message-card-avatar/);
+  assert.doesNotMatch(markup, /sunny-message-card-assistant-name/);
+  assert.doesNotMatch(markup, />Sunny</);
+  assert.match(markup, /aria-label="复制回答"/);
+});
+
+test("assistant text always uses one formatted content renderer", async () => {
+  const AgentMarkdownBubble = await loadAgentMarkdownBubble();
+  const markup = renderToStaticMarkup(
+    createElement(AgentMarkdownBubble, {
+      content: "第一段\n仍在第一段\n\n第二段",
+    }),
+  );
+
+  assert.match(markup, /sunny-agent-bubble-markdown/);
+  assert.match(markup, /<p>第一段\n仍在第一段<\/p>/);
+  assert.match(markup, /<p>第二段<\/p>/);
+  assert.doesNotMatch(markup, /sunny-agent-bubble-plain/);
+});
+
+test("assistant tables and unlabeled fenced code use dedicated responsive blocks", async () => {
+  const AgentMarkdownBubble = await loadAgentMarkdownBubble();
+  const markup = renderToStaticMarkup(
+    createElement(AgentMarkdownBubble, {
+      content: "| 项目 | 状态 |\n| --- | --- |\n| FastJSON | 进行中 |\n\n```\nplain code\n```",
+    }),
+  );
+
+  assert.match(markup, /sunny-agent-table-scroll/);
+  assert.match(markup, /aria-label="表格内容"/);
+  assert.match(markup, /sunny-agent-code-block/);
+  assert.match(markup, />文本<\/span>/);
+  assert.match(markup, /plain code/);
 });
 
 test("Draft cards still render correctly when activitySteps are present", async () => {
@@ -361,6 +433,7 @@ test("Draft cards still render correctly when activitySteps are present", async 
   );
 
   assert.match(markup, /准备创建计划/);
-  assert.match(markup, /已生成计划草案/);
+  assert.match(markup, /处理过程 · 1 步/);
+  assert.doesNotMatch(markup, /已生成计划草案/);
   // Draft card is present — the activity timeline sits below it
 });

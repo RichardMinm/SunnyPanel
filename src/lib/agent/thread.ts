@@ -38,7 +38,7 @@ const buildThreadTitle = (message: string) => {
     return "Agent Thread";
   }
 
-  return normalized.length > 32 ? `${normalized.slice(0, 32).trimEnd()}...` : normalized;
+  return normalized.length > 56 ? `${normalized.slice(0, 56).trimEnd()}...` : normalized;
 };
 
 const isOwnedThread = (thread: AgentThread, userId: number) => {

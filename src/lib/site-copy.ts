@@ -71,11 +71,11 @@ export const siteCopy = {
       },
       paletteLabel: "Color palette",
       palettes: {
-        cobalt: "Cobalt",
-        forest: "Forest",
-        wine: "Wine",
+        cobalt: "Cobalt Focus",
+        forest: "Sunny Forest",
+        wine: "Burgundy Editorial",
         midnight: "Midnight Gold",
-        slate: "Slate",
+        slate: "Minimal Slate",
       },
     },
     home: {
@@ -238,11 +238,11 @@ export const siteCopy = {
       },
       paletteLabel: "配色方案",
       palettes: {
-        cobalt: "钴蓝",
-        forest: "墨绿",
-        wine: "勃艮第",
+        cobalt: "专注钴蓝",
+        forest: "Sunny 墨绿",
+        wine: "编辑勃艮第",
         midnight: "午夜金",
-        slate: "板岩",
+        slate: "极简板岩",
       },
     },
     home: {

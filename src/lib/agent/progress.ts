@@ -85,3 +85,10 @@ export const queryProgressFromIntent = async (args: QueryProgressArgs) => {
     pendingAction: null,
   };
 };
+
+export const normalizeChecklistProgressArgs = (
+  args: QueryProgressArgs,
+): QueryProgressArgs => ({
+  ...args,
+  scope: "checklists",
+});

@@ -261,7 +261,7 @@ test("ActionResultCard renders executed schedule result without draft or confirm
 
   assert.match(markup, /已创建日程/);
   assert.match(markup, /已创建 2 个日程项/);
-  assert.match(markup, /已写入日程/);
+  assert.match(markup, /日程已保存/);
   assert.match(markup, /来源计划 #99/);
   assert.match(markup, /来源清单 #12/);
   assert.match(markup, /可撤销/);
@@ -298,6 +298,12 @@ test("query_schedule summary stays read-only and avoids schedule creation UI sta
   assert.match(markup, /未来 7 天/);
   assert.match(markup, /修复登录页/);
   assert.match(markup, /09:00-10:00/);
+  assert.match(markup, /sunny-schedule-query-card/);
+  assert.match(markup, /计划中/);
+  assert.match(markup, /高优先级/);
+  assert.doesNotMatch(markup, />planned</);
+  assert.doesNotMatch(markup, />high</);
+  assert.doesNotMatch(markup, /schedule-items|不会创建|不会修改|只读查询/);
   assert.doesNotMatch(markup, /sunny-schedule-draft-card/);
   assert.doesNotMatch(markup, /sunny-agent-approval/);
   assert.doesNotMatch(markup, /日程草案/);
@@ -324,7 +330,7 @@ test("query_schedule empty state uses range-specific labels", () => {
   assert.match(today, /今天没有已安排的日程/);
   assert.match(upcoming, /未来 7 天没有已安排的日程/);
   assert.doesNotMatch(tomorrow, /最近没有已安排的日程/);
-  assert.doesNotMatch(tomorrow, /准备创建|确认执行|写入日程/);
+  assert.doesNotMatch(tomorrow, /范围：|准备创建|确认执行|写入日程|只读查询/);
 });
 
 test("pendingAction prevents ScheduleDraftCard projection on assistant messages", () => {

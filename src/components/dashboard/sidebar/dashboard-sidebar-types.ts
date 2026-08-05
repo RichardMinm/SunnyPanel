@@ -10,6 +10,10 @@ export type DashboardIconMode =
   | "today"
   | "writing";
 
+export type DashboardNewThreadOptions = {
+  force?: boolean;
+};
+
 export type DashboardIconBarProps = {
   activeMode: DashboardIconMode;
   hoverExpanded: boolean;
@@ -18,7 +22,7 @@ export type DashboardIconBarProps = {
   onHoverExpandedChange: (expanded: boolean) => void;
   onModeChange: (mode: DashboardIconMode, prompt: string) => void;
   onLoadThread: (threadId: number) => void;
-  onNewThread: () => void;
+  onNewThread: (options?: DashboardNewThreadOptions) => void;
   onPinnedChange: (pinned: boolean) => void;
   pinned: boolean;
   threadId: null | number;

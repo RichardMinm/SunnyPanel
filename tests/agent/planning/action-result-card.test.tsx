@@ -84,9 +84,11 @@ test("ActionResultCard renders plan creation as executed result with rollback", 
 
   assert.match(markup, /计划已创建/);
   assert.match(markup, /SunnyPanel 第一版上线/);
-  assert.match(markup, /已执行/);
-  assert.match(markup, /可回滚/);
+  assert.match(markup, /完成/);
+  assert.match(markup, /可撤销/);
   assert.match(markup, /继续拆成清单/);
+  assert.match(markup, /计划已保存/);
+  assert.match(markup, /打开计划/);
 });
 
 test("ActionResultCard renders checklist creation linkage and counts", async () => {
@@ -106,7 +108,8 @@ test("ActionResultCard renders checklist creation linkage and counts", async () 
   assert.match(markup, /3 个分组/);
   assert.match(markup, /12 个条目/);
   assert.match(markup, /已关联到计划 #42/);
-  assert.match(markup, /可回滚/);
+  assert.match(markup, /可撤销/);
+  assert.match(markup, /href="\/dashboard\?mode=checklist"/);
 });
 
 test("ActionResultCard renders completed item, timeline feedback and rollback", async () => {
@@ -124,9 +127,9 @@ test("ActionResultCard renders completed item, timeline feedback and rollback", 
   assert.match(markup, /清单项已完成/);
   assert.match(markup, /修复登录页/);
   assert.match(markup, /SunnyPanel 上线任务清单/);
-  assert.match(markup, /Timeline/);
+  assert.match(markup, /时间线/);
   assert.match(markup, /已记录\/更新/);
-  assert.match(markup, /可回滚/);
+  assert.match(markup, /可撤销/);
 });
 
 test("MessageCard imports ActionResultCard but does not own result card body JSX", () => {

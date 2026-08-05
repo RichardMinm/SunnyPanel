@@ -4,6 +4,7 @@ import { AppBadge } from "@/components/primitives/AppBadge";
 import { AppCard } from "@/components/primitives/AppCard";
 import { cn } from "@/lib/ui/cn";
 
+import { AgentResultDelivery } from "./AgentResultDelivery";
 import type { ActionResultData } from "./utils";
 
 type ActionResultCardProps = {
@@ -56,8 +57,8 @@ const buildRows = (data: ActionResultData): ResultRow[] => {
   switch (data.kind) {
     case "plan_created":
       return [
-        { label: "记录", value: "Plans 已写入" },
-        { label: "后续", value: "可继续拆成清单" },
+        { label: "保存位置", value: "计划" },
+        { label: "接下来", value: "可以继续拆成清单" },
       ];
     case "checklist_created":
       return [
@@ -82,7 +83,7 @@ const buildRows = (data: ActionResultData): ResultRow[] => {
         },
         ...(data.groupTitle ? [{ label: "分组", value: data.groupTitle }] : []),
         {
-          label: "Timeline",
+          label: "时间线",
           value: data.timelineStatus === "synced" ? "已记录/更新" : "未检测到同步结果",
         },
       ];
@@ -112,40 +113,25 @@ const buildRows = (data: ActionResultData): ResultRow[] => {
   }
 };
 
-const buildResultNotes = (data: ActionResultData) => {
+const getDeliveryProps = (data: ActionResultData) => {
   switch (data.kind) {
     case "plan_created":
-      return ["计划记录已经落库。", "下一步可以继续拆成清单。"];
+      return { statusLabel: "计划已保存", workspace: "plan" as const };
     case "checklist_created":
-      return [
-        "清单记录已经落库。",
-        data.linkedPlanId ? `已写回计划关联：#${data.linkedPlanId}。` : "这次结果没有检测到计划关联。",
-      ];
+      return { statusLabel: "清单已保存", workspace: "checklist" as const };
     case "checklist_item_completed":
-      return [
-        "清单条目已经标记完成。",
-        data.timelineStatus === "synced" ? "Timeline 节点已记录/更新。" : "没有检测到 Timeline 同步结果。",
-      ];
+      return { statusLabel: "完成状态已保存", workspace: "checklist" as const };
     case "schedule_items_created":
-      return [
-        "这些日程项已写入日程。",
-        "你可以在日程视图中查看它们。",
-        ...(data.rollbackAvailable ? ["该操作支持回滚。"] : []),
-      ];
+      return { statusLabel: "日程已保存", workspace: "schedule" as const };
   }
 };
 
 export function ActionResultCard({ className, data }: ActionResultCardProps) {
   const rows = buildRows(data);
-  const notes = buildResultNotes(data);
+  const delivery = getDeliveryProps(data);
   const previewItems = data.kind === "schedule_items_created"
     ? data.scheduleItemPreviews?.slice(0, 5) ?? []
     : [];
-  const rollbackLabel = data.rollbackAvailable
-    ? data.kind === "schedule_items_created"
-      ? "可撤销"
-      : "可回滚"
-    : "未提供回滚";
 
   return (
     <AppCard
@@ -164,7 +150,7 @@ export function ActionResultCard({ className, data }: ActionResultCardProps) {
           <p className="sunny-agent-result-card-kicker">{getTitle(data)}</p>
           <h3>{data.title}</h3>
         </div>
-        <AppBadge tone="success">已执行</AppBadge>
+        <AppBadge tone="success">完成</AppBadge>
       </div>
 
       <div className="sunny-agent-result-card-grid" aria-label="执行结果详情">
@@ -184,16 +170,11 @@ export function ActionResultCard({ className, data }: ActionResultCardProps) {
         </ul>
       ) : null}
 
-      <ul className="sunny-action-result-card-notes" aria-label="执行结果说明">
-        {notes.map((note) => (
-          <li key={note}>{note}</li>
-        ))}
-      </ul>
-
-      <div className="sunny-action-result-card-footer">
-        <AppBadge tone={data.rollbackAvailable ? "success" : "muted"}>{rollbackLabel}</AppBadge>
-        <span>{data.rollbackAvailable ? "可从本轮操作记录撤销。" : "本轮没有返回自动回滚信息。"}</span>
-      </div>
+      <AgentResultDelivery
+        rollbackAvailable={data.rollbackAvailable}
+        statusLabel={delivery.statusLabel}
+        workspace={delivery.workspace}
+      />
     </AppCard>
   );
 }

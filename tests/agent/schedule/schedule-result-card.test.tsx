@@ -69,8 +69,8 @@ test("ActionResultCard renders schedule creation success with source and rollbac
   assert.match(markup, /来源计划 #99/);
   assert.match(markup, /来源清单 #12/);
   assert.match(markup, /可撤销/);
-  assert.match(markup, /这些日程项已写入日程/);
-  assert.match(markup, /你可以在日程视图中查看它们/);
+  assert.match(markup, /日程已保存/);
+  assert.match(markup, /href="\/dashboard\?mode=schedule"/);
   assert.doesNotMatch(markup, /尚未写入日程/);
   assert.doesNotMatch(markup, /等待确认/);
   assert.doesNotMatch(markup, /确认执行/);

@@ -778,6 +778,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
         const result = await steps.runOrchestrationStep({
           autoApproval,
           context: context as BuildContextStepResult["context"],
+          conversationState,
           deferCompoundExecution: true,
           emitStatus,
           emitToken,
@@ -789,6 +790,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
           pendingAction: graphInput.pendingAction,
           persistAgentTurn: bufferAgentTurn,
           pushTrace,
+          resolvedHistory,
           signal,
           stream,
           tokenUsage: usage,

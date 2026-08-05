@@ -1,435 +1,207 @@
-# SunnyPanel Test Map
+# SunnyPanel test map
 
-Status: Phase T1 map. This file records the current test architecture and pruning candidates. T1-C1 has consolidated a small set of low-risk UI state tests, T1-C2 has reduced the brittle Writing source-regex contract, T1-C3 has moved low-risk schedule legacy tests out of the root Agent test directory, and T1-C4 has rewritten the broad router workflow file into a focused root router contract without touching protected safety or workflow tests.
+Updated: 2026-08-05
 
-## Overview
+This map describes the current product test boundaries. Historical rollout
+phases and one-time Provider Gates belong in Git history or evaluation docs,
+not in the default unit-test contract.
 
-The current tests are organized around:
+## Quality bar
 
-- Agent core.
-- Planning.
-- Schedule.
-- Session.
-- Safety.
-- Ops.
-- Dashboard.
-- Content.
-- Command.
-- E2E.
+A retained test must exercise production behavior or a named contract and must
+be capable of failing when that behavior regresses.
 
-Some root `tests/agent/*.test.ts` files are historical accumulations. T1-C3 started moving schedule-only legacy contracts into `tests/agent/schedule`; T1-C4 rewrote the router workflow accumulation into an explicit root router contract. Remaining root files should be classified, merged, or rewritten gradually.
+Accepted test targets:
 
-Approximate current inventory:
+- Production functions and typed schemas.
+- State transitions and safety boundaries.
+- Rendered components and user-visible output.
+- API, database, checkpoint, and browser integration paths.
+- Narrow source-level architecture guards when runtime observation cannot prove
+  the boundary, such as preventing imports of an executor from an observation
+  module.
 
-| Area | Count | Notes |
-| --- | ---: | --- |
-| `tests/agent/*.test.ts` | 83 | Agent core, routing, safety, LangGraph, root workflow contracts, and activity builder contracts. |
-| `tests/agent/planning` | 36 | Planning / checklist / timeline / progress workflow matrix. |
-| `tests/agent/schedule` | 36 | Schedule readiness / draft / conflict / execute / query workflow matrix. |
-| `tests/agent/session` | 11 | Semantic Session Coordinator contracts. |
-| `tests/agent/ops` | 4 | Agent Ops read-only API, UI, and activity trace UI. |
-| `tests/content` | 15 | Public site, writing, prose, token contracts. |
-| `tests/command` | 1 | Floating command trigger. |
-| `tests/e2e` | 6 specs + helper | Browser smoke tests. |
+Rejected test patterns:
 
-Other directories such as `tests/layout`, `tests/writing`, `tests/primitives`, and `tests/performance` exist outside the first T1 scan scope and should be included in a later full repository test map pass.
+- `assert.ok(true)` or assertions that accept every possible result.
+- Local stubs that only verify the stub itself.
+- Fixture files that validate only their own hand-written expectations.
+- Phase-completion snapshots that match source strings, CSS fragments, import
+  placement, hook counts, or file existence without exercising behavior.
+- Tests that write reports or raw Provider responses into the repository.
+- Live Provider calls hidden inside a deterministic/default test command.
 
-## Agent Core
+## Commands
 
-| Module | Representative files | Contract | Protection |
+| Command | Scope | Provider | Database |
 | --- | --- | --- | --- |
-| Routing and arbitration | `tests/agent/intent.test.ts`, `tests/agent/intent-arbitration.test.ts`, `tests/agent/intent-router-mismatch.test.ts`, `tests/agent/resolve-intent-step.test.ts` | Intent classification, router-chain metadata, correction away from write intents. | protected for routing regressions |
-| Capability registry and tool gate | `tests/agent/capability-registry.test.ts`, `tests/agent/capability-pre-router.test.ts`, `tests/agent/capability-tool-gate.test.ts`, `tests/agent/capability-execute-path.test.ts` | Preview/execute pairing and no execute tools in preview gates. | protected |
-| Policy and confirmation | `tests/agent/policy-guard.test.ts`, `tests/agent/confirmation.test.ts`, `tests/agent/permission-resolver.test.ts` | Writes require the correct guard and confirmation behavior. | protected |
-| Receipts | `tests/agent/action-receipts.test.ts` | Stable action keys, execute/rollback isolation, idempotent replay. | protected |
-| Rollback | `tests/agent/rollback*.test.ts`, `tests/agent/tool-rollback-payloads.test.ts` | Executable rollback payloads, server-owned source IDs, PostgreSQL claim/transition SQL, UI Receipt retention, and safe restore/delete strategies. | protected |
-| Pipeline execution | `tests/agent/execute-and-persist-step.test.ts`, `tests/agent/tool-dry-run.test.ts`, `tests/agent/safety.test.ts`, `tests/agent/tool-plan-consistency.test.ts` | Dry-run, proposed action, write safety, planned vs actual tool consistency. | protected |
-| LangGraph runtime | `tests/agent/langgraph-*.test.ts` | Runtime selection, checkpoint config, full adapter behavior, orchestration subgraph. | protected runtime contract group |
-| Orchestration | `tests/agent/orchestration-*.test.ts`, `tests/agent/execution-*.test.ts`, `tests/agent/transactional-executor.test.ts` | Observations, replanning, projections, transactional behavior. | normal |
-| Thread events | `tests/agent/thread-events.test.ts`, `tests/agent/thread-summary.test.ts`, `tests/agent/thread-write-schema.test.ts`, `tests/agent/turn-finalizer.test.ts` | Turn claiming, terminal events, thread summaries, write schema. | protected where write/idempotency involved |
-| Memory and learning | `tests/agent/memory*.test.ts`, `tests/agent/learning-loop.test.ts`, `tests/agent/strategy-feedback-memory.test.ts` | Memory validation, ranking, learning persistence and feedback. | normal |
-| Suggestions | `tests/agent/suggestions.test.ts`, `tests/agent/suggestion-feedback.test.ts`, `tests/agent/llm-enhancement.test.ts` | Suggestion generation, feedback, LLM enhancement fallback. | normal |
-| Content/writing assist | `tests/agent/writing-assist.test.ts`, `tests/agent/cognitive-advisory.test.ts` | Read-only assistance and writing prompt contracts. | normal |
-| LLM Required Mode | `tests/agent/llm-required-mode.test.ts`, `tests/agent/no-llm-unavailable.test.ts` | Feature flag, availability check, pipeline stop before business fallback. Phase LLM-R1. | protected |
-| Tool Registry Contract | `tests/agent/tool-registry-contract.test.ts` | Metadata completeness, invariants across 17 tools. Phase LLM-R2. | protected |
-| Tool Planner | `tests/agent/llm-tool-catalog.test.ts`, `tests/agent/llm-tool-plan-validator.test.ts`, `tests/agent/llm-tool-planner.test.ts` | Catalog, validation safety, planner feature flags. Phase LLM-R3. | protected |
-| Tool Planner Shadow | `tests/agent/llm-tool-planner-shadow-graph.test.ts`, `tests/agent/llm-tool-planner-trace-only-integration.test.ts` | Shadow runner trace-only mode. Phase LLM-R4A. | protected |
-| Tool Planner Graph Runtime | `tests/agent/llm-tool-planner-langgraph-runtime.test.ts`, `tests/agent/llm-tool-planner-read-draft-runtime.test.ts`, `tests/agent/llm-tool-planner-runtime-integration.test.ts` | LangGraph StateGraph, read/draft dryRun previews, write blocked. Phase LLM-R4B. | protected |
-| Tool Planner Write Proposals | `tests/agent/llm-tool-planner-write-dry-run-proposal.test.ts`, `tests/agent/llm-tool-planner-write-proposal-policy.test.ts`, `tests/agent/llm-tool-planner-write-proposal-integration.test.ts` | Write step eligibility, allowlist, dryRun proposals, preview-only. Phase LLM-R4C. | protected |
-| Tool Planner Real Policy Guard | `tests/agent/llm-tool-planner-real-policy-guard.test.ts` | Real Policy Guard + PendingAction. Phase LLM-R4D. | protected |
-| Tool Planner Real Pending Action | `tests/agent/llm-tool-planner-real-pending-action.test.ts`, `tests/agent/llm-tool-planner-real-pending-integration.test.ts` | Real PendingAction shape, feature flag gating. Phase LLM-R4D. | protected |
-| Tool Planner Confirmation Compat | `tests/agent/llm-tool-planner-confirmation-compat.test.ts`, `tests/agent/llm-tool-planner-confirmation-to-execute-e2e.test.ts`, `tests/agent/llm-tool-planner-confirmation-cancel.test.ts` | confirmation-to-execute E2E. Phase LLM-R4E. | protected |
-| Tool Planner Receipt / Rollback | `tests/agent/llm-tool-planner-receipt-rollback-compat.test.ts` | Receipt key, rollback metadata. Phase LLM-R4E. | protected |
-| Tool Planner DB Smoke | `tests/agent/llm-tool-planner-db-smoke.test.ts` | Real Postgres DB smoke (skips without DATABASE_URL). Phase LLM-R4F. | protected |
-| R5-A Heuristic Gate | `tests/agent/llm-required-no-heuristic-business-path.test.ts`, `tests/agent/tool-planner-required-mode.test.ts`, `tests/agent/tool-planner-failure-responses.test.ts` | AGENT_REQUIRE_LLM=1 disables heuristic business fallback. Phase R5-A. | protected |
-| R5-B Read/Draft Parity | `tests/agent/tool-planner-read-draft-parity.test.ts`, `tests/agent/tool-planner-read-query-parity.test.ts`, `tests/agent/tool-planner-capability-response.test.ts` | Read/draft dryRun preview, schedule query unsupported, capability answer. Phase R5-B. | protected |
-| R5-C Schedule Read Tool | `tests/agent/tool-planner-schedule-read-tool.test.ts`, `tests/agent/tool-planner-capability-answer-path.test.ts`, `tests/agent/tool-planner-no-heuristic-query-fallback.test.ts` | query_schedule read-only tool, capability answer path. Phase R5-C. | protected |
-| R5-D Naming Boundary | `tests/agent/tool-planner-naming-boundary.test.ts` | query_schedule read-only contract, naming audit. Phase R5-D. | protected |
-| R6-A Reachability Audit | `docs/phase-r6a-legacy-heuristic-reachability-audit.md` | Read-only audit: reachability, classification, deletion sequence. Phase R6-A. | reference |
-| R6-C2-A Schedule/Planning Audit | `docs/phase-r6-c2-a-schedule-planning-deterministic-boundary-audit.md` | Read-only audit: safety vs legacy fallback in schedule/planning modules. Phase R6-C2-A. | reference |
-| **R6-C2 Boundary Doc** | `docs/phase-r6-c2-schedule-planning-tool-planner-boundary.md` | Final R6-C2 schedule/planning Tool Planner boundary, gated/kept/deferred summary, replacement coverage. Phase R6-C2-Docs. | reference |
-| **R6 Final Audit** | `docs/r6-final-heuristic-and-test-coverage-audit.md` | R6 post-mortem: heuristic residue, test validity, coverage matrix, protected tests status, risk register. Verdict: Pass with follow-up. | reference |
-| Root workflow contracts | `tests/agent/root-workflow-contract.test.ts`, `tests/agent/root-router-contract.test.ts` | Root weekly/timeline workflow contracts and router/tool-plan handoff boundaries. | normal |
-| **LangChain Foundation (L1-A)** | `tests/agent/llm/*.test.ts` (8 files) | Model config, factory, errors, structured output, Router/Orchestrator Zod schemas, message builder with untrusted context boundary. Pure unit tests — no API, no DB, no network. | normal |
-| **LangChain Query Runtime (L1-C1-C1)** | `tests/agent/query-langchain-runtime.test.ts`, `tests/agent/query-qualitative-projection.test.ts` | Shared `QueryFacts` preserve Legacy aggregate/plan parity; eligible queries render canonical facts before an optional, enum-only Provider commentary call. Provider input is audited, output is fully buffered, and invalid/timeout/tool-call output is omitted while the canonical query still completes normally. Default runtime remains Legacy. | protected |
-| **LangChain Query Evaluation (L1-C1-C1)** | `tests/agent/query-langchain-evaluation.test.ts`, `scripts/query-langchain-evaluation.mjs` | Fixed 24-case synthetic/sanitized evaluation reports input-boundary, canonical parity, accepted/omitted commentary, latency, and hard read-only safety gates. Deterministic tests use no API or DB. Live DeepSeek evaluation is explicit, DB-free, manual-only, and excluded from default CI. | protected |
-| **Admin Query Adoption Gate (L1-C1-C2)** | `tests/agent/query-admin-adoption.test.ts` | Dynamic `legacy/off` defaults, server-authenticated admin derivation, exact aggregate/positive-plan-ID eligibility, pre-facts default denial, max-one facts/Provider calls, immutable Primary, sanitized bounded observations, and dual kill switches. Fake dependencies only; no API or DB. | protected |
-| **Admin Query Adoption Evaluation (L1-C1-C2)** | `tests/agent/query-admin-adoption-evaluation.test.ts`, `scripts/query-admin-adoption-evaluation.mjs` | Aggregate-only PASS/FAIL metrics for 30 real-admin read observations, 10 negative controls, canonical/provider safety, latency, persistence expectations, and both kill switches. Deterministic tests use fake observations; the live runner is manual-only, reads existing workspace data, never writes reports or business collections, and is excluded from default CI. | protected |
-| **Query Runtime v1 Closure Contracts (L1-C1-C3)** | `tests/agent/query-langchain-runtime.test.ts`, `tests/agent/query-qualitative-projection.test.ts`, `tests/agent/query-admin-adoption.test.ts`, `tests/agent/query-admin-adoption-evaluation.test.ts` | Protected candidates: QueryFacts parity, exact allowlist, trusted server actor, Provider enum-only input, canonical-first composition, no partial output, dual kill switches, no business mutation, no double-run or hidden post-Provider Legacy fallback, and normal conversation persistence. Do not weaken or consolidate away these independent safety contracts. | protected |
-| **Authoritative Orchestrator Protocol (L3-B)** | `tests/agent/orchestration/langchain-orchestrator.test.ts`, `tests/agent/orchestration/orchestrator-runtime-config.test.ts`, `tests/agent/orchestration/orchestrator-semantic-contrast-protocol.test.ts`, `tests/agent/orchestration/orchestrator-query-scope-precedence-protocol.test.ts` | Orchestrator mode/role/intent prompt allowlists share the Zod schema constants; workspace values remain untrusted user-role data; execution artifacts and raw reasoning are forbidden. LangChain is the only production Orchestrator: the runtime invariant ignores the retired environment value, the dispatcher has no Legacy import/callback, and typed failures do not trigger another Orchestrator. Fake/pure tests only; no API or DB. Authoritative `pure_consultation` has one canonical `answer_question` task with a non-blank copied question; full-only semantic rules forbid context-only query narrowing, invented helper reads, one-task compound mode, and runtime-output scheduling dependencies without changing Residual Planner semantics. The Full-only contrast protocol derives five schema-typed cases from frozen shared metadata: one requested deliverable stays single, natural-language checklist creation remains draftable, partial-title scope clarifies, imperative completion remains a write candidate, and new-plan scheduling cannot consume a runtime plan ID. Residual Planner excludes the contrast marker and retains its frozen Prompt contract. The Full-only query-scope precedence table is rendered after broad read classification: generic progress remains aggregate, exact ID/title provenance permits a specific plan read, and an attempted but untrusted specific reference clarifies without aggregate fallback. Residual excludes the marker and retains its frozen Prompt/Schema contracts. | protected |
-| **Save-memory Argument Repair (L3-B)** | `tests/agent/orchestration/orchestrator-task-args-contract.test.ts`, `tests/agent/llm/invoke-structured.test.ts`, `tests/agent/orchestration/langchain-orchestrator.test.ts`, `tests/agent/orchestration/l3b-production-gate-evaluation.test.ts`, `tests/agent/orchestration/l3b-production-gate-metrics.test.ts` | Missing `save_memory` content cannot reach business paths. One bounded schema retry remains one logical call while recording multiple Provider attempts, uses only sanitized allowlisted field paths, and preserves the first strict-schema violation in Provider metrics even when the final business result recovers. | protected |
-| **Full Orchestrator Timeout Recovery (L3-B)** | `tests/agent/llm/invoke-structured.test.ts`, `tests/agent/orchestration/langchain-orchestrator.test.ts`, `tests/agent/orchestration/l3b-evaluation.test.ts`, `tests/agent/orchestration/l3b-production-gate-contract.test.ts`, `tests/agent/orchestration/l3b-production-gate-evaluation.test.ts`, `tests/agent/orchestration/l3b-production-gate-metrics.test.ts` | Timeout recovery is default-off in `invokeStructured()` and owned by the Full Orchestrator through one shared production/evaluation policy: the first attempt remains 30 seconds, one fresh recovery attempt is capped at 10 seconds, the complete logical call is capped at 40 seconds, caller cancellation never retries, and the recovery attempt cannot schedule schema, transport, or further timeout retries. An explicit test budget can disable recovery. Recovery remains one logical call with two Provider attempts. Timeout and availability stay attempt-based while strict-schema and semantic denominators use the completed response. Preflight and manifest ceilings are hash-bound to five maximum attempts per Full observation. Fake models only; no Provider, DB, or adoption side effect. | protected |
-| **Production Seam Gate (L3-B / R8)** | `tests/agent/orchestration/l3b-production-gate-contract.test.ts`, `tests/agent/orchestration/l3b-production-gate-evaluation.test.ts`, `tests/agent/orchestration/l3b-production-gate-metrics.test.ts`, `scripts/agent-production-seam-gate-eval.mjs` | One trusted explicit actor-authorized user plan ID is deterministically rebound into an accepted single-task `schedule_plan`; correction rebuilds only the supported schedule arguments plus the trusted ID and replaces Provider-controlled labels/summaries with stable generic text. Invalid user references and title conflicts still clarify before Resource Readiness or Mapper. The correction counter is observational and non-gating. Known-ID retains six ordered observations and uses the exclusive v4 report path; v1/v2/v3 evidence is immutable. The explicit no-key `known_id` CLI preflight uses the current one-round, six-logical-call / 30-Provider-attempt and five-attempt-per-observation ceilings, including one additive Full timeout-recovery attempt; it performs zero Provider attempts, does not connect to a database, and never creates or overwrites report evidence. It emits a stable disclosure-manifest hash bound to the exact stage, ordered complete data, applicable Full/Residual Prompt and schema fingerprints, report path, evaluation config, rounds, denominator, and ceilings; live mode requires that exact accepted hash before any model import. A shared non-instrumentation authorizer rejects logical calls and Provider attempts before callbacks across all six model roles. Persisted evidence is projected through a recursive positive shape allowlist and exact sensitive-value retention check before serialization; the Full semantic projection is explicitly nullable when deterministic or unavailable branches do not call Full, while other nested report objects remain non-null. Report shape and retention failures preserve typed terminal codes instead of collapsing into an unexpected failure. Known-ID evaluation classifies exact references, expected typed safe rejections, unsafe acceptances, and unrelated failures as first-class outcomes; bounded rejection provenance distinguishes exact Provider missing-resource decisions from deterministic Resource Readiness and schedule-reference rejection, while generic clarification and unsafe acceptance still fail. Only matching safe rejections are isolated from the diagnostic stage's generic resource counters. Post-hoc recorder settlement remains a defense-in-depth accounting check. | protected |
-| **Authoritative Replan Service (L3-B)** | `tests/agent/replan.test.ts`, `tests/agent/orchestration-observations.test.ts`, `tests/agent/langgraph-full-adapter.test.ts` | Incremental/global replan uses the selected/injected Orchestrator service rather than a direct Legacy import. Provider/schema/DAG/resource failures remain typed, preserve accepted observations/state, produce no fabricated plan or stale replacement proposal, and do not perform within-call Legacy fallback. | protected |
-| **Role-based Model Call Budget (L3-B)** | `tests/agent/orchestration/model-call-budget.test.ts`, `tests/agent/run-specialized-agent.test.ts` | Counts model calls by logical role and scope, flags repeated responsibility as an unexpected duplicate, bypasses Specialist only for schema-valid intents with explicit deterministic requirements, and keeps open-ended or weakly constrained tasks on the existing Specialist path. Scope identifiers are not exposed in snapshots. | protected |
-| **Conversational Answer Stream (L3-B)** | `tests/agent/conversational-answer-runtime.test.ts`, `tests/agent/chat-pipeline/legacy-heuristic-retired.test.ts`, `tests/agent/stream-events.test.ts` | Reuses complete Orchestrator answers with zero extra calls; question-only answers use one bounded text-only LangChain stream. Reasoning is ignored; tool/invalid blocks, timeout, overflow, cancellation, empty output, and Provider failures terminate as unavailable/incomplete with `persist=false`. Safe SSE failures emit no `meta` or `done`, and failed text is not projected as a completed assistant answer. | protected |
-| **Authoritative Orchestrator Evaluation (L3-B / R1-R3-D)** | `tests/agent/llm/invoke-structured-envelope.test.ts`, `tests/agent/orchestration/l3b-evaluation.test.ts`, `tests/agent/orchestration/l3b-semantic-accounting.test.ts`, `tests/agent/orchestration/l3b-semantic-evidence.test.ts`, `tests/agent/orchestration/orchestrator-semantic-decision.test.ts`, `tests/agent/orchestration/orchestrator-decision-consistency.test.ts`, `tests/agent/orchestration/orchestrator-resource-conflict.test.ts`, `tests/agent/orchestration/orchestrator-live-gate-contract.test.ts`, `tests/agent/orchestration/langchain-orchestrator.test.ts`, `tests/agent/orchestration/orchestrator-write-contract-parity.test.ts`, `tests/agent/orchestration/query-scope-provenance.test.ts`, `tests/agent/orchestration/resource-readiness-guard.test.ts`, `tests/agent/orchestration/orchestrator-live-semantic-boundary.test.ts`, `scripts/agent-orchestrator-canary-eval.mjs`, `scripts/agent-production-seam-gate-eval.mjs` | Real-envelope deterministic coverage traverses the installed OpenAI-compatible SDK and LangChain adapter with synthetic responses, exposes only bounded protocol shape, distinguishes response receipt, JSON parse, base schema, strict schema, and semantic validation, validates the original parsed object without JSON repair or raw payload retention, recognizes bounded SDK-wrapped transport failures/timeouts, and classifies null-content reasoning/tool envelopes by safe precedence. Schema failures expose only allowlisted Zod code/path/missing metadata plus `missing_required`, `wrong_type`, `invalid_enum`, or `invalid_shape`; Provider values remain absent. The Prompt renders the shared task-ID regex and a complete synthetic example that itself passes the strict schema, preventing drift from the Zod contract. R3-D gives aggregate and specific progress exclusive semantics, requires user-derived scope provenance before the compatibility mapper, rejects Provider-selected workspace IDs, resolves full titles by exact normalized uniqueness, and preserves cmp-4 as aggregate progress followed by a checklist draft. Existing-resource writes share the actual `AgentIntent` fields (`checklistTitle`, `itemId`, `planId`) across function tools, Resource Guard, Prompt projection, Mapper, parser, and dry-run; checklist titles must resolve by exact normalized uniqueness, while schedule IDs are indexed from prompt context. The historical Full-only Provider Gate is now a typed fail-closed tombstone that cannot read credentials, import Provider-capable modules, or emit live evidence. Its deterministic evaluation, sanitizer, accounting, and semantic contracts remain protected and use no API or DB. The manifest-bound Production Seam Gate is the sole executable L3-B Provider Gate. The sanitized eight-case matrix locks consultation aliases, untrusted specific-plan scope, single/compound drift, and missing runtime plan IDs as typed failures while preserving the two supported reviewable compounds. R6 fake runtime coverage admits the five corrected shapes while preserving typed rejection for untrusted specific reads and unavailable runtime plan IDs; it never repairs output in the Mapper. R7 semantic accounting rejects both aggregate and specific read fallback for the frozen partial-title fixture; only the existing clarify contract is accepted. No fixture, Mapper, Query Scope validator, or gate threshold is changed. | protected |
-| **Deterministic Resource Clarification Boundary (L3-B)** | `tests/agent/orchestration/resource-clarification-projector.test.ts`, `tests/agent/orchestration/orchestrator-live-semantic-boundary.test.ts`, `tests/agent/orchestration/langchain-orchestrator.test.ts`, `tests/agent/orchestration/l3b-production-gate-evaluation.test.ts`, `tests/agent/orchestration/l3b-production-gate-metrics.test.ts` | Only the exhaustive user-correctable resource-code allowlist can produce a typed, single-task deterministic clarification before Mapper; task-output and dependency errors remain unavailable. Final-system semantic and safety metrics use the projected clarify plan, while sanitized Provider intent projection and resource issue codes remain separately visible through non-gating deviation counters. Rejected write tasks cannot reach Mapper, Draft, Dry-run, execution, database, or business mutation. No raw Prompt, response, reasoning, resource title, or secret is retained; this boundary applies to the default LangChain Orchestrator. | protected |
-| **Deterministic Query Scope Clarification Boundary (L3-B)** | `tests/agent/orchestration/query-scope-clarification-projector.test.ts`, `tests/agent/orchestration/orchestrator-live-semantic-boundary.test.ts`, `tests/agent/orchestration/langchain-orchestrator.test.ts`, `tests/agent/orchestration/l3b-production-gate-evaluation.test.ts`, `tests/agent/orchestration/l3b-production-gate-metrics.test.ts` | Every current Query Scope provenance rejection can produce one typed deterministic clarify before Resource Readiness or Mapper; future codes remain unavailable. Final-system semantic and safety metrics use the projected clarify plan, while sanitized Provider scope code and intent projection remain separately visible through non-gating deviation counters. Rejected query tasks cannot reach Query dispatch, Mapper, Draft, Dry-run, execution, database, or business mutation. No raw Prompt, response, reasoning, workspace value, or secret is retained; this boundary applies to the default LangChain Orchestrator. | protected |
-| **Deterministic Request Semantic Boundary (L3-B)** | `src/lib/agent/orchestration/request-semantic-boundary.ts`, `tests/agent/orchestration/orchestrator-live-semantic-boundary.test.ts`, `tests/agent/orchestration/orchestrator-semantic-contrast-protocol.test.ts`, `tests/agent/orchestration/l3b-production-gate-evaluation.test.ts`, `tests/agent/orchestration/l3b-production-gate-contract.test.ts` | A narrow negative-only validator prevents explicit completion mutations from being downgraded to consultation/read and prevents unresolved scheduling of existing unfinished items from being relabelled as a new checklist or schedule draft. It never selects or repairs a write candidate; violations become one typed deterministic clarify after schema, decision, DAG, and Query Scope validation but before schedule/resource validation and Mapper. Advice such as “如何完成” and the supported query-result-to-new-checklist compound remain admitted. Reports retain only the allowlisted boundary source/code plus the schema-valid decision projection; no raw message, Prompt, response, reasoning, resource value, execution, or database access is retained. | protected |
-| **Compound Semantic Boundary (L3-B-R3-B)** | `tests/agent/orchestration/orchestrator-compound-boundary.test.ts`, `tests/agent/orchestration/langchain-orchestrator.test.ts`, `tests/agent/orchestration/resource-readiness-guard.test.ts`, `tests/agent/orchestration/l3b-semantic-accounting.test.ts`, `tests/agent/orchestration/orchestrator-live-gate-contract.test.ts` | The Prompt decomposes goals before resource readiness, distinguishes mutation of an existing target from a new dependent draft, and keeps draft composition, direct persistence, broad progress, plan-specific progress, durable memory, and derived task drafts in their intended intent families. It permits DAG ordering through `dependsOn` without runtime-result args or invented IDs, and retains clarify for ambiguous existing-resource mutation. cmp-3/cmp-4 fixture expectations, exclusive semantic accounting, both 0.99 completion/usability Gates, and the raw-data sanitizer remain unchanged. Deterministic tests are fake/pure and use no API or DB; focused Provider validation remains explicit and separately authorized. | protected |
-| **Hybrid Query Boundary (L3-B-R4-A Task 3)** | `tests/agent/orchestration/query-boundary-runtime-gate.test.ts`, `tests/agent/orchestration/query-boundary-provenance.test.ts`, `tests/agent/orchestration/residual-planning-input-contract.test.ts`, `tests/agent/orchestration/fixed-task-plan-composer.test.ts`, `tests/agent/orchestration/hybrid-orchestration-contract.test.ts`, `tests/agent/orchestration/hybrid-evaluation-harness.test.ts`, `tests/agent/orchestration-step.test.ts` | Implements the pre-Provider LangChain-only Boundary under the default LangChain Orchestrator while preserving the separate Query Runtime/adoption gates. Actor-authorized immutable snapshots produce closed query-scope provenance; pure queries bypass the full Orchestrator, unresolved specific scope clarifies with zero model calls, and compound requests retain the complete request for one residual structured call. Query-family residual output fails closed without Legacy fallback. The pure composer remaps IDs/dependencies into a schema-, decision-, and DAG-valid synthetic output, keeps provenance only in a sidecar, and reuses the existing Mapper downstream. Model-call accounting separates residual logical calls from Provider attempts. The explicit deterministic harness and tests use injected fakes only, save sanitized observations only, and perform no Provider call, database connection, task execution, or business mutation. | protected |
-| **Hybrid Gate Readiness (L3-B-R4-A Task 5)** | `tests/agent/orchestration/hybrid-candidate-validator.test.ts`, `tests/agent/orchestration/hybrid-production-entry.test.ts`, `tests/agent/orchestration/hybrid-production-call-accounting.test.ts`, `tests/agent/orchestration/hybrid-live-harness-contract.test.ts`, `tests/agent/orchestration/hybrid-evaluation-harness.test.ts`, `src/lib/agent/orchestration/hybrid-production-evaluation.ts`, `scripts/agent-hybrid-query-boundary-eval.mjs`, `scripts/agent-production-seam-gate-eval.mjs` | Locks the authoritative post-Composer order: strict structure, fixed-task provenance, decision consistency, final DAG, final resource readiness, sidecar projection, then Mapper. Candidate rejection cannot reach Mapper. A single authenticated-turn recorder is explicitly shared across Full Orchestrator, Residual Planner, Query Commentary, Answer, Specialist, and Replan, with logical calls separated from transport attempts. The R4 harness enters the real `runOrchestrationStep` and real Query Dispatcher gate; deterministic tests inject only facts, commentary, and model adapters. The historical one-time Hybrid Provider script is a typed fail-closed compatibility tombstone and cannot load a model or invoke an evaluation callback. Reusable observation, accounting, candidate, and retention contracts remain protected. The Production Seam `focused` stage is the sole executable live replacement and requires an exact disclosure manifest before model imports. | protected |
-| **Hybrid Live Harness Closure (L3-B-R4-A Task 7/8)** | `tests/agent/orchestration/hybrid-gate-preflight.test.ts`, `tests/agent/orchestration/hybrid-observation-classification.test.ts`, `tests/agent/orchestration/hybrid-observation-contract.test.ts`, `tests/agent/orchestration/hybrid-gate-runner.test.ts`, `tests/agent/orchestration/hybrid-gate-budget.test.ts`, `tests/agent/orchestration/hybrid-report-retention.test.ts`, `tests/agent/orchestration/hybrid-live-harness-contract.test.ts`, `tests/agent/orchestration/residual-planning-input-contract.test.ts`, `src/lib/agent/orchestration/hybrid-focused-gate.ts`, `src/lib/agent/orchestration/hybrid-focused-gate-preflight.ts`, `src/lib/agent/orchestration/hybrid-focused-gate-runner.ts`, `src/lib/agent/orchestration/hybrid-focused-gate-report.ts`, `src/lib/agent/orchestration/hybrid-production-evaluation.ts`, `src/lib/agent/orchestration/residual-intent-policy.ts`, `scripts/agent-hybrid-query-boundary-eval.mjs`, `scripts/agent-production-seam-gate-eval.mjs` | Separates usable, expected clarify, and unavailable outcomes; projects typed Residual, timeout, schema, Candidate, and bounded rejection-reason failures without raw error data; and records stable scope, provenance, index, round, latency, Provider-failure, timeout, and turn-wide call accounting. The closed Hybrid policy claims only the deterministic query-result-to-checklist-draft shape; unsupported Query mutations continue through the existing Full Orchestrator. For a claimed request, one immutable intent policy drives the Prompt JSON Schema, Provider-facing model schema, strict runtime Zod schema, local validation, and Preflight fingerprint. Request-invalid intents therefore enter the existing bounded schema retry rather than escaping to a terminal post-schema semantic failure. Full and Residual planners render one ordered intent-family rule body for task-draft-versus-memory and query-scope semantics; the Prompt and deterministic validator both reject a consultation task used as a bridge from the fixed Query to a write because the Composer owns that dependency. Reusable observation, accounting, candidate, and retention contracts remain protected. The historical one-time Hybrid Provider script is a typed fail-closed compatibility tombstone and cannot load a model or invoke an evaluation callback. The Production Seam `focused` stage is the sole executable live replacement and requires an exact disclosure manifest before model imports. | protected |
-| **Router Shadow (L2-A)** | `tests/agent/router-shadow.test.ts` | Feature flag, comparison, prioritization, collector, Primary-unchanged. Pure unit — no API, no DB. Default off. | normal |
-| **Router Structured Protocol (L2-B)** | `tests/agent/router-protocol.test.ts`, `tests/agent/router-shadow.test.ts`, `tests/agent/llm/invoke-structured.test.ts`, `tests/agent/llm/provider-capabilities.test.ts` | Schema-sourced prompt allowlists, strict structured output, clarify/resource safeguards, one Provider call per Shadow evaluation, typed failure isolation, sanitized collector, and Primary unchanged. Fake models only; no API or DB. Default off. | protected |
-| **Read/Clarify Router Canary (L2-C0)** | `tests/agent/router-canary.test.ts`, `tests/agent/router-canary-hook.test.ts` | Admin-only clarify adoption plus agreement-only read adoption, exact Primary fallback for writes/compound/failures, bounded timeout and cancellation, typed-resource and injection safety, sanitized metadata, one shared Canary/Shadow model call, preflight coverage, and production-hook isolation. Fake models only; no API or DB. Default off. | protected |
-| **Admin Router Canary Smoke (L2-C1)** | `tests/agent/router-canary-evaluation.test.ts`, `scripts/router-canary-evaluation.mjs` | Pure PASS/FAIL report contract, incomplete/unsafe failure gates, Primary identity, timeout/resource/provider classification, sanitized artifacts, and a 32-fixture explicit live harness. Deterministic tests use no API or DB; live execution is manual-only and excluded from default CI. | protected |
-| **Router Canary Closure (L2-C1-C1)** | `tests/agent/router-canary-closure-evaluation.test.ts`, `scripts/router-canary-closure-evaluation.mjs` | Fixed 24-observation matrix for typed clarify adoption, three-run cmp-2/cmp-4 evidence, actual typed invalid-resource hits, sanitized timeout metadata, one-call Shadow reuse, exact Primary fallback, and hard PASS/FAIL gates. Fake model only in deterministic tests; Live execution is explicit, DB-free, and excluded from default CI. | protected |
-
-## Planning
-
-| Module | Representative files | Contract | Protection |
-| --- | --- | --- | --- |
-| Readiness | `tests/agent/planning/plan-readiness.test.ts`, `tests/agent/planning/planning-readiness-gate.test.ts` | Under-specified plans clarify before write proposals. | protected |
-| PlanDraft | `tests/agent/planning/plan-draft.test.ts`, `tests/agent/planning/plan-draft-card*.test.tsx`, `tests/agent/planning/planning-draft-flow.test.ts` | Draft generation, draft-only UI, prepare actions. | protected for write boundary |
-| Prepare plan | `tests/agent/planning/prepare-plan-creation.test.ts` | PlanDraft converts to pending-confirmable create args without direct execution. | protected |
-| Create plan lifecycle | `tests/agent/planning/created-plan-id-lifecycle.test.ts`, `tests/agent/planning/planning-session-slots.test.ts` | Created plan id and session slots survive workflow transitions. | protected |
-| ChecklistDraft | `tests/agent/planning/checklist-draft.test.ts`, `tests/agent/planning/checklist-draft-flow.test.ts`, `tests/agent/planning/checklist-draft-card*.test.tsx` | PlanDraft to ChecklistDraft conversion and draft-only UI. | protected for write boundary |
-| Prepare checklist | `tests/agent/planning/prepare-checklist-creation.test.ts` | ChecklistDraft converts to create args and pending confirmation path. | protected |
-| Create checklist | `tests/agent/planning/create-checklist-execute.test.ts`, `tests/agent/planning/create-checklist-idempotency.test.ts`, `tests/agent/planning/create-checklist-rollback.test.ts` | Confirmed checklist write, receipt replay, rollback. | protected |
-| Plan linkage | `tests/agent/planning/checklist-plan-linkage*.test.ts`, `tests/agent/planning/plan-to-checklist-source-plan-id.test.ts` | Checklist links to real plan id and rollback restores links. | protected |
-| Timeline semantics | `tests/agent/planning/timeline-event-semantics.test.ts`, `tests/agent/planning/timeline-event-rollback.test.ts`, `tests/agent/planning/complete-checklist-item-*.test.ts` | Checklist completion creates/restores the correct timeline event. | protected |
-| Core linkage | `tests/agent/planning/core-linkage-*.test.ts`, `tests/agent/planning/checklist-timeline-plan-linkage.test.ts`, `tests/agent/planning/plan-progress-sync.test.ts` | Exact Plan / Checklist / Schedule / Timeline relationships, fresh migration compatibility, progress synchronization, compensation, and idempotent Plan links. | protected |
-| Linked Dashboard experience | `tests/agent/planning/linked-object-*.test.tsx`, `tests/agent/planning/core-linkage-view-*.tsx`, `tests/agent/planning/domain-refresh.test.tsx` | Shared linked-object components, exact focus/navigation, access-safe summaries, and retained post-write refresh without whole-page reload. | protected |
-| Progress aggregation | `tests/agent/planning/plan-checklist-progress*.test.ts` | Progress is computed from linked checklists without writing `Plan.progress`. | protected |
-| Product experience | `tests/agent/planning/planning-ui-state-contract.test.tsx`, `tests/agent/planning/pending-confirmation-ux.test.tsx`, `tests/agent/planning/action-result-card.test.tsx` | User-visible planning states and results. | normal |
-| Full workflow | `tests/agent/planning/planning-full-workflow-e2e.test.ts` | Planning -> checklist -> timeline/progress closure. | protected |
-
-## Schedule
-
-| Module | Representative files | Contract | Protection |
-| --- | --- | --- | --- |
-| Schedule readiness | `tests/agent/schedule/schedule-readiness.test.ts`, `tests/agent/schedule/schedule-readiness-gate.test.ts`, `tests/agent/schedule/schedule-slots.test.ts` | Context completeness and slot merging. | protected |
-| ScheduleDraft | `tests/agent/schedule/schedule-draft.test.ts`, `tests/agent/schedule/schedule-draft-card.test.tsx`, `tests/agent/schedule/schedule-draft-flow.test.ts`, `tests/agent/schedule/schedule-draft-message.test.tsx` | Draft generation and draft-only projection. | protected for write boundary |
-| Revise draft | `tests/agent/schedule/schedule-draft-revise*.test.ts`, `tests/agent/schedule/schedule-local-suggestions-flow.test.ts` | Suggestions update drafts without writing. | protected |
-| Prepare schedule | `tests/agent/schedule/prepare-schedule-creation.test.ts`, `tests/agent/schedule/schedule-pending-confirmation.test.ts` | Draft converts to pending confirmation path. | protected |
-| Create schedule items | `tests/agent/schedule/create-schedule-items-*.test.ts` | Confirmed batch write, dry-run, idempotency, rollback. | protected |
-| Complete linked schedule | `tests/agent/schedule/schedule-completion-*.test.ts`, `tests/agent/schedule/schedule-status-*.test.ts` | Manual and Agent completion share actor authorization, atomic/transactional status changes, Checklist/Plan/Timeline propagation, compensation, terminal effects, and full rollback. | protected |
-| Conflict awareness | `tests/agent/schedule/schedule-conflict-*.test.ts`, `tests/agent/schedule/local-free-slots.test.ts` | Local conflict detection and suggestions without automatic rescheduling. | protected |
-| Legacy schedule compatibility | `tests/agent/schedule/schedule-legacy-pipeline-contract.test.ts`, `tests/agent/schedule/schedule-conflict-detection.test.ts` | Legacy single-item schedule proposal/result helpers and conflict detector compatibility. | normal |
-| Query schedule | `tests/agent/schedule/schedule-query-flow.test.ts` | Read-only schedule lookup does not enter creation workflow. | protected |
-| ~~Schedule intent boundary (legacy)~~ | ~~`tests/agent/schedule/schedule-intent-boundary.test.ts`~~ | R6-C2-B: Deleted — pure keyword/regex boundary. Replaced by Tool Planner. | deleted |
-| Product polish | `tests/agent/schedule/schedule-ui-state-contract.test.tsx`, `tests/agent/schedule/schedule-result-card.test.tsx`, `tests/agent/schedule/schedule-product-*.test.tsx` | Draft / confirmation / result / suggestion / query state separation. | normal |
-| Full workflow | `tests/agent/schedule/schedule-workflow-e2e.test.ts`, `tests/agent/schedule/schedule-workflow-product-e2e.test.tsx` | End-to-end schedule workflow closure. | protected |
-
-## Session
-
-| Module | Representative files | Contract | Protection |
-| --- | --- | --- | --- |
-| Semantic coordinator | `tests/agent/session/coordinator.test.ts`, `tests/agent/session/pipeline-integration.test.ts` | Rule pre-check, feature flag, and coordinator pipeline behavior. | normal |
-| Transition engine | `tests/agent/session/transition-engine.test.ts` | LLM transition output is schema-checked and cannot request execution. | protected |
-| Reconcile and normalize | `tests/agent/session/normalize-session.test.ts`, `tests/agent/session/reconcile-session.test.ts`, `tests/agent/session/apply-patch.test.ts` | Session compatibility and safe state updates. | protected |
-| Router context | `tests/agent/session/router-context.test.ts`, `tests/agent/session/rule-pre-check.test.ts` | Route hints and deterministic pre-checks. | normal |
-| Golden scenarios | `tests/agent/session/golden-scenarios.test.ts` | Multi-turn session continuity. | normal |
-| Perf trace | `tests/agent/session/perf-trace.test.ts` | Coordinator and trace summaries remain bounded. | normal |
-
-These tests form the session state contract. They should not be mixed into write execution tests.
-
-## Ops
-
-| Module | Representative files | Contract | Protection |
-| --- | --- | --- | --- |
-| Agent Ops API | `tests/agent/ops/agent-ops-api.test.ts` | Snapshot is read-only, limited, and hides sensitive fields. | protected |
-| AgentOpsPanel | `tests/agent/ops/agent-ops-panel.test.tsx` | Summary, empty states, and no raw JSON leak. | normal |
-| Dashboard Ops tab | `tests/agent/ops/agent-ops-dashboard.test.tsx` | Ops entry does not break conversation UI. | normal |
-| Agent Activity UI | `tests/agent/agent-activity-builder.test.ts`, `tests/agent/ops/agent-activity-ui.test.tsx` | Activity builder maps read/draft/confirmation/execute/error states, sanitizes details, timeline/trace UI avoids raw JSON and Chain-of-Thought, and the main timeline keeps lightweight running/waiting/success/failed/skipped motion semantics. | normal |
-| M6-C2 Activity Runtime UX | `tests/agent/ops/agent-activity-ui.test.tsx` (M6-C2 additions) | Verifies loading text is suppressed when user-visible activity steps are present, developer-only steps trigger fallback, developer vocabulary (LangGraph, tool_call, api_call, policy_guard, raw JSON) is excluded from the main conversation area, and Draft / Confirmation / Result Cards are unaffected by the cleanup. | normal |
-| Backend trace / activity streaming | `tests/agent/agent-backend-trace.test.ts`, `tests/agent/stream-events.test.ts`, `tests/agent/schedule/schedule-query-flow.test.ts` | Backend trace sanitizer redacts sensitive values, append failures are non-blocking, realtime SSE activity events route to the frontend, live backend phases map to user-facing labels, query_schedule remains read-only, and write-flow trace maps dry-run / Policy Guard / confirmation / execute / receipt. | normal |
-
-Ops tests protect read-only observability. They must not introduce execute or rollback behavior.
-
-## Dashboard
-
-| Module | Representative files | Contract | Protection |
-| --- | --- | --- | --- |
-| Main shell | `tests/agent/dashboard.test.ts` | Dashboard opens as Agent Workspace rather than legacy stats. | protected |
-| Sidebar contract | `tests/agent/dashboard.test.ts`, `tests/layout/phase-e*.test.ts` | Collapsed 56px, hover expand, pin lock, icon-first navigation. | protected |
-| Inspector ownership | `tests/agent/dashboard.test.ts` | Right inspector stays separate from conversation rendering. | protected |
-| Exact existing Schedule boundary | `tests/agent/orchestration/deterministic-existing-schedule-boundary.test.ts`, `tests/agent/orchestration-step.test.ts` | Execute-mode exact ID/title completion can enter existing Dry-run without a Provider; unknown, conflicting, completed, ambiguous, or compound input remains fail-closed. | protected |
-| Suggestions sync | `tests/agent/dashboard.test.ts` | Server-side suggestions and UI ownership stay stable. | protected |
-
-`tests/layout` is outside the initial T1 scan but should be included in the next full map update.
-
-## Content
-
-| Module | Representative files | Contract | Protection |
-| --- | --- | --- | --- |
-| Public polish | `tests/content/public-site-polish.test.ts` | Home, Blog, Notes, Updates, and Checklist public presentation. | normal |
-| Public metadata | `tests/content/public-route-metadata.test.ts` | Basic metadata and canonical article metadata. | protected |
-| Prose | `tests/content/sunny-prose.test.ts` | Headings, links, blockquotes, code, tables, images, dark mode. | protected |
-| Color tokens | `tests/content/color-tokens.test.ts`, `tests/content/ui-primitives.test.ts` | No literal colors and tokenized primitives. | protected |
-| Rich content | `tests/content/rich-content*.test.ts` | Rich content schema utilities and renderer behavior. | normal |
-| Writing workspace | `tests/content/writing-*.test.ts` | Autosave, categories, editor contract, helper validation, and a minimal writing architecture guard. | protected where data/edit contract is involved |
-| CSS bundle split | `tests/content/css-bundle-split.test.ts` | Public, dashboard, and admin bundles remain separated. | protected |
+| `npm test` | Complete deterministic baseline below | No | No |
+| `npm run test:agent` | Root Agent, LangGraph runtime, safety, Ops, Dashboard | No | No |
+| `npm run test:agent:contracts` | Chat pipeline, LangChain schemas/protocol, orchestration, session | No | No |
+| `npm run test:agent:planning` | Plan, checklist, timeline, confirmation, linkage, rollback | No | No |
+| `npm run test:agent:schedule` | Schedule query, draft, conflict, execute, linkage, rollback | No | No |
+| `npm run test:content` | Public content, writing, palette, typography, rich content | No | No |
+| `npm run test:agent:checkpoint` | LangGraph PostgresSaver persistence and resume | No | Yes |
+| `npm run test:agent:e2e` | Agent runtime integration | Config-dependent | Yes |
+| `npm run test:e2e` | Browser product flows | Config-dependent | Yes |
 
-## Command
-
-| Module | Representative files | Contract | Protection |
-| --- | --- | --- | --- |
-| Floating command trigger | `tests/command/floating-trigger.test.ts` | Floating trigger hook and removed legacy composer wrapper. | normal |
-
-## E2E
+`npm test` runs the five deterministic groups: Agent core, Agent contracts,
+planning, schedule, and content. Database, browser, and live Provider checks
+remain explicit.
 
-The explicit non-CI Query evaluation command is `env -u AGENT_DEBUG_LOG DATABASE_URL= AGENT_LIVE_LLM_EVAL=1 AGENT_QUERY_RUNTIME=langchain node --import dotenv/config --import tsx scripts/query-langchain-evaluation.mjs`. Setting `DATABASE_URL=` before dotenv loads prevents the local `.env` from restoring a database connection; the script also rejects every non-empty database URL.
+GitHub Actions runs this baseline with `DATABASE_URL` removed from the test
+process. After the isolated PostgreSQL migration step, it runs the checkpoint
+integration separately. Real Provider evaluations remain manual and are never
+part of CI.
 
-The explicit non-CI Admin Query adoption command is `AGENT_LIVE_LLM_EVAL=1 AGENT_QUERY_RUNTIME=langchain AGENT_QUERY_ADOPTION=admin node --import dotenv/config --import tsx scripts/query-admin-adoption-evaluation.mjs`. It reads an existing trusted Payload user and existing plan IDs, performs no business or conversation writes, prints only sanitized category/progress counters plus the aggregate report, and restores the effective default through explicit rollback drills.
+## Protected product contracts
 
-| Spec | Requires server | Requires DB | Requires auth | Contract |
-| --- | --- | --- | --- | --- |
-| `tests/e2e/dashboard-agent.spec.ts` | Yes | Yes | Usually yes | Dashboard Agent shell smoke. |
-| `tests/e2e/dashboard-core-linkage.spec.ts` | Yes | Yes, disposable only | Yes | Serial manual completion and Agent-confirmed completion/Receipt/rollback; verifies Plan, Checklist, Schedule, Timeline, shared links, retained refresh, and stable `threadId` with all Providers disabled. |
-| `tests/e2e/dashboard-schedule-calendar.spec.ts` | Yes | Yes | Usually yes | Created schedule items appear in calendar view. |
-| `tests/e2e/dashboard-thread-actions.spec.ts` | Yes | Yes | Usually yes | Thread hover menu, archive dialog, and cancellation. |
-| `tests/e2e/dashboard-writing.spec.ts` | Yes | Yes | Usually yes | Writing workspace entry and preview switching. |
-| `tests/e2e/public-site-smoke.spec.ts` | Yes | Yes | No | Public route and mobile smoke. |
-| `tests/e2e/smoke.spec.ts` | Yes | Maybe | No/redirect | Basic home and dashboard access smoke. |
-| `tests/e2e/helpers/dashboard-shell.ts` | Helper | Helper | Helper | Shared E2E setup. |
-
-Use a non-production database for E2E. Do not connect browser or smoke tests to production data.
-
-## Merge / Rewrite Candidates
-
-| Candidate | Issue | Recommendation | Risk | T1-C allowed |
-| --- | --- | --- | --- | --- |
-| `tests/agent/root-workflow-contract.test.ts` | Completed in T1-C3; formerly `tests/agent/workflow.test.ts`. | Keep as a small root weekly/timeline workflow contract. | Low | Done |
-| `tests/agent/schedule/schedule-conflict-detection.test.ts` | Completed in T1-C3; absorbed `tests/agent/schedule.test.ts`. | Keep legacy single-item conflict detector cases next to modern conflict awareness tests. | Low | Done |
-| `tests/agent/schedule/schedule-legacy-pipeline-contract.test.ts` | Completed in T1-C3; formerly `tests/agent/schedule-pipeline-integration.test.ts`. | Keep compose_schedule_item legacy proposal, confirmation restore, result parsing, and UI wiring contracts. | Low | Done |
-| `tests/agent/root-router-contract.test.ts` | Completed in T1-C4; formerly `tests/agent/router-workflow.test.ts`. | Keep as focused read/write, capability handoff, resolver block, confirmation boundary, and target-specific preview contract. | Low | Done |
-| `tests/agent/langgraph-runtime.test.ts` + `tests/agent/langgraph-full-runtime.test.ts` + `tests/agent/langgraph-full-adapter.test.ts` | Runtime and adapter assertions are fragmented, but protect high-value checkpoint/resume and adapter finalizer behavior. | Do not merge during T1-C; keep as protected runtime contract group. | Medium | No |
-| `tests/agent/planning/*card*.test.tsx` | UI card source/CSS assertions still overlap outside the consolidated state contract. | Keep for now; T1-C1 added `planning-ui-state-contract.test.tsx` and left source guards as targeted follow-up candidates. | Low | Later only. |
-| `tests/agent/schedule/*product*.test.tsx` | Some conflict/product edge files remain after T1-C1 consolidation. | Keep unique conflict/result cases; duplicate state wording moved into `schedule-ui-state-contract.test.tsx`. | Low | Later only. |
-| `tests/content/writing-contract.test.ts` | Completed in T1-C2; formerly a large source/CSS regex contract. | Keep as a smaller semantic writing contract plus named architecture guards. | Low | Done |
-
-## Missing Coverage
-
-- `npm run test:agent` does not include `tests/agent/planning`, `tests/agent/schedule`, or `tests/agent/session`; this must remain visible in documentation and CI configuration.
-- Public E2E smoke requires a Next server and non-production Postgres setup.
-- Several UI tests use source regex as the main assertion. Long term, replace them with rendered semantic UI tests where possible.
-- `tests/layout`, `tests/writing`, `tests/primitives`, and `tests/performance` were outside the first T1 scan and need a later full-map pass.
-- E2E auth/seed prerequisites should be standardized in one place before expanding browser coverage.
-- There is no single `verify:ci` script yet; the current baseline is expressed as separate commands.
-
-## Legacy Heuristic Quarantine (R6-B → R6-Final)
-
-Tests in this section cover the pre-LLM Tool Planner heuristic business fallback path.
-They are **not part of the `AGENT_REQUIRE_LLM=1` protected baseline**.
-R6-Final-Audit verdict: each file now has a clear disposition.
-
-See: `docs/phase-r6b-legacy-heuristic-test-quarantine.md`, `docs/r6-final-heuristic-and-test-coverage-audit.md`
-
-### Quarantine: Legacy Heuristic Intent
-
-| Module | Files | Contract | R6-Final Status |
-| --- | --- | --- | --- |
-| Heuristic intent parsing | `tests/agent/plan-source.test.ts`, `tests/agent/pipeline-trace.trace.ts` | Pre-LLM heuristic intent classification (retired stubs). | 🔷 keep-as-legacy-compat |
-
-### Quarantine: Schedule Legacy
-
-| Module | Files | Contract | R6-Final Status |
-| --- | --- | --- | --- |
-| Schedule readiness | `tests/agent/schedule/schedule-readiness.test.ts`, `tests/agent/schedule/schedule-readiness-gate.test.ts`, `tests/agent/schedule/schedule-slots.test.ts` | Readiness evaluation + slot merging — product behavior. | 🔷 **keep-as-legacy-compat** (readiness is safety, not heuristic) |
-| Schedule draft | `tests/agent/schedule/schedule-draft.test.ts`, `tests/agent/schedule/schedule-draft-flow.test.ts`, `tests/agent/schedule/schedule-draft-revise.test.ts`, `tests/agent/schedule/schedule-session-draft.test.ts` | Draft generation + revision — product behavior. | 🔷 **keep-as-legacy-compat** (draft is product, not heuristic) |
-| ~~Schedule query intent~~ | ~~`tests/agent/schedule/schedule-query-intent.test.ts`~~ | R6-C2-B Deleted. Replaced by query_schedule read tool. | ✅ deleted |
-| Legacy pipeline | `tests/agent/schedule/schedule-legacy-pipeline-contract.test.ts` | Legacy pipeline + UI wiring contracts (mixed safety/legacy). | 🔷 **keep-as-legacy-compat** (tests safety/confirmation functions) |
-| Schedule preparation | `tests/agent/schedule/prepare-schedule-creation.test.ts` | Draft → create args conversion. | 🔷 **keep-as-legacy-compat** (product behavior) |
-
-### Quarantine: Planning Legacy
-
-| Module | Files | Contract | R6-Final Status |
-| --- | --- | --- | --- |
-| Plan readiness | `tests/agent/planning/plan-readiness.test.ts`, `tests/agent/planning/planning-readiness-gate.test.ts`, `tests/agent/planning/planning-session-slots.test.ts` | Readiness evaluation + slot merging — product behavior. | 🔷 **keep-as-legacy-compat** (readiness is safety, not heuristic) |
-| Plan draft | `tests/agent/planning/plan-draft.test.ts`, `tests/agent/planning/planning-draft-flow.test.ts`, `tests/agent/planning/revise-plan-draft.test.ts`, `tests/agent/planning/revise-plan-draft-flow.test.ts` | Draft generation + revision — product behavior. | 🔷 **keep-as-legacy-compat** (draft is product, not heuristic) |
-| Checklist draft | `tests/agent/planning/checklist-draft.test.ts`, `tests/agent/planning/checklist-draft-flow.test.ts` | Checklist draft — product behavior. compose_checklist replacement exists (R5-E). | 🔷 **keep-as-legacy-compat** (migrate to compose_checklist later) |
-| Plan preparation | `tests/agent/planning/prepare-plan-creation.test.ts`, `tests/agent/planning/prepare-checklist-creation.test.ts` | Draft → create args conversion. | 🔷 **keep-as-legacy-compat** (product behavior) |
-
-### Quarantine: Session Rules (Business)
-
-| Module | Files | Contract | R6-Final Status |
-| --- | --- | --- | --- |
-| Rule pre-check (business) | `tests/agent/session/rule-pre-check.test.ts` (deepen/schedule-query/schedule-create/writing-revision sub-tests) | Heuristic session business rules. Confirm/cancel sub-tests remain protected. | legacy-quarantine |
-
-### Quarantine: Needs Replacement
-
-| Module | Representative files | Missing Replacement | Protection |
-| --- | --- | --- | --- |
-| Checklist plan linkage | `tests/agent/planning/checklist-plan-linkage.test.ts`, `tests/agent/planning/plan-to-checklist-source-plan-id.test.ts` | compose_checklist draft tool (R5-E) | legacy-quarantine |
-
-## R6-C1 Legacy Heuristic Removal Regression (COMPLETED)
-
-Tests verifying heuristic modules were safely removed and replacement coverage exists.
-
-| Module | Representative files | Contract | Protection |
-| --- | --- | --- | --- |
-| Modules removed | `tests/agent/tool-planner-no-heuristic-query-fallback.test.ts`, `tests/agent/llm-required-no-heuristic-business-path.test.ts` | Deleted heuristic modules NOT importable; parse-heuristic-intent.ts absent from filesystem. | protected |
-| Aggregator retired | `tests/agent/chat-pipeline/legacy-heuristic-retired.test.ts` | resolveAgentIntent / parseHeuristicIntent no longer called. | protected |
-| Import consumers retired | `tests/agent/chat-pipeline/legacy-heuristic-import-consumers-retired.test.ts` | intent-resolution / orchestrator / heuristic-intent-resolver no longer import heuristics. | protected |
-| Query router retired | `tests/agent/chat-pipeline/legacy-query-router-imports-retired.test.ts` | capability-router / pre-router no longer import query.ts. | protected |
-| Knowledge retired | `tests/agent/chat-pipeline/legacy-knowledge-imports-retired.test.ts` | knowledge.ts / shared-text.ts consumers migrated to retired-intent-response. | protected |
-
-## R6-C2-B LOW-risk Legacy Test Retirement (COMPLETED)
-
-Phase R6-C2-B classified and processed LOW-risk schedule/planning legacy-only tests.
-No production code was modified. All deferred tests remain for R6-C2-C or later.
-
-| Module | Representative files | Action | Replacement Coverage |
-| --- | --- | --- | --- |
-| Schedule intent boundary | ~~`tests/agent/schedule/schedule-intent-boundary.test.ts`~~ | Deleted — pure keyword/regex boundary. | `tool-planner-schedule-read-tool`, `tool-planner-no-heuristic-query-fallback`, `llm-required-no-heuristic-business-path` |
-| Schedule query intent | ~~`tests/agent/schedule/schedule-query-intent.test.ts`~~ | Deleted — stub killed all assertions (3/3 fail). | `tool-planner-schedule-read-tool`, `tool-planner-no-heuristic-query-fallback`, `tool-planner-capability-answer-path` |
-
-### Deferred (R6-C2-C or later)
-
-| Category | Files | Reason |
-| --- | --- | --- |
-| Readiness | `schedule-readiness.test.ts`, `schedule-readiness-gate.test.ts`, `schedule-slots.test.ts`, `plan-readiness.test.ts`, `planning-readiness-gate.test.ts`, `planning-session-slots.test.ts` | Readiness evaluation is product behavior, not purely legacy |
-| Draft builders | `schedule-draft*.test.ts`, `plan-draft.test.ts`, `planning-draft-flow.test.ts`, `checklist-draft*.test.ts` | Draft generation is product behavior |
-| Draft revision | `schedule-draft-revise*.test.ts`, `revise-plan-draft*.test.ts` | Draft revision may be product behavior |
-| Preparation | `prepare-schedule-creation.test.ts`, `prepare-plan-creation.test.ts`, `prepare-checklist-creation.test.ts` | Draft → create args conversion may be product behavior |
-| Legacy pipeline | `schedule-legacy-pipeline-contract.test.ts` | Mixed content — tests safety/confirmation functions |
-| Checkpoint linkage | `checklist-plan-linkage*.test.ts` | compose_checklist draft tool replacement pending |
-| Session draft | `schedule-session-draft.test.ts` | Session state draft may be product behavior |
-| Query flow | `schedule-query-flow.test.ts` | R6-B says keep for legacy-compat |
-
-See: `docs/phase-r6-c2-a-schedule-planning-deterministic-boundary-audit.md`
-
-## LLM Tool Planner Replacement Coverage
-
-| Module | Representative files | Contract | Protection |
-| --- | --- | --- | --- |
-| No heuristic fallback | `tests/agent/llm-required-no-heuristic-business-path.test.ts` | AGENT_REQUIRE_LLM=1 blocks all heuristic fallback paths. | protected |
-| Capability answer | `tests/agent/tool-planner-capability-answer-path.test.ts` | Capability questions return controlled response, not regex router. | protected |
-| Schedule read tool | `tests/agent/tool-planner-schedule-read-tool.test.ts` | query_schedule read-only tool exists and works via Tool Planner. | protected |
-| No query fallback | `tests/agent/tool-planner-no-heuristic-query-fallback.test.ts` | Schedule/read queries do not fallback to heuristic parser. | protected |
-| Read/draft parity | `tests/agent/tool-planner-read-draft-parity.test.ts` | Read/draft tools support dryRun preview. | protected |
-
-## R6-C2-C Tool Planner Schedule/Planning Proposal Contract (COMPLETED)
-
-Phase R6-C2-C strengthened Tool Planner contract tests for schedule/planning proposals.
-No production code was modified. All tests use deterministic registry/metadata/readiness assertions.
+### Agent core and safety
 
-| Module | Representative files | Contract | Protection |
-| --- | --- | --- | --- |
-| Schedule proposal contract | `tests/agent/tool-planner-schedule-proposal-contract.test.ts` | Write tool metadata, draft dryRun→proposed_action, no DB write before confirm, no execute before confirm, missing slots→insufficient, planner unavailable→controlled, invalid tool→null, write allowlist boundary. | protected |
-| Planning proposal contract | `tests/agent/tool-planner-planning-proposal-contract.test.ts` | Write tool metadata, draft dryRun→proposed_action, no DB write before confirm, no execute before confirm, missing fields→insufficient, compose_checklist draft-only, mergePlanSlots safety, planner unavailable→controlled. | protected |
-
-### R6-C2-C Coverage Matrix
+Representative paths:
 
-| Scenario | Schedule | Planning |
-|----------|----------|----------|
-| Write tool metadata (capability, requiresConfirmation, supportsExecute/DryRun/Rollback) | ✅ | ✅ |
-| Draft tool dryRun → proposed_action with requiresConfirmation | ✅ | ✅ |
-| Draft tool dryRun snapshot: no DB write, no receipt, no execute | ✅ | ✅ |
-| Missing slots/fields → readiness status=insufficient | ✅ | ✅ |
-| Complete slots → draftable | ✅ | ✅ |
-| Existing draft + explicit create → confirmable | ✅ | ✅ |
-| Read-only tool dryRun → clarify (not proposed_action) | ✅ | — |
-| compose_checklist: draft-only, no execute | — | ✅ |
-| mergePlanSlots: non-mutating, preserves useful values | — | ✅ |
-| Planner unavailable response: no pendingAction, no execute, no DB write | ✅ | ✅ |
-| Planner unavailable response: user-facing message, no heuristic language | ✅ | ✅ |
-| Invalid tool → null/safe rejection | ✅ | ✅ |
-| Write allowlist boundary (3 write tools, no draft/read cross) | ✅ | ✅ |
-| dryRun supported by ALL tools | ✅ | ✅ |
-| Readiness is deterministic (no network, no side effects) | — | ✅ |
+- `tests/agent/action-receipts.test.ts`
+- `tests/agent/confirmation.test.ts`
+- `tests/agent/policy-guard.test.ts`
+- `tests/agent/execute-and-persist-step.test.ts`
+- `tests/agent/transactional-executor.test.ts`
+- `tests/agent/rollback*.test.ts`
+- `tests/agent/turn-finalizer.test.ts`
 
-## R6-C2-D Gated Legacy Fallback Entrypoints (COMPLETED)
+Required invariants:
 
-Phase R6-C2-D gated keyword/regex write-intent rules in `classifyScheduleIntentBoundary`
-behind `AGENT_REQUIRE_LLM=0`. In LLM-required mode, the keyword regex patterns that
-produce `schedule_creation` or `revise_schedule_draft` with `source: "rule"` are skipped.
-The query guard (`hasQuerySignal` → `query_schedule`) and LLM classifier path remain active.
+- Reads never become writes.
+- Draft and dry-run never execute.
+- Writes require policy and confirmation.
+- Execution, receipt, rollback, and replay remain idempotent and owner-bound.
+- Failures do not fabricate success or silently continue into a write path.
 
-| Module | File | Action | Detail |
-| --- | --- | --- | --- |
-| intent-boundary gate | `src/lib/agent/schedule/intent-boundary.ts` | **Gated** | `hasExplicitCreateSignal` + `hasDraftRevisionSignal` keyword rules gated behind `!isAgentRequireLLMEnabled()` |
-| intent-boundary safety guard | `src/lib/agent/schedule/intent-boundary.ts` | **Kept** | `hasQuerySignal` → `query_schedule` read-only guard still works in all modes |
-| Gating tests | `tests/agent/llm-required-no-heuristic-business-path.test.ts` | **Added** | 4 new tests verify: write intent blocked in AGENT_REQUIRE_LLM=1, query guard preserved, legacy mode unchanged, no fallback to write from generic messages |
+### LangGraph runtime
 
-### Deferred (unchanged)
+Representative paths:
 
-| Category | Files | Reason |
-| --- | --- | --- |
-| Readiness gates | `schedule/readiness-gate.ts`, `planning/readiness-gate.ts` | Readiness orchestration — product behavior |
-| Readiness evaluation | `schedule/readiness.ts`, `planning/readiness.ts` | Slot validation — safety contract |
-| Draft revision | `schedule/revise-draft*.ts`, `planning/revise-plan-draft.ts` | May be product behavior (0 production callers, but spec says defer) |
-| Checklist draft flow | `planning/checklist-draft-flow.ts` | May be product behavior (0 production callers, but spec says defer) |
+- `tests/agent/langgraph-*.test.ts`
+- `tests/integration/langgraph-postgres-checkpointer.test.ts`
 
-## Test Pruning Plan
+Required invariants:
 
-### Keep
+- Node ordering and interrupt/resume semantics remain deterministic.
+- Checkpoint keys isolate users and threads.
+- Resume does not duplicate dry-run, execution, receipt, or persistence.
+- Cancellation and typed failures terminate safely.
 
-- All safety tests for dry-run, Policy Guard, confirmation, execute, receipt, rollback, and idempotency.
-- Planning and schedule full workflow tests.
-- Query schedule boundary regression tests.
-- Timeline semantics and rollback tests.
-- Dashboard layout contract tests.
-- Public metadata, prose, token, and writing data-contract tests.
-- E2E smoke tests with documented non-production prerequisites.
+### LangChain and Orchestrator contracts
 
-### Merge
+Representative paths:
+
+- `tests/agent/llm/*.test.ts`
+- `tests/agent/orchestration/langchain-orchestrator.test.ts`
+- `tests/agent/orchestration/orchestrator-capability-manifest.test.ts`
+- `tests/agent/orchestration/orchestrator-decision-consistency.test.ts`
+- `tests/agent/orchestration/orchestrator-output-mapper.test.ts`
+- `tests/agent/orchestration/resource-readiness-guard.test.ts`
+- `tests/agent/orchestration/query-scope-*.test.ts`
 
-| Files | Reason | Keep after merge | Risk |
-| --- | --- | --- | --- |
-| `tests/agent/langgraph-runtime.test.ts`, `tests/agent/langgraph-full-runtime.test.ts`, `tests/agent/langgraph-full-adapter.test.ts` | Same runtime family. | Runtime default, graph traversal, adapter finalization, checkpoint isolation. | Medium |
-| `tests/agent/workflow.test.ts` with weekly/timeline tests | Root workflow file is broad and partly historical. | Weekly review payload and timeline proposal contracts. | Medium |
+Required invariants:
 
-Completed in T1-C1:
-
-- `tests/agent/planning/planning-product-experience.test.tsx` -> `tests/agent/planning/planning-ui-state-contract.test.tsx`.
-- `tests/agent/schedule/schedule-product-polish.test.tsx`, `tests/agent/schedule/schedule-state-separation.test.tsx`, `tests/agent/schedule/schedule-conflict-suggestion-ui.test.tsx`, and `tests/agent/schedule/schedule-query-product.test.tsx` -> `tests/agent/schedule/schedule-ui-state-contract.test.tsx`.
-
-Completed in T1-C2:
-
-- `tests/content/writing-contract.test.ts` was rewritten in place from dense source/CSS regex checks into a smaller protected writing contract. Remaining source checks are named architecture guards and cover sidebar/provider wiring, document rail actions, stable writing tokens, Tiptap/slash command boundaries, upload helper routing, and publish visibility parsing.
-
-Completed in T1-C3:
-
-- `tests/agent/workflow.test.ts` -> `tests/agent/root-workflow-contract.test.ts`.
-- `tests/agent/schedule.test.ts` -> merged into `tests/agent/schedule/schedule-conflict-detection.test.ts`.
-- `tests/agent/schedule-pipeline-integration.test.ts` -> `tests/agent/schedule/schedule-legacy-pipeline-contract.test.ts`.
-
-Completed in T1-C4:
-
-- `tests/agent/router-workflow.test.ts` -> `tests/agent/root-router-contract.test.ts`.
-- Numbered synthetic router cases were rewritten as explicit root contracts for schedule query read-only routing, schedule creation confirmation, destructive preview-only routing, update resolver handoff, follow-up expansion, resolver failure blocking, planned-vs-actual trace pairing, router schema fallback, and target-specific create preview routing.
-- Repeated schedule synonym and low-confidence write boundary coverage remains in `tests/agent/schedule/schedule-intent-boundary.test.ts` and `tests/agent/schedule/schedule-query-flow.test.ts`.
-- Detailed capability-gate coverage remains in `tests/agent/capability-*.test.ts`; root router keeps only the handoff contract.
-
-### Rewrite
-
-| File | Current problem | New contract | Risk |
-| --- | --- | --- | --- |
-| `tests/agent/root-router-contract.test.ts` | Completed in T1-C4; formerly too broad and overlapping with tool/capability contracts. | Focused query/write route boundary scenarios. | Low |
-
-### Delete Candidate
-
-No additional file is approved for direct deletion after T1-C4. `tests/agent/router-workflow.test.ts` was renamed and rewritten in place as `tests/agent/root-router-contract.test.ts`; no unique root router contract was deleted.
-
-Future delete candidates must list:
-
-- Deletion reason.
-- Replacement coverage file.
-- Whether any safety guarantee is lost.
-- Whether a new test must be added first.
-
-If any of those are unknown, the file stays in rewrite or merge status.
+- Structured schemas are the single contract source.
+- Workspace context is untrusted data.
+- Capability metadata does not expose execute functions.
+- Query scope and resource provenance are deterministic.
+- Invalid schema, DAG, intent, or resource output fails closed.
+- No raw prompt, response, secret, or reasoning is retained.
+
+Historical evaluation/harness snapshots are not runtime contracts and are not
+part of the deterministic suite. Live Gate scripts remain explicit, manually
+authorized observations and must not be interpreted as unit-test evidence.
+
+### Conversation and Dashboard
+
+Representative paths:
+
+- `tests/agent/conversation-continuity.test.ts`
+- `tests/agent/conversation-follow-up.test.ts`
+- `tests/agent/dashboard.test.ts`
+- `tests/agent/ops/*.test.tsx`
+
+Required invariants:
+
+- Recent conversation state and trusted workspace context reach the
+  authoritative Orchestrator.
+- New conversations have an empty welcome state rather than a fake completed
+  turn.
+- IME composition cannot submit or cancel a turn accidentally.
+- Product UI hides raw tool names, IDs, Provider details, and internal traces.
+- Thread metadata displays product state/tags without internal thread IDs.
+- Ordinary answers stay lightweight while structured artifacts use cards.
+
+### Planning, checklist, schedule, and timeline
+
+Representative paths:
+
+- `tests/agent/planning/*.test.ts`
+- `tests/agent/planning/*.test.tsx`
+- `tests/agent/schedule/*.test.ts`
+- `tests/agent/schedule/*.test.tsx`
+
+Required invariants:
+
+- Draft -> dry-run -> confirmation -> execution boundaries remain explicit.
+- Created plans, checklists, schedule items, and timeline events retain their
+  cross-feature links.
+- Progress facts are deterministic.
+- Conflict handling, completion, rollback, and idempotency remain covered.
+- User-visible status and priority values are localized and formatted.
+
+### Content and palette
+
+Representative paths:
+
+- `tests/content/*.test.ts`
+- `tests/markdown/*.test.ts`
+
+Required invariants:
+
+- Public metadata, rich content, writing persistence, and taxonomy remain
+  stable.
+- Palette tokens preserve the Forest default, saved user selection, semantic
+  hues, and accessible contrast.
+- Public, Dashboard, and admin CSS bundles remain separated.
+
+### Integration and E2E
+
+- `tests/integration` requires a non-production PostgreSQL database.
+- `tests/e2e` requires a running application and isolated test credentials/data.
+- Provider-backed evaluations require separate user approval, disclosure,
+  request budgets, and sanitized reports. They are observations, not unit tests.
+
+## Removed invalid coverage
+
+The 2026-08-05 cleanup removed tests that could not meet the quality bar:
+
+- The 60-case `agent-test-cases.json` suite and its 75 passing checks. It only
+  validated hand-written expected fields and never called the Agent.
+- Generated/raw result files and the shell runner that stored raw streamed
+  responses in the test tree.
+- Retired heuristic fixture loops, local parser stubs, and permissive
+  "any intent/engine is acceptable" assertions.
+- One-time `phase-e*`, `phase-p*`, `phase-w*`, and `phase-c*` source snapshots.
+  They verified migration implementation details rather than current behavior
+  and were not connected to any test command.
+- The standalone floating-trigger source snapshot. User-facing Dashboard
+  behavior remains covered by the Dashboard and browser suites.
+- Historical L3-B and hybrid Provider Gate tests that pinned rollout budgets,
+  observation matrices, report retention, and old fixture decisions. Current
+  production branch, schema, safety, resource, and query-boundary contracts are
+  covered directly instead.
+
+The product-facing thread metadata requirement from the deleted sidebar phase
+snapshot was moved into an executable `formatThreadMeta` test in
+`tests/agent/dashboard.test.ts`.
+
+## Remaining follow-up
+
+- Some older Dashboard and card tests still use source inspection. Keep only
+  named architecture guards and replace user-facing assertions with rendered or
+  browser tests when those areas next change.
+- Browser tests must continue using disposable/non-production data.

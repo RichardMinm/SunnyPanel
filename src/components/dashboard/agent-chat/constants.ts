@@ -1,11 +1,6 @@
 import type { AgentChatMessage, AgentChatResponse } from "@/lib/agent/schemas";
 
-export const initialMessages: AgentChatMessage[] = [
-  {
-    content: "直接告诉我你想推进什么，我会把它整理成计划、清单或进度动作。",
-    role: "assistant",
-  },
-];
+export const initialMessages: AgentChatMessage[] = [];
 
 export const thinkingStatusKeywords = [
   "解析", "执行", "评估", "处理中", "整理", "生成", "恢复",

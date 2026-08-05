@@ -46,6 +46,20 @@ test("full adapter terminates cancelled orchestration before resolution or persi
     pendingAction: null,
   } as unknown as AgentThread;
   let propagatedSignal: AbortSignal | undefined;
+  let propagatedHistory: unknown;
+  let propagatedConversationState: unknown;
+  const recentHistory = [{
+    content: "上一轮目标",
+    role: "user" as const,
+  }];
+  const conversationState = {
+    lastAnswerDepth: "brief" as const,
+    lastAssistantAnswerSummary: "上一轮摘要",
+    lastMentionedEntities: ["FastJSON"],
+    lastTopic: "FastJSON",
+    lastUserIntent: "answer_question" as const,
+    updatedAt: "2026-07-29T10:00:00.000+08:00",
+  };
   const payload = new Proxy({} as never, {
     get() {
       payloadAccesses += 1;
@@ -79,6 +93,8 @@ test("full adapter terminates cancelled orchestration before resolution or persi
     },
     runOrchestrationStep: async (params) => {
       propagatedSignal = params.signal;
+      propagatedHistory = params.resolvedHistory;
+      propagatedConversationState = params.conversationState;
       caller.abort(new DOMException("Client disconnected", "AbortError"));
       return {
         outcome: "cancelled",
@@ -95,6 +111,7 @@ test("full adapter terminates cancelled orchestration before resolution or persi
   const run = createRunFullLangGraphAgentChatPipeline(
     {
       baseTokenUsage: tokenUsage,
+      conversationState,
       contextPreferences: null,
       finalizeTurn: async ({ response }) => {
         finalizerCount += 1;
@@ -105,7 +122,7 @@ test("full adapter terminates cancelled orchestration before resolution or persi
       message: "安排计划",
       payload,
       pendingAction: null,
-      resolvedHistory: [],
+      resolvedHistory: recentHistory,
       signal: caller.signal,
       structuredConfirmation: null,
       thread,
@@ -120,6 +137,8 @@ test("full adapter terminates cancelled orchestration before resolution or persi
   const response = await run();
 
   assert.equal(propagatedSignal, caller.signal);
+  assert.deepEqual(propagatedHistory, recentHistory);
+  assert.deepEqual(propagatedConversationState, conversationState);
   assert.equal(caller.signal.aborted, true);
   assert.equal(response.assistantMessage, "请求已被取消。");
   assert.equal(response.intent, "clarify");

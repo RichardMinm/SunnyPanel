@@ -4,7 +4,7 @@ import { parseCookieValue } from "@/lib/site-cookies";
 
 export const sitePaletteCookieName = "site-palette";
 
-export const defaultSitePalette = "cobalt" as const;
+export const defaultSitePalette = "forest" as const;
 
 export const sitePalettes = ["cobalt", "forest", "wine", "midnight", "slate"] as const;
 

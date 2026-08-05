@@ -60,7 +60,7 @@ test("MessageCard renders create_schedule_items success as ActionResultCard", as
   assert.match(markup, /已创建 2 个日程项/);
   assert.match(markup, /2026-06-29 → 2026-06-30/);
   assert.match(markup, /可撤销/);
-  assert.match(markup, /这些日程项已写入日程/);
+  assert.match(markup, /日程已保存/);
 });
 
 test("ScheduleDraftCard keeps draft wording and never claims schedule creation", async () => {

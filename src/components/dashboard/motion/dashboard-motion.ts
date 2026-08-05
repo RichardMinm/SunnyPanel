@@ -18,6 +18,11 @@ export const dashboardLayoutTransition = {
   ease: "easeOut" as const,
 };
 
+export const agentMotionTransition = {
+  duration: 0.24,
+  ease: [0.22, 1, 0.36, 1] as const,
+};
+
 export function useDashboardMotion() {
   const prefersReducedMotion = useReducedMotion();
 
@@ -45,7 +50,50 @@ export function useDashboardMotion() {
     initial: prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: 0 },
     animate: { opacity: 1, x: 0 },
     exit: { opacity: 0 },
-    transition: { duration: prefersReducedMotion ? 0.16 : 0.25 },
+    transition: {
+      duration: prefersReducedMotion ? 0.12 : agentMotionTransition.duration,
+      ease: agentMotionTransition.ease,
+    },
+  };
+
+  const agentSurfaceView = {
+    initial: prefersReducedMotion
+      ? { opacity: 0 }
+      : { opacity: 0, scale: 0.992, y: 8 },
+    animate: { opacity: 1, scale: 1, y: 0 },
+    exit: prefersReducedMotion
+      ? { opacity: 0 }
+      : { opacity: 0, scale: 0.996, y: -4 },
+    transition: {
+      duration: prefersReducedMotion ? 0.12 : agentMotionTransition.duration,
+      ease: agentMotionTransition.ease,
+    },
+  };
+
+  const agentDisclosureView = {
+    initial: prefersReducedMotion
+      ? { opacity: 0 }
+      : { height: 0, opacity: 0, y: -4 },
+    animate: prefersReducedMotion
+      ? { opacity: 1 }
+      : { height: "auto", opacity: 1, y: 0 },
+    exit: prefersReducedMotion
+      ? { opacity: 0 }
+      : { height: 0, opacity: 0, y: -4 },
+    transition: {
+      duration: prefersReducedMotion ? 0.1 : 0.2,
+      ease: agentMotionTransition.ease,
+    },
+  };
+
+  const agentStatusView = {
+    initial: prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 5 },
+    animate: { opacity: 1, y: 0 },
+    exit: prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -3 },
+    transition: {
+      duration: prefersReducedMotion ? 0.1 : 0.18,
+      ease: agentMotionTransition.ease,
+    },
   };
 
   const layoutTransition = prefersReducedMotion
@@ -57,6 +105,9 @@ export function useDashboardMotion() {
     modeView,
     inspectorView,
     messageView,
+    agentSurfaceView,
+    agentDisclosureView,
+    agentStatusView,
     layoutTransition,
   };
 }

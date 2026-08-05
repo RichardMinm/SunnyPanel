@@ -1,30 +1,35 @@
-import { useMemo, useState } from "react";
+"use client";
+
+import { useMemo } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { AgentActivityTimeline } from "./AgentActivityTimeline";
 import { ActionResultCard } from "./ActionResultCard";
 import { AgentMarkdownBubble } from "./AgentMarkdownBubble";
+import { AgentMessageActions } from "./AgentMessageActions";
 import { ChecklistCompletionCard } from "./ChecklistCompletionCard";
 import { ChecklistDraftCard } from "./ChecklistDraftCard";
 import { PlanDraftCard } from "./PlanDraftCard";
 import { PlanOverviewCard } from "./PlanOverviewCard";
 import { ScheduleDraftCard } from "./ScheduleDraftCard";
+import { ScheduleQueryCard } from "./ScheduleQueryCard";
 import { ScheduleResultCard } from "./ScheduleResultCard";
 import {
   parseActionResultMessage,
   parseChecklistCompletion,
   parsePlanOverview,
+  parseScheduleQuerySummary,
   parseScheduleResultMessage,
 } from "./utils";
-import { DashboardIcon } from "../icons";
 import type { ChecklistDraft } from "@/lib/agent/planning/checklist-draft";
 import type { PlanDraft } from "@/lib/agent/planning/draft";
 import type { ScheduleDraft } from "@/lib/agent/schedule/draft";
 import type { AgentActivityStep } from "@/lib/agent/activity";
+import { useDashboardMotion } from "../motion/dashboard-motion";
 
 type MessageCardProps = {
   activitySteps?: AgentActivityStep[];
   content: string;
   isStreaming?: boolean;
-  isThinking?: boolean;
   onChecklistDraftPrepareCreate?: () => void;
   onPlanDraftGenerateChecklist?: () => void;
   onPlanDraftPrepareCreate?: () => void;
@@ -35,14 +40,12 @@ type MessageCardProps = {
   planningDraft?: PlanDraft | null;
   role: "assistant" | "user";
   schedulingDraft?: ScheduleDraft | null;
-  thinkingContent?: string;
 };
 
 export function MessageCard({
   activitySteps = [],
   content,
   isStreaming,
-  isThinking,
   onChecklistDraftPrepareCreate,
   onPlanDraftGenerateChecklist,
   onPlanDraftPrepareCreate,
@@ -53,15 +56,15 @@ export function MessageCard({
   planningDraft,
   role,
   schedulingDraft,
-  thinkingContent,
 }: MessageCardProps) {
-  const [thinkingOpen, setThinkingOpen] = useState(isThinking === true);
-
+  const { agentSurfaceView } = useDashboardMotion();
   // Only attempt structured parsing when NOT streaming (avoid false positives during generation)
   const structuredCard = useMemo(() => {
     if (role !== "assistant" || isStreaming || !content) return null;
     const actionResult = parseActionResultMessage(content);
     if (actionResult) return { type: "action_result" as const, data: actionResult };
+    const scheduleQuery = parseScheduleQuerySummary(content);
+    if (scheduleQuery) return { type: "schedule_query" as const, data: scheduleQuery };
     const scheduleResult = parseScheduleResultMessage(content);
     if (scheduleResult) return { type: "schedule" as const, data: scheduleResult };
     const checklistResult = parseChecklistCompletion(content);
@@ -71,18 +74,29 @@ export function MessageCard({
     return null;
   }, [content, isStreaming, role]);
 
-  // 自动展开：正在思考时展开，思考完成后折叠
-  if (isThinking && !thinkingOpen) {
-    // 仅在流式思考中自动展开
-  }
-
-  const hasThinking = Boolean(thinkingContent?.trim());
-  const thinkingSteps = hasThinking
-    ? thinkingContent!.split(/\n{2,}/).filter(Boolean)
-    : [];
   const hasUserActivitySteps = activitySteps.some(
     (step) => step.visibility !== "developer",
   );
+  const hasProductCard = Boolean(
+    planningChecklistDraft ||
+      planningDraft ||
+      schedulingDraft ||
+      structuredCard,
+  );
+  const showMessageActions =
+    role === "assistant" &&
+    !isStreaming &&
+    !hasProductCard &&
+    content.trim().length > 0;
+  const assistantContentKey = planningChecklistDraft
+    ? "checklist-draft"
+    : planningDraft
+      ? "plan-draft"
+      : schedulingDraft
+        ? "schedule-draft"
+        : structuredCard
+          ? `structured-${structuredCard.type}`
+          : "markdown";
 
   const renderAssistantContent = () => {
     if (planningChecklistDraft && !isStreaming) {
@@ -125,6 +139,8 @@ export function MessageCard({
     switch (structuredCard.type) {
       case "action_result":
         return <ActionResultCard data={structuredCard.data} />;
+      case "schedule_query":
+        return <ScheduleQueryCard summary={structuredCard.data} />;
       case "schedule":
         return <ScheduleResultCard result={structuredCard.data} />;
       case "checklist":
@@ -146,46 +162,39 @@ export function MessageCard({
 
   const body = (
     <div className="sunny-message-card-body">
-      {role === "assistant" ? <span className="sunny-message-card-assistant-name">Sunny</span> : null}
-      {role === "assistant" && hasThinking ? (
-        <div className="sunny-thinking-fold">
-          <button
-            type="button"
-            className="sunny-thinking-fold-header"
-            onClick={() => setThinkingOpen((v) => !v)}
-          >
-            <span className={`sunny-thinking-fold-arrow${thinkingOpen ? " is-open" : ""}`}>
-              <DashboardIcon name="chevronDown" />
-            </span>
-            <span className="sunny-thinking-icon"><DashboardIcon name="thinking" /></span> 执行过程
-            {thinkingSteps.length > 1 ? ` (${thinkingSteps.length} 步)` : ""}
-          </button>
-          {thinkingOpen ? (
-            <div className="sunny-thinking-fold-body">{thinkingContent}</div>
-          ) : null}
-        </div>
-      ) : null}
       {role === "user" ? (
         <p className="sunny-message-card-user-text">{content}</p>
       ) : (
         <>
-          {renderAssistantContent()}
+          <AnimatePresence initial={false} mode="popLayout">
+            <motion.div
+              animate={agentSurfaceView.animate}
+              className="sunny-agent-content-transition"
+              exit={agentSurfaceView.exit}
+              initial={agentSurfaceView.initial}
+              key={assistantContentKey}
+              transition={agentSurfaceView.transition}
+            >
+              {renderAssistantContent()}
+            </motion.div>
+          </AnimatePresence>
+          {showMessageActions ? <AgentMessageActions content={content} /> : null}
           <AgentActivityTimeline steps={activitySteps} />
         </>
       )}
     </div>
   );
 
-  const avatar = role === "assistant" ? (
-    <div className="sunny-message-card-avatar" aria-hidden="true">
-      S
-    </div>
-  ) : null;
-
   return (
-    <div className={`sunny-message-card sunny-message-card-${role}`}>
-      {avatar}
-      {body}
+    <div
+      className={`sunny-message-card sunny-message-card-${role}${hasProductCard ? " has-product-card" : ""}`}
+    >
+      {role === "assistant" ? (
+        <>
+          <span aria-hidden="true" className="sunny-message-card-assistant-mark">S</span>
+          <div className="sunny-message-card-assistant-content">{body}</div>
+        </>
+      ) : body}
     </div>
   );
 }

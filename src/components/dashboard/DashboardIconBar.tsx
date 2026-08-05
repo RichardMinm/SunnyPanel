@@ -163,7 +163,7 @@ export function DashboardIconBar({
     async (id: number) => {
       const ok = await onArchiveThread(id);
       if (ok && id === threadId) {
-        onNewThread();
+        onNewThread({ force: true });
       }
     },
     [onArchiveThread, onNewThread, threadId],
@@ -258,7 +258,7 @@ export function DashboardIconBar({
               className="sunny-dashboard-sidebar-action"
               icon={<DashboardIcon name="new" />}
               label="新对话"
-              onClick={onNewThread}
+              onClick={() => onNewThread()}
               tooltip="新对话"
               showTooltip={showSidebarTooltips}
             />

@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import * as React from "react";
@@ -8,11 +7,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import type { ProposedAgentAction } from "../../../src/lib/agent/schemas";
 import type { ScheduleDraft } from "../../../src/lib/agent/schedule/draft";
-
-const read = (path: string) => readFileSync(path, "utf8");
-
-const actionResultCardPath = "src/components/dashboard/agent/ActionResultCard.tsx";
-const messageCardPath = "src/components/dashboard/agent/MessageCard.tsx";
 
 const sampleDraft: ScheduleDraft = {
   assumptions: ["这是规则生成的日程草案，尚未写入日程。"],
@@ -166,19 +160,8 @@ test("schedule workflow UI separates draft confirmation and executed result stat
   assert.match(resultMarkup, /sunny-action-result-card/);
   assert.match(resultMarkup, /已创建日程/);
   assert.match(resultMarkup, /已创建 2 个日程项/);
-  assert.match(resultMarkup, /可撤销/);
+  assert.match(resultMarkup, /日程已保存/);
+  assert.match(resultMarkup, /打开日程/);
   assert.doesNotMatch(resultMarkup, /尚未写入日程/);
   assert.doesNotMatch(resultMarkup, /等待确认/);
-});
-
-test("MessageCard keeps K8 schedule result rendering inside ActionResultCard dispatch", () => {
-  const messageSource = read(messageCardPath);
-  const resultSource = read(actionResultCardPath);
-
-  assert.match(messageSource, /ActionResultCard/);
-  assert.match(messageSource, /parseActionResultMessage/);
-  assert.doesNotMatch(messageSource, /schedule_items_created/);
-  assert.match(resultSource, /schedule_items_created/);
-  assert.match(resultSource, /已创建日程/);
-  assert.match(resultSource, /可撤销/);
 });

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AgentResultDelivery } from "./AgentResultDelivery";
 import type { ChecklistCompletionData } from "./utils";
 
 type ChecklistCompletionCardProps = {
@@ -25,11 +25,7 @@ export function ChecklistCompletionCard({ data }: ChecklistCompletionCardProps) 
       <div className="sunny-agent-progress-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
         <span className="sunny-agent-progress-bar-fill" style={{ width: `${pct}%` }} />
       </div>
-      <div className="sunny-agent-result-card-actions">
-        <Link className="sunny-agent-result-card-link" href="/dashboard">
-          打开清单
-        </Link>
-      </div>
+      <AgentResultDelivery statusLabel="进度信息已整理" workspace="checklist" />
     </section>
   );
 }

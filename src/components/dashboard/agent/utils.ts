@@ -87,6 +87,124 @@ export type ScheduleResultSummary = {
   title: string;
 };
 
+export type ScheduleQuerySummaryData = {
+  groups: Array<{
+    date: string;
+    items: Array<{
+      meta: string[];
+      timeRange: string;
+      title: string;
+    }>;
+  }>;
+  hiddenCount: number;
+  rangeLabel: string;
+  totalCount: number;
+};
+
+const queryStatusLabel: Record<string, string> = {
+  cancelled: "已取消",
+  completed: "已完成",
+  in_progress: "进行中",
+  pending: "待安排",
+  planned: "计划中",
+};
+
+const queryPriorityLabel: Record<string, string> = {
+  high: "高优先级",
+  low: "低优先级",
+  medium: "中优先级",
+  urgent: "紧急",
+};
+
+const naturalizeScheduleMeta = (value: string): string | null => {
+  const trimmed = value.trim();
+  const rawStatus = trimmed.match(/^状态[：:]\s*(\S+)$/u)?.[1];
+  if (rawStatus) {
+    return queryStatusLabel[rawStatus] ?? null;
+  }
+
+  const rawPriority = trimmed.match(/^优先级[：:]\s*(\S+)$/u)?.[1];
+  if (rawPriority) {
+    return queryPriorityLabel[rawPriority] ?? null;
+  }
+
+  if (Object.values(queryStatusLabel).includes(trimmed) || Object.values(queryPriorityLabel).includes(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^(计划|清单)(?:\s*#\d+|「.+」)$/u.test(trimmed)) {
+    return trimmed;
+  }
+
+  return null;
+};
+
+export const parseScheduleQuerySummary = (content: string): ScheduleQuerySummaryData | null => {
+  const lines = content.trim().split(/\r?\n/u);
+  const heading = lines[0]?.match(/^这是(.+?)的日程摘要，共\s*(\d+)\s*个日程项[：:]$/u);
+  if (!heading) {
+    return null;
+  }
+
+  const groups: ScheduleQuerySummaryData["groups"] = [];
+  let currentGroup: ScheduleQuerySummaryData["groups"][number] | null = null;
+  let hiddenCount = 0;
+
+  for (const rawLine of lines.slice(1)) {
+    const line = rawLine.trim();
+    if (!line) {
+      continue;
+    }
+
+    if (
+      /^这次只是查看日程/u.test(line) ||
+      /^本次仅(?:查看|查询)日程/u.test(line)
+    ) {
+      continue;
+    }
+
+    const hidden = line.match(/^还有\s*(\d+)\s*个日程项未展开显示[。.]?$/u);
+    if (hidden) {
+      hiddenCount = Number(hidden[1]);
+      continue;
+    }
+
+    if (/^(?:\d{4}-\d{2}-\d{2}|未指定日期)$/u.test(line)) {
+      currentGroup = { date: line, items: [] };
+      groups.push(currentGroup);
+      continue;
+    }
+
+    const item = line.match(
+      /^-\s*(\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?|截至\s+\S+|全天\s*\/\s*未指定时间)\s+(.+?)(?:（(.+)）)?$/u,
+    );
+    if (!item || !currentGroup) {
+      return null;
+    }
+
+    const meta = (item[3] ?? "")
+      .split("，")
+      .map(naturalizeScheduleMeta)
+      .filter((value): value is string => Boolean(value));
+    currentGroup.items.push({
+      meta,
+      timeRange: item[1],
+      title: item[2].trim(),
+    });
+  }
+
+  if (groups.length === 0 || groups.some((group) => group.items.length === 0)) {
+    return null;
+  }
+
+  return {
+    groups,
+    hiddenCount,
+    rangeLabel: heading[1].trim(),
+    totalCount: Number(heading[2]),
+  };
+};
+
 export const compactDryRunAssistantMessage = (content: string): string => {
   const trimmed = content.trim();
   if (!trimmed) {
@@ -103,11 +221,11 @@ export const compactDryRunAssistantMessage = (content: string): string => {
   if (markerIndex > 0) {
     const leading = trimmed.slice(0, markerIndex).trim();
     if (leading) {
-      return `${leading}\n\n（DryRun 详情已归档为结构化记录，不再展开全文。）`;
+      return `${leading}\n\n（操作预览详情已收起，请在下方确认卡片中查看。）`;
     }
   }
 
-  return "（DryRun 详情已归档为结构化记录，不再展开全文。）";
+  return "（操作预览详情已收起，请在下方确认卡片中查看。）";
 };
 
 export const compactAssistantMessageForPendingAction = (

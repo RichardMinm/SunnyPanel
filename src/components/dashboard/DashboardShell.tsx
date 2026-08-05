@@ -7,6 +7,7 @@ import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type { AgentInspectorTab, AgentRunDetail, AgentThreadSummary, ContextPreferences } from "@/components/dashboard/agent/types";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { AgentRollbackExecutionResult } from "@/components/dashboard/agent/rollback-display";
+import type { DashboardNewThreadOptions } from "@/components/dashboard/sidebar/dashboard-sidebar-types";
 import { AppShell } from "./AppShell";
 import type { DashboardIconMode } from "./DashboardIconBar";
 import { DashboardInspectorControlProvider } from "./DashboardInspectorControlContext";
@@ -105,7 +106,7 @@ type DashboardShellProps = {
   onToggleContextExclude: (key: string) => void;
   onToggleContextPin: (key: string) => void;
   onLoadThread: (threadId: number) => void;
-  onNewThread: () => void;
+  onNewThread: (options?: DashboardNewThreadOptions) => void;
   onRunPrompt: (prompt: string) => void;
   onArchiveThread: (id: number) => Promise<boolean>;
   onDeleteThread: (id: number) => Promise<boolean>;
@@ -358,11 +359,11 @@ export function DashboardShell({
     [onInspectorTabChange, transitionDashboardMode],
   );
 
-  const handleNewThread = useCallback(() => {
+  const handleNewThread = useCallback((options?: DashboardNewThreadOptions) => {
     suppressAutoOpenRef.current = true;
     setPanelOpen(false);
     setLastExecutedAction(null);
-    onNewThread();
+    onNewThread(options);
     window.requestAnimationFrame(() => {
       setPanelOpen(false);
       suppressAutoOpenRef.current = false;
@@ -623,7 +624,7 @@ export function DashboardShell({
             </button>
           ) : null}
 
-          {activeMode !== "schedule" ? (
+          {activeMode !== "schedule" && activeMode !== "agent" ? (
             <DashboardStatusBar statusLabel={statusLabel} />
           ) : null}
         </>

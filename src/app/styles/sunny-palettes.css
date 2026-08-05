@@ -1,9 +1,8 @@
 /**
  * 经典配色方案：通过 html[data-palette] 切换。
- * 默认 cobalt；与 data-theme 组合支持浅色 / 深色。
+ * 默认 forest；与 data-theme 组合支持浅色 / 深色。
  */
 
-:root,
 html[data-palette="cobalt"] {
   --background: #f2f4f7;
   --foreground: #1a2332;
@@ -13,6 +12,7 @@ html[data-palette="cobalt"] {
   --border: rgba(26, 35, 50, 0.11);
   --accent: #2457aa;
   --accent-strong: #183e7a;
+  --accent-contrast: #fffaf3;
   --accent-cool: rgba(15, 118, 110, 0.1);
   --muted: #5e6a78;
   --page-glow: rgba(107, 163, 232, 0.22);
@@ -43,6 +43,7 @@ html[data-palette="cobalt"] {
   --cat-default-text: #475569;
 }
 
+:root,
 html[data-palette="forest"] {
   --background: #f3f6f2;
   --foreground: #1a2e24;
@@ -52,6 +53,7 @@ html[data-palette="forest"] {
   --border: rgba(27, 67, 50, 0.11);
   --accent: #2d6a4f;
   --accent-strong: #1b4332;
+  --accent-contrast: #fffaf3;
   --accent-cool: rgba(64, 145, 108, 0.1);
   --muted: #5c6f63;
   --page-glow: rgba(116, 198, 157, 0.2);
@@ -78,9 +80,10 @@ html[data-palette="forest"] {
   --cat-course-dot: #2d6a4f;
   --cat-course-bg: color-mix(in oklch, var(--accent) 12%, var(--surface-strong));
   --cat-course-text: #1b4332;
-  --cat-study-dot: #40916c;
-  --cat-study-bg: #d8f3dc;
-  --cat-study-text: #1b4332;
+  /* Study stays violet across palettes so it does not collapse into plan/success green. */
+  --cat-study-dot: #6d5bd0;
+  --cat-study-bg: #f2efff;
+  --cat-study-text: #4f3fa3;
   --cat-plan-dot: #52b788;
   --cat-plan-bg: #e8f5e9;
   --cat-plan-text: #2d6a4f;
@@ -104,6 +107,7 @@ html[data-palette="wine"] {
   --border: rgba(107, 31, 46, 0.1);
   --accent: #922b3e;
   --accent-strong: #6b1f2e;
+  --accent-contrast: #fffaf3;
   --accent-cool: rgba(146, 43, 62, 0.08);
   --muted: #75666a;
   --page-glow: rgba(224, 122, 138, 0.18);
@@ -130,9 +134,10 @@ html[data-palette="wine"] {
   --cat-course-dot: #922b3e;
   --cat-course-bg: color-mix(in oklch, var(--accent) 10%, var(--surface-strong));
   --cat-course-text: #6b1f2e;
-  --cat-study-dot: #a8556a;
-  --cat-study-bg: #fce8ec;
-  --cat-study-text: #7a2e3e;
+  /* Keep study distinct from the wine brand and red danger/exam roles. */
+  --cat-study-dot: #7056a8;
+  --cat-study-bg: #f4effb;
+  --cat-study-text: #563a82;
   --cat-plan-dot: #6b8f71;
   --cat-plan-bg: #f0f5f1;
   --cat-plan-text: #3d5a44;
@@ -154,8 +159,9 @@ html[data-palette="midnight"] {
   --surface-strong: rgba(255, 254, 249, 0.97);
   --surface-tint: rgba(241, 239, 232, 0.88);
   --border: rgba(26, 39, 68, 0.11);
-  --accent: #9a7b2f;
-  --accent-strong: #7a6020;
+  --accent: #846520;
+  --accent-strong: #6b5318;
+  --accent-contrast: #fffaf3;
   --accent-cool: rgba(26, 39, 68, 0.08);
   --muted: #6b665c;
   --page-glow: rgba(154, 123, 47, 0.18);
@@ -182,9 +188,10 @@ html[data-palette="midnight"] {
   --cat-course-dot: #1a2744;
   --cat-course-bg: color-mix(in oklch, var(--accent-cool) 80%, var(--surface-strong));
   --cat-course-text: #1a2744;
-  --cat-study-dot: #9a7b2f;
-  --cat-study-bg: #f5f0e1;
-  --cat-study-text: #7a6020;
+  /* Violet separates study from primary gold, warning, and Agent amber. */
+  --cat-study-dot: #5f5791;
+  --cat-study-bg: #f1eff8;
+  --cat-study-text: #47406f;
   --cat-plan-dot: #5c7a4a;
   --cat-plan-bg: #eef3ea;
   --cat-plan-text: #3d5232;
@@ -208,8 +215,9 @@ html[data-palette="slate"] {
   --border: rgba(24, 24, 27, 0.1);
   --accent: #4f46e5;
   --accent-strong: #3730a3;
+  --accent-contrast: #fffaf3;
   --accent-cool: rgba(79, 70, 229, 0.08);
-  --muted: #71717a;
+  --muted: #6d6d76;
   --page-glow: rgba(129, 140, 248, 0.2);
   --page-gradient-top: #fafafa;
   --page-gradient-mid: #f4f4f5;
@@ -252,8 +260,7 @@ html[data-palette="slate"] {
 }
 
 /* Cobalt dark — cool navy base, blue accent lift */
-html[data-palette="cobalt"][data-theme="dark"],
-html[data-theme="dark"]:not([data-palette]) {
+html[data-palette="cobalt"][data-theme="dark"] {
   --background: #0c1220;
   --foreground: #eef2f8;
   --surface: #101828;
@@ -262,6 +269,7 @@ html[data-theme="dark"]:not([data-palette]) {
   --border: rgba(100, 140, 200, 0.14);
   --accent: #5b9cf5;
   --accent-strong: #93c5fd;
+  --accent-contrast: #0c1220;
   --accent-cool: rgba(91, 156, 245, 0.14);
   --muted: #8b9cb5;
   --page-glow: rgba(91, 156, 245, 0.1);
@@ -305,7 +313,8 @@ html[data-theme="dark"]:not([data-palette]) {
 }
 
 /* Forest dark — deep green-black, sage accent */
-html[data-palette="forest"][data-theme="dark"] {
+html[data-palette="forest"][data-theme="dark"],
+html[data-theme="dark"]:not([data-palette]) {
   --background: #0a100d;
   --foreground: #e4ede7;
   --surface: #101814;
@@ -314,6 +323,7 @@ html[data-palette="forest"][data-theme="dark"] {
   --border: rgba(116, 198, 157, 0.14);
   --accent: #6ecf9a;
   --accent-strong: #a8e6c1;
+  --accent-contrast: #0a100d;
   --accent-cool: rgba(110, 207, 154, 0.14);
   --muted: #8fa89a;
   --page-glow: rgba(110, 207, 154, 0.12);
@@ -327,9 +337,9 @@ html[data-palette="forest"][data-theme="dark"] {
   --cat-course-dot: #6ecf9a;
   --cat-course-bg: rgba(110, 207, 154, 0.14);
   --cat-course-text: #a8e6c1;
-  --cat-study-dot: #8fd9b0;
-  --cat-study-bg: rgba(143, 217, 176, 0.12);
-  --cat-study-text: #c8efd8;
+  --cat-study-dot: #a99af2;
+  --cat-study-bg: rgba(169, 154, 242, 0.12);
+  --cat-study-text: #d8d0ff;
   --cat-plan-dot: #52b788;
   --cat-plan-bg: rgba(82, 183, 136, 0.12);
   --cat-plan-text: #8fd9b0;
@@ -366,6 +376,7 @@ html[data-palette="wine"][data-theme="dark"] {
   --border: rgba(224, 122, 138, 0.14);
   --accent: #d48494;
   --accent-strong: #f0b8c2;
+  --accent-contrast: #140e11;
   --accent-cool: rgba(212, 132, 148, 0.12);
   --muted: #b89a9f;
   --page-glow: rgba(212, 132, 148, 0.12);
@@ -379,9 +390,9 @@ html[data-palette="wine"][data-theme="dark"] {
   --cat-course-dot: #d48494;
   --cat-course-bg: rgba(212, 132, 148, 0.14);
   --cat-course-text: #f0b8c2;
-  --cat-study-dot: #e8a0b0;
-  --cat-study-bg: rgba(232, 160, 176, 0.12);
-  --cat-study-text: #f5c6d0;
+  --cat-study-dot: #a98bd4;
+  --cat-study-bg: rgba(169, 139, 212, 0.12);
+  --cat-study-text: #dcc8ef;
   --cat-plan-dot: #7aab86;
   --cat-plan-bg: rgba(122, 171, 134, 0.12);
   --cat-plan-text: #a8cdb0;
@@ -418,6 +429,7 @@ html[data-palette="midnight"][data-theme="dark"] {
   --border: rgba(212, 175, 55, 0.14);
   --accent: #c9a227;
   --accent-strong: #e8c547;
+  --accent-contrast: #080a10;
   --accent-cool: rgba(26, 39, 68, 0.18);
   --muted: #a8a296;
   --page-glow: rgba(201, 162, 39, 0.12);
@@ -431,9 +443,9 @@ html[data-palette="midnight"][data-theme="dark"] {
   --cat-course-dot: #6b8fd4;
   --cat-course-bg: rgba(107, 143, 212, 0.14);
   --cat-course-text: #9bb5e8;
-  --cat-study-dot: #c9a227;
-  --cat-study-bg: rgba(201, 162, 39, 0.12);
-  --cat-study-text: #e8c547;
+  --cat-study-dot: #9c8bce;
+  --cat-study-bg: rgba(156, 139, 206, 0.12);
+  --cat-study-text: #d4c8f0;
   --cat-plan-dot: #7cb87a;
   --cat-plan-bg: rgba(124, 184, 122, 0.12);
   --cat-plan-text: #a8d4a6;
@@ -470,6 +482,7 @@ html[data-palette="slate"][data-theme="dark"] {
   --border: rgba(228, 228, 231, 0.1);
   --accent: #9498f5;
   --accent-strong: #b4b8fc;
+  --accent-contrast: #0c0c0f;
   --accent-cool: rgba(148, 152, 245, 0.12);
   --muted: #9898a4;
   --page-glow: rgba(148, 152, 245, 0.14);
@@ -552,7 +565,7 @@ html[data-palette] {
 
 .sunny-palette-option[data-palette-id="midnight"],
 .sunny-admin-palette-option[data-palette-id="midnight"] {
-  --palette-preview: #9a7b2f;
+  --palette-preview: #846520;
   --palette-preview-secondary: #1a2744;
 }
 

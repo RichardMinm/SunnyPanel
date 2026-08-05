@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { getAllowedCapabilities } from "../../src/lib/agent/capabilities/tool-gate";
-import { buildPreRouterGateInput } from "../../src/lib/agent/capabilities/pre-router";
 import { normalizeRouterOutput } from "../../src/lib/agent/router/normalize-router-output";
 import type { AgentIntent } from "../../src/lib/agent/schemas";
 
@@ -92,17 +91,6 @@ test("denied legacy intent blocks mapped capabilities", () => {
 
   assert.ok(!gate.allowed.includes("preview_delete_plan"));
   assert.ok(gate.blocked.some((item) => item.name === "preview_delete_plan"));
-});
-
-test("pre-router retired: delete message returns answer action", () => {
-  // R6-C1-D-B: pre-router retired — returns answer, not delete.
-  // Capability routing now goes through Tool Planner controlled path.
-  const input = buildPreRouterGateInput({
-    message: "删除学习计划",
-    userContext: { userId: 1 },
-  });
-  assert.equal(input.router.action, "answer");
-  assert.equal(input.router.requiresWrite, false);
 });
 
 test("create action with schedule target only allows schedule capabilities", () => {

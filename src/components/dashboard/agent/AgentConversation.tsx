@@ -7,10 +7,8 @@ import { AppButton } from "@/components/primitives/AppButton";
 import type { AgentChatMessage, AgentTraceStep, PendingAction, ProposedAgentAction } from "@/lib/agent/schemas";
 import type {
   AgentStreamChangeEvent,
-  AgentStreamProgressEvent,
   AgentStreamStageEvent,
 } from "@/lib/agent/stream-events";
-import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 import { AgentThinkingPanel } from "./AgentThinkingPanel";
 import { AgentApprovalCard } from "./AgentApprovalCard";
@@ -97,7 +95,6 @@ type AgentConversationProps = {
   messages: AgentChatMessage[];
   onCancelApproval: () => void;
   onConfirmApproval: () => void;
-  onCapabilitySelect?: (prompt: string) => void;
   onChecklistDraftPrepareCreate?: () => void;
   onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
   onPlanConfirmationReturnToEdit?: () => void;
@@ -109,17 +106,13 @@ type AgentConversationProps = {
   onScheduleConflictSuggestionSelect?: (message: string) => void;
   onArchiveThread?: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
-  debugMode: boolean;
   pendingAction: null | PendingAction;
   statusLabel: string;
   streamChanges: AgentStreamChangeEvent[];
-  streamProgress: AgentStreamProgressEvent[];
   streamStages: AgentStreamStageEvent[];
-  thinkingContent: string;
   threadId: null | number;
   traceSteps: AgentTraceStep[];
   transcriptRef: RefObject<HTMLDivElement | null>;
-  workbenchMode: AgentWorkbenchMode;
 };
 
 export function AgentConversation({
@@ -129,7 +122,6 @@ export function AgentConversation({
   isSubmitting,
   messages,
   onCancelApproval,
-  onCapabilitySelect,
   onChecklistDraftPrepareCreate,
   onConfirmApproval,
   onEditApproval,
@@ -142,19 +134,20 @@ export function AgentConversation({
   onScheduleConflictSuggestionSelect,
   onArchiveThread,
   onRenameThread,
-  debugMode,
   pendingAction,
   statusLabel,
   streamChanges,
-  streamProgress,
   streamStages,
-  thinkingContent,
   threadId,
   traceSteps,
   transcriptRef,
-  workbenchMode,
 }: AgentConversationProps) {
-  const { messageView, prefersReducedMotion } = useDashboardMotion();
+  const {
+    agentStatusView,
+    agentSurfaceView,
+    messageView,
+    prefersReducedMotion,
+  } = useDashboardMotion();
   const messageVariants = useMemo(
     () => ({
       assistant: {
@@ -172,17 +165,6 @@ export function AgentConversation({
   );
   const confirmationAction = pendingAction?.type === "await_confirmation" ? pendingAction.action : null;
   const batchActions = pendingAction?.type === "await_batch_confirmation" ? pendingAction.actions : null;
-  const connectedModules = useMemo(() => {
-    const detail = traceSteps
-      .filter((s) => s.kind === "context" && s.status === "done")
-      .map((s) => s.detail ?? "")
-      .join("\n");
-    const modules: string[] = [];
-    if (/\d+ 条计划/.test(detail) || /计划/.test(detail)) modules.push("计划");
-    if (/\d+ 份清单/.test(detail) || /清单/.test(detail)) modules.push("清单");
-    if (/命中记忆/.test(detail)) modules.push("记忆库");
-    return modules;
-  }, [traceSteps]);
   const lastAssistantIndex = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === "assistant") return i;
@@ -190,6 +172,27 @@ export function AgentConversation({
 
     return -1;
   }, [messages]);
+  const resolvedHeaderTitle = useMemo(() => {
+    const normalizedTitle = displayTitle.trim();
+    const firstUserMessage = messages
+      .find((message) => message.role === "user")
+      ?.content.trim().replace(/\s+/g, " ");
+    const truncatedPrefix = normalizedTitle.endsWith("...")
+      ? normalizedTitle.slice(0, -3).trimEnd()
+      : "";
+
+    if (
+      firstUserMessage &&
+      truncatedPrefix &&
+      firstUserMessage.startsWith(truncatedPrefix)
+    ) {
+      return firstUserMessage.length > 80
+        ? `${firstUserMessage.slice(0, 80).trimEnd()}...`
+        : firstUserMessage;
+    }
+
+    return displayTitle;
+  }, [displayTitle, messages]);
 
   const hasPendingConfirmation = Boolean(confirmationAction || (batchActions && batchActions.length > 0));
 
@@ -203,7 +206,10 @@ export function AgentConversation({
     const frame = window.requestAnimationFrame(() => {
       if (hasPendingConfirmation) {
         const approvalArea = transcript.querySelector(".sunny-agent-thread-action-area");
-        approvalArea?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        approvalArea?.scrollIntoView({
+          behavior: prefersReducedMotion ? "auto" : "smooth",
+          block: "nearest",
+        });
         return;
       }
 
@@ -220,10 +226,9 @@ export function AgentConversation({
     hasPendingConfirmation,
     isThinking,
     messages.length,
-    thinkingContent,
+    prefersReducedMotion,
     traceSteps.length,
     streamStages.length,
-    streamProgress.length,
     streamChanges.length,
     transcriptRef,
   ]);
@@ -231,144 +236,154 @@ export function AgentConversation({
   return (
     <section className="sunny-agent-conversation-surface">
       <ThreadHeader
-        connectedModules={connectedModules}
-        displayTitle={displayTitle}
-        debugMode={debugMode}
+        displayTitle={resolvedHeaderTitle}
         isSubmitting={isSubmitting}
         onArchiveThread={onArchiveThread}
         onRenameThread={onRenameThread}
         pendingAction={pendingAction}
         statusLabel={statusLabel}
         threadId={threadId}
-        workbenchMode={workbenchMode}
       />
       <div ref={transcriptRef} className="sunny-agent-conversation-scroll" aria-live="polite" aria-relevant="additions">
-        {messages.length === 0 ? (
-          <div className="sunny-agent-welcome">
-            <div className="sunny-agent-welcome-head">
-              <h2>New Session</h2>
-              <p>描述需要推进的任务。Sunny 会判断是查询还是写入，生成草案或直接回答。</p>
-            </div>
-            <div className="sunny-agent-welcome-cards">
-              {[
-                { icon: "☀️", title: "安排今天", desc: "根据你的日程和清单生成今日行动安排", prompt: "帮我安排今天的日程" },
-                { icon: "📅", title: "查看最近日程", desc: "查看未来几天的重要安排", prompt: "帮我查看最近的日程安排" },
-                { icon: "📊", title: "总结学习进度", desc: "分析最近计划和清单完成情况", prompt: "总结一下当前的学习进度" },
-                { icon: "✅", title: "创建清单", desc: "把目标拆成可执行任务", prompt: "帮我创建一个待办清单" },
-              ].map((card) => (
-                <button
-                  key={card.title}
-                  type="button"
-                  className="sunny-agent-capability-card"
-                  onClick={() => onCapabilitySelect?.(card.prompt)}
-                >
-                  <span className="sunny-agent-capability-card-icon">{card.icon}</span>
-                  <span className="sunny-agent-capability-card-body">
-                    <strong>{card.title}</strong>
-                    <small>{card.desc}</small>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <>
-            <AnimatePresence initial={false}>
-              {messages.map((message, index) => {
-                const variant = messageVariants[message.role === "assistant" ? "assistant" : "user"];
-                const isStreamingMsg = isSubmitting && message.role === "assistant" && index === lastAssistantIndex;
-                const shouldCompactAssistant =
-                  message.role === "assistant" &&
-                  index === lastAssistantIndex &&
-                  hasPendingConfirmation &&
-                  !isStreamingMsg;
-                const messageContent =
-                  message.role === "assistant"
-                    ? compactAssistantMessageForPendingAction(
-                        message.content,
-                        shouldCompactAssistant ? pendingAction : null,
-                      )
-                    : message.content;
+        <AnimatePresence initial={false} mode="popLayout">
+          {messages.length === 0 ? (
+            <motion.div
+              animate={agentSurfaceView.animate}
+              className="sunny-agent-welcome"
+              exit={agentSurfaceView.exit}
+              initial={agentSurfaceView.initial}
+              key="welcome"
+              transition={agentSurfaceView.transition}
+            >
+              <div className="sunny-agent-welcome-head">
+                <h2>今天想推进什么？</h2>
+                <p>直接描述你的目标。Sunny 会根据上下文选择合适的处理方式，需要修改数据时会先向你确认。</p>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              animate={{ opacity: 1 }}
+              className="sunny-agent-transcript-content"
+              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              key="transcript"
+              transition={agentStatusView.transition}
+            >
+              <AnimatePresence initial={false}>
+                {messages.map((message, index) => {
+                  const variant = messageVariants[message.role === "assistant" ? "assistant" : "user"];
+                  const isStreamingMsg = isSubmitting && message.role === "assistant" && index === lastAssistantIndex;
+                  const shouldCompactAssistant =
+                    message.role === "assistant" &&
+                    index === lastAssistantIndex &&
+                    hasPendingConfirmation &&
+                    !isStreamingMsg;
+                  const messageContent =
+                    message.role === "assistant"
+                      ? compactAssistantMessageForPendingAction(
+                          message.content,
+                          shouldCompactAssistant ? pendingAction : null,
+                        )
+                      : message.content;
 
-                return (
+                  return (
+                    <motion.div
+                      key={`${message.role}-${index}`}
+                      className={`sunny-agent-message-row sunny-agent-message-row-${message.role}`}
+                      initial={variant.initial}
+                      animate={variant.animate}
+                      exit={variant.exit}
+                      transition={messageView.transition}
+                    >
+                      <MessageCard
+                        activitySteps={message.activitySteps}
+                        content={messageContent}
+                        isStreaming={isStreamingMsg}
+                        onChecklistDraftPrepareCreate={isSubmitting ? undefined : onChecklistDraftPrepareCreate}
+                        onPlanDraftGenerateChecklist={isSubmitting ? undefined : onPlanDraftGenerateChecklist}
+                        onPlanDraftPrepareCreate={isSubmitting ? undefined : onPlanDraftPrepareCreate}
+                        onPlanDraftRevise={isSubmitting ? undefined : onPlanDraftRevise}
+                        onScheduleDraftPrepareCreate={isSubmitting ? undefined : onScheduleDraftPrepareCreate}
+                        onScheduleDraftRevise={isSubmitting ? undefined : onScheduleDraftRevise}
+                        planningChecklistDraft={message.planningChecklistDraft}
+                        planningDraft={message.planningDraft}
+                        role={message.role}
+                        schedulingDraft={message.schedulingDraft}
+                      />
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+              <AnimatePresence initial={false}>
+                {hasPendingConfirmation ? (
                   <motion.div
-                    key={`${message.role}-${index}`}
-                    className={`sunny-agent-message-row sunny-agent-message-row-${message.role}`}
-                    initial={variant.initial}
-                    animate={variant.animate}
-                    exit={variant.exit}
-                    transition={{ duration: messageView.transition.duration }}
+                    animate={agentSurfaceView.animate}
+                    className="sunny-agent-thread-action-area"
+                    exit={agentSurfaceView.exit}
+                    initial={agentSurfaceView.initial}
+                    key={confirmationAction?.id ?? "batch-confirmation"}
+                    transition={agentSurfaceView.transition}
                   >
-                    <MessageCard
-                      activitySteps={message.activitySteps}
-                      content={messageContent}
-                      isStreaming={isStreamingMsg}
-                      isThinking={isStreamingMsg && isThinking}
-                      onChecklistDraftPrepareCreate={isSubmitting ? undefined : onChecklistDraftPrepareCreate}
-                      onPlanDraftGenerateChecklist={isSubmitting ? undefined : onPlanDraftGenerateChecklist}
-                      onPlanDraftPrepareCreate={isSubmitting ? undefined : onPlanDraftPrepareCreate}
-                      onPlanDraftRevise={isSubmitting ? undefined : onPlanDraftRevise}
-                      onScheduleDraftPrepareCreate={isSubmitting ? undefined : onScheduleDraftPrepareCreate}
-                      onScheduleDraftRevise={isSubmitting ? undefined : onScheduleDraftRevise}
-                      planningChecklistDraft={message.planningChecklistDraft}
-                      planningDraft={message.planningDraft}
-                      role={message.role}
-                      schedulingDraft={message.schedulingDraft}
-                      thinkingContent={
-                        isStreamingMsg && thinkingContent.trim()
-                          ? thinkingContent
-                          : undefined
-                      }
-                    />
+                    {confirmationAction ? (
+                      isPlanConfirmationAction(confirmationAction) ? (
+                        <PlanConfirmationCard
+                          action={confirmationAction}
+                          disabled={isSubmitting}
+                          onCancel={onCancelApproval}
+                          onConfirm={onConfirmApproval}
+                          onReturnToEdit={onPlanConfirmationReturnToEdit ?? (() => onEditApproval("plan"))}
+                        />
+                      ) : (
+                        <AgentApprovalCard
+                          action={confirmationAction}
+                          disabled={isSubmitting}
+                          onCancel={onCancelApproval}
+                          onConfirm={onConfirmApproval}
+                          onEdit={onEditApproval}
+                          onScheduleConflictSuggestionSelect={onScheduleConflictSuggestionSelect}
+                        />
+                      )
+                    ) : batchActions && batchActions.length > 0 ? (
+                      <BatchConfirmationCard
+                        actions={batchActions}
+                        disabled={isSubmitting}
+                        onCancel={onCancelApproval}
+                        onConfirm={onConfirmApproval}
+                      />
+                    ) : null}
                   </motion.div>
-                );
-              })}
-            </AnimatePresence>
-            {hasPendingConfirmation ? (
-              <div className="sunny-agent-thread-action-area">
-                {confirmationAction ? (
-                  isPlanConfirmationAction(confirmationAction) ? (
-                    <PlanConfirmationCard
-                      action={confirmationAction}
-                      disabled={isSubmitting}
-                      onCancel={onCancelApproval}
-                      onConfirm={onConfirmApproval}
-                      onReturnToEdit={onPlanConfirmationReturnToEdit ?? (() => onEditApproval("plan"))}
-                    />
-                  ) : (
-                    <AgentApprovalCard
-                      action={confirmationAction}
-                      disabled={isSubmitting}
-                      onCancel={onCancelApproval}
-                      onConfirm={onConfirmApproval}
-                      onEdit={onEditApproval}
-                      onScheduleConflictSuggestionSelect={onScheduleConflictSuggestionSelect}
-                    />
-                  )
-                ) : batchActions && batchActions.length > 0 ? (
-                  <BatchConfirmationCard
-                    actions={batchActions}
-                    disabled={isSubmitting}
-                    onCancel={onCancelApproval}
-                    onConfirm={onConfirmApproval}
+                ) : null}
+              </AnimatePresence>
+              <AnimatePresence initial={false}>
+                {isSubmitting ? (
+                  <AgentThinkingPanel
+                    active={isSubmitting}
+                    key="agent-thinking"
+                    statusLabel={statusLabel}
+                    streamChanges={streamChanges}
+                    streamStages={streamStages}
                   />
                 ) : null}
-              </div>
-            ) : null}
-            <AgentThinkingPanel
-              isThinking={isThinking}
-              statusLabel={statusLabel}
-              steps={traceSteps}
-              debugMode={debugMode}
-              streamChanges={streamChanges}
-              streamProgress={streamProgress}
-              streamStages={streamStages}
-              thinkingContent={thinkingContent}
-            />
-          </>
-        )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-      {errorMessage ? <div className="sunny-agent-error-card-v2" role="alert">{errorMessage}</div> : null}
+      <AnimatePresence initial={false}>
+        {errorMessage ? (
+          <motion.div
+            animate={agentStatusView.animate}
+            className="sunny-agent-error-card-v2"
+            exit={agentStatusView.exit}
+            initial={agentStatusView.initial}
+            key="agent-error"
+            role="alert"
+            transition={agentStatusView.transition}
+          >
+            {errorMessage}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </section>
   );
 }

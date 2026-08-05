@@ -4,7 +4,7 @@ import { useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AgentInspectorTab, ContextPreferences } from "@/components/dashboard/agent";
-import { initialMessages, thinkingStatusKeywords } from "@/components/dashboard/agent-chat/constants";
+import { initialMessages } from "@/components/dashboard/agent-chat/constants";
 import {
   formatRollbackResultStatus,
   normalizeRollbackExecutionResult,
@@ -86,6 +86,7 @@ export function useAgentDashboardChat({
   const [threadHydrated, setThreadHydrated] = useState(false);
   const [workbenchMode, setWorkbenchMode] = useState<AgentWorkbenchMode>("ask");
   const [activeSuggestionSource, setActiveSuggestionSource] = useState<null | AgentSuggestionComposerSource>(null);
+  const [composerFocusRequestKey, setComposerFocusRequestKey] = useState(0);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const skipInitialThreadLoadRef = useRef(false);
 
@@ -106,6 +107,10 @@ export function useAgentDashboardChat({
     },
     [],
   );
+
+  const focusComposer = useCallback(() => {
+    setComposerFocusRequestKey((current) => current + 1);
+  }, []);
 
   const loadThread = useCallback(
     async (nextThreadId?: number, options?: { preserveInspector?: boolean; listOnly?: boolean }) => {
@@ -227,8 +232,9 @@ export function useAgentDashboardChat({
     clearRunDetail();
     setThreadTitle("");
     setThreadHydrated(true);
+    focusComposer();
     void fetchThread(undefined, { listOnly: true });
-  }, [clearRunDetail, fetchThread, resetConversationThread, stopGeneration]);
+  }, [clearRunDetail, fetchThread, focusComposer, resetConversationThread, stopGeneration]);
 
   useEffect(() => {
     if (skipInitialThreadLoadRef.current && initialThreadId === undefined) {
@@ -267,11 +273,7 @@ export function useAgentDashboardChat({
       return statusText;
     }
 
-    if (thinkingStatusKeywords.some((keyword) => statusText.includes(keyword))) {
-      return statusText;
-    }
-
-    return streamingState === "responding" ? "Agent 正在组织回复..." : "Agent 正在理解上下文...";
+    return streamingState === "responding" ? "Sunny 正在组织回复..." : "Sunny 正在处理...";
   }, [isSubmitting, statusText, streamingState]);
 
   const toggleContextPin = useCallback((key: string) => {
@@ -392,11 +394,13 @@ export function useAgentDashboardChat({
     artifactsRollbackError,
     cancelApproval,
     clearRunDetail,
+    composerFocusRequestKey,
     confirmApproval,
     contextPreferences,
     deleteThread,
     editApproval,
     errorMessage,
+    focusComposer,
     input,
     inputTokenEstimate,
     isSubmitting,

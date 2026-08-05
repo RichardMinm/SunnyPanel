@@ -16,13 +16,16 @@ export type OpenAIFunctionTool = {
   type: "function";
 };
 
-type ParameterHint = {
+export type AgentIntentParameterHint = {
   description: string;
   enum?: string[];
   type: string;
 };
 
-const intentParameterHints: Record<AgentWriteIntentName, Record<string, ParameterHint>> = {
+export const AGENT_INTENT_PARAMETER_HINTS: Record<
+  AgentWriteIntentName,
+  Record<string, AgentIntentParameterHint>
+> = {
   add_completion_note: {
     checklistTitle: { description: "清单标题", type: "string" },
     completionNote: { description: "完成备注内容", type: "string" },
@@ -158,7 +161,9 @@ const intentParameterHints: Record<AgentWriteIntentName, Record<string, Paramete
   },
 };
 
-const requiredFields: Partial<Record<AgentWriteIntentName, string[]>> = {
+export const AGENT_INTENT_REQUIRED_FIELDS: Partial<
+  Record<AgentWriteIntentName, string[]>
+> = {
   add_completion_note: ["checklistTitle", "itemTitle", "completionNote"],
   append_plan_item: ["checklistTitle", "itemTitle"],
   cancel_schedule_item: ["itemId"],
@@ -182,7 +187,7 @@ const requiredFields: Partial<Record<AgentWriteIntentName, string[]>> = {
 
 const writableIntents = Object.keys(agentToolRegistry) as Array<keyof typeof agentToolRegistry>;
 
-const toOpenAIProperty = (hint: ParameterHint) => {
+const toOpenAIProperty = (hint: AgentIntentParameterHint) => {
   const property: Record<string, unknown> = {
     description: hint.description,
     type: hint.type,
@@ -203,7 +208,7 @@ export const buildAgentFunctionTools = (allowlist?: readonly string[]): OpenAIFu
 
   return intents.map((intent) => {
     const definition = agentToolRegistry[intent];
-    const properties = intentParameterHints[intent];
+    const properties = AGENT_INTENT_PARAMETER_HINTS[intent];
     const openAIProperties = Object.fromEntries(
       Object.entries(properties).map(([key, hint]) => [key, toOpenAIProperty(hint)]),
     );
@@ -215,7 +220,9 @@ export const buildAgentFunctionTools = (allowlist?: readonly string[]): OpenAIFu
         parameters: {
           additionalProperties: true,
           properties: openAIProperties,
-          required: requiredFields[intent] ?? Object.keys(properties).slice(0, 1),
+          required:
+            AGENT_INTENT_REQUIRED_FIELDS[intent]
+            ?? Object.keys(properties).slice(0, 1),
           type: "object",
         },
       },
@@ -229,7 +236,13 @@ export const READ_TOOL_NAMES = ["query_progress", "evaluate_plan"] as const;
 
 export type ReadToolName = (typeof READ_TOOL_NAMES)[number];
 
-const readToolHints: Record<ReadToolName, { description: string; properties: Record<string, ParameterHint> }> = {
+const readToolHints: Record<
+  ReadToolName,
+  {
+    description: string;
+    properties: Record<string, AgentIntentParameterHint>;
+  }
+> = {
   evaluate_plan: {
     description: "只读评估某个计划或全部计划的健康度，返回诊断文本。用于在写入前判断现状。",
     properties: {

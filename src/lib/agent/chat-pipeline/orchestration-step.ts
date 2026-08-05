@@ -1078,6 +1078,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       const result = await (
         runOrchestratorResultFn ?? dispatchOrchestratorResult
       )(message, context, signal, {
+        history: resolvedHistory,
         modelCallRecorder,
         role: "orchestrator",
         scopeId: "turn-orchestrator",
@@ -1100,7 +1101,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       }
 
       plan = result.status === "unavailable"
-        ? projectOrchestratorFailureToSafePlan()
+        ? projectOrchestratorFailureToSafePlan(result.reason)
         : result.plan;
     } else {
       modelCallRecorder?.record("orchestrator", "turn-orchestrator");

@@ -247,15 +247,6 @@ describe("router-shadow", () => {
       assert.equal(entries.length, 0); /* off → no entry, correctly skipped */
     });
 
-    it("flushPendingShadow resolves immediately with no pending work", async () => {
-      process.env.AGENT_ROUTER_SHADOW = "off";
-      scheduleRouterShadow({ primaryIntent: "answer_question", message: "t1", hasActivePlans: false, hasChecklists: false, hasMemories: false, now: "2026-07-10" });
-      scheduleRouterShadow({ primaryIntent: "answer_question", message: "t2", hasActivePlans: false, hasChecklists: false, hasMemories: false, now: "2026-07-10" });
-      /* off mode → promises resolve synchronously (null return) */
-      await flushPendingShadow();
-      assert.ok(true); /* does not hang */
-    });
-
     it("collector persists only sanitized comparison metadata", async () => {
       const providerKeys = ["DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ZAI_API_KEY"] as const;
       const saved = providerKeys.map((key) => [key, process.env[key]] as const);

@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { getAllowedCapabilities } from "../../src/lib/agent/capabilities/tool-gate";
-import { buildPreRouterGateInput } from "../../src/lib/agent/capabilities/pre-router";
 import { buildToolPlan } from "../../src/lib/agent/plan/tool-plan";
-import { routeCapabilityRouter } from "../../src/lib/agent/router/capability-router";
 import { routeFollowUpRouter } from "../../src/lib/agent/router/follow-up-router-output";
 import {
   createClarifyRouterOutput,
@@ -126,21 +124,6 @@ test("root router contract keeps low-confidence schedule writes in safe fallback
 
   assert.equal(intent.intent, "clarify");
   assert.equal(agentRouter.action, "clarify");
-});
-
-test("root router contract keeps capability questions out of preview tools", () => {
-  // R6-C1-D-B: capability-router retired — returns null, capability answers
-  // now go through the controlled capability answer path.
-  const router = routeCapabilityRouter("支持删除计划吗");
-  assert.equal(router, null, "Capability router retired — capability questions go through Tool Planner controlled path");
-});
-
-test("root router contract keeps destructive plan deletes preview-only before confirmation", () => {
-  // R6-C1-D-B: pre-router retired — always returns action "answer",
-  // no longer does heuristic delete/create/update intent classification.
-  const input = buildPreRouterGateInput({ message: "删除旧计划", userContext: { userId: 1 } });
-  assert.equal(input.router.action, "answer", "Pre-router retired: returns answer, not heuristic delete");
-  assert.equal(input.router.requiresWrite, false);
 });
 
 test("root router contract resolves plan updates before previewing writes", () => {

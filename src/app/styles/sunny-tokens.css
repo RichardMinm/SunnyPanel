@@ -32,8 +32,12 @@
   --motion-duration-content: 240ms;
   --motion-duration-panel: 280ms;
   --motion-duration-layout: 320ms;
+  --motion-duration-agent-feedback: 160ms;
+  --motion-duration-agent-enter: 240ms;
+  --motion-duration-agent-result: 360ms;
   --motion-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --motion-ease-out: ease-out;
+  --motion-ease-agent: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-distance-sm: 10px;
   --motion-distance-md: 14px;
   /* Type scale — Site / Admin / Agent 共用 */
@@ -183,7 +187,7 @@
   --writing-panel-bg: color-mix(in oklch, var(--background) 94%, var(--surface));
   --writing-active-rail: var(--accent);
   --writing-drawer-shadow: var(--shadow-panel-left);
-  --text-on-accent: var(--agent-text-on-accent);
+  --text-on-accent: var(--accent-contrast);
   --settings-bg: var(--surface-strong);
   --settings-border: var(--border);
   --settings-shadow: var(--shadow-elevated);
@@ -209,10 +213,8 @@
   --sunny-bg-hover: color-mix(in oklch, var(--surface-strong) 88%, transparent);
   --sunny-bg-subtle: var(--surface-tint);
   --sunny-border: var(--border);
-  /* accent-contrast alias */
-  --accent-contrast: var(--text-on-accent);
   --border-default: var(--border);
-  --accent-foreground: var(--text-on-accent);
+  --accent-foreground: var(--accent-contrast);
   --danger: var(--destructive);
   --warning: var(--tone-warning-text);
   --success: var(--tone-success-text);
@@ -347,7 +349,7 @@
   --agent-risk-medium-border: var(--tone-warning-border);
   --agent-risk-low-bg: var(--tone-success-bg);
   --agent-risk-low-border: var(--tone-success-border);
-  --agent-text-on-accent: #fffaf3;
+  --agent-text-on-accent: var(--accent-contrast);
   --agent-panel-bg: color-mix(in oklch, var(--surface) 86%, transparent);
   --agent-control-bg: color-mix(in oklch, var(--surface-strong) 76%, transparent);
   --agent-bubble-assistant-bg: color-mix(in oklch, var(--surface-strong) 78%, transparent);
@@ -383,7 +385,6 @@ html[data-theme="dark"] {
   --writing-canvas-bg: var(--background);
   --writing-panel-bg: color-mix(in oklch, var(--surface-strong) 96%, var(--surface));
   --writing-drawer-shadow: var(--shadow-panel-left);
-  --agent-text-on-accent: #fff;
   --agent-panel-bg: var(--surface);
   --agent-control-bg: var(--surface-strong);
   --agent-bubble-assistant-bg: var(--surface-strong);

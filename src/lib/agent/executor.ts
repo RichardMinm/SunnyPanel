@@ -3,7 +3,10 @@ import { getPayloadClient } from "@/lib/payload/client";
 import { evaluatePlanFromIntent } from "./evaluation";
 import { runWithAgentExecutionContext } from "./execution-context";
 import { hasServerInternalFailedAuditCompensation } from "./internal-rollback-evidence";
-import { queryProgressFromIntent } from "./progress";
+import {
+  normalizeChecklistProgressArgs,
+  queryProgressFromIntent,
+} from "./progress";
 import {
   executeRollbackFromPayload,
   isRollbackPayloadExecutable,
@@ -462,6 +465,18 @@ export const executeAgentIntent = async (
         status: "completed",
       };
     case "query_checklist_progress":
+      onTrace?.({
+        detail: intent.args.checklistTitle
+          ? `目标清单：${intent.args.checklistTitle}`
+          : "范围：全部清单",
+        id: "workflow-query-checklist-progress",
+        kind: "analysis",
+        status: "done",
+        title: "已切换到清单进度查询流程",
+      });
+      return queryProgressFromIntent(
+        normalizeChecklistProgressArgs(intent.args),
+      );
     case "query_schedule":
       onTrace?.({
         detail: "只读日程查询，不写入 schedule-items。",

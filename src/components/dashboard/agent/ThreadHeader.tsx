@@ -3,15 +3,12 @@
 import { useCallback, useRef, useState } from "react";
 
 import type { PendingAction } from "@/lib/agent/schemas";
-import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 
 import { AppIconButton } from "@/components/primitives/AppIconButton";
 import { getPendingActionLabel } from "./utils";
 import { DashboardIcon } from "../icons";
 
 type ThreadHeaderProps = {
-  connectedModules?: string[];
-  debugMode: boolean;
   displayTitle: string;
   isSubmitting: boolean;
   onArchiveThread?: () => void;
@@ -19,18 +16,6 @@ type ThreadHeaderProps = {
   pendingAction: null | PendingAction;
   statusLabel: string;
   threadId: null | number;
-  workbenchMode: AgentWorkbenchMode;
-};
-
-const MODE_LABEL: Record<AgentWorkbenchMode, string> = {
-  ask: "自动模式",
-  answer: "只回答",
-  execute: "执行模式",
-  plan: "规划模式",
-  review: "回顾模式",
-  timeline: "时间线模式",
-  today: "今日模式",
-  writing: "写作模式",
 };
 
 function getSummaryStatus(isSubmitting: boolean, statusLabel: string, pendingAction: null | PendingAction): string {
@@ -44,8 +29,6 @@ function getSummaryStatus(isSubmitting: boolean, statusLabel: string, pendingAct
 }
 
 export function ThreadHeader({
-  connectedModules = [],
-  debugMode,
   displayTitle,
   isSubmitting,
   onArchiveThread,
@@ -53,7 +36,6 @@ export function ThreadHeader({
   pendingAction,
   statusLabel,
   threadId,
-  workbenchMode,
 }: ThreadHeaderProps) {
   const [editing, setEditing] = useState(false);
   const [draftTitle, setDraftTitle] = useState(displayTitle);
@@ -62,13 +44,6 @@ export function ThreadHeader({
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const statusSummary = getSummaryStatus(isSubmitting, statusLabel, pendingAction);
-  const modeLabel = MODE_LABEL[workbenchMode];
-  const modulesText = connectedModules.length > 0
-    ? ` · 已连接${connectedModules.join("、")}`
-    : "";
-
-  const headerTitle = `${modeLabel}${modulesText}`;
-
   const startEditing = useCallback(() => {
     setDraftTitle(displayTitle);
     setEditing(true);
@@ -98,8 +73,38 @@ export function ThreadHeader({
   return (
     <div className="sunny-agent-thread-header">
       <div className="sunny-agent-thread-header-top">
-        <p className="sunny-agent-thread-header-subtitle">输入任务目标。Sunny 会判断意图、生成草案并等待确认后执行。</p>
-        <div className="sunny-agent-thread-header-actions" aria-label="Thread 操作">
+        <div className="sunny-agent-thread-header-title">
+          {editing ? (
+            <input
+              ref={inputRef}
+              className="sunny-agent-thread-header-title-input"
+              disabled={saving}
+              value={draftTitle}
+              onChange={(e) => setDraftTitle(e.target.value)}
+              onBlur={() => void saveTitle()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void saveTitle();
+                if (e.key === "Escape") cancelEditing();
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="sunny-agent-thread-header-title-text"
+              onClick={startEditing}
+              title="点击重命名会话"
+            >
+              {displayTitle || "新会话"}
+            </button>
+          )}
+        </div>
+        <div className="sunny-agent-thread-header-actions" aria-label="会话操作">
+          {statusSummary !== "已就绪" ? (
+            <span className="sunny-agent-thread-header-status" aria-live="polite">
+              <span className="sunny-agent-thread-header-status-dot" aria-hidden="true" />
+              {statusSummary}
+            </span>
+          ) : null}
           {onArchiveThread && threadId !== null ? (
             <AppIconButton
               aria-label="归档会话"
@@ -113,40 +118,6 @@ export function ThreadHeader({
           ) : null}
         </div>
       </div>
-      <div className="sunny-agent-thread-header-title">
-        {editing ? (
-          <input
-            ref={inputRef}
-            className="sunny-agent-thread-header-title-input"
-            disabled={saving}
-            value={draftTitle}
-            onChange={(e) => setDraftTitle(e.target.value)}
-            onBlur={() => void saveTitle()}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void saveTitle();
-              if (e.key === "Escape") cancelEditing();
-            }}
-          />
-        ) : (
-          <button
-            type="button"
-            className="sunny-agent-thread-header-title-text"
-            onClick={startEditing}
-            title="点击重命名会话"
-          >
-            {displayTitle || "新会话"}
-          </button>
-        )}
-      </div>
-      <p className="sunny-agent-thread-header-meta">
-        {headerTitle}
-        {debugMode && threadId ? (
-          <span className="sunny-agent-thread-header-debug-id"> · Thread #{threadId}</span>
-        ) : null}
-        {statusSummary !== "已就绪" ? (
-          <span className="sunny-agent-thread-header-status"> · {statusSummary}</span>
-        ) : null}
-      </p>
       {archiveConfirmOpen && (
         <div
           className="sunny-confirm-overlay"

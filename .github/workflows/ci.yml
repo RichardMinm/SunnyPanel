@@ -63,17 +63,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Agent tests
-        run: npm run test:agent
-
-      - name: Planning tests
-        run: npm run test:agent:planning
-
-      - name: Schedule tests
-        run: npm run test:agent:schedule
+      - name: Deterministic tests
+        run: env -u DATABASE_URL -u AGENT_DEBUG_LOG npm test
 
       - name: Payload migrations
         run: npm run migrate
+
+      - name: LangGraph checkpoint integration
+        run: npm run test:agent:checkpoint
 
       - name: Build
         run: npm run build

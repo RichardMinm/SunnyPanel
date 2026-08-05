@@ -680,7 +680,7 @@ display: flex;
   border-top: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
   background: color-mix(in oklch, var(--dashboard-app-bg) 92%, transparent);
   font-size: var(--text-2xs);
-  font-family: var(--sunny-font-mono);
+  font-family: inherit;
   color: color-mix(in oklch, var(--muted) 74%, transparent);
   line-height: 1;
   z-index: 15;
@@ -821,6 +821,41 @@ background: color-mix(in oklch, var(--foreground) 8%, transparent);
 
   .sunny-command-trigger {
     display: none;
+  }
+
+  .sunny-dashboard-icon-bar.app-sidebar.sunny-dashboard-sidebar {
+    align-items: center;
+    padding-inline: 0.4rem;
+  }
+
+  .sunny-dashboard-sidebar-brand-row .sunny-dashboard-project-row > span:last-child,
+  .sunny-dashboard-sidebar .app-sidebar-section__title,
+  .sunny-dashboard-sidebar .app-sidebar-item__label,
+  .sunny-dashboard-sidebar .sunny-dashboard-project-row.is-static > span:last-child {
+    display: none;
+  }
+
+  .sunny-dashboard-sidebar .sunny-dashboard-sidebar-search,
+  .sunny-dashboard-sidebar .sunny-dashboard-thread-section,
+  .sunny-dashboard-sidebar .sunny-dashboard-archive-section,
+  .sunny-dashboard-sidebar .sunny-sidebar-pin-button {
+    display: none;
+  }
+
+  .sunny-dashboard-sidebar .sunny-dashboard-sidebar-brand-row,
+  .sunny-dashboard-sidebar .sunny-dashboard-project-row,
+  .sunny-dashboard-sidebar .sunny-dashboard-sidebar-action,
+  .sunny-dashboard-sidebar .sunny-dashboard-mode-row {
+    justify-content: center;
+  }
+
+  .sunny-dashboard-sidebar .sunny-dashboard-sidebar-section {
+    width: 100%;
+  }
+
+  .sunny-dashboard-sidebar .sunny-dashboard-sidebar-section[aria-label="工作区"] {
+    margin-top: 0;
+    padding-top: 0.45rem;
   }
 }
 
@@ -1658,4 +1693,58 @@ color: var(--foreground);
 .sunny-dashboard-icon-bar.is-writing-mode .sunny-writing-sidebar-bottom-rail .sunny-dashboard-sidebar-action[aria-pressed="true"] {
   background: color-mix(in oklch, var(--accent) 10%, transparent);
   color: var(--accent-strong);
+}
+
+/* ── Unified dashboard navigation hierarchy ────────────────────── */
+.sunny-dashboard-icon-bar.app-sidebar.sunny-dashboard-sidebar{
+  background: var(--surface-strong);
+  border-right-color: color-mix(in oklch, var(--border) 74%, transparent);
+}
+
+.sunny-dashboard-sidebar-top{
+  gap: 0.5rem;
+}
+
+.sunny-dashboard-sidebar-section p{
+  padding-bottom: 0.2rem;
+  color: color-mix(in oklch, var(--foreground) 52%, var(--muted));
+  font-size: var(--text-2xs);
+  font-weight: 650;
+}
+
+.sunny-dashboard-sidebar-section[aria-label="工作区"]{
+  margin-top: 0.1rem;
+  border-top: 1px solid color-mix(in oklch, var(--border) 58%, transparent);
+  padding-top: 0.6rem;
+}
+
+.sunny-dashboard-thread-section{
+  margin-top: 0.25rem;
+  border-top: 1px solid color-mix(in oklch, var(--border) 68%, transparent);
+  padding-top: 0.55rem;
+}
+
+.sunny-dashboard-archive-section{
+  border-top: 1px solid color-mix(in oklch, var(--border) 52%, transparent);
+  padding-top: 0.35rem;
+}
+
+.sunny-dashboard-mode-row.is-active,
+.sunny-dashboard-thread-row.is-active{
+  background: color-mix(in oklch, var(--accent) 8%, var(--surface-strong));
+  color: var(--accent-strong);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.sunny-dashboard-thread-row{
+  min-height: 2.45rem;
+  padding-block: 0.32rem;
+}
+
+.sunny-dashboard-thread-row-btn span{
+  white-space: nowrap;
+}
+
+.sunny-dashboard-thread-row-btn small{
+  color: color-mix(in oklch, var(--foreground) 52%, var(--muted));
 }

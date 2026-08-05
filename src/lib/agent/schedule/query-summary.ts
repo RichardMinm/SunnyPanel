@@ -47,6 +47,21 @@ const formatTime = (item: ScheduleQueryItem): string => {
   return "全天 / 未指定时间";
 };
 
+const scheduleStatusLabel: Record<string, string> = {
+  cancelled: "已取消",
+  completed: "已完成",
+  in_progress: "进行中",
+  pending: "待安排",
+  planned: "计划中",
+};
+
+const schedulePriorityLabel: Record<string, string> = {
+  high: "高优先级",
+  low: "低优先级",
+  medium: "中优先级",
+  urgent: "紧急",
+};
+
 const formatScheduleLine = (item: ScheduleQueryItem): string => {
   const title = normalizeText(item.title) || "未命名日程";
   const status = normalizeText(item.status);
@@ -56,8 +71,8 @@ const formatScheduleLine = (item: ScheduleQueryItem): string => {
     relationLabel("清单", item.relatedChecklist),
   ].filter(Boolean);
   const meta = [
-    status ? `状态：${status}` : null,
-    priority ? `优先级：${priority}` : null,
+    status ? scheduleStatusLabel[status] ?? null : null,
+    priority ? schedulePriorityLabel[priority] ?? null : null,
     ...relations,
   ].filter(Boolean);
 
@@ -103,7 +118,7 @@ export const formatScheduleQueryAssistantMessage = ({
     .slice(0, limit);
 
   if (items.length === 0) {
-    return `${formatEmptyScheduleMessage(label)}\n\n范围：${label}。这次只是查询现有日程，没有创建或修改任何日程项。`;
+    return formatEmptyScheduleMessage(label);
   }
 
   const grouped = new Map<string, ScheduleQueryItem[]>();
@@ -116,12 +131,15 @@ export const formatScheduleQueryAssistantMessage = ({
     [`${date}`, ...dateItems.map(formatScheduleLine)].join("\n")
   );
 
-  const hiddenCount = (schedules?.length ?? 0) - items.length;
-  const moreLine = hiddenCount > 0 ? `\n\n还有 ${hiddenCount} 个日程项未展开显示。` : "";
-
-  return [
+  const parts = [
     `这是${label}的日程摘要，共 ${schedules?.length ?? items.length} 个日程项：`,
     groups.join("\n\n"),
-    `${moreLine}\n\n这次只是查看日程，不会创建、修改或写入 schedule-items。`,
-  ].join("\n\n");
+  ];
+  const hiddenCount = (schedules?.length ?? 0) - items.length;
+
+  if (hiddenCount > 0) {
+    parts.push(`还有 ${hiddenCount} 个日程项未展开显示。`);
+  }
+
+  return parts.join("\n\n");
 };

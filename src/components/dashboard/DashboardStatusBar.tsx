@@ -36,54 +36,27 @@ const formatWritingStatus = (writingStatus: WritingSaveStatusSnapshot) =>
   formatWritingSaveStatusDisplay(writingStatus);
 
 export function DashboardStatusBar({
-  branch = "main",
-  isProduction = false,
   isWritingMode = false,
-  model = "DeepSeek V3",
   searchAvailable = true,
   statusLabel,
-  threadId,
-  tokenSummary,
   writingStatus,
 }: DashboardStatusBarProps) {
   const writingStatusDisplay = writingStatus ? formatWritingStatus(writingStatus) : null;
-  const showDevInfo = !isProduction && !isWritingMode;
 
   return (
     <footer className="sunny-dashboard-status-bar" role="status" aria-label="工作台状态">
       <span className="sunny-dashboard-status-dot" aria-hidden="true" />
       {isWritingMode ? (
         <span className="sunny-dashboard-status-writing">{statusLabel}</span>
-      ) : isProduction ? (
+      ) : (
         <span>{formatUserStatus(statusLabel)}</span>
-      ) : showDevInfo ? (
-        <>
-          <span>{model}</span>
-          <span aria-hidden="true">|</span>
-          <span>{branch}</span>
-          {threadId != null ? (
-            <>
-              <span aria-hidden="true">|</span>
-              <span className="sunny-dashboard-status-debug">Thread #{threadId}</span>
-            </>
-          ) : null}
-          {tokenSummary ? (
-            <>
-              <span aria-hidden="true">|</span>
-              <span className="sunny-dashboard-status-debug">{tokenSummary}</span>
-            </>
-          ) : null}
-        </>
-      ) : null}
+      )}
       <span style={{ flex: 1 }} />
       {!isWritingMode && writingStatusDisplay ? (
         <span className={writingStatusDisplay.className}>{writingStatusDisplay.label}</span>
       ) : null}
       {searchAvailable ? (
         <span className="sunny-dashboard-status-kbd" aria-hidden="true">⌘K</span>
-      ) : null}
-      {!isProduction && !isWritingMode && !writingStatusDisplay ? (
-        <span>{statusLabel}</span>
       ) : null}
     </footer>
   );

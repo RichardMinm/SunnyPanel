@@ -10,6 +10,7 @@ import {
 } from "./intent/intent-safety-signals";
 import { buildConversationalIntent } from "./conversation/answer-generator";
 import { classifyFollowUpIntent, routeDefinitionIntent, routeFollowUpIntent } from "./conversation/follow-up-router";
+import { resolveWorkspaceCatalogIntent } from "./conversation/workspace-catalog-query";
 import type { AgentConversationState } from "./conversation/types";
 import { intentRequiresWrite } from "./intent/arbitration";
 import type { AgentArbitrationDecision } from "./intent/arbitration";
@@ -660,6 +661,17 @@ export const resolveOrchestrationPreflightIntent = ({
 
   if (pendingAction?.type === "await_learning_followup") {
     return resolveLearningFollowupIntent(pendingAction, message);
+  }
+
+  if (!pendingAction) {
+    const workspaceCatalogIntent = resolveWorkspaceCatalogIntent(
+      message,
+      context,
+    );
+
+    if (workspaceCatalogIntent) {
+      return workspaceCatalogIntent;
+    }
   }
 
   const followUpIntent = routeFollowUpIntent({

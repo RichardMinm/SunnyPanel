@@ -6,6 +6,12 @@ import {
   compactAssistantMessageForPendingAction,
 } from "../../src/components/dashboard/agent/utils";
 import { formatIntentLabel } from "../../src/components/dashboard/agent/constants";
+import {
+  isHostInputCompositionEvent,
+  shouldCancelPendingActionKey,
+  shouldSubmitComposerKey,
+} from "../../src/components/dashboard/agent/composer-keyboard";
+import { formatThreadMeta } from "../../src/components/dashboard/sidebar/dashboard-sidebar-helpers";
 import { filterDashboardThreads } from "../../src/lib/dashboard/filter-dashboard-threads";
 import type { AgentThreadSummary } from "../../src/components/dashboard/agent/types";
 import type { PendingAction } from "../../src/lib/agent/schemas";
@@ -257,8 +263,10 @@ describe("Dashboard layout contracts", () => {
     assert.match(rightPanelCss, /\.sunny-dashboard-right-panel[\s\S]*max-height:/);
     assert.match(shellCss, /\.sunny-dashboard-shell\.is-panel-expanded \.sunny-dashboard-main[\s\S]*padding-right:\s*var\(--dashboard-panel-width\)/);
     assert.match(agentCss, /\.sunny-agent-center-surface[\s\S]*box-shadow:\s*none/);
+    assert.match(agentCss, /\.sunny-shell:has\(\.sunny-agent-center-surface\) \.sunny-command-trigger[\s\S]*display:\s*none/);
     assert.match(agentCss, /\.sunny-agent-composer[\s\S]*position:\s*sticky/);
     assert.match(agentCss, /\.sunny-message-card-body[\s\S]*border:\s*none/);
+    assert.match(agentCss, /--agent-thread-width:\s*780px/);
   });
 
   test("Thinking state is rendered inside the conversation task flow instead of as a standalone workbench frame", () => {
@@ -272,9 +280,9 @@ describe("Dashboard layout contracts", () => {
     assert.match(conversation, /import \{ AgentThinkingPanel \}/);
     assert.match(conversation, /useEffect/);
     assert.match(conversation, /transcript\.scrollTo/);
-    assert.match(conversation, /<AgentThinkingPanel[\s\S]*isThinking=\{isThinking\}/);
+    assert.match(conversation, /<AgentThinkingPanel[\s\S]*active=\{isSubmitting\}/);
     assert.match(threadHeader, /getSummaryStatus/);
-    assert.match(threadHeader, /Thread #/);
+    assert.doesNotMatch(threadHeader, /Thread #/);
     assert.doesNotMatch(threadHeader, /sunny-agent-thread-header-badges/);
     assert.match(agentCss, /\.sunny-agent-thinking-panel[\s\S]*border:\s*none/);
     assert.match(agentCss, /\.sunny-agent-thinking-panel[\s\S]*background:\s*transparent/);
@@ -294,12 +302,92 @@ describe("Dashboard layout contracts", () => {
     assert.match(messagingHook, /onProgress:/);
     assert.match(messagingHook, /onChange:/);
     assert.match(conversation, /streamStages=\{streamStages\}/);
-    assert.match(conversation, /streamProgress=\{streamProgress\}/);
+    assert.doesNotMatch(conversation, /streamProgress=\{streamProgress\}/);
     assert.match(conversation, /streamChanges=\{streamChanges\}/);
     assert.match(thinkingPanel, /AgentStreamStageEvent/);
     assert.match(thinkingPanel, /streamStages/);
-    assert.match(thinkingPanel, /sunny-agent-stage-row/);
+    assert.match(thinkingPanel, /sunny-agent-progress-panel is-running is-compact/);
+    assert.doesNotMatch(
+      thinkingPanel,
+      /sunny-agent-stage-row|sunny-agent-user-step-list|处理完成|调试信息|thinkingContent/,
+    );
     assert.match(agentCss, /\.sunny-agent-stage-row/);
+  });
+
+  test("New conversations render the real welcome surface without a synthetic completed turn", () => {
+    const constants = read("src/components/dashboard/agent-chat/constants.ts");
+    const conversation = read("src/components/dashboard/agent/AgentConversation.tsx");
+    const thinkingPanel = read("src/components/dashboard/agent/AgentThinkingPanel.tsx");
+
+    assert.match(constants, /initialMessages:\s*AgentChatMessage\[\]\s*=\s*\[\]/);
+    assert.match(conversation, /messages\.length === 0/);
+    assert.match(conversation, /今天想推进什么？/);
+    assert.match(conversation, /直接描述你的目标/);
+    assert.doesNotMatch(conversation, /sunny-agent-welcome-cards|sunny-agent-capability-card/);
+    assert.match(thinkingPanel, /stages\.length === 0 && changes\.length === 0/);
+    assert.match(thinkingPanel, /return \[\]/);
+  });
+
+  test("Composer keyboard handling is safe for host input method composition", () => {
+    assert.equal(
+      shouldSubmitComposerKey({ key: "Enter", shiftKey: false }),
+      true,
+    );
+    assert.equal(
+      shouldSubmitComposerKey({
+        isComposing: true,
+        key: "Enter",
+        shiftKey: false,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldSubmitComposerKey({
+        key: "Enter",
+        keyCode: 229,
+        shiftKey: false,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldSubmitComposerKey({ key: "Enter", shiftKey: true }),
+      false,
+    );
+    assert.equal(
+      isHostInputCompositionEvent({ isComposing: true, key: "Enter" }),
+      true,
+    );
+    assert.equal(
+      shouldCancelPendingActionKey({ key: "Escape" }, false),
+      true,
+    );
+    assert.equal(
+      shouldCancelPendingActionKey({ isComposing: true, key: "Escape" }, false),
+      false,
+    );
+    assert.equal(
+      shouldCancelPendingActionKey({ key: "Escape" }, true),
+      false,
+    );
+
+    const composer = read("src/components/dashboard/agent/AgentComposer.tsx");
+    const messaging = read("src/components/dashboard/agent-chat/use-agent-chat-messaging.ts");
+
+    assert.match(composer, /onCompositionStart=/);
+    assert.match(composer, /onCompositionEnd=/);
+    assert.match(composer, /shouldSubmitComposerKey\(e\.nativeEvent\)/);
+    assert.match(composer, /focusRequestKey/);
+    assert.match(composer, /enterKeyHint="send"/);
+    assert.match(messaging, /shouldCancelPendingActionKey\(event, targetIsEditable\)/);
+  });
+
+  test("Starting a new conversation protects an unsent composer draft", () => {
+    const pageClient = read("src/components/dashboard/DashboardPageClient.tsx");
+
+    assert.match(pageClient, /discardDraftDialogOpen/);
+    assert.match(pageClient, /chat\.input\.trim\(\)\.length > 0/);
+    assert.match(pageClient, /丢弃未发送的草稿？/);
+    assert.match(pageClient, /confirmLabel="丢弃并新建"/);
   });
 
   test("Dashboard keeps the ops-enabled Inspector as a default-hidden detail drawer", () => {
@@ -443,37 +531,41 @@ describe("Dashboard layout contracts", () => {
     }
   });
 
-  test("Composer is mode-aware through a compact menu and sends workbenchMode to the Agent chat API", () => {
+  test("Composer stays minimal while workbench mode and capabilities remain backend-owned", () => {
     const dashboardHook = read("src/components/dashboard/agent-chat/use-agent-dashboard-chat.ts");
     const messagingHook = read("src/components/dashboard/agent-chat/use-agent-chat-messaging.ts");
     const workbench = read("src/components/dashboard/agent/AgentWorkbench.tsx");
     const composer = read("src/components/dashboard/agent/AgentComposer.tsx");
+    const conversation = read("src/components/dashboard/agent/AgentConversation.tsx");
     const pageClient = read("src/components/dashboard/DashboardPageClient.tsx");
+    const statusBar = read("src/components/dashboard/DashboardStatusBar.tsx");
     const workbenchMode = read("src/lib/agent/workbench-mode.ts");
     const chatRoute = read("src/lib/agent/chat-pipeline/handle-agent-chat-post.ts");
+    const capabilityManifest = read(
+      "src/lib/agent/orchestration/orchestrator-capability-manifest.ts",
+    );
 
     assert.match(dashboardHook, /workbenchMode/);
     assert.match(dashboardHook, /setWorkbenchMode/);
     assert.match(messagingHook, /workbenchMode/);
     assert.match(messagingHook, /workbenchMode,\s*stream: true/);
-    assert.match(workbench, /workbenchMode=\{workbenchMode\}/);
-    assert.match(workbench, /onWorkbenchModeChange=\{onWorkbenchModeChange\}/);
+    assert.doesNotMatch(workbench, /onWorkbenchModeChange/);
     assert.match(pageClient, /onWorkbenchModeChange=\{chat\.setWorkbenchMode\}/);
-    assert.match(composer, /ComposerModeSelect/);
-    assert.match(composer, /ComposerAddMenu/);
-    assert.match(composer, /modeMenuOpen/);
-    assert.match(composer, /quickMenuOpen/);
-    assert.match(composer, /triggerAriaLabel="选择工作模式"/);
-    assert.match(composer, /triggerAriaLabel="添加上下文 \/ 文件 \/ 命令"/);
-    assert.match(read("src/components/dashboard/agent/ComposerModeSelect.tsx"), /label:\s*"只回答"/);
-    assert.match(composer, /打开当前上下文/);
+    assert.doesNotMatch(composer, /ComposerModeSelect/);
+    assert.doesNotMatch(composer, /ComposerAddMenu/);
+    assert.doesNotMatch(composer, /modeMenuOpen|quickMenuOpen/);
+    assert.doesNotMatch(composer, /选择工作模式|添加上下文 \/ 文件 \/ 命令/);
+    assert.match(composer, /添加上下文/);
     assert.match(composer, /sunny-agent-composer-actions/);
-    assert.match(read("src/components/dashboard/agent/ComposerAddMenu.tsx"), /调试模式/);
-    assert.match(read("src/components/dashboard/agent/ComposerModeSelect.tsx"), /输入问题或任务/);
     assert.match(composer, /title=\{sendTitle\}/);
-    assert.match(composer, /生成 DryRun/);
-    assert.doesNotMatch(composer, /sunny-agent-composer-mode-copy/);
-    assert.doesNotMatch(composer, /当前模式：/);
+    assert.doesNotMatch(composer, /DeepSeek|DryRun|调试模式|工具|意图/);
+    assert.doesNotMatch(
+      conversation,
+      /sunny-agent-welcome-cards|sunny-agent-capability-card|onCapabilitySelect/,
+    );
+    assert.match(conversation, /直接描述你的目标/);
+    assert.doesNotMatch(statusBar, /\{model\}|\{branch\}|Thread #|\{tokenSummary\}/);
+    assert.match(capabilityManifest, /buildOrchestratorCapabilityManifest/);
     assert.match(workbenchMode, /"answer"/);
     assert.match(chatRoute, /"answer"/);
     assert.match(composer, /useDashboardInspectorControl/);
@@ -512,13 +604,21 @@ describe("Dashboard layout contracts", () => {
     assert.match(conversation, /hasPendingConfirmation/);
     assert.match(conversation, /sunny-agent-conversation-scroll[\s\S]*sunny-agent-thread-action-area/);
     assert.doesNotMatch(read("src/components/dashboard/agent/AgentWorkbench.tsx"), /<AgentApprovalCard/);
-    assert.match(agentCss, /\.sunny-message-card[\s\S]*display:\s*grid/);
+    assert.match(agentCss, /\.sunny-message-card[\s\S]*display:\s*block/);
     assert.match(agentCss, /\.sunny-message-card-user[\s\S]*width:\s*fit-content/);
     assert.match(agentCss, /\.sunny-message-card-user \.sunny-message-card-body[\s\S]*--agent-bubble-user-bg/);
-    assert.match(agentCss, /\.sunny-agent-thread-header[\s\S]*width:\s*min\(100%, 860px\)/);
-    assert.match(threadHeader, /MODE_LABEL/);
-    assert.match(threadHeader, /Thread #/);
-    assert.match(threadHeader, /debugMode/);
+    assert.match(agentCss, /\.sunny-message-card-assistant \.sunny-message-card-body[\s\S]*border:\s*none/);
+    assert.match(agentCss, /\.sunny-agent-thread-header[\s\S]*border-bottom:/);
+    assert.match(agentCss, /\.sunny-agent-thread-header[\s\S]*box-shadow:\s*none/);
+    assert.doesNotMatch(messageCard, /sunny-message-card-assistant-name|sunny-message-card-avatar/);
+    assert.doesNotMatch(threadHeader, /告诉 Sunny 你想完成什么/);
+    assert.match(
+      read("src/components/dashboard/DashboardShell.tsx"),
+      /activeMode !== "schedule" && activeMode !== "agent"/,
+    );
+    assert.doesNotMatch(threadHeader, /MODE_LABEL/);
+    assert.doesNotMatch(threadHeader, /Thread #/);
+    assert.doesNotMatch(threadHeader, /debugMode/);
     assert.doesNotMatch(threadHeader, /onOpenDetails/);
     assert.doesNotMatch(threadHeader, /onDebugModeChange/);
     assert.doesNotMatch(threadHeader, /aria-label="调试"/);
@@ -623,7 +723,9 @@ describe("Dashboard layout contracts", () => {
     assert.match(dashboardHook, /clearRunDetail\(\)/);
     assert.match(dashboardHook, /setThreadTitle\(""\)/);
     assert.match(dashboardHook, /setThreadHydrated\(true\)/);
-    assert.match(pageClient, /onNewThread=\{\(\) => \{ chat\.clearRunDetail\(\); chat\.resetThread\(\); \}\}/);
+    assert.match(pageClient, /onNewThread=\{handleNewThread\}/);
+    assert.match(pageClient, /chat\.clearRunDetail\(\)/);
+    assert.match(pageClient, /chat\.resetThread\(\)/);
   });
 
   test("Thread URL sync preserves existing Dashboard workspace search params", () => {
@@ -681,7 +783,7 @@ describe("Dashboard conversation utils", () => {
 
     assert.equal(
       compactAssistantMessageForPendingAction(content, null),
-      "今天最该推进 CET-6 计划。\n\n（DryRun 详情已归档为结构化记录，不再展开全文。）",
+      "今天最该推进 CET-6 计划。\n\n（操作预览详情已收起，请在下方确认卡片中查看。）",
     );
   });
 });
@@ -712,5 +814,22 @@ describe("Dashboard thread search", () => {
 
   test("returns empty array when nothing matches", () => {
     assert.equal(filterDashboardThreads(sampleThreads, "健身").length, 0);
+  });
+});
+
+describe("Dashboard thread metadata", () => {
+  test("formats product-facing state and tag without exposing the internal thread id", () => {
+    assert.equal(formatThreadMeta(sampleThreads[0]), "已就绪 · 学习");
+    assert.doesNotMatch(formatThreadMeta(sampleThreads[0]), /#1|Thread 1/);
+  });
+
+  test("formats a pending confirmation from the typed action state", () => {
+    assert.equal(
+      formatThreadMeta({
+        ...sampleThreads[0],
+        pendingAction: pendingConfirmation,
+      }),
+      "等待确认：中风险 · 学习",
+    );
   });
 });

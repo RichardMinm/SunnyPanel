@@ -37,6 +37,59 @@ const requiredCategoryTokens = [
 
 const forbiddenAccentHex = /#2563eb|#1d4ed8|#3b82f6|#eef6ff|#e8f1ff/gi;
 
+const getPaletteBlock = (source: string, palette: string, theme: "light" | "dark") => {
+  const selector =
+    theme === "light"
+      ? `html\\[data-palette="${palette}"\\]`
+      : `html\\[data-palette="${palette}"\\]\\[data-theme="dark"\\]`;
+  return source.match(new RegExp(`${selector}[\\s\\S]*?\\}`, "m"))?.[0] ?? "";
+};
+
+const readHexToken = (block: string, token: string) => {
+  const value = block.match(new RegExp(`${token}:\\s*(#[0-9a-fA-F]{6});`))?.[1];
+  assert.ok(value, `${token} must be a six-digit hex token`);
+  return value;
+};
+
+const srgbChannel = (value: number) => {
+  const channel = value / 255;
+  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+};
+
+const relativeLuminance = (hex: string) => {
+  const channels = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
+  return (
+    0.2126 * srgbChannel(channels[0]!) +
+    0.7152 * srgbChannel(channels[1]!) +
+    0.0722 * srgbChannel(channels[2]!)
+  );
+};
+
+const contrastRatio = (first: string, second: string) => {
+  const [lighter, darker] = [relativeLuminance(first), relativeLuminance(second)].sort((a, b) => b - a);
+  return (lighter! + 0.05) / (darker! + 0.05);
+};
+
+const hueFromHex = (hex: string) => {
+  const [red, green, blue] = [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255);
+  const max = Math.max(red!, green!, blue!);
+  const min = Math.min(red!, green!, blue!);
+  const delta = max - min;
+
+  if (delta === 0) {
+    return 0;
+  }
+
+  const hue =
+    max === red
+      ? ((green! - blue!) / delta) % 6
+      : max === green
+        ? (blue! - red!) / delta + 2
+        : (red! - green!) / delta + 4;
+
+  return (hue * 60 + 360) % 360;
+};
+
 const guardedCssFiles = [
   "src/app/styles/sunny-dashboard-shell.css",
   "src/app/styles/sunny-dashboard-right-panel.css",
@@ -180,6 +233,59 @@ describe("Color token unification", () => {
     }
   });
 
+  test("forest is the product default and the CSS fallback", () => {
+    const paletteCss = read("src/app/styles/sunny-palettes.css");
+    const sitePalette = read("src/lib/site-palette.ts");
+
+    assert.match(sitePalette, /defaultSitePalette\s*=\s*"forest"/);
+    assert.match(paletteCss, /:root,\s*html\[data-palette="forest"\]\s*\{/);
+    assert.match(
+      paletteCss,
+      /html\[data-palette="forest"\]\[data-theme="dark"\],\s*html\[data-theme="dark"\]:not\(\[data-palette\]\)/,
+    );
+  });
+
+  test("palette text, muted text, accent text, and filled actions meet AA contrast", () => {
+    const paletteCss = read("src/app/styles/sunny-palettes.css");
+
+    for (const palette of palettes) {
+      for (const theme of ["light", "dark"] as const) {
+        const block = getPaletteBlock(paletteCss, palette, theme);
+        assert.ok(block, `missing ${theme} block for ${palette}`);
+
+        const background = readHexToken(block, "--background");
+        const foreground = readHexToken(block, "--foreground");
+        const muted = readHexToken(block, "--muted");
+        const accent = readHexToken(block, "--accent");
+        const accentContrast = readHexToken(block, "--accent-contrast");
+
+        assert.ok(contrastRatio(foreground, background) >= 4.5, `${palette} ${theme} foreground contrast`);
+        assert.ok(contrastRatio(muted, background) >= 4.5, `${palette} ${theme} muted contrast`);
+        assert.ok(contrastRatio(accent, background) >= 4.5, `${palette} ${theme} accent contrast`);
+        assert.ok(contrastRatio(accentContrast, accent) >= 4.5, `${palette} ${theme} filled action contrast`);
+      }
+    }
+  });
+
+  test("study, plan, Agent, and exam category hues keep stable semantic families", () => {
+    const paletteCss = read("src/app/styles/sunny-palettes.css");
+
+    for (const palette of palettes) {
+      for (const theme of ["light", "dark"] as const) {
+        const block = getPaletteBlock(paletteCss, palette, theme);
+        const studyHue = hueFromHex(readHexToken(block, "--cat-study-dot"));
+        const planHue = hueFromHex(readHexToken(block, "--cat-plan-dot"));
+        const agentHue = hueFromHex(readHexToken(block, "--cat-agent-dot"));
+        const examHue = hueFromHex(readHexToken(block, "--cat-exam-dot"));
+
+        assert.ok(studyHue >= 240 && studyHue <= 300, `${palette} ${theme} study should stay violet`);
+        assert.ok(planHue >= 80 && planHue <= 170, `${palette} ${theme} plan should stay green`);
+        assert.ok(agentHue >= 15 && agentHue <= 50, `${palette} ${theme} Agent should stay amber/orange`);
+        assert.ok(examHue <= 10 || examHue >= 340, `${palette} ${theme} exam should stay red`);
+      }
+    }
+  });
+
   test("guarded CSS files do not hardcode legacy Tailwind accent blues or literal colors", () => {
     for (const file of guardedCssFiles) {
       const css = read(file);
@@ -193,6 +299,11 @@ describe("Color token unification", () => {
     const shellCss = read("src/app/styles/sunny-dashboard-shell.css");
     assert.match(shellCss, /--dashboard-app-bg:\s*var\(--background\)/);
     assert.match(shellCss, /--dashboard-card-shadow:[\s\S]*var\(--card-shadow\)/);
+    assert.doesNotMatch(
+      shellCss,
+      /\.sunny-dashboard-shell:has\(\.sunny-agent-center-surface\)[\s\S]*?--accent:/,
+      "Agent surfaces must inherit the selected palette instead of overriding its accent",
+    );
   });
 
   test("composer tokens reference palette semantics", () => {

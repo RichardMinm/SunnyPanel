@@ -12,7 +12,7 @@ import { FULL_ORCHESTRATOR_TIMEOUT_POLICY } from "./orchestrator-timeout-policy"
 export const L3B_EVALUATION_CONFIG_VERSION =
   "l3b-full-timeout-recovery-v1";
 export const L3B_PROMPT_PROTOCOL_VERSION =
-  "l3b-request-semantic-boundary-v1";
+  "l3b-capability-manifest-v1";
 export const L3B_RESOURCE_PROTOCOL_VERSION = 3;
 
 export type L3BEvaluationConfig = Readonly<{
