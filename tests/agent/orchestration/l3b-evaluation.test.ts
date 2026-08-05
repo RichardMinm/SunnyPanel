@@ -1112,9 +1112,9 @@ test("sanitized report validation rejects forbidden keys at any nested depth", (
 
 test("sanitized report writer proves real /tmp containment and rejects symlink escapes", () => {
   const tmpRoot = mkdtempSync("/tmp/l3b-report-test-");
-  const outsideRoot = mkdtempSync(
-    resolve(process.cwd(), ".superpowers/sdd/l3b-report-outside-"),
-  );
+  const sddParent = resolve(process.cwd(), ".superpowers/sdd");
+  mkdirSync(sddParent, { recursive: true });
+  const outsideRoot = mkdtempSync(resolve(sddParent, "l3b-report-outside-"));
   try {
     const safePath = join(tmpRoot, "safe.json");
     writeSanitizedL3BReport(safePath, { pass: true });
