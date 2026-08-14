@@ -1,3 +1,7 @@
+import { toScheduleDateKey } from "./calendar-date";
+
+export { toScheduleDateKey } from "./calendar-date";
+
 export type ScheduleConflictItem = {
   date: string;
   endTime?: null | string;
@@ -9,20 +13,6 @@ export type ScheduleConflictItem = {
 };
 
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
-
-export const toScheduleDateKey = (value: string | Date) => {
-  const date = typeof value === "string" ? new Date(value) : value;
-
-  if (Number.isNaN(date.getTime())) {
-    return typeof value === "string" ? value.slice(0, 10) : "";
-  }
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-};
 
 export const isValidScheduleTime = (value?: null | string) => {
   if (!value) {

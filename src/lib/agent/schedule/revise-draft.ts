@@ -1,5 +1,10 @@
 import type { ScheduleConflict, ScheduleConflictPolicy } from "./conflict-awareness";
 import type { ScheduleDraft, ScheduleDraftItem } from "./draft";
+import {
+  addScheduleCalendarDays,
+  parseScheduleCalendarDate,
+  toScheduleDateKey,
+} from "@/lib/schedule/calendar-date";
 
 export type ScheduleDraftRevisionAction =
   | {
@@ -47,7 +52,6 @@ type ParsedTimeUpdate = {
 const morningRange = { endTime: "11:00", startTime: "09:00" };
 const afternoonRange = { endTime: "17:00", startTime: "14:00" };
 const eveningRange = { endTime: "22:00", startTime: "20:00" };
-const dayInMs = 24 * 60 * 60 * 1000;
 const timePattern = /^([01]?\d|2[0-3]):[0-5]\d$/u;
 const weekdayMap: Record<string, number> = {
   一: 1,
@@ -77,26 +81,17 @@ const unique = (items: string[]): string[] => {
   return result;
 };
 
-const toDateKey = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-};
-
 const parseReferenceDate = (value?: string): Date | null => {
   if (!value) return null;
-  const parsed = new Date(value);
 
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return parseScheduleCalendarDate(value);
 };
 
 const addDays = (date: Date, days: number): Date =>
-  new Date(date.getTime() + days * dayInMs);
+  addScheduleCalendarDays(date, days);
 
 const nextWeekday = (reference: Date, targetWeekday: number): Date => {
-  const current = reference.getDay();
+  const current = reference.getUTCDay();
   let delta = (targetWeekday - current + 7) % 7;
   if (delta === 0) delta = 7;
 
@@ -112,22 +107,22 @@ const parseDate = (message: string, referenceDate?: string): null | string => {
   const reference = parseReferenceDate(referenceDate);
   const monthDay = message.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/u);
   if (monthDay && reference) {
-    return `${reference.getFullYear()}-${String(Number(monthDay[1])).padStart(2, "0")}-${String(Number(monthDay[2])).padStart(2, "0")}`;
+    return `${reference.getUTCFullYear()}-${String(Number(monthDay[1])).padStart(2, "0")}-${String(Number(monthDay[2])).padStart(2, "0")}`;
   }
 
   if (!reference) return null;
 
-  if (/今天|今日/u.test(message)) return toDateKey(reference);
-  if (/明天|明日/u.test(message)) return toDateKey(addDays(reference, 1));
-  if (/后天/u.test(message)) return toDateKey(addDays(reference, 2));
+  if (/今天|今日/u.test(message)) return toScheduleDateKey(reference);
+  if (/明天|明日/u.test(message)) return toScheduleDateKey(addDays(reference, 1));
+  if (/后天/u.test(message)) return toScheduleDateKey(addDays(reference, 2));
 
   const weekday = message.match(/(?:周|星期)([一二三四五六日天])/u);
   if (weekday?.[1]) {
-    return toDateKey(nextWeekday(reference, weekdayMap[weekday[1]] ?? 1));
+    return toScheduleDateKey(nextWeekday(reference, weekdayMap[weekday[1]] ?? 1));
   }
 
-  if (/周末/u.test(message)) return toDateKey(nextWeekday(reference, 6));
-  if (/工作日/u.test(message)) return toDateKey(nextWeekday(reference, 1));
+  if (/周末/u.test(message)) return toScheduleDateKey(nextWeekday(reference, 6));
+  if (/工作日/u.test(message)) return toScheduleDateKey(nextWeekday(reference, 1));
 
   return null;
 };
