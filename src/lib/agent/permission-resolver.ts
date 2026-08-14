@@ -113,24 +113,10 @@ export const incrementAutoCount = (threadId: number) => {
 };
 
 export const buildConfirmedIntentSet = (pendingActions: PendingAction[], lastIntent?: string | null): Set<string> => {
-  const confirmed = new Set<string>();
-
-  for (const pa of pendingActions) {
-    if (pa.type === "await_confirmation" || pa.type === "await_batch_confirmation") {
-      const actions = pa.type === "await_batch_confirmation" ? pa.actions : [pa.action];
-
-      for (const action of actions) {
-        const collectionKey = action.changes.map((c) => c.collection).join(",");
-        confirmed.add(`${action.intent}:${collectionKey}`);
-      }
-    }
-  }
-
-  // Thread lastIntent captures the most recently executed intent — use as a signal
-  // that the user has already confirmed this type of action in the thread.
-  if (lastIntent) {
-    confirmed.add(lastIntent);
-  }
-
-  return confirmed;
+  // Pending proposals and lastIntent are execution history, not positive
+  // authorization grants. Until confirmations have a dedicated durable ledger,
+  // fail closed instead of promoting either signal into an auto-approval grant.
+  void pendingActions;
+  void lastIntent;
+  return new Set();
 };

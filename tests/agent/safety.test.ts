@@ -121,7 +121,7 @@ test("low-risk intents do not require confirmation proposals", async () => {
   }
 });
 
-test("low-risk write bypass keeps its dry-run action id for idempotent execution", async () => {
+test("low-risk writes keep their dry-run action id but still require confirmation", async () => {
   const result = await dryRunAgentIntent(
     {
       args: { itemId: 88 },
@@ -139,11 +139,11 @@ test("low-risk write bypass keeps its dry-run action id for idempotent execution
     },
   );
 
-  assert.equal(result.type, "bypass");
-  assert.equal(
-    (result as { action?: { id?: string } }).action?.id,
-    "cancel-action-88",
-  );
+  assert.equal(result.type, "proposed_action");
+  if (result.type === "proposed_action") {
+    assert.equal(result.action.id, "cancel-action-88");
+    assert.equal(result.action.requiresConfirmation, true);
+  }
 });
 
 test("medium-risk write intents are converted into confirmation proposals", async () => {

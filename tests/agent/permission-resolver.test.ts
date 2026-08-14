@@ -170,19 +170,16 @@ test("denied intents and consecutive caps still block level 3 auto approval", ()
   assert.match(cappedDecision.reason, /连续自动批准已达上限/);
 });
 
-test("buildConfirmedIntentSet records intent and collection scopes", () => {
+test("unconfirmed proposals and lastIntent never become confirmation grants", () => {
   const pending: PendingAction = {
     action: makeAction(),
     type: "await_confirmation",
   };
 
-  assert.deepEqual(buildConfirmedIntentSet([pending], "save_memory"), new Set([
-    "create_plan:plans",
-    "save_memory",
-  ]));
+  assert.deepEqual(buildConfirmedIntentSet([pending], "save_memory"), new Set());
 });
 
-test("user preference memories can configure autonomy level and intent rules", () => {
+test("model-writable preference memories cannot change authorization policy", () => {
   const preferences = parseUserPreferencesFromMemoryDocs([
     {
       content: "3",
@@ -198,8 +195,8 @@ test("user preference memories can configure autonomy level and intent rules", (
     },
   ]);
 
-  assert.equal(preferences.autonomyLevel, 3);
-  assert.equal(preferences.autoApproveIntents.has("compose_schedule_item"), true);
-  assert.equal(preferences.autoApproveIntents.has("save_memory"), true);
-  assert.equal(preferences.deniedIntents.has("cancel_schedule_item"), true);
+  assert.equal(preferences.autonomyLevel, 2);
+  assert.equal(preferences.autoApproveIntents.has("compose_schedule_item"), false);
+  assert.equal(preferences.autoApproveIntents.has("save_memory"), false);
+  assert.equal(preferences.deniedIntents.has("cancel_schedule_item"), false);
 });

@@ -113,7 +113,7 @@ export const resolveConfirmationStep = async (
         assistantMessage,
         confidence: 1,
         engine: "workflow",
-        intent: pendingAction.actions[0]?.intent ?? "clarify",
+        intent: "clarify",
         nextPendingAction: null,
       });
       return {
@@ -122,7 +122,7 @@ export const resolveConfirmationStep = async (
           assistantMessage,
           confidence: 1,
           engine: "workflow",
-          intent: pendingAction.actions[0]?.intent ?? "clarify",
+          intent: "clarify",
           pendingAction: null,
           trace,
           threadId: updatedThread.id,
@@ -226,7 +226,7 @@ export const resolveConfirmationStep = async (
         assistantMessage,
         confidence: 1,
         engine: "workflow",
-        intent: pendingAction.action.intent,
+        intent: "clarify",
         nextPendingAction: null,
       });
       logAgentEvent("info", "chat.confirmation_canceled", {
@@ -241,7 +241,7 @@ export const resolveConfirmationStep = async (
           assistantMessage,
           confidence: 1,
           engine: "workflow",
-          intent: pendingAction.action.intent,
+          intent: "clarify",
           pendingAction: null,
           trace,
           threadId: updatedThread.id,

@@ -32,6 +32,9 @@ async function seed() {
     console.log(`[seed] Creating admin user: ${ADMIN_EMAIL}`);
     await payload.create({
       collection: "users",
+      context: {
+        allowInitialAdminBootstrap: true,
+      },
       data: {
         email: ADMIN_EMAIL,
         password: ADMIN_PASSWORD,

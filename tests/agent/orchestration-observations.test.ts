@@ -267,7 +267,7 @@ test("executeOrchestrationGraph returns observations for direct answers", async 
   assert.equal(result.observations[0]?.message, "当前没有需要写入的动作。");
 });
 
-test("executeOrchestrationGraph executes a low-risk write bypass through the action executor", async () => {
+test("executeOrchestrationGraph keeps low-risk writes behind confirmation", async () => {
   let executions = 0;
   let executedActionId: string | null = null;
   const plan: OrchestratorPlan = {
@@ -318,11 +318,12 @@ test("executeOrchestrationGraph executes a low-risk write bypass through the act
     },
   );
 
-  assert.equal(executions, 1);
-  assert.equal(executedActionId, "cancel-action-88");
-  assert.equal(result.observations[0]?.status, "auto_executed");
+  assert.equal(executions, 0);
+  assert.equal(executedActionId, null);
+  assert.equal(result.pendingAction?.type, "await_confirmation");
+  assert.equal(result.observations[0]?.status, "proposed");
   assert.equal(result.observations[0]?.actionId, "cancel-action-88");
-  assert.match(result.assistantMessage, /已取消晨间复盘/);
+  assert.match(result.assistantMessage, /确认/);
 });
 
 test("executeOrchestrationGraph returns observations for proposed writes", async () => {

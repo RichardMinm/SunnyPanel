@@ -2667,7 +2667,7 @@ export const agentToolRegistry = {
 export const getAgentToolDefinition = (intent: AgentIntent["intent"]) =>
   intent in agentToolRegistry ? agentToolRegistry[intent as keyof typeof agentToolRegistry] : null;
 
-export const dryRunAgentTool = async (intent: WritableAgentIntent, context: AgentToolDryRunContext = {}) => {
+const runAgentToolDryRun = async (intent: WritableAgentIntent, context: AgentToolDryRunContext) => {
   switch (intent.intent) {
     case "add_completion_note":
       return agentToolRegistry.add_completion_note.dryRun(intent.args, context);
@@ -2708,6 +2708,41 @@ export const dryRunAgentTool = async (intent: WritableAgentIntent, context: Agen
     case "modify_record":
       return agentToolRegistry.modify_record.dryRun(intent.args, context);
   }
+};
+
+export const dryRunAgentTool = async (
+  intent: WritableAgentIntent,
+  context: AgentToolDryRunContext = {},
+): Promise<AgentToolDryRunResult> => {
+  const result = await runAgentToolDryRun(intent, context);
+  const definition = getAgentToolDefinition(intent.intent);
+
+  if (!definition) {
+    throw new Error(`Agent tool registry missing definition for ${intent.intent}.`);
+  }
+
+  if (result.type !== "proposed_action") {
+    return result;
+  }
+
+  if (definition.capability !== "write") {
+    return result;
+  }
+
+  const isSideEffectFreeWeeklyPreview =
+    intent.intent === "weekly_review" &&
+    intent.args.persistReview === false &&
+    (result.action.affectedDocuments?.length ?? 0) === 0;
+
+  return {
+    ...result,
+    action: {
+      ...result.action,
+      requiresConfirmation: isSideEffectFreeWeeklyPreview
+        ? false
+        : definition.requiresConfirmation || result.action.requiresConfirmation,
+    },
+  };
 };
 
 export const executeAgentTool = async (

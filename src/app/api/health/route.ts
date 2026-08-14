@@ -6,15 +6,16 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const startedAt = Date.now();
   let db: "connected" | "disconnected" = "disconnected";
-  let dbError: string | null = null;
 
   try {
     const payload = await getPayload({ config });
     // A lightweight query to verify database connectivity
     await payload.count({ collection: "users", where: {} });
     db = "connected" as const;
-  } catch (err) {
-    dbError = err instanceof Error ? err.message : "Unknown database error";
+  } catch (error) {
+    console.error("[health] database check failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
   }
 
   const duration = Date.now() - startedAt;
@@ -23,7 +24,7 @@ export async function GET() {
   const body = {
     status: healthy ? ("ok" as const) : ("degraded" as const),
     db,
-    ...(dbError ? { dbError } : {}),
+    ...(!healthy ? { error: "database_unavailable" as const } : {}),
     uptime: process.uptime(),
     duration,
     timestamp: new Date().toISOString(),

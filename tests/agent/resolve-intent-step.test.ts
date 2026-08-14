@@ -104,6 +104,40 @@ test("runResolveIntentStep carries resume queue after confirming a pending propo
   );
 });
 
+test("cancelled proposals are persisted as control flow rather than executed intent history", async () => {
+  const persisted: Array<{ intent: string; nextPendingAction: PendingAction | null }> = [];
+  const trace: AgentTraceStep[] = [];
+  const result = await runResolveIntentStep({
+    confirmationSignals: { cancel: true, confirm: false },
+    context: promptContext,
+    emitStatus: () => undefined,
+    emitToken: () => undefined,
+    emitUsage: () => undefined,
+    intentModelEngine: "workflow",
+    message: "取消",
+    modelResolver: async () => null,
+    pendingAction: { action, type: "await_confirmation" },
+    persistAgentTurn: async (args) => {
+      persisted.push({ intent: args.intent, nextPendingAction: args.nextPendingAction });
+      return { id: 42 } as AgentThread;
+    },
+    pushTrace: (step) => trace.push(step),
+    recordAgentConfirmationDecisionFn: async () => undefined,
+    recordBatchConfirmationDecisionFn: async () => undefined,
+    resolvedHistory: [],
+    thread: { id: 42 } as AgentThread,
+    tokenUsage,
+    trace,
+    user: { id: 1 },
+  });
+
+  assert.equal(result.outcome, "early_exit");
+  assert.deepEqual(persisted, [{ intent: "clarify", nextPendingAction: null }]);
+  if (result.outcome === "early_exit") {
+    assert.equal(result.response.intent, "clarify");
+  }
+});
+
 test("batch confirmations derive a unique receipt action id from their actions", async () => {
   const runBatch = async (
     actions: ProposedAgentAction[],

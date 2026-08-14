@@ -5,6 +5,19 @@ import { getPayloadClient } from "@/lib/payload/client";
 
 export const runtime = "nodejs";
 
+const allowedMimeTypes = new Set([
+  "application/pdf",
+  "application/zip",
+  "text/csv",
+  "text/markdown",
+  "text/plain",
+  "video/mp4",
+  "video/webm",
+]);
+
+const isAllowedMimeType = (value: string) =>
+  value.startsWith("image/") || allowedMimeTypes.has(value);
+
 export async function POST(request: Request) {
   const authResult = await getPayloadAuthResult();
 
@@ -20,12 +33,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing file" }, { status: 400 });
   }
 
+  if (!isAllowedMimeType(file.type)) {
+    return NextResponse.json({ error: "Unsupported file type" }, { status: 415 });
+  }
+
+  if (file.size > 25 * 1024 * 1024) {
+    return NextResponse.json({ error: "File is larger than 25 MB" }, { status: 413 });
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer());
   const payload = await getPayloadClient();
   const media = await payload.create({
     collection: "media",
     data: {
       alt: typeof alt === "string" && alt.trim() ? alt.trim() : file.name.replace(/\.[^.]+$/, "") || "image",
+      visibility: "private",
     },
     file: {
       data: buffer,

@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { agentToolRegistry } from "../../src/lib/agent/tool-registry";
+import { agentToolRegistry, dryRunAgentTool } from "../../src/lib/agent/tool-registry";
 import type { AgentToolCapability, AgentToolInputSchema } from "../../src/lib/agent/tool-registry";
 
 const tools = Object.entries(agentToolRegistry);
@@ -214,6 +214,19 @@ test("query_plan_progress is low risk", () => {
 
 test("cancel_schedule_item is low risk", () => {
   assert.equal(agentToolRegistry.cancel_schedule_item.riskLevel, "low");
+});
+
+test("dry-run actions inherit the registry confirmation policy", async () => {
+  const result = await dryRunAgentTool(
+    { args: { itemId: 42 }, intent: "cancel_schedule_item" },
+    { createActionId: () => "cancel-policy-test" },
+  );
+
+  assert.equal(result.type, "proposed_action");
+  if (result.type === "proposed_action") {
+    assert.equal(result.action.requiresConfirmation, true);
+    assert.equal(result.action.riskLevel, agentToolRegistry.cancel_schedule_item.riskLevel);
+  }
 });
 
 test("high-risk write tools cannot run without confirmation", () => {

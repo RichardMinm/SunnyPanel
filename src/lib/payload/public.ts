@@ -52,6 +52,7 @@ const findPublicCollection = async <TCollection extends PublicCollectionSlug>({
     collection,
     depth,
     limit,
+    overrideAccess: false,
     sort,
     where: withPublicConstraint(where),
   });
@@ -75,6 +76,7 @@ const findSinglePublicCollectionDocument = async <TCollection extends PublicColl
     collection,
     depth,
     limit: 1,
+    overrideAccess: false,
     pagination: false,
     where: withPublicConstraint(where),
   });

@@ -301,7 +301,8 @@ test("cancel dry-run reflects the real current status instead of a hardcoded val
   }
 });
 
-test("low-risk write dry-run forwards an action id without asking for confirmation", async () => {
+test("low-risk write dry-run forwards its action id into pending confirmation", async () => {
+  let persistedPendingAction: unknown = null;
   const result = await runDryRunAndProposeStep({
     confirmedActionId: null,
     context: {
@@ -322,8 +323,9 @@ test("low-risk write dry-run forwards an action id without asking for confirmati
         title: "晨间复盘",
       }),
     } as never,
-    persistAgentTurn: async () => {
-      throw new Error("low-risk write must continue to execution");
+    persistAgentTurn: async ({ nextPendingAction }) => {
+      persistedPendingAction = nextPendingAction;
+      return { id: 77 } as never;
     },
     pushTrace: () => undefined,
     resolution: {
@@ -344,8 +346,13 @@ test("low-risk write dry-run forwards an action id without asking for confirmati
     user: { id: 1 },
   });
 
-  assert.equal(result.outcome, "execute");
-  if (result.outcome === "execute") {
-    assert.equal(typeof result.data.approvedActionId, "string");
+  assert.equal(result.outcome, "early_exit");
+  if (result.outcome === "early_exit") {
+    assert.equal(result.response.pendingAction?.type, "await_confirmation");
+    if (result.response.pendingAction?.type === "await_confirmation") {
+      assert.equal(typeof result.response.pendingAction.action.id, "string");
+      assert.ok(result.response.pendingAction.action.id.length > 0);
+    }
   }
+  assert.deepEqual(persistedPendingAction, result.outcome === "early_exit" ? result.response.pendingAction : null);
 });

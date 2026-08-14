@@ -29,18 +29,14 @@ export const adminsOrPublished: Access = ({ req }) => {
   return buildPublicContentConstraint();
 };
 
-export const adminsOrFirstUser: Access = async ({ req }) => {
+export const adminsOrPublicMedia: Access = ({ req }) => {
   if (req.user) {
     return true;
   }
 
-  const existingUsers = await req.payload.find({
-    collection: "users",
-    depth: 0,
-    limit: 1,
-    overrideAccess: true,
-    pagination: false,
-  });
-
-  return existingUsers.totalDocs === 0;
+  return {
+    visibility: {
+      equals: "public",
+    },
+  };
 };
