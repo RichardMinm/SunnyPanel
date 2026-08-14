@@ -42,7 +42,6 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
       PAYLOAD_DB_PUSH: "false"
       PAYLOAD_SECRET: sunnypanel-ci-secret-2026
-      TSX_TSCONFIG_PATH: tsconfig.agent-test.json
 
     steps:
       - name: Checkout
