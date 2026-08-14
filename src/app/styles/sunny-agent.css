@@ -6003,6 +6003,45 @@ html[data-theme="dark"] .sunny-agent-layout-switcher .active{
   transform: translateY(0);
 }
 
+.sunny-agent-delivery-notice{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.62rem;
+  border-left: 2px solid var(--tone-warning-border);
+  padding: 0.12rem 0 0.12rem 0.65rem;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.sunny-agent-delivery-notice.is-unavailable{
+  border-left-color: var(--tone-danger-border);
+}
+
+.sunny-agent-delivery-notice button{
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 0.38rem;
+  background: transparent;
+  padding: 0.22rem 0.42rem;
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.sunny-agent-delivery-notice button:hover,
+.sunny-agent-delivery-notice button:focus-visible{
+  background: color-mix(in oklch, var(--accent-strong) 8%, transparent);
+  outline: none;
+}
+
+.sunny-agent-delivery-notice button:focus-visible{
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
 .sunny-agent-message-action,
 .sunny-agent-result-delivery-action,
 .sunny-agent-composer-mention-dropdown button,

@@ -24,16 +24,19 @@ import type { ChecklistDraft } from "@/lib/agent/planning/checklist-draft";
 import type { PlanDraft } from "@/lib/agent/planning/draft";
 import type { ScheduleDraft } from "@/lib/agent/schedule/draft";
 import type { AgentActivityStep } from "@/lib/agent/activity";
+import type { AgentMessageDeliveryState } from "@/lib/agent/schemas";
 import { useDashboardMotion } from "../motion/dashboard-motion";
 
 type MessageCardProps = {
   activitySteps?: AgentActivityStep[];
   content: string;
+  deliveryState?: AgentMessageDeliveryState;
   isStreaming?: boolean;
   onChecklistDraftPrepareCreate?: () => void;
   onPlanDraftGenerateChecklist?: () => void;
   onPlanDraftPrepareCreate?: () => void;
   onPlanDraftRevise?: () => void;
+  onRetry?: () => void;
   onScheduleDraftPrepareCreate?: () => void;
   onScheduleDraftRevise?: () => void;
   planningChecklistDraft?: ChecklistDraft | null;
@@ -45,11 +48,13 @@ type MessageCardProps = {
 export function MessageCard({
   activitySteps = [],
   content,
+  deliveryState,
   isStreaming,
   onChecklistDraftPrepareCreate,
   onPlanDraftGenerateChecklist,
   onPlanDraftPrepareCreate,
   onPlanDraftRevise,
+  onRetry,
   onScheduleDraftPrepareCreate,
   onScheduleDraftRevise,
   planningChecklistDraft,
@@ -86,6 +91,7 @@ export function MessageCard({
   const showMessageActions =
     role === "assistant" &&
     !isStreaming &&
+    !deliveryState &&
     !hasProductCard &&
     content.trim().length > 0;
   const assistantContentKey = planningChecklistDraft
@@ -125,12 +131,16 @@ export function MessageCard({
     }
 
     if (!structuredCard) {
+      const fallbackContent = content ||
+        (isStreaming && !hasUserActivitySteps ? "正在处理请求" : "");
+
+      if (!fallbackContent) {
+        return null;
+      }
+
       return (
         <AgentMarkdownBubble
-          content={
-            content ||
-            (isStreaming && !hasUserActivitySteps ? "正在处理请求" : "")
-          }
+          content={fallbackContent}
           isStreaming={isStreaming && Boolean(content)}
         />
       );
@@ -178,6 +188,20 @@ export function MessageCard({
               {renderAssistantContent()}
             </motion.div>
           </AnimatePresence>
+          {deliveryState ? (
+            <div className={`sunny-agent-delivery-notice is-${deliveryState}`} role="status">
+              <span>
+                {deliveryState === "partial"
+                  ? "回复中断，已有内容未保存"
+                  : deliveryState === "cancelled"
+                    ? "已停止生成，未完成内容不会保存"
+                    : "暂时未能生成回复"}
+              </span>
+              {onRetry ? (
+                <button onClick={onRetry} type="button">重试</button>
+              ) : null}
+            </div>
+          ) : null}
           {showMessageActions ? <AgentMessageActions content={content} /> : null}
           <AgentActivityTimeline steps={activitySteps} />
         </>

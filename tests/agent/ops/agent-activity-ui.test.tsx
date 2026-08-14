@@ -246,6 +246,39 @@ test("MessageCard activity timeline does not render raw JSON details", async () 
   assert.doesNotMatch(markup, /\{&quot;/);
 });
 
+test("MessageCard presents partial delivery as retryable instead of complete", async () => {
+  const MessageCard = await loadMessageCard();
+  const markup = renderToStaticMarkup(
+    createElement(MessageCard, {
+      content: "已经生成的部分内容",
+      deliveryState: "partial",
+      onRetry: () => undefined,
+      role: "assistant",
+    }),
+  );
+
+  assert.match(markup, /已经生成的部分内容/);
+  assert.match(markup, /回复中断，已有内容未保存/);
+  assert.match(markup, />重试</);
+  assert.doesNotMatch(markup, /复制/);
+});
+
+test("MessageCard presents unavailable delivery without an empty loading bubble", async () => {
+  const MessageCard = await loadMessageCard();
+  const markup = renderToStaticMarkup(
+    createElement(MessageCard, {
+      content: "",
+      deliveryState: "unavailable",
+      onRetry: () => undefined,
+      role: "assistant",
+    }),
+  );
+
+  assert.match(markup, /暂时未能生成回复/);
+  assert.match(markup, />重试</);
+  assert.doesNotMatch(markup, /正在处理请求|sunny-agent-bubble-markdown/);
+});
+
 test("query_schedule activity does not show confirmation-write language", async () => {
   const MessageCard = await loadMessageCard();
   const markup = renderToStaticMarkup(

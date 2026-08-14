@@ -1,13 +1,16 @@
 /** Deterministic provider capability lookup.
  *
- * Each provider has a fixed capability profile. Capabilities are NOT inferred
- * from runtime LLM calls — they are defined here based on known provider
- * documentation and verified behaviour.
+ * Capability profiles are selected deterministically from provider, model, and
+ * API protocol. They are never inferred from runtime model output.
  *
  * Unknown providers fall back to the most conservative profile.
  */
 
 import type { ModelErrorCode } from "./model-errors";
+import {
+  resolveModelApiProtocol,
+  type ModelConfig,
+} from "./model-config";
 
 export type StructuredOutputMode =
   | "native_json_schema"
@@ -57,6 +60,15 @@ const DEEPSEEK_PROFILE: ProviderCapabilityProfile = {
     "502": "MODEL_UNAVAILABLE",
     "503": "MODEL_UNAVAILABLE",
   },
+};
+
+const DEEPSEEK_FLASH_RESPONSES_PROFILE: ProviderCapabilityProfile = {
+  provider: "deepseek",
+  supportsStreaming: true,
+  supportsToolCalling: true,
+  supportsNativeJsonSchema: true,
+  structuredOutputMode: "native_json_schema",
+  knownErrorCodeMappings: DEEPSEEK_PROFILE.knownErrorCodeMappings,
 };
 
 /** ZAI (OpenAI-compatible). Conservative: use prompt_json mode as the safest
@@ -120,14 +132,49 @@ const PROFILES: Record<string, ProviderCapabilityProfile> = {
 
 /** Returns the capability profile for a given provider string.
  *  Unknown providers get the conservative UNKNOWN_PROFILE. */
+type ProviderCapabilityInput = string | Pick<
+  ModelConfig,
+  "apiProtocol" | "baseURL" | "model" | "provider"
+>;
+
+const isOfficialDeepSeekFlash = (
+  input: Exclude<ProviderCapabilityInput, string>,
+): boolean => {
+  let officialHost = false;
+  try {
+    officialHost = new URL(input.baseURL).hostname === "api.deepseek.com";
+  } catch {
+    officialHost = false;
+  }
+  return input.model.toLowerCase() === "deepseek-v4-flash"
+    && (input.provider === "deepseek" || officialHost);
+};
+
 export const getProviderCapabilities = (
-  provider: string,
-): ProviderCapabilityProfile =>
-  PROFILES[provider] ?? { ...UNKNOWN_PROFILE, provider };
+  input: ProviderCapabilityInput,
+): ProviderCapabilityProfile => {
+  if (typeof input === "string") {
+    return PROFILES[input] ?? { ...UNKNOWN_PROFILE, provider: input };
+  }
+
+  const protocol = resolveModelApiProtocol(input);
+  if (protocol === "responses" && isOfficialDeepSeekFlash(input)) {
+    return { ...DEEPSEEK_FLASH_RESPONSES_PROFILE, provider: input.provider };
+  }
+  if (protocol === "responses" && input.provider !== "openai") {
+    return {
+      ...UNKNOWN_PROFILE,
+      provider: input.provider,
+      structuredOutputMode: "unsupported",
+    };
+  }
+  return PROFILES[input.provider]
+    ?? { ...UNKNOWN_PROFILE, provider: input.provider };
+};
 
 /** Convenience: get the structured output mode for a provider. */
 export const getStructuredOutputMode = (
-  provider: string,
+  provider: ProviderCapabilityInput,
 ): StructuredOutputMode =>
   getProviderCapabilities(provider).structuredOutputMode;
 

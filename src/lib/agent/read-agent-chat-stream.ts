@@ -12,10 +12,12 @@ import {
   isAgentStreamChangeEvent,
   isAgentStreamProgressEvent,
   isAgentStreamStageEvent,
+  isAgentStreamTerminalEvent,
   type AgentStreamChangeEvent,
   type AgentStreamPerfEvent,
   type AgentStreamProgressEvent,
   type AgentStreamStageEvent,
+  type AgentStreamTerminalEvent,
 } from "@/lib/agent/stream-events";
 
 export type AgentChatStreamDone = Partial<PublicAgentChatResponse> & {
@@ -31,6 +33,7 @@ export type AgentChatStreamHandlers = {
   onProgress?: (event: AgentStreamProgressEvent) => void;
   onPerf?: (event: AgentStreamPerfEvent) => void;
   onStage?: (event: AgentStreamStageEvent) => void;
+  onTerminal?: (event: AgentStreamTerminalEvent) => void;
   onStatus: (status: string) => void;
   onStreamStart: () => void;
   onThinkingToken: (content: string) => void;
@@ -62,7 +65,9 @@ export async function readAgentChatStream(
   const decoder = new TextDecoder();
   let buffer = "";
   let doneData: AgentChatStreamDone | null = null;
+  let errorAssistantMessage: string | null = null;
   let streamedResponseText = "";
+  let terminalEvent: AgentStreamTerminalEvent | null = null;
 
   handlers.onStreamStart();
   handlers.setStreamingState("thinking");
@@ -180,15 +185,19 @@ export async function readAgentChatStream(
 
       if (parsedBlock.event === "done" && typeof parsedBlock.data === "object" && parsedBlock.data) {
         doneData = parsePublicAgentChatResponse(parsedBlock.data) as AgentChatStreamDone | null;
-        if (doneData) {
-          handlers.onDone(doneData);
-        }
 
         const nextTokenUsage = getTokenUsageFromData(parsedBlock.data);
 
         if (nextTokenUsage) {
           handlers.onTokenUsage(nextTokenUsage);
         }
+      }
+
+      if (
+        parsedBlock.event === "terminal"
+        && isAgentStreamTerminalEvent(parsedBlock.data)
+      ) {
+        terminalEvent = parsedBlock.data;
       }
 
       if (
@@ -209,13 +218,7 @@ export async function readAgentChatStream(
         const assistantMessage = parsedBlock.data.assistantMessage;
 
         if (typeof assistantMessage === "string") {
-          doneData = {
-            assistantMessage,
-            engine: "workflow",
-            intent: "clarify",
-            pendingAction: null,
-          };
-          handlers.onErrorMessage(assistantMessage);
+          errorAssistantMessage = assistantMessage;
         }
       }
     }
@@ -226,10 +229,63 @@ export async function readAgentChatStream(
 
     if (parsedBlock?.event === "done" && typeof parsedBlock.data === "object" && parsedBlock.data) {
       doneData = parsePublicAgentChatResponse(parsedBlock.data) as AgentChatStreamDone | null;
-      if (doneData) {
-        handlers.onDone(doneData);
-      }
     }
+    if (
+      parsedBlock?.event === "terminal"
+      && isAgentStreamTerminalEvent(parsedBlock.data)
+    ) {
+      terminalEvent = parsedBlock.data;
+    }
+  }
+
+  const fallbackTerminal: AgentStreamTerminalEvent = doneData
+    ? {
+        partialOutputEmitted: false,
+        persist: true,
+        retryable: false,
+        status: "complete",
+      }
+    : streamedResponseText.trim()
+      ? {
+          partialOutputEmitted: true,
+          persist: false,
+          retryable: true,
+          status: "partial",
+        }
+      : {
+          partialOutputEmitted: false,
+          persist: false,
+          retryable: true,
+          status: "unavailable",
+        };
+  const observedPartialOutput = Boolean(streamedResponseText.trim());
+  const resolvedTerminal: AgentStreamTerminalEvent = terminalEvent?.status === "complete" && !doneData
+    ? fallbackTerminal
+    : terminalEvent?.status === "partial" && !observedPartialOutput
+      ? {
+          partialOutputEmitted: false,
+          persist: false,
+          retryable: true,
+          status: "unavailable" as const,
+        }
+      : terminalEvent?.status === "unavailable" && observedPartialOutput
+        ? {
+            partialOutputEmitted: true,
+            persist: false,
+            retryable: true,
+            status: "partial" as const,
+          }
+        : terminalEvent ?? fallbackTerminal;
+
+  if (errorAssistantMessage && resolvedTerminal.status !== "complete") {
+    handlers.onErrorMessage(errorAssistantMessage);
+  }
+  handlers.onTerminal?.(resolvedTerminal);
+
+  if (resolvedTerminal.status !== "complete") {
+    doneData = null;
+  } else if (doneData) {
+    handlers.onDone(doneData);
   }
 
   if (doneData && !doneData.assistantMessage?.trim() && streamedResponseText.trim()) {

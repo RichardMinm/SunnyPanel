@@ -40,6 +40,40 @@ describe("model-config", () => {
       assert.equal(config.model, "deepseek-chat");
     });
 
+    it("selects Responses for official DeepSeek V4 Flash only", () => {
+      const flash = createModelConfig({
+        ...validParams,
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-v4-flash",
+        provider: "openai-compatible",
+      });
+      const pro = createModelConfig({
+        ...validParams,
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-v4-pro",
+        provider: "deepseek",
+      });
+
+      if (isModelError(flash) || isModelError(pro)) {
+        throw new Error("expected valid config");
+      }
+      assert.equal(flash.apiProtocol, "responses");
+      assert.equal(pro.apiProtocol, "chat_completions");
+    });
+
+    it("allows an explicit Chat Completions override for V4 Flash", () => {
+      const config = createModelConfig({
+        ...validParams,
+        apiProtocol: "chat_completions",
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+      });
+
+      if (isModelError(config)) throw new Error("expected valid config");
+      assert.equal(config.apiProtocol, "chat_completions");
+    });
+
     it("creates valid config for zai", () => {
       const config = createModelConfig({
         ...validParams,
@@ -158,7 +192,10 @@ describe("model-config", () => {
       if (isModelError(config)) throw new Error("expected config not error");
       const summary = summarizeModelConfig(config);
 
-      assert.match(summary, /^openai\/gpt-4 @ https:\/\/api\.openai\.com$/);
+      assert.match(
+        summary,
+        /^openai\/gpt-4 via chat_completions @ https:\/\/api\.openai\.com$/,
+      );
     });
   });
 

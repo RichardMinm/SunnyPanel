@@ -388,9 +388,20 @@ export const invokeRouterCandidate = async (
         process.env.DEEPSEEK_MODEL?.trim() ||
         process.env.OPENAI_MODEL?.trim() ||
         process.env.ZAI_MODEL?.trim() ||
-        "deepseek-v4-pro";
+        "deepseek-v4-flash";
 
-      return createModelConfig({ apiKey: envApiKey, baseURL, model, provider });
+      const protocolValue = process.env.DEEPSEEK_API_PROTOCOL?.trim();
+      const apiProtocol = protocolValue === "responses"
+        || protocolValue === "chat_completions"
+        ? protocolValue
+        : undefined;
+      return createModelConfig({
+        apiKey: envApiKey,
+        apiProtocol,
+        baseURL,
+        model,
+        provider,
+      });
     })();
 
     if (!configResult) {

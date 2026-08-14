@@ -150,6 +150,7 @@ const resolveModel = async (
     if (!current) return null;
     const created = createModelConfig({
       apiKey: current.apiKey,
+      apiProtocol: current.apiProtocol,
       baseURL: current.baseUrl,
       maxRetries: 0,
       model: current.model,
@@ -164,7 +165,11 @@ const resolveModel = async (
     maxOutputTokens: ANSWER_MAX_OUTPUT_TOKENS,
   });
 
-  return (input.modelFactory ?? createChatModel)(answerConfig);
+  // Responses streaming does not yet expose DeepSeek's incomplete/failed
+  // terminal events through this adapter. Preserve the persistence contract.
+  return (input.modelFactory ?? createChatModel)(answerConfig, {
+    apiProtocol: "chat_completions",
+  });
 };
 
 const existingAnswer = (intent: AgentIntent) => {

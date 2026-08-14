@@ -28,6 +28,34 @@ describe("provider-capabilities", () => {
       assert.equal(caps.structuredOutputMode, "prompt_json");
     });
 
+    it("returns native schema capabilities for V4 Flash Responses", () => {
+      const caps = getProviderCapabilities({
+        apiProtocol: "responses",
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-v4-flash",
+        provider: "openai-compatible",
+      });
+
+      assert.equal(caps.provider, "openai-compatible");
+      assert.equal(caps.supportsStreaming, true);
+      assert.equal(caps.supportsToolCalling, true);
+      assert.equal(caps.supportsNativeJsonSchema, true);
+      assert.equal(caps.structuredOutputMode, "native_json_schema");
+    });
+
+    it("fails closed for unsupported DeepSeek Responses models", () => {
+      const caps = getProviderCapabilities({
+        apiProtocol: "responses",
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-v4-pro",
+        provider: "deepseek",
+      });
+
+      assert.equal(caps.supportsToolCalling, false);
+      assert.equal(caps.supportsNativeJsonSchema, false);
+      assert.equal(caps.structuredOutputMode, "unsupported");
+    });
+
     it("returns zai profile with function_calling mode", () => {
       const caps = getProviderCapabilities("zai");
 

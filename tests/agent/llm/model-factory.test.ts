@@ -87,6 +87,35 @@ describe("model-factory", () => {
       });
       assert.deepEqual(defaultModel.modelKwargs ?? {}, {});
     });
+
+    it("uses Responses for V4 Flash and supports a safe streaming override", () => {
+      const config = createModelConfig({
+        apiKey: "sk-test-key",
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-v4-flash",
+        provider: "deepseek",
+        thinkingMode: "disabled",
+      });
+      if (isModelError(config)) throw new Error("expected valid config");
+
+      const responsesModel = createChatModel(config) as unknown as {
+        modelKwargs?: Record<string, unknown>;
+        useResponsesApi: boolean;
+      };
+      const streamingModel = createChatModel(config, {
+        apiProtocol: "chat_completions",
+      }) as unknown as {
+        modelKwargs?: Record<string, unknown>;
+        useResponsesApi: boolean;
+      };
+
+      assert.equal(responsesModel.useResponsesApi, true);
+      assert.deepEqual(responsesModel.modelKwargs ?? {}, {});
+      assert.equal(streamingModel.useResponsesApi, false);
+      assert.deepEqual(streamingModel.modelKwargs, {
+        thinking: { type: "disabled" },
+      });
+    });
   });
 
   describe("factory injection pattern", () => {

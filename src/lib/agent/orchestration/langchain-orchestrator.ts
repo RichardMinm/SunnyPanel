@@ -542,6 +542,7 @@ export const runLangChainOrchestratorResult = async (
       const { createModelConfig } = await import("../llm/model-config");
       const resolved = createModelConfig({
         apiKey: rawConfig.apiKey,
+        apiProtocol: rawConfig.apiProtocol,
         baseURL: rawConfig.baseUrl,
         model: rawConfig.model,
         provider: rawConfig.provider ?? "unknown",

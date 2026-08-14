@@ -12,9 +12,10 @@
 export {
   createModelConfig,
   isModelConfigValid,
+  resolveModelApiProtocol,
   summarizeModelConfig,
 } from "./model-config";
-export type { ModelConfig, ModelProvider } from "./model-config";
+export type { ModelApiProtocol, ModelConfig, ModelProvider } from "./model-config";
 
 /* Model factory */
 export { createChatModel } from "./model-factory";

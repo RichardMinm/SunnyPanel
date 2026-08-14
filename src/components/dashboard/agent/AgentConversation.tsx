@@ -106,6 +106,7 @@ type AgentConversationProps = {
   onScheduleConflictSuggestionSelect?: (message: string) => void;
   onArchiveThread?: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
+  onRetryLastMessage?: () => void;
   pendingAction: null | PendingAction;
   statusLabel: string;
   streamChanges: AgentStreamChangeEvent[];
@@ -134,6 +135,7 @@ export function AgentConversation({
   onScheduleConflictSuggestionSelect,
   onArchiveThread,
   onRenameThread,
+  onRetryLastMessage,
   pendingAction,
   statusLabel,
   streamChanges,
@@ -298,11 +300,20 @@ export function AgentConversation({
                       <MessageCard
                         activitySteps={message.activitySteps}
                         content={messageContent}
+                        deliveryState={message.deliveryState}
                         isStreaming={isStreamingMsg}
                         onChecklistDraftPrepareCreate={isSubmitting ? undefined : onChecklistDraftPrepareCreate}
                         onPlanDraftGenerateChecklist={isSubmitting ? undefined : onPlanDraftGenerateChecklist}
                         onPlanDraftPrepareCreate={isSubmitting ? undefined : onPlanDraftPrepareCreate}
                         onPlanDraftRevise={isSubmitting ? undefined : onPlanDraftRevise}
+                        onRetry={
+                          !isSubmitting
+                          && message.role === "assistant"
+                          && index === lastAssistantIndex
+                          && message.deliveryState
+                            ? onRetryLastMessage
+                            : undefined
+                        }
                         onScheduleDraftPrepareCreate={isSubmitting ? undefined : onScheduleDraftPrepareCreate}
                         onScheduleDraftRevise={isSubmitting ? undefined : onScheduleDraftRevise}
                         planningChecklistDraft={message.planningChecklistDraft}

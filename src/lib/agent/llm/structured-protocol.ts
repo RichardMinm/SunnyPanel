@@ -105,6 +105,89 @@ const isNonEmptyValue = (value: unknown): boolean => {
   return value !== null && value !== undefined;
 };
 
+const inspectResponsesEnvelope = (
+  envelope: Record<string, unknown>,
+  fallback: SafeProviderResponseObservation,
+): SafeProviderResponseObservation | null => {
+  if (envelope.object !== "response" && !Array.isArray(envelope.output)) {
+    return null;
+  }
+
+  const status = envelope.status;
+  const finishReason: SafeProtocolDiagnostics["finishReason"] =
+    status === "completed"
+      ? "stop"
+      : status === "incomplete"
+        ? "length"
+        : status === "failed" || status === "cancelled"
+          ? "unknown"
+          : null;
+
+  const output = envelope.output;
+  if (!Array.isArray(output)) {
+    return Object.freeze({
+      ...fallback,
+      choicesState: "missing",
+      finishReason,
+    });
+  }
+  if (output.length === 0) {
+    return Object.freeze({
+      ...fallback,
+      choicesState: "empty",
+      finishReason,
+    });
+  }
+
+  let contentObserved = false;
+  let textPresent = false;
+  let reasoningPresent = false;
+  let toolCallsPresent = false;
+
+  for (const item of output) {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    if (record.type === "reasoning") reasoningPresent = true;
+    if (
+      record.type === "function_call"
+      || record.type === "custom_tool_call"
+      || record.type === "web_search_call"
+    ) {
+      toolCallsPresent = true;
+    }
+    if (record.type !== "message" || !Array.isArray(record.content)) continue;
+    contentObserved = true;
+    for (const part of record.content) {
+      if (typeof part !== "object" || part === null || Array.isArray(part)) {
+        continue;
+      }
+      const contentPart = part as Record<string, unknown>;
+      if (
+        contentPart.type === "output_text"
+        && typeof contentPart.text === "string"
+        && contentPart.text.trim().length > 0
+      ) {
+        textPresent = true;
+      }
+    }
+  }
+
+  return Object.freeze({
+    ...fallback,
+    choicesState: "present",
+    contentState: textPresent
+      ? "present"
+      : contentObserved
+        ? "empty"
+        : "missing",
+    finishReason,
+    reasoningPresent,
+    toolCallsPresent,
+  });
+};
+
 /** Inspect one cloned response and return only bounded protocol shape. */
 export const inspectSafeProviderResponse = async (
   response: Response,
@@ -131,6 +214,9 @@ export const inspectSafeProviderResponse = async (
   }
 
   const envelope = body as Record<string, unknown>;
+  const responsesObservation = inspectResponsesEnvelope(envelope, fallback);
+  if (responsesObservation) return responsesObservation;
+
   if (!("choices" in envelope)) {
     return Object.freeze({ ...fallback, choicesState: "missing" });
   }

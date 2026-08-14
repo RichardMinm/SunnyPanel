@@ -33,6 +33,37 @@ export type AgentStreamChangeEvent = {
   summary: string;
 };
 
+/**
+ * Product-level stream terminal. Provider-specific states (for example
+ * DeepSeek `response.incomplete`) must be normalized into this contract before
+ * they reach the browser.
+ */
+export type AgentStreamTerminalEvent =
+  | {
+      partialOutputEmitted: false;
+      persist: true;
+      retryable: false;
+      status: "complete";
+    }
+  | {
+      partialOutputEmitted: true;
+      persist: false;
+      retryable: true;
+      status: "partial";
+    }
+  | {
+      partialOutputEmitted: false;
+      persist: false;
+      retryable: true;
+      status: "unavailable";
+    }
+  | {
+      partialOutputEmitted: boolean;
+      persist: false;
+      retryable: true;
+      status: "cancelled";
+    };
+
 export type AgentStreamEmitters = {
   emitChange: (event: AgentStreamChangeEvent) => void;
   emitProgress: (event: AgentStreamProgressEvent) => void;
@@ -109,6 +140,37 @@ export const isAgentStreamChangeEvent = (value: unknown): value is AgentStreamCh
   }
 
   return typeof value.stageId === "string" && typeof value.summary === "string";
+};
+
+export const isAgentStreamTerminalEvent = (
+  value: unknown,
+): value is AgentStreamTerminalEvent => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value.status === "complete") {
+    return value.persist === true
+      && value.retryable === false
+      && value.partialOutputEmitted === false;
+  }
+
+  if (value.status === "partial") {
+    return value.persist === false
+      && value.retryable === true
+      && value.partialOutputEmitted === true;
+  }
+
+  if (value.status === "unavailable") {
+    return value.persist === false
+      && value.retryable === true
+      && value.partialOutputEmitted === false;
+  }
+
+  return value.status === "cancelled"
+    && value.persist === false
+    && value.retryable === true
+    && typeof value.partialOutputEmitted === "boolean";
 };
 
 export const createAgentStreamController = ({

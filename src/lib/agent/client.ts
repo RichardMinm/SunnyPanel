@@ -13,6 +13,7 @@ import {
 } from "./schemas";
 import { createTokenUsageSnapshot, estimateTokenCount, mergeProviderTokenUsage } from "./token-usage";
 import { getPayloadClient } from "@/lib/payload/client";
+import type { ModelApiProtocol } from "./llm/model-config";
 import type { CapabilityGateInput } from "./capabilities/types";
 import { getDefaultExposableCapabilities } from "./capabilities/tool-gate";
 import {
@@ -100,10 +101,17 @@ type AgentSettingsDocument = {
   baseUrl?: null | string;
   enabled?: null | boolean;
   model?: null | string;
-  provider?: null | "openai" | "openai-compatible" | "zai";
+  provider?: null | "deepseek" | "openai" | "openai-compatible" | "zai";
 };
 
 const normalizeBaseUrl = (value: string) => value.replace(/\/+$/, "");
+
+const resolveConfiguredApiProtocol = (): ModelApiProtocol | undefined => {
+  const value = process.env.DEEPSEEK_API_PROTOCOL?.trim().toLowerCase();
+  return value === "responses" || value === "chat_completions"
+    ? value
+    : undefined;
+};
 
 export const getAgentModelConfig = async () => {
   // Check env vars first — allows LLM use without Payload DB access (e.g. tests)
@@ -143,17 +151,18 @@ export const getAgentModelConfig = async () => {
     provider === "openai"
       ? "https://api.openai.com/v1"
       : provider === "deepseek"
-        ? "https://api.deepseek.com/v1"
+        ? "https://api.deepseek.com"
         : defaultModelBaseUrl;
   const defaultModel =
     provider === "openai"
       ? "gpt-4.1-mini"
       : provider === "deepseek"
-        ? "deepseek-chat"
+        ? "deepseek-v4-flash"
         : defaultModelName;
 
   return {
     apiKey,
+    apiProtocol: resolveConfiguredApiProtocol(),
     baseUrl: normalizeBaseUrl(
       storedBaseUrl ||
         process.env.DEEPSEEK_BASE_URL?.trim() ||

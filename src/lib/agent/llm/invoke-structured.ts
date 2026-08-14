@@ -169,7 +169,7 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
     schemaRepairInstruction,
   } = options;
 
-  const capabilities = getProviderCapabilities(modelConfig.provider);
+  const capabilities = getProviderCapabilities(modelConfig);
   const strategy = capabilities.structuredOutputMode;
   const configuredTimeoutRetries = boundedNonNegativeInteger(
     timeoutRetryPolicy?.maxRetries ?? 0,
@@ -772,6 +772,31 @@ const validateNativeStructuredResult = <TSchema extends z.ZodType>(
   strictSchema: TSchema,
   context: ProtocolStageContext,
 ): z.infer<TSchema> => {
+  const diagnostics = context.safeProtocol();
+  if (diagnostics.finishReason === "length") {
+    throwProtocol("provider_truncated", context, "content_extraction");
+  }
+  if (
+    diagnostics.finishReason !== null
+    && diagnostics.finishReason !== "stop"
+  ) {
+    throwProtocol(
+      "provider_finish_reason_unexpected",
+      context,
+      "content_extraction",
+    );
+  }
+  if (
+    diagnostics.httpStatusClass === "2xx"
+    && diagnostics.choicesState !== "present"
+  ) {
+    throwProtocol(
+      "provider_response_envelope_invalid",
+      context,
+      "not_started",
+    );
+  }
+
   context.advance({ baseSchemaReached: true, parserSubstage: "base_schema" });
   const baseValidated = baseSchema.safeParse(result);
   if (!baseValidated.success) {
@@ -811,6 +836,23 @@ const classifyObservedEnvelopeFailure = (
 ): SafeProtocolFailureError | null => {
   if (!diagnostics.responseReceived || diagnostics.httpStatusClass !== "2xx") {
     return null;
+  }
+  if (diagnostics.finishReason === "length") {
+    return new SafeProtocolFailureError({
+      failure: "provider_truncated",
+      diagnostics,
+      issues: [],
+    });
+  }
+  if (
+    diagnostics.finishReason !== null
+    && diagnostics.finishReason !== "stop"
+  ) {
+    return new SafeProtocolFailureError({
+      failure: "provider_finish_reason_unexpected",
+      diagnostics,
+      issues: [],
+    });
   }
   if (
     diagnostics.choicesState === "missing"
@@ -967,6 +1009,7 @@ const buildStructuredRunnable = <TSchema extends z.ZodType>(
       return model.withStructuredOutput(schema, {
         name: schemaName,
         method: "jsonSchema",
+        strict: true,
       });
     case "function_calling":
       return model.withStructuredOutput(schema, {

@@ -29,6 +29,7 @@ type AgentWorkbenchProps = {
   onEditApproval: (kind: "plan" | "schedule" | "generic") => void;
   onArchiveThread?: () => void;
   onRenameThread: (title: string) => Promise<boolean>;
+  onRetryLastMessage?: () => void;
   onConfirmApproval: () => void;
   onInputChange: (value: string) => void;
   onSendMessage?: (message: string) => Promise<void> | void;
@@ -56,6 +57,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
     onEditApproval,
     onArchiveThread,
     onRenameThread,
+    onRetryLastMessage,
     onConfirmApproval,
     onInputChange,
     onSendMessage,
@@ -149,6 +151,7 @@ export function AgentWorkbench(props: AgentWorkbenchProps) {
                   : () => onEditApproval("plan")
               }
               onRenameThread={onRenameThread}
+              onRetryLastMessage={onRetryLastMessage}
               pendingAction={pendingAction}
               statusLabel={statusLabel}
               streamChanges={streamChanges}

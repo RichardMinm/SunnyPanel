@@ -15,6 +15,7 @@ import type {
   AgentStreamChangeEvent,
   AgentStreamProgressEvent,
   AgentStreamStageEvent,
+  AgentStreamTerminalEvent,
 } from "@/lib/agent/stream-events";
 import { isQueryStreamFailure } from "@/lib/agent/query/errors";
 import { isConversationalAnswerStreamFailure } from "@/lib/agent/answer/errors";
@@ -58,6 +59,7 @@ const intentToSuggestedMode: Partial<Record<AgentChatResponse["intent"], AgentWo
  * | meta     | `{ confidence?, engine, intent, pendingAction?, threadId?, tokenUsage }` 终态元数据 |
  * | token    | `{ content: string, block?: 'thinking' | 'response', tokenUsage? }` 流式正文 token（block 区分思考/回复） |
  * | done     | 完整 `AgentChatResponse`（含 `assistantMessage`、`pendingAction`、`trace` 等） |
+ * | terminal | `AgentStreamTerminalEvent` 唯一产品终态；必须是流中的最后一个事件 |
  * | error    | `{ assistantMessage, message }` 执行失败 |
  *
  * `createAgentChatResponse`：非流式直接 JSON；流式时对最终 payload 做 meta/token/done 逐词渐进。
@@ -89,6 +91,74 @@ const emitProgressiveTokens = async (
     // small delay for natural feel, but much faster than the old 12ms-per-12-char
     await new Promise((r) => setTimeout(r, 8));
   }
+};
+
+const completeTerminal: AgentStreamTerminalEvent = {
+  partialOutputEmitted: false,
+  persist: true,
+  retryable: false,
+  status: "complete",
+};
+
+const unavailableTerminal: AgentStreamTerminalEvent = {
+  partialOutputEmitted: false,
+  persist: false,
+  retryable: true,
+  status: "unavailable",
+};
+
+const normalizeFailureTerminal = (
+  error: unknown,
+): {
+  assistantMessage: string;
+  message: string;
+  terminal: AgentStreamTerminalEvent;
+} => {
+  if (isQueryStreamFailure(error)) {
+    return {
+      assistantMessage: error.safeAssistantMessage,
+      message: error.safeMessage,
+      terminal: error.terminal.status === "partial"
+        ? {
+            partialOutputEmitted: true,
+            persist: false,
+            retryable: true,
+            status: "partial",
+          }
+        : unavailableTerminal,
+    };
+  }
+
+  if (isConversationalAnswerStreamFailure(error)) {
+    const partialOutputEmitted = error.terminal.status === "incomplete";
+    const terminal: AgentStreamTerminalEvent = error.terminal.errorCode === "cancelled"
+      ? {
+          partialOutputEmitted,
+          persist: false,
+          retryable: true,
+          status: "cancelled",
+        }
+      : partialOutputEmitted
+        ? {
+            partialOutputEmitted: true,
+            persist: false,
+            retryable: true,
+            status: "partial",
+          }
+        : unavailableTerminal;
+
+    return {
+      assistantMessage: error.safeAssistantMessage,
+      message: error.safeMessage,
+      terminal,
+    };
+  }
+
+  return {
+    assistantMessage: "Agent 执行失败，请稍后重试。",
+    message: "Agent stream unavailable",
+    terminal: unavailableTerminal,
+  };
 };
 
 export const createAgentChatResponse = (payload: AgentChatResponse, stream: boolean) => {
@@ -131,6 +201,7 @@ export const createAgentChatResponse = (payload: AgentChatResponse, stream: bool
         ...publicPayload,
         tokenUsage: streamedUsage,
       });
+      enqueue("terminal", completeTerminal);
       controller.close();
     },
   });
@@ -261,6 +332,7 @@ export const createAgentChatStream = (
         });
 
         enqueue("done", finalPayload);
+        enqueue("terminal", completeTerminal);
         // #region agent log
         if (process.env.AGENT_DEBUG_LOG) {
           try {
@@ -289,20 +361,12 @@ export const createAgentChatStream = (
         }
         // #endregion
       } catch (error) {
-        if (
-          isQueryStreamFailure(error) ||
-          isConversationalAnswerStreamFailure(error)
-        ) {
-          enqueue("error", {
-            assistantMessage: error.safeAssistantMessage,
-            message: error.safeMessage,
-          });
-          return;
-        }
+        const failure = normalizeFailureTerminal(error);
         enqueue("error", {
-          assistantMessage: "Agent 执行失败，我已经把失败记录写入审计日志。",
-          message: error instanceof Error ? error.message : "Unknown Agent failure",
+          assistantMessage: failure.assistantMessage,
+          message: failure.message,
         });
+        enqueue("terminal", failure.terminal);
       } finally {
         controller.close();
       }

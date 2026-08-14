@@ -27,10 +27,14 @@ export const AgentSettings: GlobalConfig = {
       name: "provider",
       type: "select",
       label: "提供方",
-      defaultValue: "openai-compatible",
+      defaultValue: "deepseek",
       options: [
         {
-          label: "OpenAI Compatible（DeepSeek 等）",
+          label: "DeepSeek",
+          value: "deepseek",
+        },
+        {
+          label: "其他 OpenAI Compatible",
           value: "openai-compatible",
         },
         {
@@ -49,8 +53,8 @@ export const AgentSettings: GlobalConfig = {
       type: "text",
       label: "Base URL",
       admin: {
-        description: "DeepSeek: https://api.deepseek.com/v1；OpenAI: https://api.openai.com/v1",
-        placeholder: "https://api.deepseek.com/v1",
+        description: "DeepSeek: https://api.deepseek.com；OpenAI: https://api.openai.com/v1",
+        placeholder: "https://api.deepseek.com",
       },
     },
     {
@@ -58,8 +62,8 @@ export const AgentSettings: GlobalConfig = {
       type: "text",
       label: "模型名",
       admin: {
-        description: "DeepSeek V3 使用 `deepseek-chat`；也可填 gpt-4.1-mini、glm-5.1 等。",
-        placeholder: "deepseek-chat",
+        description: "DeepSeek 推荐 `deepseek-v4-flash`；也可填 gpt-4.1-mini、glm-5.1 等。",
+        placeholder: "deepseek-v4-flash",
       },
     },
     {

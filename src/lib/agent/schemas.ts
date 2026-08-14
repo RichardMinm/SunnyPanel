@@ -10,9 +10,12 @@ import { CONVERSATIONAL_INTENT_NAMES, isConversationalIntent } from "./conversat
 
 export { CONVERSATIONAL_INTENT_NAMES, isConversationalIntent };
 export type { ConversationalAnswerArgs, ConversationalIntentName };
+export type AgentMessageDeliveryState = "cancelled" | "partial" | "unavailable";
 export type AgentChatMessage = {
   activitySteps?: AgentActivityStep[];
   content: string;
+  /** Browser-only delivery state. It is deliberately omitted by sanitizeChatMessages. */
+  deliveryState?: AgentMessageDeliveryState;
   planningChecklistDraft?: ChecklistDraft | null;
   planningDraft?: PlanDraft | null;
   role: "assistant" | "user";

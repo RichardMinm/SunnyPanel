@@ -138,6 +138,7 @@ export function DashboardPageClient({
           onCancelApproval={() => { chat.clearRunDetail(); chat.cancelApproval(); }}
           onEditApproval={chat.editApproval}
           onRenameThread={chat.renameThread}
+          onRetryLastMessage={() => { chat.clearRunDetail(); chat.retryLastMessage(); }}
           onConfirmApproval={() => { chat.clearRunDetail(); chat.confirmApproval(); }}
           onInputChange={chat.setInput}
           onSendMessage={(prompt) => { chat.clearRunDetail(); void chat.sendMessage(prompt); }}

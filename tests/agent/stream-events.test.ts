@@ -17,6 +17,7 @@ import type {
   AgentStreamChangeEvent,
   AgentStreamProgressEvent,
   AgentStreamStageEvent,
+  AgentStreamTerminalEvent,
 } from "../../src/lib/agent/stream-events";
 import type {
   AgentChatResponse,
@@ -695,6 +696,7 @@ test("QueryStreamFailure emits only a safe error terminal event", async () => {
   });
   const body = await response.text();
   assert.match(body, /event: error/);
+  assert.match(body, /event: terminal\ndata: .*"status":"partial"/);
   assert.match(body, /Read-only query unavailable/);
   assert.doesNotMatch(body, /event: meta|event: done/);
 });
@@ -711,6 +713,100 @@ test("ConversationalAnswerStreamFailure emits no meta or done after partial text
   const body = await response.text();
 
   assert.match(body, /event: error/);
+  assert.match(body, /event: terminal\ndata: .*"status":"partial"/);
   assert.match(body, /Conversational answer unavailable/);
   assert.doesNotMatch(body, /event: meta|event: done/);
+});
+
+test("unknown stream failures expose only a safe unavailable terminal", async () => {
+  const response = createAgentChatStream(async () => {
+    throw new Error("provider response contained private diagnostic details");
+  });
+  const body = await response.text();
+
+  assert.match(body, /event: error/);
+  assert.match(body, /Agent stream unavailable/);
+  assert.match(body, /event: terminal\ndata: .*"status":"unavailable"/);
+  assert.doesNotMatch(body, /private diagnostic details/);
+  assert.doesNotMatch(body, /event: meta|event: done/);
+});
+
+test("successful streams end with one complete product terminal", async () => {
+  const response = createAgentChatStream(async () => ({
+    assistantMessage: "完成",
+    engine: "workflow",
+    intent: "answer_question",
+    pendingAction: null,
+  }));
+  const body = await response.text();
+
+  assert.match(body, /event: done\ndata: .*"assistantMessage":"完成"/);
+  assert.match(
+    body,
+    /event: terminal\ndata: \{"partialOutputEmitted":false,"persist":true,"retryable":false,"status":"complete"\}\n\n$/,
+  );
+  assert.equal(body.match(/event: terminal/g)?.length, 1);
+});
+
+test("stream parser keeps partial text but never promotes an error to done", async () => {
+  const terminals: AgentStreamTerminalEvent[] = [];
+  const donePayloads: unknown[] = [];
+  const tokens: string[] = [];
+  const response = createStreamResponse([
+    encodeBlock("token", { block: "response", content: "部分回答" }),
+    encodeBlock("error", {
+      assistantMessage: "回答暂时不可用，请稍后重试。",
+      message: "Conversational answer unavailable",
+    }),
+    encodeBlock("terminal", {
+      partialOutputEmitted: true,
+      persist: false,
+      retryable: true,
+      status: "partial",
+    }),
+  ]);
+
+  const result = await readAgentChatStream(response, {
+    appendAssistantToken: (token) => tokens.push(token),
+    onDone: (payload) => donePayloads.push(payload),
+    onErrorMessage: () => undefined,
+    onMeta: () => undefined,
+    onStatus: () => undefined,
+    onStreamStart: () => undefined,
+    onTerminal: (terminal) => terminals.push(terminal),
+    onThinkingToken: () => undefined,
+    onTokenUsage: () => undefined,
+    onTraceStep: () => undefined,
+    replaceAssistantContent: () => undefined,
+    setStreamingState: () => undefined,
+  });
+
+  assert.equal(result, null);
+  assert.deepEqual(tokens, ["部分回答"]);
+  assert.equal(donePayloads.length, 0);
+  assert.equal(terminals.at(-1)?.status, "partial");
+});
+
+test("stream parser safely infers unavailable when transport closes without a terminal", async () => {
+  const terminals: AgentStreamTerminalEvent[] = [];
+  const response = createStreamResponse([]);
+
+  const result = await readAgentChatStream(response, {
+    appendAssistantToken: () => undefined,
+    onDone: () => undefined,
+    onErrorMessage: () => undefined,
+    onMeta: () => undefined,
+    onStatus: () => undefined,
+    onStreamStart: () => undefined,
+    onTerminal: (terminal) => terminals.push(terminal),
+    onThinkingToken: () => undefined,
+    onTokenUsage: () => undefined,
+    onTraceStep: () => undefined,
+    replaceAssistantContent: () => undefined,
+    setStreamingState: () => undefined,
+  });
+
+  assert.equal(result, null);
+  assert.equal(terminals.at(-1)?.status, "unavailable");
+  assert.equal(terminals.at(-1)?.persist, false);
 });

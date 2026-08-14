@@ -189,6 +189,35 @@ test("applies the fixed output budget only when constructing the answer model", 
   );
 });
 
+test("keeps answer streaming on Chat Completions for a Responses model", async () => {
+  let selectedProtocol: string | undefined;
+  const modelConfig: ModelConfig = {
+    apiKey: "test-only",
+    apiProtocol: "responses",
+    baseURL: "https://api.deepseek.com",
+    maxRetries: 0,
+    model: "deepseek-v4-flash",
+    provider: "deepseek",
+    structuredOutputMode: "provider_default",
+    temperature: 0.1,
+    timeoutMs: 30_000,
+  };
+
+  const result = await runConversationalAnswer({
+    intent: missingAnswerIntent,
+    message: "解释零信任",
+    modelConfig,
+    modelFactory: (_config, options) => {
+      selectedProtocol = options?.apiProtocol;
+      return fakeModel([new AIMessageChunk({ content: "简短回答" })]);
+    },
+    timeouts: { firstTokenMs: 100, totalMs: 200 },
+  });
+
+  assert.equal(selectedProtocol, "chat_completions");
+  assert.equal(result.status, "complete");
+});
+
 test("ignores reasoning blocks and continues with text", async () => {
   const emitted: string[] = [];
   const result = await runConversationalAnswer({

@@ -53,6 +53,7 @@ const resolveModel = async (input: RunQualitativeQueryCommentaryInput): Promise<
     if (!current) return null;
     const created = createModelConfig({
       apiKey: current.apiKey,
+      apiProtocol: current.apiProtocol,
       baseURL: current.baseUrl,
       maxRetries: 0,
       model: current.model,
@@ -61,7 +62,11 @@ const resolveModel = async (input: RunQualitativeQueryCommentaryInput): Promise<
     if (!("apiKey" in created)) return null;
     config = created;
   }
-  return (input.modelFactory ?? createChatModel)(config);
+  // Keep streaming on Chat Completions until Responses terminal events can be
+  // mapped to complete/partial without persisting truncated output.
+  return (input.modelFactory ?? createChatModel)(config, {
+    apiProtocol: "chat_completions",
+  });
 };
 
 export const runQualitativeQueryCommentary = async (

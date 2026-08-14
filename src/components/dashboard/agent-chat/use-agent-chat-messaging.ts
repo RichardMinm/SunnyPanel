@@ -28,6 +28,7 @@ import {
 import { attachSchedulingDraftToLastAssistantMessage } from "@/lib/agent/schedule/draft-message";
 import type {
   AgentChatMessage,
+  AgentMessageDeliveryState,
   AgentTokenUsage,
   AgentTraceStep,
   PendingAction,
@@ -38,6 +39,7 @@ import type {
   AgentStreamChangeEvent,
   AgentStreamProgressEvent,
   AgentStreamStageEvent,
+  AgentStreamTerminalEvent,
 } from "@/lib/agent/stream-events";
 import {
   createTokenUsageSnapshot,
@@ -203,6 +205,26 @@ export function useAgentChatMessaging({
     [setMessages],
   );
 
+  const markStreamingAssistantDelivery = useCallback(
+    (deliveryState: AgentMessageDeliveryState) => {
+      setMessages((current) => {
+        const nextMessages = [...current];
+        const lastMessage = nextMessages.at(-1);
+
+        if (lastMessage?.role !== "assistant") {
+          return current;
+        }
+
+        nextMessages[nextMessages.length - 1] = {
+          ...lastMessage,
+          deliveryState,
+        };
+        return nextMessages;
+      });
+    },
+    [setMessages],
+  );
+
   const appendRealtimeBackendTraceEvent = useCallback(
     (event: AgentTraceEventPayload) => {
       setMessages((current) => {
@@ -249,6 +271,7 @@ export function useAgentChatMessaging({
           capability?: string;
           type: "cancel" | "confirm";
         };
+        retryFailedTurn?: boolean;
       },
     ) => {
       const nextMessage = message.trim();
@@ -261,7 +284,14 @@ export function useAgentChatMessaging({
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const nextHistory = [...messages, { content: nextMessage, role: "user" as const }];
+      const stableMessages = messages.filter((item) => !item.deliveryState);
+      const lastStableUserIndex = options?.retryFailedTurn
+        ? stableMessages.findLastIndex((item) => item.role === "user")
+        : -1;
+      const baseHistory = lastStableUserIndex >= 0
+        ? stableMessages.slice(0, lastStableUserIndex)
+        : stableMessages;
+      const nextHistory = [...baseHistory, { content: nextMessage, role: "user" as const }];
 
       setIsSubmitting(true);
       setInput("");
@@ -284,6 +314,9 @@ export function useAgentChatMessaging({
           inputTokens: estimateTokenCount(nextMessage),
         }),
       );
+
+      let responseTokenEmitted = false;
+      let streamingResponseStarted = false;
 
       try {
         const hasPreferences = contextPreferences.pinned.length > 0 || contextPreferences.excluded.length > 0;
@@ -317,13 +350,20 @@ export function useAgentChatMessaging({
           signal: controller.signal,
         });
         const isStreamingResponse = response.headers.get("Content-Type")?.includes("text/event-stream");
+        const streamFailureMessages: string[] = [];
+        const streamTerminals: AgentStreamTerminalEvent[] = [];
         const data = isStreamingResponse
           ? await readAgentChatStream(response, {
-              appendAssistantToken: appendStreamingAssistantContent,
+              appendAssistantToken: (content) => {
+                responseTokenEmitted = true;
+                appendStreamingAssistantContent(content);
+              },
               onBackendTraceEvent: appendRealtimeBackendTraceEvent,
               onChange: (event) => setStreamChanges((current) => [...current.slice(-11), event]),
               onDone: () => {},
-              onErrorMessage: replaceStreamingAssistantContent,
+              onErrorMessage: (message) => {
+                streamFailureMessages.push(message);
+              },
               onMeta: (data) => {
                 const meta = data as Record<string, unknown> | null | undefined;
                 if (meta && typeof meta.contextSummary === "string") {
@@ -337,8 +377,12 @@ export function useAgentChatMessaging({
                   setStatusText(event.title);
                 }
               },
+              onTerminal: (event) => {
+                streamTerminals.push(event);
+              },
               onStatus: setStatusText,
               onStreamStart: () => {
+                streamingResponseStarted = true;
                 setMessages([
                   ...nextHistory,
                   {
@@ -354,6 +398,45 @@ export function useAgentChatMessaging({
               setStreamingState,
             })
           : parsePublicAgentChatResponse(await response.json());
+        const streamTerminal = streamTerminals.at(-1) ?? null;
+        const streamFailureMessage = streamFailureMessages.at(-1) ?? null;
+
+        if (
+          isStreamingResponse
+          && streamTerminal
+          && streamTerminal.status !== "complete"
+        ) {
+          const deliveryState: AgentMessageDeliveryState = streamTerminal.status;
+          const statusLabel = streamTerminal.status === "partial"
+            ? "回复中断"
+            : streamTerminal.status === "cancelled"
+              ? "已停止生成"
+              : "暂时未能生成回复";
+
+          markStreamingAssistantDelivery(deliveryState);
+          setStreamStages((current) => current.map((stage) =>
+            stage.status === "running"
+              ? {
+                  ...stage,
+                  completedAt: new Date().toISOString(),
+                  status: "error" as const,
+                  title: statusLabel,
+                }
+              : stage));
+          setStatusText(statusLabel);
+          setStreamingState("idle");
+          setTraceSteps((current) => [
+            ...current,
+            {
+              detail: streamFailureMessage ?? statusLabel,
+              id: `trace-stream-terminal-${Date.now()}`,
+              kind: "error",
+              status: "error",
+              title: statusLabel,
+            },
+          ]);
+          return;
+        }
         const responseData = data ?? {};
         const assistantMessage =
           typeof responseData.assistantMessage === "string" ? responseData.assistantMessage : null;
@@ -457,12 +540,33 @@ export function useAgentChatMessaging({
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
+          markStreamingAssistantDelivery("cancelled");
           setStatusText("已停止生成");
           setStreamingState("idle");
           return;
         }
 
         const messageText = error instanceof Error ? error.message : "Agent 请求失败。";
+
+        if (streamingResponseStarted) {
+          const deliveryState: AgentMessageDeliveryState = responseTokenEmitted
+            ? "partial"
+            : "unavailable";
+          markStreamingAssistantDelivery(deliveryState);
+          setStatusText(deliveryState === "partial" ? "回复中断" : "暂时未能生成回复");
+          setStreamingState("idle");
+          setTraceSteps((current) => [
+            ...current,
+            {
+              detail: messageText,
+              id: `trace-stream-error-${Date.now()}`,
+              kind: "error",
+              status: "error",
+              title: deliveryState === "partial" ? "回复中断" : "暂时未能生成回复",
+            },
+          ]);
+          return;
+        }
 
         setErrorMessage(messageText);
         setStatusText("请求失败");
@@ -489,6 +593,7 @@ export function useAgentChatMessaging({
       contextPreferences,
       isSubmitting,
       loadThread,
+      markStreamingAssistantDelivery,
       messages,
       pendingAction,
       replaceStreamingAssistantContent,
@@ -639,6 +744,18 @@ export function useAgentChatMessaging({
     void sendMessage("取消");
   }, [pendingAction, sendMessage]);
 
+  const retryLastMessage = useCallback(() => {
+    const lastUserMessage = [...messages]
+      .reverse()
+      .find((message) => message.role === "user");
+
+    if (!lastUserMessage) {
+      return;
+    }
+
+    void sendMessage(lastUserMessage.content, { retryFailedTurn: true });
+  }, [messages, sendMessage]);
+
   const editApproval = useCallback(
     (kind: "generic" | "plan" | "schedule") => {
       const prompt =
@@ -713,6 +830,7 @@ export function useAgentChatMessaging({
     confirmApproval,
     editApproval,
     resetThread,
+    retryLastMessage,
     runArtifactsRollback,
     sendMessage,
     stopGeneration,

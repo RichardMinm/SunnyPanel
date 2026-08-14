@@ -491,6 +491,7 @@ const resolveModelConfig = async (): Promise<ModelConfig | null> => {
     const { createModelConfig } = await import("../llm/model-config");
     const config = createModelConfig({
       apiKey: rawConfig.apiKey,
+      apiProtocol: rawConfig.apiProtocol,
       baseURL: rawConfig.baseUrl,
       model: rawConfig.model,
       provider: rawConfig.provider ?? "unknown",
