@@ -43,6 +43,43 @@ export const MediaEmbed = Node.create({
     return [{ tag: "div[data-type='media-embed']" }];
   },
 
+  addNodeView() {
+    return ({ editor, getPos, node }) => {
+      const figure = document.createElement("figure");
+      const title = node.attrs.title || node.attrs.filename || "媒体附件";
+      const kind = node.attrs.kind || "file";
+      const src = node.attrs.src || "";
+      figure.className = `sunny-rich-editor-media-embed is-${kind}`;
+      figure.dataset.kind = kind;
+      figure.contentEditable = "false";
+
+      if (kind === "video") {
+        const video = document.createElement("video");
+        video.controls = true;
+        video.preload = "metadata";
+        video.src = src;
+        figure.append(video);
+      } else {
+        const link = document.createElement("a");
+        link.href = src;
+        link.rel = "noreferrer";
+        link.target = "_blank";
+        link.textContent = title;
+        figure.append(link);
+      }
+
+      const caption = document.createElement("figcaption");
+      caption.textContent = title;
+      figure.append(caption);
+      figure.addEventListener("click", () => {
+        const pos = typeof getPos === "function" ? getPos() : undefined;
+        if (typeof pos === "number") editor.commands.setNodeSelection(pos);
+      });
+
+      return { dom: figure };
+    };
+  },
+
   renderHTML({ HTMLAttributes, node }) {
     const title = node.attrs.title || node.attrs.filename || "媒体附件";
     const kind = node.attrs.kind || "file";

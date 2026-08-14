@@ -648,6 +648,8 @@ describe("rich content utilities", () => {
               { type: "text", text: "Bold", marks: [{ type: "bold" }] },
               { type: "text", text: "Italic", marks: [{ type: "italic" }] },
               { type: "text", text: "Strike", marks: [{ type: "strike" }] },
+              { type: "text", text: "Underline", marks: [{ type: "underline" }] },
+              { type: "text", text: "Highlight", marks: [{ type: "highlight" }] },
               { type: "text", text: "Code", marks: [{ type: "code" }] },
               { type: "text", text: "Link", marks: [{ type: "link", attrs: { href: "https://example.com" } }] },
             ],

@@ -1,10 +1,131 @@
 /**
- * Admin Shell：公开站顶栏 + Agent 工作台侧栏风格。
+ * Admin Shell：与 Dashboard 共用产品层级，保留 Payload 的高级管理能力。
  */
 
 @layer payload {
   .sunny-admin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 4.25rem;
     margin: 0 0 var(--admin-shell-gap);
+    border: 1px solid var(--border);
+    border-radius: var(--agent-radius-panel, 0.75rem);
+    background: color-mix(in oklch, var(--surface-strong) 92%, transparent);
+    box-shadow: var(--shadow-soft);
+    padding: 0.75rem 0.9rem;
+  }
+
+  .sunny-admin-header-identity {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .sunny-admin-header-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+    color: var(--foreground);
+    text-decoration: none;
+  }
+
+  .sunny-admin-header-mark {
+    display: inline-grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    flex: 0 0 auto;
+    border-radius: 0.58rem;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font-size: var(--text-sm);
+    font-weight: 800;
+  }
+
+  .sunny-admin-header-copy {
+    display: grid;
+    min-width: 0;
+    line-height: 1.15;
+  }
+
+  .sunny-admin-header-copy strong {
+    color: var(--foreground);
+    font-size: var(--text-base);
+    font-weight: 760;
+  }
+
+  .sunny-admin-header-copy span,
+  .sunny-admin-header-identity > p {
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+
+  .sunny-admin-header-identity > p {
+    margin: 0;
+    padding-left: 1rem;
+    border-left: 1px solid var(--border);
+    line-height: 1.45;
+  }
+
+  .sunny-admin-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 0 0 auto;
+  }
+
+  .sunny-admin-header-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.25rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    color: var(--muted);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-ui);
+    padding: 0 0.75rem;
+    text-decoration: none;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+
+  .sunny-admin-header-link:hover {
+    background: var(--surface);
+    color: var(--foreground);
+  }
+
+  .sunny-admin-header-link.is-primary {
+    border-color: color-mix(in oklch, var(--accent) 24%, var(--border));
+    background: var(--accent);
+    color: var(--accent-contrast);
+  }
+
+  .sunny-admin-header-link.is-primary:hover {
+    background: var(--accent-strong);
+    color: var(--accent-contrast);
+  }
+
+  @media (max-width: 720px) {
+    .sunny-admin-header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .sunny-admin-header-identity > p {
+      display: none;
+    }
+
+    .sunny-admin-header-actions {
+      width: 100%;
+    }
+
+    .sunny-admin-header-link {
+      flex: 1;
+    }
   }
 
   /* ── 侧栏（对齐 Agent left rail） ── */

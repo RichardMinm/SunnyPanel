@@ -8,7 +8,7 @@ import {
   runWritingWorkflowAction,
   type WritingWorkflowActionId,
 } from "@/lib/dashboard/writing-workflow-actions";
-import { uploadDashboardImage } from "@/lib/editor/upload-dashboard-image";
+import { uploadDashboardImage, uploadDashboardMedia } from "@/lib/editor/upload-dashboard-image";
 
 import type { SlashCommandIconName } from "./SlashCommandIcon";
 
@@ -17,6 +17,7 @@ export type SlashCommandGroup = "ai" | "blocks" | "common" | "lists" | "time" | 
 export type SlashCommandKind = "ai" | "block" | "insert" | "workflow";
 
 export type SlashCommandHandlers = {
+  onInternalLink?: (editor: Editor) => void;
   onWritingAssist?: (action: WritingAssistAction) => void;
   onWorkflow?: (id: WritingWorkflowActionId) => void;
 };
@@ -69,6 +70,29 @@ const insertCallout = (editor: Editor, tone: string) => {
     .run();
 };
 
+const insertUploadedMedia = async (
+  editor: Editor,
+  accept: string,
+  kind: "file" | "pdf" | "video",
+) => {
+  const file = await pickFile(accept);
+  if (!file) return;
+  const uploaded = await uploadDashboardMedia(file);
+  editor
+    .chain()
+    .focus()
+    .insertContent({
+      attrs: {
+        filename: file.name,
+        kind,
+        src: uploaded.url,
+        title: file.name,
+      },
+      type: "mediaEmbed",
+    })
+    .run();
+};
+
 const formatDate = () =>
   new Intl.DateTimeFormat("zh-CN", {
     day: "numeric",
@@ -102,6 +126,11 @@ const workflowCommand =
     handlers.onWorkflow?.(id);
     return editor.chain().focus().run();
   };
+
+const internalLinkCommand = (handlers: SlashCommandHandlers) => (editor: Editor) => {
+  handlers.onInternalLink?.(editor);
+  return true;
+};
 
 export function createSlashCommandItems(handlers: SlashCommandHandlers = {}): SlashCommandItem[] {
   return [
@@ -230,6 +259,94 @@ export function createSlashCommandItems(handlers: SlashCommandHandlers = {}): Sl
       label: "Callout",
     },
     {
+      command: (editor) => insertCallout(editor, "success"),
+      description: "突出结论或已完成事项",
+      group: "blocks",
+      icon: "calloutSuccess",
+      id: "callout-success",
+      keywords: ["callout", "success", "完成", "结论"],
+      kind: "block",
+      label: "成功提示",
+    },
+    {
+      command: (editor) => insertCallout(editor, "warning"),
+      description: "突出风险或注意事项",
+      group: "blocks",
+      icon: "calloutWarning",
+      id: "callout-warning",
+      keywords: ["callout", "warning", "警告", "注意"],
+      kind: "block",
+      label: "警告提示",
+    },
+    {
+      command: (editor) => editor.chain().focus().setDetails().run(),
+      description: "插入可展开和收起的内容",
+      group: "blocks",
+      icon: "toggle",
+      id: "details",
+      keywords: ["details", "toggle", "折叠", "展开"],
+      kind: "block",
+      label: "折叠内容",
+    },
+    {
+      command: (editor) => {
+        const latex = window.prompt("输入 LaTeX 公式")?.trim();
+        if (latex) editor.chain().focus().insertBlockMath({ latex }).run();
+      },
+      description: "插入块级数学公式",
+      group: "blocks",
+      icon: "math",
+      id: "math",
+      keywords: ["math", "latex", "公式", "数学"],
+      kind: "block",
+      label: "数学公式",
+    },
+    {
+      command: (editor) => editor.chain().focus().insertContent({ type: "pageBreak" }).run(),
+      description: "在导出和打印时从新页开始",
+      group: "blocks",
+      icon: "pageBreak",
+      id: "page-break",
+      keywords: ["page", "break", "分页", "换页"],
+      kind: "block",
+      label: "分页符",
+    },
+    {
+      command: (editor) => insertUploadedMedia(editor, "application/pdf", "pdf"),
+      description: "上传并链接 PDF 文档",
+      group: "blocks",
+      icon: "pdf",
+      id: "pdf",
+      keywords: ["pdf", "文档", "附件"],
+      kind: "block",
+      label: "PDF",
+    },
+    {
+      command: (editor) => insertUploadedMedia(editor, "video/mp4,video/webm", "video"),
+      description: "上传 MP4 或 WebM 视频",
+      group: "blocks",
+      icon: "video",
+      id: "video",
+      keywords: ["video", "视频", "mp4", "webm"],
+      kind: "block",
+      label: "视频",
+    },
+    {
+      command: (editor) =>
+        insertUploadedMedia(
+          editor,
+          ".pdf,.txt,.md,.csv,.zip,application/pdf,text/plain,text/markdown,text/csv,application/zip",
+          "file",
+        ),
+      description: "上传并链接资料文件",
+      group: "blocks",
+      icon: "attachment",
+      id: "attachment",
+      keywords: ["attachment", "file", "附件", "文件"],
+      kind: "block",
+      label: "附件",
+    },
+    {
       command: (editor) => editor.chain().focus().toggleBulletList().run(),
       description: "项目符号列表",
       group: "lists",
@@ -291,6 +408,16 @@ export function createSlashCommandItems(handlers: SlashCommandHandlers = {}): Sl
       keywords: ["datetime", "日期时间"],
       kind: "insert",
       label: "当前日期和时间",
+    },
+    {
+      command: internalLinkCommand(handlers),
+      description: "引用知识库中的另一篇文档",
+      group: "common",
+      icon: "attachment",
+      id: "internal-document-link",
+      keywords: ["link", "document", "引用", "文档链接", "知识库"],
+      kind: "insert",
+      label: "链接到文档",
     },
     {
       command: aiCommand("continue", handlers),

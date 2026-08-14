@@ -37,6 +37,7 @@ export function DashboardSettingsMenu({
       triggerClassName={triggerClassName}
     >
       <PreferencesPanel
+        advancedManagementHref="/admin"
         locale={locale}
         palette={palette}
         onLocaleChange={onLocaleChange}

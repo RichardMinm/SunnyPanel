@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { LocaleToggle } from "@/components/public/LocaleToggle";
 import { PaletteToggle } from "@/components/public/PaletteToggle";
 import { ThemeToggle } from "@/components/public/ThemeToggle";
@@ -7,6 +9,7 @@ import { getSiteCopy, type SiteLocale } from "@/lib/site-copy";
 import type { SitePalette } from "@/lib/site-palette";
 
 type PreferencesPanelProps = {
+  advancedManagementHref?: string;
   locale: SiteLocale;
   palette: SitePalette;
   onLocaleChange?: (locale: SiteLocale) => void;
@@ -16,6 +19,7 @@ type PreferencesPanelProps = {
 };
 
 export function PreferencesPanel({
+  advancedManagementHref,
   locale,
   palette,
   onLocaleChange,
@@ -55,6 +59,15 @@ export function PreferencesPanel({
           variant={variant}
         />
       </div>
+
+      {advancedManagementHref ? (
+        <div className="settings-popover-section settings-popover-section--advanced">
+          <Link className="settings-popover-advanced-link" href={advancedManagementHref}>
+            <span>{copy.admin.advancedManagement}</span>
+            <small>{copy.admin.advancedDescription}</small>
+          </Link>
+        </div>
+      ) : null}
     </>
   );
 }

@@ -52,6 +52,37 @@
   text-transform: uppercase;
 }
 
+.settings-popover-section--advanced {
+  padding-bottom: 0.1rem;
+}
+
+.settings-popover-advanced-link {
+  display: grid;
+  gap: 0.2rem;
+  border-radius: var(--radius-control);
+  background: color-mix(in oklch, var(--surface) 78%, transparent);
+  color: var(--foreground);
+  padding: 0.65rem 0.7rem;
+  text-decoration: none;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.settings-popover-advanced-link:hover {
+  background: var(--surface-strong);
+  color: var(--accent-strong);
+}
+
+.settings-popover-advanced-link > span {
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.settings-popover-advanced-link > small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
 /* ── Settings trigger button ── */
 .settings-popover-trigger {
   display: inline-flex;

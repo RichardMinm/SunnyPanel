@@ -21,6 +21,9 @@ export const Note: CollectionConfig = {
     useAsTitle: "category",
   },
   defaultSort: "-createdAt",
+  versions: {
+    maxPerDoc: 50,
+  },
   fields: [
     ...richContentFields({
       label: "内容",

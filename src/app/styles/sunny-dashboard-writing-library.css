@@ -212,6 +212,12 @@
   border-left: 1px solid color-mix(in oklch, var(--writing-muted) 16%, transparent);
 }
 
+.sunny-writing-tree-children > .sunny-writing-tree-node {
+  margin-left: 0.85rem;
+  border-left: 1px solid var(--writing-rule);
+  padding-left: 0.35rem;
+}
+
 .sunny-writing-tree-item {
   min-width: 0;
 }

@@ -17,6 +17,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { editorLowlight } from "@/lib/editor/lowlight";
 
 import { Callout } from "./extensions/callout";
+import { Highlight } from "./extensions/highlight";
 import { PasteImageUpload } from "./extensions/image-upload";
 import { MediaEmbed } from "./extensions/media-embed";
 import { PageBreak } from "./extensions/page-break";
@@ -41,6 +42,7 @@ export const buildContentEditorExtensions = (options?: { placeholder?: string })
     TableHeader,
     TableCell,
     Typography,
+    Highlight,
     Details.configure({ persist: true }),
     DetailsSummary,
     DetailsContent,

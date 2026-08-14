@@ -59,7 +59,12 @@ export function useWritingCategories() {
   }, []);
 
   const createCategory = useCallback(
-    async (input: { icon?: WritingCategoryIcon; title: string; tint?: WritingCategoryTint }) => {
+    async (input: {
+      icon?: WritingCategoryIcon;
+      parentId?: null | number;
+      title: string;
+      tint?: WritingCategoryTint;
+    }) => {
       setCategoryError(null);
 
       try {
@@ -94,7 +99,7 @@ export function useWritingCategories() {
   const updateCategory = useCallback(
     async (
       id: number,
-      patch: Partial<Pick<WritingCategoryListItem, "archived" | "icon" | "sortOrder" | "tint" | "title">>,
+      patch: Partial<Pick<WritingCategoryListItem, "archived" | "icon" | "parentId" | "sortOrder" | "tint" | "title">>,
     ) => {
       setCategoryError(null);
 

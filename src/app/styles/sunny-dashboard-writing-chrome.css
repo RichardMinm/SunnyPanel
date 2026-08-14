@@ -535,6 +535,11 @@ html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-image-action
   color: var(--surface-tint);
 }
 
+html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-floating-menu button:hover {
+  background: var(--writing-hover);
+  color: var(--writing-text);
+}
+
 html[data-theme="dark"] .sunny-writing-workspace .sunny-rich-editor-floating-menu button[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);

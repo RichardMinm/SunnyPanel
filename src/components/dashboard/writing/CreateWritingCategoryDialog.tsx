@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { DashboardIcon } from "@/components/dashboard/icons";
 import { AppDialog, AppDialogBody } from "@/components/primitives/AppDialog";
 import type {
   WritingCategoryIcon,
+  WritingCategoryListItem,
   WritingCategoryTint,
 } from "@/lib/dashboard/writing-categories/normalize";
 
@@ -18,13 +19,22 @@ import {
 
 type CreateWritingCategoryDialogProps = {
   busy?: boolean;
+  categories: WritingCategoryListItem[];
+  defaultParentId?: null | number;
   onCancel: () => void;
-  onCreate: (input: { icon: WritingCategoryIcon; title: string; tint: WritingCategoryTint }) => void;
+  onCreate: (input: {
+    icon: WritingCategoryIcon;
+    parentId: null | number;
+    title: string;
+    tint: WritingCategoryTint;
+  }) => void;
   open: boolean;
 };
 
 export function CreateWritingCategoryDialog({
   busy = false,
+  categories,
+  defaultParentId = null,
   onCancel,
   onCreate,
   open,
@@ -32,6 +42,13 @@ export function CreateWritingCategoryDialog({
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState<WritingCategoryIcon>("layers");
   const [tint, setTint] = useState<WritingCategoryTint>("accent");
+  const [parentId, setParentId] = useState<null | number>(defaultParentId);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- each dialog opening resets its parent selection to the active collection */
+    if (open) setParentId(defaultParentId);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [defaultParentId, open]);
 
   const handleConfirm = () => {
     const nextTitle = title.trim();
@@ -39,10 +56,11 @@ export function CreateWritingCategoryDialog({
       return;
     }
 
-    onCreate({ icon, title: nextTitle, tint });
+    onCreate({ icon, parentId, title: nextTitle, tint });
     setTitle("");
     setIcon("layers");
     setTint("accent");
+    setParentId(defaultParentId);
   };
 
   return (
@@ -64,6 +82,21 @@ export function CreateWritingCategoryDialog({
             placeholder="例如：主线工作、雅思复习"
             value={title}
           />
+        </label>
+        <label className="sunny-writing-create-category-field">
+          <span>位置</span>
+          <select
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              setParentId(Number.isFinite(value) && value > 0 ? value : null);
+            }}
+            value={parentId ?? ""}
+          >
+            <option value="">知识库根目录</option>
+            {categories.filter((category) => !category.archived).map((category) => (
+              <option key={category.id} value={category.id}>{category.title}</option>
+            ))}
+          </select>
         </label>
         <fieldset className="sunny-writing-create-category-field">
           <legend>图标</legend>

@@ -150,7 +150,7 @@ export function ChecklistView({
             <p className="sunny-schedule-empty-day">
               暂无清单。
               <br />
-              可以从 Payload 管理后台创建新清单。
+              可以告诉 Sunny 创建一个新清单。
             </p>
           )
         ) : (

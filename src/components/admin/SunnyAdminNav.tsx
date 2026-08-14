@@ -111,7 +111,7 @@ export async function SunnyAdminNav(props: SunnyAdminNavProps) {
         <nav className={`${baseClass}__wrap`}>
           {renderSlot(beforeNavLinks)}
           <div className="sunny-admin-workspace-strip">
-            <p className="sunny-chrome-section-label sunny-admin-workspace-strip-label">{workspaceCopy.workspace}</p>
+            <p className="sunny-chrome-section-label sunny-admin-workspace-strip-label">{workspaceCopy.dailyWork}</p>
             <Link href="/dashboard" className="sunny-admin-workspace-back">
               <span aria-hidden="true" className="sunny-admin-workspace-back-icon">
                 ←

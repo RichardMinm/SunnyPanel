@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { JSONContent } from "@tiptap/core";
+import type { Editor, JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 
 import type { RichContentDocument } from "@/lib/rich-content/types";
@@ -14,6 +14,7 @@ import { SlashCommandList, useSlashCommandState } from "./SlashCommandList";
 import type { SlashCommandHandlers } from "./slash-commands";
 import { FloatingFormatMenu } from "./FloatingFormatMenu";
 import { SlashCommandMenu } from "./SlashCommandMenu";
+import { InternalDocumentLinkDialog } from "./InternalDocumentLinkDialog";
 import "katex/dist/katex.min.css";
 
 type ContentEditorProps = {
@@ -21,6 +22,7 @@ type ContentEditorProps = {
   className?: string;
   content: RichContentDocument;
   disabled?: boolean;
+  focusSignal?: number;
   onChange: (content: RichContentDocument) => void;
   onWritingAssist?: (action: WritingAssistAction) => void;
   onWorkflowAction?: SlashCommandHandlers["onWorkflow"];
@@ -32,17 +34,27 @@ export function ContentEditor({
   className,
   content,
   disabled,
+  focusSignal,
   onChange,
   onWritingAssist,
   onWorkflowAction,
   variant = "default",
 }: ContentEditorProps) {
+  const [internalLinkOpen, setInternalLinkOpen] = useState(false);
+  const internalLinkEditorRef = useRef<Editor | null>(null);
+
+  const openInternalLink = useCallback((targetEditor: Editor) => {
+    internalLinkEditorRef.current = targetEditor;
+    setInternalLinkOpen(true);
+  }, []);
+
   const slashHandlers = useMemo<SlashCommandHandlers>(
     () => ({
+      onInternalLink: openInternalLink,
       onWritingAssist,
       onWorkflow: onWorkflowAction,
     }),
-    [onWritingAssist, onWorkflowAction],
+    [onWritingAssist, onWorkflowAction, openInternalLink],
   );
 
   const editor = useEditor({
@@ -72,6 +84,14 @@ export function ContentEditor({
   }, [disabled, editor]);
 
   useEffect(() => {
+    if (!editor || !focusSignal) {
+      return;
+    }
+
+    editor.commands.focus("start");
+  }, [editor, focusSignal]);
+
+  useEffect(() => {
     if (!editor) {
       return;
     }
@@ -92,6 +112,7 @@ export function ContentEditor({
     <div className={["sunny-content-editor", className].filter(Boolean).join(" ")}>
       {variant === "writing" ? (
         <>
+          <FloatingFormatMenu editor={editor} onInternalLink={openInternalLink} />
           {slashState.open ? (
             <SlashCommandList
               items={slashState.items}
@@ -111,11 +132,27 @@ export function ContentEditor({
         </>
       ) : (
         <>
-          <FloatingFormatMenu editor={editor} />
+          <FloatingFormatMenu editor={editor} onInternalLink={openInternalLink} />
           <SlashCommandMenu editor={editor} />
           <EditorContent editor={editor} />
         </>
       )}
+      <InternalDocumentLinkDialog
+        onCancel={() => setInternalLinkOpen(false)}
+        onSelect={(document) => {
+          internalLinkEditorRef.current
+            ?.chain()
+            .focus()
+            .insertContent({
+              marks: [{ attrs: { href: document.editHref }, type: "link" }],
+              text: document.title,
+              type: "text",
+            })
+            .run();
+          setInternalLinkOpen(false);
+        }}
+        open={internalLinkOpen}
+      />
     </div>
   );
 }

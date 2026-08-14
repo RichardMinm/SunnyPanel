@@ -60,3 +60,11 @@ export type WritingSaveStatusSnapshot = {
   saveState: WritingSaveState;
   wordCount?: number;
 };
+
+export type WritingDocumentVersion = {
+  createdAt: string;
+  excerpt: string;
+  id: string;
+  status: "draft" | "published" | "archived";
+  title: string;
+};

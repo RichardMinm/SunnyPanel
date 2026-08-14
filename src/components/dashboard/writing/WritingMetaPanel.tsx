@@ -8,6 +8,8 @@ import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 
 import { WritingInspectorSection } from "./WritingInspectorSection";
 import { WritingPublishControls } from "./WritingPublishControls";
+import { WritingVersionHistory } from "./WritingVersionHistory";
+import { WritingKnowledgePanel } from "./WritingKnowledgePanel";
 import type { WritingMetadataDraft } from "./writing-metadata";
 import type {
   WritingDocument,
@@ -145,9 +147,7 @@ export function WritingMetaPanel({
       <div className="sunny-writing-meta-head">
         <div>
           <h3>属性</h3>
-          <p>
-            {title} · #{document.id}
-          </p>
+          <p>{title}</p>
         </div>
         <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
           {onPin ? (
@@ -284,8 +284,8 @@ export function WritingMetaPanel({
         )}
       </WritingInspectorSection>
 
-      <WritingInspectorSection defaultOpen={false} title="版本历史">
-        <EmptyMuted>版本历史即将推出</EmptyMuted>
+      <WritingInspectorSection defaultOpen title="文档结构">
+        <WritingKnowledgePanel document={document} draft={draft} />
       </WritingInspectorSection>
 
       <WritingInspectorSection defaultOpen={false} title="关联">
@@ -300,13 +300,17 @@ export function WritingMetaPanel({
             关联时间线
           </Link>
         </div>
-        <EmptyMuted>关联功能即将推出，可先通过 Agent 工作流生成</EmptyMuted>
+        <EmptyMuted>前往对应工作区查看和管理关联内容</EmptyMuted>
+      </WritingInspectorSection>
+
+      <WritingInspectorSection defaultOpen={false} title="版本历史">
+        <WritingVersionHistory document={document} />
       </WritingInspectorSection>
 
       <WritingInspectorSection defaultOpen={false} sectionId="advanced" title="高级设置">
         <div className="sunny-writing-advanced-links">
           <Link className="sunny-writing-admin-link" href={document.advancedAdminHref}>
-            高级 Admin
+            在高级管理中打开
           </Link>
         </div>
       </WritingInspectorSection>

@@ -76,6 +76,13 @@
   border-radius: 0.25rem;
 }
 
+.sunny-prose :where(mark) {
+  border-radius: 0.16em;
+  background: color-mix(in oklch, var(--warning) 28%, transparent);
+  color: inherit;
+  padding-inline: 0.08em;
+}
+
 .sunny-prose :where(ul, ol) {
   padding-left: 1.35rem;
   margin: 0.75em 0;

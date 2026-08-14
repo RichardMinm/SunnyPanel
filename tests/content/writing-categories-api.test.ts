@@ -20,6 +20,8 @@ describe("writing categories API contracts", () => {
     assert.match(listRoute, /writing-categories/);
     assert.match(detailRoute, /getPayloadAuthResult/);
     assert.match(detailRoute, /clearCategoryFromDocuments/);
+    assert.match(detailRoute, /validateParent/);
+    assert.match(listRoute, /parentId/);
   });
 
   test("content normalize and patch include writing category assignment", () => {
@@ -50,6 +52,7 @@ describe("writing categories API contracts", () => {
         archived: false,
         icon: "unknown-icon",
         id: 3,
+        parent: { id: 12 },
         sortOrder: "bad" as never,
         tint: "unknown-tint",
         title: "  ",
@@ -59,6 +62,7 @@ describe("writing categories API contracts", () => {
         archived: false,
         icon: "layers",
         id: 3,
+        parentId: 12,
         sortOrder: 0,
         tint: "accent",
         title: "未命名文档集",
@@ -70,5 +74,16 @@ describe("writing categories API contracts", () => {
     assert.equal(isWritingCategoryTint("warning"), true);
     assert.equal(resolveWritingCategoryId({ id: 12 }), 12);
     assert.equal(resolveWritingCategoryId("bad"), null);
+  });
+
+  test("writing categories expose a cycle-safe hierarchy contract", () => {
+    const collection = read("src/collections/WritingCategory.ts");
+    const library = read("src/components/dashboard/writing/WritingLibrary.tsx");
+    const dialog = read("src/components/dashboard/writing/CreateWritingCategoryDialog.tsx");
+
+    assert.match(collection, /name: "parent"/);
+    assert.match(collection, /relationTo: "writing-categories"/);
+    assert.match(library, /categoryChildren/);
+    assert.match(dialog, /知识库根目录/);
   });
 });

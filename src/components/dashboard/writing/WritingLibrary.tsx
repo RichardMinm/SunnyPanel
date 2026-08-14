@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
 
@@ -30,6 +30,7 @@ export function WritingLibrary({
     activeCategoryId,
     archiveCategory,
     categories,
+    categoryError,
     createDocument,
     documents,
     duplicateDocument,
@@ -66,6 +67,22 @@ export function WritingLibrary({
     [filteredDocuments, visibleCategories],
   );
 
+  const categoryChildren = useMemo(() => {
+    const result = new Map<null | number, typeof visibleCategories>();
+    const visibleIds = new Set(visibleCategories.map((category) => category.id));
+
+    for (const category of visibleCategories) {
+      const parentId = category.parentId !== null && visibleIds.has(category.parentId)
+        ? category.parentId
+        : null;
+      const children = result.get(parentId) ?? [];
+      children.push(category);
+      result.set(parentId, children);
+    }
+
+    return result;
+  }, [visibleCategories]);
+
   const hasDocuments = filteredDocuments.length > 0;
   const showGlobalEmptyState =
     !isLoading &&
@@ -92,6 +109,10 @@ export function WritingLibrary({
     void updateCategory(category.id, { title });
   };
 
+  const handleMoveCategory = (category: (typeof categories)[number], parentId: null | number) => {
+    void updateCategory(category.id, { parentId });
+  };
+
   const sharedDocumentProps = {
     activeDocument: selectedDocument,
     categories: visibleCategories,
@@ -102,6 +123,25 @@ export function WritingLibrary({
     },
     onRename: (document: WritingDocumentListItem, title: string) => void renameDocument(document, title),
     onSelect: (document: WritingDocumentListItem) => void handleSelectDocument(document),
+  };
+
+  const renderCategory = (category: (typeof visibleCategories)[number]): ReactNode => {
+    const children = categoryChildren.get(category.id) ?? [];
+
+    return (
+      <WritingCategoryGroup
+        {...sharedDocumentProps}
+        category={category}
+        childCategories={children.length ? children.map(renderCategory) : null}
+        documents={grouped.byCategory.get(category.id) ?? []}
+        key={category.id}
+        onArchiveCategory={handleArchiveCategory}
+        onCreateDocument={handleCreateDocument}
+        onMoveCategory={handleMoveCategory}
+        onRenameCategory={handleRenameCategory}
+        onSelectCategory={() => setActiveCategoryId(category.id)}
+      />
+    );
   };
 
   return (
@@ -117,9 +157,9 @@ export function WritingLibrary({
       />
 
       <div className="sunny-writing-document-list" role="list">
-        {error && !isLoading ? (
+        {(error || categoryError) && !isLoading ? (
           <div className="sunny-writing-library-error">
-            <p className="sunny-writing-inline-error">{error}</p>
+            <p className="sunny-writing-inline-error">{error || categoryError}</p>
             <button onClick={() => void loadDocuments()} type="button">
               重试
             </button>
@@ -136,18 +176,7 @@ export function WritingLibrary({
           />
         ) : (
           <>
-            {visibleCategories.map((category) => (
-              <WritingCategoryGroup
-                {...sharedDocumentProps}
-                category={category}
-                documents={grouped.byCategory.get(category.id) ?? []}
-                key={category.id}
-                onArchiveCategory={handleArchiveCategory}
-                onRenameCategory={handleRenameCategory}
-                onSelectCategory={() => setActiveCategoryId(category.id)}
-                onCreateDocument={handleCreateDocument}
-              />
-            ))}
+            {(categoryChildren.get(null) ?? []).map(renderCategory)}
             {!showArchivedCategories ? (
               <WritingUncategorizedGroup
                 {...sharedDocumentProps}

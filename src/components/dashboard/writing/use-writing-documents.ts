@@ -524,6 +524,43 @@ export function useWritingDocuments() {
     [],
   );
 
+  const restoreDocumentVersion = useCallback(
+    async (document: WritingDocument, versionId: string) => {
+      clearAutosaveTimer();
+
+      if (isDirtyRef.current) {
+        const saved = await flushSave();
+        if (!saved) return null;
+      }
+
+      setError(null);
+      setSaveState("saving");
+
+      try {
+        const data = await readDashboardJson<DocumentResponse>(
+          await fetch(
+            `/api/dashboard/content/${document.collection}/${document.id}/versions`,
+            {
+              body: JSON.stringify({ versionId }),
+              headers: { "Content-Type": "application/json" },
+              method: "POST",
+            },
+          ),
+        );
+
+        const restored = data.document;
+        if (!restored) throw new Error("恢复版本失败");
+        applySavedDocument(restored);
+        return restored;
+      } catch (nextError) {
+        setError(nextError instanceof Error ? nextError.message : "恢复版本失败");
+        setSaveState("error");
+        return null;
+      }
+    },
+    [applySavedDocument, clearAutosaveTimer, flushSave],
+  );
+
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- fetch Dashboard content whenever the selected collection filter changes */
     void loadDocuments(collectionFilter);
@@ -583,6 +620,7 @@ export function useWritingDocuments() {
     moveDocumentToCategory,
     publishDocument,
     renameDocument,
+    restoreDocumentVersion,
     saveDocument,
     saveState,
     selectDocument,

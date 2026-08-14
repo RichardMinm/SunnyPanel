@@ -20,7 +20,7 @@ test("写作工作台可进入并切换预览", async ({ page }) => {
   await workspace.getByRole("button", { name: "新建" }).click();
   await workspace.getByRole("menuitem", { name: "新文章" }).click();
 
-  await workspace.getByPlaceholder("输入标题...").fill("E2E 写作页冒烟");
+  await workspace.getByRole("textbox", { name: "标题" }).fill("E2E 写作页冒烟");
   await workspace.getByRole("button", { name: "预览" }).click();
   await expect(workspace.getByRole("button", { name: "返回编辑" })).toBeVisible();
 });

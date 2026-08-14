@@ -62,12 +62,15 @@ describe("Dashboard Writing workspace contracts", () => {
 
   test("writing inspector keeps the stable metadata sections without a manual save action", () => {
     const meta = read("src/components/dashboard/writing/WritingMetaPanel.tsx");
-    const visibleSections = ["基本信息", "发布设置", "标签", "版本历史", "关联", "高级设置"].filter((label) =>
+    const visibleSections = ["基本信息", "发布设置", "标签", "关联", "高级设置"].filter((label) =>
       meta.includes(label),
     );
 
-    assert.deepEqual(visibleSections, ["基本信息", "发布设置", "标签", "版本历史", "关联", "高级设置"]);
+    assert.deepEqual(visibleSections, ["基本信息", "发布设置", "标签", "关联", "高级设置"]);
     assert.equal(meta.includes("保存属性"), false);
+    assert.equal(meta.includes("即将推出"), false);
+    assert.match(meta, /WritingKnowledgePanel/);
+    assert.match(meta, /WritingVersionHistory/);
   });
 
   test("writing library rail exposes stable user actions and empty states", () => {
@@ -119,15 +122,20 @@ describe("Dashboard Writing workspace contracts", () => {
 
   test("writing editor chrome exposes inline summary and topbar actions without old trigger copy", () => {
     const editorPane = read("src/components/dashboard/writing/WritingEditorPane.tsx");
+    const documentHeader = read("src/components/dashboard/writing/WritingDocumentHeader.tsx");
+    const editorSurface = `${editorPane}\n${documentHeader}`;
     const visibleText = [
-      "写一句摘要，帮助自己快速理解这篇内容",
+      "写一句摘要，帮助自己快速理解这篇内容…",
       "未命名内容",
       "草稿",
       "内容",
-    ].filter((text) => editorPane.includes(text));
+    ].filter((text) => editorSurface.includes(text));
 
-    assert.deepEqual(visibleText, ["写一句摘要，帮助自己快速理解这篇内容", "未命名内容", "草稿", "内容"]);
-    assert.deepEqual(missingBoundaries(editorPane, ["showsSummaryField", "moreHorizontal"]), []);
+    assert.deepEqual(visibleText, ["写一句摘要，帮助自己快速理解这篇内容…", "未命名内容", "草稿", "内容"]);
+    assert.deepEqual(missingBoundaries(editorSurface, ["showsSummaryField", "moreHorizontal"]), []);
+    assert.match(editorPane, /sunny-writing-editor-topbar-inner/);
+    assert.match(documentHeader, /nativeEvent\.isComposing/);
+    assert.match(documentHeader, /onFocusBody/);
     assert.equal(editorPane.includes('trigger="新建文档"'), false);
     assert.equal(editorPane.includes('trigger="更多"'), false);
   });
@@ -186,12 +194,13 @@ describe("Dashboard Writing styling contracts", () => {
   test("writing editor CSS keeps readable canvas and markdown shortcut list markers", () => {
     const css = readWritingCss();
 
-    assert.ok(css.includes("width: min(100%, 48rem)"), "editor canvas should keep a readable measure");
-    assert.ok(css.includes("width: min(100%, 50rem)"), "preview canvas should keep a readable measure");
+    assert.ok(css.includes("--writing-document-width: 46rem"), "editor canvas should use a shared readable measure");
+    assert.ok(css.includes("width: min(100%, 48rem)"), "wide preview canvas should remain bounded");
+    assert.ok(css.includes("max(8rem, 30vh)"), "editor should reserve comfortable writing space below the document");
     assert.match(css, /\.sunny-rich-editor-content ul:not\(\[data-type="taskList"\]\)[\s\S]*list-style-type:\s*disc/);
     assert.match(css, /\.sunny-rich-editor-content ol[\s\S]*list-style-type:\s*decimal/);
     assert.match(css, /\.sunny-writing-preview-rich ul:not\(\.sunny-rich-content-task-list\)[\s\S]*list-style-type:\s*disc/);
-    assert.equal(css.includes(".sunny-writing-editor-topbar-inner"), false);
+    assert.equal(css.includes(".sunny-writing-editor-topbar-inner"), true);
     assert.equal(
       /\.is-inspector-drawer-open[\s\S]*\.sunny-writing-editor-pane[\s\S]*padding-right:/.test(css),
       false,
@@ -237,6 +246,7 @@ describe("content editor contracts", () => {
           "buildContentEditorExtensions",
           "SlashCommandList",
           "BlockControlsOverlay",
+          "FloatingFormatMenu",
           "sunny-writing-tiptap-editor",
           "sunny-writing-editor-body",
         ]),
@@ -251,6 +261,17 @@ describe("content editor contracts", () => {
     );
   });
 
+  test("selection formatting stays contextual and does not occupy the document canvas", () => {
+    const editor = read("src/components/content-editor/ContentEditor.tsx");
+    const formatMenu = read("src/components/content-editor/FloatingFormatMenu.tsx");
+
+    assert.match(editor, /variant === "writing"[\s\S]*FloatingFormatMenu/);
+    assert.match(formatMenu, /BubbleMenu/);
+    assert.match(formatMenu, /from !== to/);
+    assert.match(formatMenu, /!currentEditor\.isActive\("codeBlock"\)/);
+    assert.doesNotMatch(formatMenu, /<div className="sunny-rich-editor-floating-menu"/);
+  });
+
   test("slash commands expose stable block, AI, and workflow command matrix", () => {
     const slash = read("src/components/content-editor/slash-commands.ts");
     const groups = uniqueMatches(slash, /group:\s*"([^"]+)"/g);
@@ -260,6 +281,12 @@ describe("content editor contracts", () => {
     assert.deepEqual(groups, ["ai", "blocks", "common", "lists", "time", "workflow"]);
     assert.deepEqual(
       ["正文", "标题 1", "任务列表", "无序列表", "有序列表", "图片", "表格", "引用", "当前日期", "代码块"].filter(
+        (label) => !labels.has(label),
+      ),
+      [],
+    );
+    assert.deepEqual(
+      ["折叠内容", "数学公式", "分页符", "PDF", "视频", "附件", "链接到文档"].filter(
         (label) => !labels.has(label),
       ),
       [],
@@ -281,6 +308,24 @@ describe("content editor contracts", () => {
       [],
     );
     assert.ok(slash.includes("description:"), "slash commands should keep command descriptions");
+  });
+
+  test("versions, outline, backlinks, and internal references are wired through product boundaries", () => {
+    const versionsRoute = read("src/app/api/dashboard/content/[collection]/[id]/versions/route.ts");
+    const backlinksRoute = read("src/app/api/dashboard/content/[collection]/[id]/backlinks/route.ts");
+    const versionHistory = read("src/components/dashboard/writing/WritingVersionHistory.tsx");
+    const knowledge = read("src/components/dashboard/writing/WritingKnowledgePanel.tsx");
+    const editor = read("src/components/content-editor/ContentEditor.tsx");
+
+    assert.deepEqual(
+      missingBoundaries(versionsRoute, ["findVersions", "findVersionByID", "restoreVersion", "overrideAccess: false"]),
+      [],
+    );
+    assert.match(versionHistory, /当前内容会先保存为一个可恢复版本/);
+    assert.match(backlinksRoute, /linksToDocument/);
+    assert.match(knowledge, /本文目录/);
+    assert.match(knowledge, /引用本文/);
+    assert.match(editor, /InternalDocumentLinkDialog/);
   });
 
   test("architecture guard: editor upload and publish helpers keep stable request boundaries", () => {

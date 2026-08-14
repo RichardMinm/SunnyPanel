@@ -30,6 +30,7 @@
   --writing-category-tint-warning: var(--tone-warning-text);
   --writing-category-tint-success: var(--tone-success-text);
   --writing-category-tint-muted: var(--muted);
+  --writing-document-width: 46rem;
   --writing-collection-notes-tint: var(--tone-info-text);
   --writing-collection-pages-tint: var(--tone-warning-text);
   --writing-collection-posts-tint: var(--accent);

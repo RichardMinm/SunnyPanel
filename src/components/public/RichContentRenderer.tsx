@@ -82,6 +82,14 @@ const renderMarks = (node: RichContentNode, text: string, key: string) => {
       return <s key={markKey}>{child}</s>;
     }
 
+    if (mark.type === "underline") {
+      return <u key={markKey}>{child}</u>;
+    }
+
+    if (mark.type === "highlight") {
+      return <mark key={markKey}>{child}</mark>;
+    }
+
     if (mark.type === "code") {
       return <code key={markKey}>{child}</code>;
     }

@@ -26,6 +26,9 @@ export const Post: CollectionConfig = {
     useAsTitle: "title",
   },
   defaultSort: "-publishedAt",
+  versions: {
+    maxPerDoc: 50,
+  },
   fields: [
     {
       name: "title",

@@ -62,6 +62,15 @@ export const WritingCategory: CollectionConfig = {
       label: "排序",
     },
     {
+      name: "parent",
+      type: "relationship",
+      label: "上级文档集",
+      relationTo: "writing-categories",
+      admin: {
+        position: "sidebar",
+      },
+    },
+    {
       name: "archived",
       type: "checkbox",
       defaultValue: false,

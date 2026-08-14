@@ -376,7 +376,7 @@ html[data-theme="dark"] .sunny-writing-meta-pin-button .sunny-dashboard-nav-icon
   display: flex;
   align-items: flex-start;
   gap: 0.35rem;
-  margin-top: 2rem;
+  margin-top: 1.35rem;
   margin-bottom: 0;
 }
 
@@ -389,10 +389,11 @@ html[data-theme="dark"] .sunny-writing-meta-pin-button .sunny-dashboard-nav-icon
   color: var(--writing-chrome-title);
   font-family: var(--sunny-font-sans);
   font-size: 1rem;
-  line-height: 1.5;
+  line-height: 1.65;
   outline: none;
   resize: none;
   min-height: 1.5rem;
+  overflow: hidden;
 }
 
 .sunny-writing-summary-input::placeholder {
@@ -522,6 +523,138 @@ html[data-theme="dark"] .sunny-writing-meta-pin-button .sunny-dashboard-nav-icon
 .sunny-writing-inspector-section-body {
   display: grid;
   gap: 0.5rem;
+}
+
+.sunny-writing-version-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sunny-writing-version-item {
+  display: grid;
+  gap: 0.3rem;
+  border: 1px solid var(--writing-rule);
+  border-radius: 0.6rem;
+  background: var(--writing-card-bg);
+  padding: 0.65rem 0.7rem;
+}
+
+.sunny-writing-version-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--writing-muted);
+  font-size: var(--text-2xs);
+}
+
+.sunny-writing-version-item-head strong {
+  color: var(--writing-text);
+  font-weight: 650;
+}
+
+.sunny-writing-version-item p,
+.sunny-writing-version-item small,
+.sunny-writing-version-empty p {
+  margin: 0;
+}
+
+.sunny-writing-version-item p {
+  overflow: hidden;
+  color: var(--writing-text);
+  font-size: var(--text-sm-compact);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sunny-writing-version-item small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--writing-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.sunny-writing-version-item button,
+.sunny-writing-version-empty button {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: var(--text-2xs);
+  font-weight: 650;
+  padding: 0.15rem 0;
+  cursor: pointer;
+}
+
+.sunny-writing-version-empty {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--writing-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+}
+
+.sunny-writing-knowledge-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.sunny-writing-knowledge-panel h4 {
+  margin: 0 0 0.4rem;
+  color: var(--writing-text);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+}
+
+.sunny-writing-knowledge-panel p {
+  margin: 0;
+  color: var(--writing-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+}
+
+.sunny-writing-outline-list,
+.sunny-writing-backlink-list {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sunny-writing-outline-list li[data-level="2"] { padding-left: 0.65rem; }
+.sunny-writing-outline-list li[data-level="3"] { padding-left: 1.3rem; }
+
+.sunny-writing-outline-list button,
+.sunny-writing-backlink-list a {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--writing-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.45;
+  padding: 0.3rem 0.4rem;
+  text-align: left;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sunny-writing-outline-list button:hover,
+.sunny-writing-backlink-list a:hover {
+  background: var(--writing-hover);
+  color: var(--writing-text);
 }
 
 .sunny-writing-preview-pane,

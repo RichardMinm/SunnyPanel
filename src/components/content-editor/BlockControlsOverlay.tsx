@@ -1,6 +1,6 @@
 "use client";
 
-import type { Editor } from "@tiptap/core";
+import type { Editor, JSONContent } from "@tiptap/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -15,6 +15,37 @@ type BlockAnchor = {
   pos: number;
   right: number;
   top: number;
+};
+
+const getBlockPosition = (editor: Editor, pos: number) => {
+  const $pos = editor.state.doc.resolve(pos);
+  const index = $pos.index();
+  const node = $pos.parent.child(index);
+
+  return { $pos, index, node, parent: $pos.parent };
+};
+
+const stripStableIds = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(stripStableIds);
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  const next = Object.fromEntries(
+    Object.entries(record).map(([key, item]) => [key, stripStableIds(item)]),
+  );
+
+  if (next.attrs && typeof next.attrs === "object") {
+    const attrs = { ...(next.attrs as Record<string, unknown>) };
+    delete attrs.id;
+    next.attrs = attrs;
+  }
+
+  return next;
 };
 
 const BLOCK_TYPES = new Set([
@@ -216,7 +247,9 @@ export function BlockControlsOverlay({ editor }: BlockControlsOverlayProps) {
         icon={<DashboardIcon name="plus" />}
         onClick={() =>
           runAtBlock((ed, pos) => {
-            ed.chain().focus().insertContentAt(pos + 1, { type: "paragraph" }).run();
+            const node = ed.state.doc.nodeAt(pos);
+            if (!node) return;
+            ed.chain().focus().insertContentAt(pos + node.nodeSize, { type: "paragraph" }).run();
           })
         }
         size="sm"
@@ -252,12 +285,55 @@ export function BlockControlsOverlay({ editor }: BlockControlsOverlayProps) {
             runAtBlock((ed, pos) => {
               const node = ed.state.doc.nodeAt(pos);
               if (!node) return;
-              const json = node.toJSON();
-              void navigator.clipboard?.writeText(JSON.stringify(json));
+              void navigator.clipboard?.writeText(node.textContent);
             })
           }
         >
-          复制
+          复制文本
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          onSelect={() =>
+            runAtBlock((ed, pos) => {
+              const node = ed.state.doc.nodeAt(pos);
+              if (!node) return;
+              const json = stripStableIds(node.toJSON());
+              ed.chain().focus().insertContentAt(pos + node.nodeSize, json as JSONContent).run();
+            })
+          }
+        >
+          创建副本
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          onSelect={() =>
+            runAtBlock((ed, pos) => {
+              const { index, node, parent } = getBlockPosition(ed, pos);
+              if (index <= 0) return;
+              const previous = parent.child(index - 1);
+              const target = pos - previous.nodeSize;
+              ed.view.dispatch(
+                ed.state.tr.delete(pos, pos + node.nodeSize).insert(target, node).scrollIntoView(),
+              );
+              ed.commands.focus(target + 1);
+            })
+          }
+        >
+          上移
+        </AppDropdownMenuItem>
+        <AppDropdownMenuItem
+          onSelect={() =>
+            runAtBlock((ed, pos) => {
+              const { index, node, parent } = getBlockPosition(ed, pos);
+              if (index >= parent.childCount - 1) return;
+              const next = parent.child(index + 1);
+              const target = pos + next.nodeSize;
+              ed.view.dispatch(
+                ed.state.tr.delete(pos, pos + node.nodeSize).insert(target, node).scrollIntoView(),
+              );
+              ed.commands.focus(target + 1);
+            })
+          }
+        >
+          下移
         </AppDropdownMenuItem>
         <AppDropdownMenuItem
           onSelect={() =>

@@ -21,6 +21,9 @@ export const Update: CollectionConfig = {
     useAsTitle: "type",
   },
   defaultSort: "-createdAt",
+  versions: {
+    maxPerDoc: 50,
+  },
   fields: [
     {
       name: "type",

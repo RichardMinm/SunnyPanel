@@ -31,6 +31,9 @@ export const siteCopy = {
       workspace: "Workspace",
       backToDashboard: "Dashboard",
       writingStudio: "Writing Studio",
+      advancedManagement: "Advanced management",
+      advancedDescription: "Users, media, global settings, and system records",
+      dailyWork: "Daily work",
       groups: {
         content: "Content",
         planning: "Planning",
@@ -198,6 +201,9 @@ export const siteCopy = {
       workspace: "工作区",
       backToDashboard: "工作台",
       writingStudio: "写作工作台",
+      advancedManagement: "高级管理",
+      advancedDescription: "管理用户、媒体、全局设置与系统记录",
+      dailyWork: "日常工作",
       groups: {
         content: "内容管理",
         planning: "计划与日程",

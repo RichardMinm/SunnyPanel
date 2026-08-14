@@ -91,7 +91,15 @@ const childNodeTypesByParent = new Map<string, Set<string>>([
   ["taskList", taskListNodeTypes],
 ]);
 
-const supportedMarkTypes = new Set(["bold", "code", "italic", "link", "strike"]);
+const supportedMarkTypes = new Set([
+  "bold",
+  "code",
+  "highlight",
+  "italic",
+  "link",
+  "strike",
+  "underline",
+]);
 const safeImageSrcProtocols = new Set(["http:", "https:"]);
 const safeHrefProtocols = new Set(["http:", "https:", "mailto:"]);
 
@@ -242,7 +250,7 @@ const isValidNodeAttrs = (nodeType: string, attrs: unknown) => {
         isRecord(attrs) &&
         hasOnlyAttrs(attrs, ["id", "kind", "src", "title", "filename"]) &&
         hasValidIdAttr(attrs) &&
-        isNonEmptyString(attrs.src) &&
+        isSafeHref(attrs.src) &&
         hasOptionalNullableStringAttr(attrs, "kind") &&
         hasOptionalNullableStringAttr(attrs, "title") &&
         hasOptionalNullableStringAttr(attrs, "filename")

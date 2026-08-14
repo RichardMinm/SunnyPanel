@@ -8,6 +8,12 @@ import {
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
 
+const parseParentId = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return null;
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+};
+
 const parseBody = async (request: Request) => {
   try {
     return (await request.json()) as Record<string, unknown>;
@@ -64,6 +70,24 @@ export async function POST(request: Request) {
   const icon = isWritingCategoryIcon(body?.icon) ? body.icon : "layers";
   const tint = isWritingCategoryTint(body?.tint) ? body.tint : "accent";
   const payload = await getPayloadClient();
+  const parentId = parseParentId(body?.parentId);
+
+  if (parentId === undefined) {
+    return NextResponse.json({ message: "上级文档集无效" }, { status: 400 });
+  }
+
+  if (parentId !== null) {
+    const parent = await payload.findByID({
+      collection: "writing-categories",
+      depth: 0,
+      id: parentId,
+      overrideAccess: false,
+      user: authResult.user,
+    }).catch(() => null);
+    if (!parent) {
+      return NextResponse.json({ message: "上级文档集不存在" }, { status: 400 });
+    }
+  }
   const existing = await payload.find({
     collection: "writing-categories",
     depth: 0,
@@ -82,6 +106,7 @@ export async function POST(request: Request) {
     data: {
       archived: false,
       icon,
+      parent: parentId,
       sortOrder: nextSortOrder,
       tint,
       title,

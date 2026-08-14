@@ -3,7 +3,7 @@ export type DashboardImageUploadResult = {
   url: string;
 };
 
-export async function uploadDashboardImage(file: File, alt?: string): Promise<DashboardImageUploadResult> {
+export async function uploadDashboardMedia(file: File, alt?: string): Promise<DashboardImageUploadResult> {
   const formData = new FormData();
   formData.set("file", file);
   formData.set("alt", alt?.trim() || file.name.replace(/\.[^.]+$/, "") || "image");
@@ -14,8 +14,10 @@ export async function uploadDashboardImage(file: File, alt?: string): Promise<Da
   });
 
   if (!response.ok) {
-    throw new Error("图片上传失败");
+    throw new Error("文件上传失败");
   }
 
   return (await response.json()) as DashboardImageUploadResult;
 }
+
+export const uploadDashboardImage = uploadDashboardMedia;

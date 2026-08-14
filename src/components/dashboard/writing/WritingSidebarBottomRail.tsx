@@ -33,6 +33,7 @@ export function WritingSidebarBottomRail() {
   const { locale, palette } = useSitePreferences();
   const {
     activeCategoryId,
+    categories,
     createCategory,
     createDocument,
     documents,
@@ -169,6 +170,8 @@ export function WritingSidebarBottomRail() {
 
       <CreateWritingCategoryDialog
         busy={createCategoryBusy}
+        categories={categories}
+        defaultParentId={activeCategoryId}
         onCancel={() => setCreateCategoryOpen(false)}
         onCreate={handleCreateCategory}
         open={createCategoryOpen}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 
 import { DashboardIcon } from "@/components/dashboard/icons";
 import {
@@ -17,6 +17,7 @@ import type { WritingDocumentListItem } from "./writing-types";
 type WritingCategoryGroupProps = {
   activeDocument: null | WritingDocumentListItem;
   category: WritingCategoryListItem;
+  childCategories?: ReactNode;
   documents: WritingDocumentListItem[];
   categories: WritingCategoryListItem[];
   onArchiveCategory: (category: WritingCategoryListItem) => void;
@@ -24,6 +25,7 @@ type WritingCategoryGroupProps = {
   onDelete: (document: WritingDocumentListItem) => void;
   onDuplicate: (document: WritingDocumentListItem) => void;
   onMoveToCategory: (document: WritingDocumentListItem, categoryId: null | number) => void;
+  onMoveCategory: (category: WritingCategoryListItem, parentId: null | number) => void;
   onRename: (document: WritingDocumentListItem, title: string) => void;
   onRenameCategory: (category: WritingCategoryListItem, title: string) => void;
   onSelect: (document: WritingDocumentListItem) => void;
@@ -33,6 +35,7 @@ type WritingCategoryGroupProps = {
 export function WritingCategoryGroup({
   activeDocument,
   category,
+  childCategories,
   categories,
   documents,
   onArchiveCategory,
@@ -40,6 +43,7 @@ export function WritingCategoryGroup({
   onDelete,
   onDuplicate,
   onMoveToCategory,
+  onMoveCategory,
   onRename,
   onRenameCategory,
   onSelect,
@@ -49,7 +53,7 @@ export function WritingCategoryGroup({
     (document) =>
       activeDocument?.collection === document.collection && activeDocument.id === document.id,
   );
-  const [open, setOpen] = useState(hasActiveDocument || documents.length > 0);
+  const [open, setOpen] = useState(hasActiveDocument || documents.length > 0 || Boolean(childCategories));
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -61,6 +65,22 @@ export function WritingCategoryGroup({
   }, [hasActiveDocument]);
 
   const sortedDocuments = useMemo(() => sortDocumentsByUpdatedAt(documents), [documents]);
+  const validMoveTargets = useMemo(
+    () => categories.filter((target) => {
+      if (target.id === category.id || target.id === category.parentId) return false;
+
+      let parentId = target.parentId;
+      const visited = new Set<number>();
+      while (parentId !== null && !visited.has(parentId)) {
+        if (parentId === category.id) return false;
+        visited.add(parentId);
+        parentId = categories.find((candidate) => candidate.id === parentId)?.parentId ?? null;
+      }
+
+      return true;
+    }),
+    [categories, category.id, category.parentId],
+  );
 
   const handleRename = useCallback(() => {
     const nextTitle = window.prompt("文档集名称", category.title)?.trim();
@@ -118,13 +138,26 @@ export function WritingCategoryGroup({
             triggerClassName={`sunny-writing-tree-action${menuOpen ? " is-open" : ""}`}
           >
             <AppDropdownMenuItem onSelect={handleRename}>重命名</AppDropdownMenuItem>
+            {category.parentId !== null ? (
+              <AppDropdownMenuItem onSelect={() => onMoveCategory(category, null)}>
+                移至根目录
+              </AppDropdownMenuItem>
+            ) : null}
+            {validMoveTargets.map((target) => (
+                <AppDropdownMenuItem
+                  key={target.id}
+                  onSelect={() => onMoveCategory(category, target.id)}
+                >
+                  移至「{target.title}」
+                </AppDropdownMenuItem>
+            ))}
             <AppDropdownMenuItem onSelect={() => onArchiveCategory(category)}>归档</AppDropdownMenuItem>
           </AppDropdownMenu>
         </div>
       </div>
       {open ? (
         <div className="sunny-writing-tree-children" role="list">
-          {sortedDocuments.length === 0 ? (
+          {sortedDocuments.length === 0 && !childCategories ? (
             <div className="sunny-writing-tree-empty">
               <span className="sunny-writing-tree-empty-label">暂无文档</span>
               {onCreateDocument ? (
@@ -156,6 +189,7 @@ export function WritingCategoryGroup({
               />
             );
           })}
+          {childCategories}
         </div>
       ) : null}
     </section>

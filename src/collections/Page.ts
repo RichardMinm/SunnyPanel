@@ -25,6 +25,9 @@ export const Page: CollectionConfig = {
     useAsTitle: "title",
   },
   defaultSort: "title",
+  versions: {
+    maxPerDoc: 50,
+  },
   fields: [
     {
       name: "title",

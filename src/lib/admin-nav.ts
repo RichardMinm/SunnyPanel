@@ -17,7 +17,10 @@ export function getAdminWorkspaceCopy(locale: SiteLocale) {
   const copy = getSiteCopy(locale).admin;
 
   return {
+    advancedDescription: copy.advancedDescription,
+    advancedManagement: copy.advancedManagement,
     backToDashboard: copy.backToDashboard,
+    dailyWork: copy.dailyWork,
     writingStudio: copy.writingStudio,
     workspace: copy.workspace,
   };

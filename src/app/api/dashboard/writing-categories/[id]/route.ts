@@ -6,6 +6,7 @@ import {
   isWritingCategoryIcon,
   isWritingCategoryTint,
   normalizeWritingCategoryListItem,
+  resolveWritingCategoryId,
 } from "@/lib/dashboard/writing-categories/normalize";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
@@ -27,6 +28,38 @@ const parseBody = async (request: Request) => {
   } catch {
     return null;
   }
+};
+
+const parseParentId = (value: unknown) => {
+  if (value === null || value === "") return null;
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+};
+
+const validateParent = async (
+  payload: Awaited<ReturnType<typeof getPayloadClient>>,
+  categoryId: number,
+  parentId: number,
+  user: NonNullable<Awaited<ReturnType<typeof getPayloadAuthResult>>["user"]>,
+) => {
+  let cursor: null | number = parentId;
+  const visited = new Set<number>();
+
+  while (cursor !== null) {
+    if (cursor === categoryId || visited.has(cursor)) return "文档集不能移动到自己的下级";
+    visited.add(cursor);
+    const parent = await payload.findByID({
+      collection: "writing-categories",
+      depth: 0,
+      id: cursor,
+      overrideAccess: false,
+      user,
+    }).catch(() => null);
+    if (!parent) return "上级文档集不存在";
+    cursor = resolveWritingCategoryId((parent as typeof parent & { parent?: unknown }).parent);
+  }
+
+  return null;
 };
 
 const clearCategoryFromDocuments = async (
@@ -134,6 +167,18 @@ export async function PATCH(request: Request, context: WritingCategoryDetailCont
     data.archived = body.archived;
   }
 
+  if (body && "parentId" in body) {
+    const parentId = parseParentId(body.parentId);
+    if (parentId === undefined) {
+      return NextResponse.json({ message: "上级文档集无效" }, { status: 400 });
+    }
+    if (parentId !== null) {
+      const parentError = await validateParent(payload, id, parentId, authResult.user);
+      if (parentError) return NextResponse.json({ message: parentError }, { status: 400 });
+    }
+    data.parent = parentId;
+  }
+
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ message: "没有可更新字段" }, { status: 400 });
   }
@@ -183,6 +228,22 @@ export async function DELETE(_request: Request, context: WritingCategoryDetailCo
   }
 
   try {
+    const parentId = resolveWritingCategoryId((existing as typeof existing & { parent?: unknown }).parent);
+    const children = await payload.find({
+      collection: "writing-categories",
+      depth: 0,
+      limit: 200,
+      overrideAccess: false,
+      user: authResult.user,
+      where: { parent: { equals: id } },
+    });
+    await Promise.all(children.docs.map((child) => payload.update({
+      collection: "writing-categories",
+      data: { parent: parentId },
+      id: child.id,
+      overrideAccess: false,
+      user: authResult.user,
+    })));
     await clearCategoryFromDocuments(id, authResult.user);
     await payload.delete({
       collection: "writing-categories",

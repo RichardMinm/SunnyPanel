@@ -25,7 +25,8 @@ import {
 } from "@/lib/dashboard/writing-workflow-actions";
 
 import { useWritingAssist } from "./use-writing-assist";
-import { canEditTitle, showsSummaryField } from "./writing-metadata";
+import { canEditTitle } from "./writing-metadata";
+import { WritingDocumentHeader } from "./WritingDocumentHeader";
 import { WritingPublishDialog, type WritingPublishVisibility } from "./WritingPublishDialog";
 import type { WritingDocument, WritingDraft, WritingSaveState } from "./writing-types";
 
@@ -129,6 +130,7 @@ export function WritingEditorPane({
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
   const [workflowToast, setWorkflowToast] = useState<null | string>(null);
+  const [editorFocusSignal, setEditorFocusSignal] = useState(0);
 
   const saveStatusLabel = useMemo(
     () => formatWritingSaveStatusLabel({ error, isDirty, saveState }),
@@ -201,7 +203,6 @@ export function WritingEditorPane({
           onUpdateDraft({ contentRich: nextContent });
           return;
         }
-
       }
 
       if (response.tags?.length) {
@@ -311,111 +312,108 @@ export function WritingEditorPane({
     );
   }
 
-
   return (
     <section
       className={`sunny-writing-editor-pane${focusMode ? " is-focus-mode" : ""}`}
       aria-label="编辑器"
     >
       <div className="sunny-writing-editor-topbar">
-        {focusMode ? (
-          <>
-            <button
-              className="sunny-writing-secondary-button"
-              onClick={onToggleFocusMode}
-              type="button"
-            >
-              ← 退出专注
-            </button>
-            <strong className="sunny-writing-focus-title">{draft.title || "未命名内容"}</strong>
-          </>
-        ) : (
-          <nav aria-label="文档路径" className="sunny-writing-editor-breadcrumbs">
-            <span className="sunny-writing-breadcrumb-root">内容</span>
-            <span aria-hidden className="sunny-writing-breadcrumb-sep">
-              /
-            </span>
-            <span className="sunny-writing-breadcrumb-segment">
-              {dashboardContentLabels[document.collection]}
-            </span>
-            <span aria-hidden className="sunny-writing-breadcrumb-sep">
-              /
-            </span>
-            <span className="sunny-writing-breadcrumb-current">{draft.title || "未命名内容"}</span>
-          </nav>
-        )}
-
-        <div className="sunny-writing-topbar-actions">
-          {!focusMode ? (
+        <div className="sunny-writing-editor-topbar-inner">
+          {focusMode ? (
             <>
-              <span
-                aria-live="polite"
-                className={`sunny-writing-save-state${isDirty ? " is-dirty" : ""}${saveState === "error" || error ? " is-error" : ""}`}
+              <button
+                className="sunny-writing-secondary-button"
+                onClick={onToggleFocusMode}
+                type="button"
               >
-                {saveStatusLabel}
-              </span>
-              <AppButton
-                className="sunny-writing-topbar-preview"
-                onClick={onTogglePreviewMode}
-                variant="outline"
-              >
-                预览
-              </AppButton>
-              <AppButton
-                className="sunny-writing-topbar-publish"
-                onClick={openPublishDialog}
-                variant="primary"
-              >
-                发布
-              </AppButton>
-              <AppDropdownMenu
-                align="end"
-                className="sunny-writing-menu sunny-writing-topbar-more-menu"
-                side="bottom"
-                sideOffset={6}
-                trigger={<DashboardIcon name="moreHorizontal" />}
-                triggerAriaLabel="更多操作"
-                triggerClassName="sunny-writing-topbar-more-trigger"
-                triggerTitle="更多操作"
-              >
-                {onCreateDocument ? (
-                  <>
-                    <AppDropdownMenuLabel>新建文档</AppDropdownMenuLabel>
-                    {createOptions.map((option) => (
-                      <AppDropdownMenuItem
-                        key={option.collection}
-                        onSelect={() => onCreateDocument(option.collection)}
-                      >
-                        {option.label}
-                      </AppDropdownMenuItem>
-                    ))}
-                    <AppDropdownMenuSeparator />
-                  </>
-                ) : null}
-                {document.publicHref ? (
-                  <AppDropdownMenuItem
-                    onSelect={() => {
-                      if (document.publicHref) {
-                        void navigator.clipboard?.writeText(document.publicHref);
-                      }
-                    }}
-                  >
-                    复制链接
-                  </AppDropdownMenuItem>
-                ) : null}
-                <AppDropdownMenuItem disabled>移动到</AppDropdownMenuItem>
-                <AppDropdownMenuItem disabled>导出</AppDropdownMenuItem>
-                <AppDropdownMenuItem className="is-danger" disabled>
-                  删除
-                </AppDropdownMenuItem>
-                <AppDropdownMenuSeparator />
-                <AppDropdownMenuItem onSelect={onToggleFocusMode}>专注写作</AppDropdownMenuItem>
-                {onOpenInspector ? (
-                  <AppDropdownMenuItem onSelect={onOpenInspector}>打开属性</AppDropdownMenuItem>
-                ) : null}
-              </AppDropdownMenu>
+                ← 退出专注
+              </button>
+              <strong className="sunny-writing-focus-title">{draft.title || "未命名内容"}</strong>
             </>
-          ) : null}
+          ) : (
+            <nav aria-label="文档路径" className="sunny-writing-editor-breadcrumbs">
+              <span className="sunny-writing-breadcrumb-root">内容</span>
+              <span aria-hidden className="sunny-writing-breadcrumb-sep">/</span>
+              <span className="sunny-writing-breadcrumb-segment">
+                {dashboardContentLabels[document.collection]}
+              </span>
+              <span aria-hidden className="sunny-writing-breadcrumb-sep">/</span>
+              <span className="sunny-writing-breadcrumb-current">{draft.title || "未命名内容"}</span>
+            </nav>
+          )}
+
+          <div className="sunny-writing-topbar-actions">
+            {!focusMode ? (
+              <>
+                <span
+                  aria-live="polite"
+                  className={`sunny-writing-save-state${isDirty ? " is-dirty" : ""}${saveState === "error" || error ? " is-error" : ""}`}
+                >
+                  {saveStatusLabel}
+                </span>
+                <AppButton
+                  className="sunny-writing-topbar-preview"
+                  onClick={onTogglePreviewMode}
+                  variant="outline"
+                >
+                  预览
+                </AppButton>
+                <AppButton
+                  className="sunny-writing-topbar-publish"
+                  onClick={openPublishDialog}
+                  variant="primary"
+                >
+                  发布
+                </AppButton>
+                <AppDropdownMenu
+                  align="end"
+                  className="sunny-writing-menu sunny-writing-topbar-more-menu"
+                  side="bottom"
+                  sideOffset={6}
+                  trigger={<DashboardIcon name="moreHorizontal" />}
+                  triggerAriaLabel="更多操作"
+                  triggerClassName="sunny-writing-topbar-more-trigger"
+                  triggerTitle="更多操作"
+                >
+                  {onCreateDocument ? (
+                    <>
+                      <AppDropdownMenuLabel>新建文档</AppDropdownMenuLabel>
+                      {createOptions.map((option) => (
+                        <AppDropdownMenuItem
+                          key={option.collection}
+                          onSelect={() => onCreateDocument(option.collection)}
+                        >
+                          {option.label}
+                        </AppDropdownMenuItem>
+                      ))}
+                      <AppDropdownMenuSeparator />
+                    </>
+                  ) : null}
+                  {document.publicHref ? (
+                    <AppDropdownMenuItem
+                      onSelect={() => {
+                        if (document.publicHref) {
+                          void navigator.clipboard?.writeText(document.publicHref);
+                        }
+                      }}
+                    >
+                      复制链接
+                    </AppDropdownMenuItem>
+                  ) : null}
+                  <AppDropdownMenuItem disabled>移动到</AppDropdownMenuItem>
+                  <AppDropdownMenuItem disabled>导出</AppDropdownMenuItem>
+                  <AppDropdownMenuItem className="is-danger" disabled>
+                    删除
+                  </AppDropdownMenuItem>
+                  <AppDropdownMenuSeparator />
+                  <AppDropdownMenuItem onSelect={onToggleFocusMode}>专注写作</AppDropdownMenuItem>
+                  {onOpenInspector ? (
+                    <AppDropdownMenuItem onSelect={onOpenInspector}>打开属性</AppDropdownMenuItem>
+                  ) : null}
+                </AppDropdownMenu>
+              </>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -429,74 +427,14 @@ export function WritingEditorPane({
       {aiError ? <p className="sunny-writing-inline-error">AI 辅助失败：{aiError}</p> : null}
 
       <div className="sunny-writing-editor-canvas">
-        <div className="sunny-writing-document-header">
-          {canEditTitle(document) ? (
-            <div className="sunny-writing-title-row">
-              <input
-                aria-label="标题"
-                className="sunny-writing-title-input"
-                onChange={(event) => onUpdateDraft({ title: event.target.value })}
-                placeholder="输入标题..."
-                value={draft.title}
-              />
-              <button
-                className="sunny-writing-title-ai-ghost"
-                data-title-empty={!draft.title.trim() ? "true" : "false"}
-                disabled={aiLoading}
-                onClick={() => void handleAssist("generate_title")}
-                type="button"
-              >
-                ✨ 生成标题
-              </button>
-            </div>
-          ) : null}
-
-          <p className="sunny-writing-document-byline">
-            {documentByline ? (
-              <>
-                <span>{`更新于 ${documentByline.updatedLabel}`}</span>
-                <span aria-hidden className="sunny-writing-byline-sep">
-                  {" "}
-                  ·{" "}
-                </span>
-                {documentByline.status === "draft" ? (
-                  <span className="sunny-writing-byline-chip">草稿</span>
-                ) : documentByline.status === "archived" ? (
-                  <span className="sunny-writing-byline-chip">已归档</span>
-                ) : (
-                  <span>已发布</span>
-                )}
-                <span aria-hidden className="sunny-writing-byline-sep">
-                  {" "}
-                  ·{" "}
-                </span>
-                <span>{documentByline.visibility === "public" ? "公开" : "仅自己可见"}</span>
-                {documentByline.aiLoading ? (
-                  <>
-                    <span aria-hidden className="sunny-writing-byline-sep">
-                      {" "}
-                      ·{" "}
-                    </span>
-                    <span>AI 处理中</span>
-                  </>
-                ) : null}
-              </>
-            ) : null}
-          </p>
-
-          {showsSummaryField(document.collection) ? (
-            <div className="sunny-writing-summary-row">
-              <textarea
-                aria-label="摘要"
-                className="sunny-writing-summary-input"
-                onChange={(event) => onUpdateDraft({ summary: event.target.value })}
-                placeholder="写一句摘要，帮助自己快速理解这篇内容..."
-                rows={1}
-                value={draft.summary}
-              />
-            </div>
-          ) : null}
-        </div>
+        <WritingDocumentHeader
+          byline={documentByline}
+          document={document}
+          draft={draft}
+          onFocusBody={() => setEditorFocusSignal((current) => current + 1)}
+          onGenerateTitle={() => void handleAssist("generate_title")}
+          onUpdateDraft={onUpdateDraft}
+        />
 
         <ContentEditor
           key={`${document.collection}:${document.id}`}
@@ -504,6 +442,7 @@ export function WritingEditorPane({
           className="sunny-writing-tiptap-editor"
           content={draft.contentRich ?? createEmptyRichDocument()}
           disabled={saveState === "saving"}
+          focusSignal={editorFocusSignal}
           onChange={(contentRich) => onUpdateDraft({ contentRich })}
           onWritingAssist={(action) => void handleAssist(action)}
           onWorkflowAction={handleWorkflow}
