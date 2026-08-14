@@ -189,9 +189,13 @@ export interface User {
 export interface Media {
   id: number;
   /**
-   * 简短说明这张图片的内容，方便无障碍阅读和 SEO。
+   * 图片请简述画面；其他文件请填写便于识别的说明。
    */
   alt: string;
+  /**
+   * 新上传文件默认仅后台可见；只有明确设为公开后，匿名访客才能读取。
+   */
+  visibility: 'private' | 'public';
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -294,6 +298,7 @@ export interface WritingCategory {
   icon: 'post' | 'note' | 'sparkle' | 'document' | 'pencil' | 'layers' | 'archive';
   tint: 'accent' | 'info' | 'warning' | 'success' | 'muted';
   sortOrder?: number | null;
+  parent?: (number | null) | WritingCategory;
   archived?: boolean | null;
   updatedAt: string;
   createdAt: string;
@@ -1295,6 +1300,7 @@ export interface UsersSelect<T extends boolean = true> {
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
+  visibility?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -1701,6 +1707,7 @@ export interface WritingCategoriesSelect<T extends boolean = true> {
   icon?: T;
   tint?: T;
   sortOrder?: T;
+  parent?: T;
   archived?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -1755,13 +1762,13 @@ export interface AgentSetting {
    * 关闭后，系统会直接回退到环境变量里的模型配置。
    */
   enabled?: boolean | null;
-  provider: 'openai-compatible' | 'openai' | 'zai';
+  provider: 'deepseek' | 'openai-compatible' | 'openai' | 'zai';
   /**
-   * DeepSeek: https://api.deepseek.com/v1；OpenAI: https://api.openai.com/v1
+   * DeepSeek: https://api.deepseek.com；OpenAI: https://api.openai.com/v1
    */
   baseUrl?: string | null;
   /**
-   * DeepSeek V3 使用 `deepseek-chat`；也可填 gpt-4.1-mini、glm-5.1 等。
+   * DeepSeek 推荐 `deepseek-v4-flash`；也可填 gpt-4.1-mini、glm-5.1 等。
    */
   model?: string | null;
   /**

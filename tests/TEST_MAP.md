@@ -109,6 +109,8 @@ Required invariants:
 - Capability metadata does not expose execute functions.
 - Query scope and resource provenance are deterministic.
 - Invalid schema, DAG, intent, or resource output fails closed.
+- DeepSeek Responses JSON Schema and terminal-status envelopes fail closed.
+- Streaming remains on a protocol with observable complete/partial terminals.
 - No raw prompt, response, secret, or reasoning is retained.
 
 Historical evaluation/harness snapshots are not runtime contracts and are not
@@ -132,6 +134,10 @@ Required invariants:
   turn.
 - IME composition cannot submit or cancel a turn accidentally.
 - Product UI hides raw tool names, IDs, Provider details, and internal traces.
+- Browser streams consume one SunnyPanel terminal (`complete`, `partial`,
+  `unavailable`, or `cancelled`) rather than Provider-specific event names.
+- Partial, unavailable, and cancelled output is visibly retryable but never
+  promoted to a persisted completed assistant message.
 - Thread metadata displays product state/tags without internal thread IDs.
 - Ordinary answers stay lightweight while structured artifacts use cards.
 
@@ -164,6 +170,10 @@ Required invariants:
 
 - Public metadata, rich content, writing persistence, and taxonomy remain
   stable.
+- Writing versions restore non-destructively; document-set hierarchy rejects
+  cycles; outlines, internal document links, and backlinks stay connected.
+- Rich text validation and public rendering share the same marks and block
+  contract, including underline, highlight, media, math, details, and page breaks.
 - Palette tokens preserve the Forest default, saved user selection, semantic
   hues, and accessible contrast.
 - Public, Dashboard, and admin CSS bundles remain separated.
