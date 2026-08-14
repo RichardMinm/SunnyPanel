@@ -1,6 +1,6 @@
 # SunnyPanel test map
 
-Updated: 2026-08-05
+Updated: 2026-08-14
 
 This map describes the current product test boundaries. Historical rollout
 phases and one-time Provider Gates belong in Git history or evaluation docs,
@@ -51,8 +51,9 @@ remain explicit.
 
 GitHub Actions runs this baseline with `DATABASE_URL` removed from the test
 process. After the isolated PostgreSQL migration step, it runs the checkpoint
-integration separately. Real Provider evaluations remain manual and are never
-part of CI.
+integration and release-readiness verification separately, then builds the
+standalone application and production container. Real Provider evaluations
+remain manual and are never part of CI.
 
 ## Protected product contracts
 
@@ -140,6 +141,23 @@ Required invariants:
   promoted to a persisted completed assistant message.
 - Thread metadata displays product state/tags without internal thread IDs.
 - Ordinary answers stay lightweight while structured artifacts use cards.
+
+### Release readiness
+
+Representative paths:
+
+- `tests/content/release-readiness.test.ts`
+- `tests/integration/langgraph-postgres-checkpointer.test.ts`
+
+Required invariants:
+
+- Application startup never applies Payload migrations implicitly.
+- Release preparation applies migrations, initializes checkpoint tables, and
+  then performs a read-only migration-state verification.
+- Readiness requires every registered Payload migration, no development marker,
+  and every LangGraph checkpoint table.
+- Missing database state returns a safe 503 response before traffic is accepted.
+- Production builds do not connect to or mutate PostgreSQL.
 
 ### Planning, checklist, schedule, and timeline
 

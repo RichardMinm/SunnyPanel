@@ -14,7 +14,7 @@ type DashboardPageProps = {
   searchParams: Promise<DashboardPageSearchParams>;
 };
 
-export const buildDashboardRedirectPath = (params: DashboardPageSearchParams) => {
+const buildDashboardRedirectPath = (params: DashboardPageSearchParams) => {
   const search = new URLSearchParams();
 
   Object.entries(params).forEach(([key, value]) => {

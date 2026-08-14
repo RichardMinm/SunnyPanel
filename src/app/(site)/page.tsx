@@ -15,7 +15,9 @@ import {
   getPublicTimelineEvents,
 } from "@/lib/payload/public";
 
-export const revalidate = 60;
+// Database-backed public pages render at runtime so application images never
+// need production database access during compilation.
+export const dynamic = "force-dynamic";
 
 const excerpt = (value: null | string | undefined, fallback: string, maxLength = 120) => {
   const normalized = (value || fallback).replace(/\s+/g, " ").trim();

@@ -11,7 +11,7 @@ import {
   resolveWritingCategoryBySlug,
 } from "@/lib/payload/public";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 type CategoryPageProps = {
   params: Promise<{

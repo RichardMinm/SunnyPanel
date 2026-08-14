@@ -13,7 +13,7 @@ import { getPublicPostBySlug } from "@/lib/payload/public";
 import { getReadingMinutesFromContent } from "@/lib/markdown/reading-time";
 import { getContentMarkdownFallback, getContentTextFallback } from "@/lib/rich-content/compat";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 type BlogPostPageProps = {
   params: Promise<{

@@ -1,36 +1,65 @@
-import { getPayload } from "payload";
-import config from "@payload-config";
+import { NextResponse } from "next/server";
+
+import { checkReleaseReadiness } from "@/lib/release/readiness";
 
 export const dynamic = "force-dynamic";
 
+const buildResponse = ({
+  duration,
+  error,
+  ready,
+}: {
+  duration: number;
+  error?: "application_not_ready" | "database_unavailable";
+  ready: boolean;
+}) => NextResponse.json(
+  {
+    db: ready || error === "application_not_ready" ? "connected" : "disconnected",
+    ...(error ? { error } : {}),
+    duration,
+    status: ready ? "ok" : "degraded",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  },
+  { status: ready ? 200 : 503 },
+);
+
 export async function GET() {
   const startedAt = Date.now();
-  let db: "connected" | "disconnected" = "disconnected";
+  const connectionString = process.env.DATABASE_URL?.trim();
 
-  try {
-    const payload = await getPayload({ config });
-    // A lightweight query to verify database connectivity
-    await payload.count({ collection: "users", where: {} });
-    db = "connected" as const;
-  } catch (error) {
-    console.error("[health] database check failed", {
-      errorName: error instanceof Error ? error.name : "UnknownError",
+  if (!connectionString) {
+    return buildResponse({
+      duration: Date.now() - startedAt,
+      error: "database_unavailable",
+      ready: false,
     });
   }
 
-  const duration = Date.now() - startedAt;
-  const healthy = db === "connected";
+  try {
+    const readiness = await checkReleaseReadiness(connectionString);
 
-  const body = {
-    status: healthy ? ("ok" as const) : ("degraded" as const),
-    db,
-    ...(!healthy ? { error: "database_unavailable" as const } : {}),
-    uptime: process.uptime(),
-    duration,
-    timestamp: new Date().toISOString(),
-  };
+    if (!readiness.ready) {
+      return buildResponse({
+        duration: Date.now() - startedAt,
+        error: "application_not_ready",
+        ready: false,
+      });
+    }
 
-  return Response.json(body, {
-    status: healthy ? 200 : 503,
-  });
+    return buildResponse({
+      duration: Date.now() - startedAt,
+      ready: true,
+    });
+  } catch (error) {
+    console.error("[health] readiness check failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
+
+    return buildResponse({
+      duration: Date.now() - startedAt,
+      error: "database_unavailable",
+      ready: false,
+    });
+  }
 }

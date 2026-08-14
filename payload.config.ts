@@ -27,7 +27,6 @@ import { Users } from "./src/collections/Users.ts";
 import { WritingCategory } from "./src/collections/WritingCategory.ts";
 import { AgentSettings } from "./src/globals/AgentSettings.ts";
 import { buildLivePreviewPath, isPreviewCollectionSlug, livePreviewBreakpoints } from "./src/lib/payload/preview.ts";
-import { migrations } from "./src/migrations/index.ts";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -124,9 +123,10 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URL || "",
     },
-    prodMigrations: migrations,
-    // Never auto-push unless explicitly enabled; use `npm run migrate` instead.
-    push: process.env.PAYLOAD_DB_PUSH === "true",
+    // Release jobs own production migrations. Schema push is development-only.
+    push:
+      process.env.NODE_ENV !== "production" &&
+      process.env.PAYLOAD_DB_PUSH === "true",
   }),
   globals: [AgentSettings],
   graphQL: {

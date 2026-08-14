@@ -11,7 +11,7 @@ import { getSiteLocale } from "@/lib/site-locale";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPageBySlug } from "@/lib/payload/public";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 const managedPageMeta = {
   about: {

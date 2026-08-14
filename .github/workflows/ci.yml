@@ -22,7 +22,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_DB: sunnypanel_ci
           POSTGRES_PASSWORD: sunnypanel_ci
@@ -69,8 +69,14 @@ jobs:
       - name: Payload migrations
         run: npm run migrate
 
+      - name: Verify migration state
+        run: npm run verify:migrations
+
       - name: LangGraph checkpoint integration
         run: npm run test:agent:checkpoint
 
       - name: Build
         run: npm run build
+
+      - name: Build production container
+        run: docker build --target production -t sunnypanel:ci .

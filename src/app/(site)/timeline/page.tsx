@@ -4,7 +4,7 @@ import { PublicListPage } from "@/components/public/PublicListPage";
 import { TimelinePageContent } from "@/components/public/timeline/TimelinePageContent";
 import { getPublicTimelineEvents } from "@/lib/payload/public";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   alternates: {

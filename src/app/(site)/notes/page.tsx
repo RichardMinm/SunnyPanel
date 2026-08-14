@@ -10,7 +10,7 @@ import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicNotes } from "@/lib/payload/public";
 import { getContentMarkdownFallback } from "@/lib/rich-content/compat";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   alternates: {

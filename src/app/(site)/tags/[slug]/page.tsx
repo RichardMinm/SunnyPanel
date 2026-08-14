@@ -7,7 +7,7 @@ import { PublicListPage } from "@/components/public/PublicListPage";
 import { SectionIntro } from "@/components/public/SectionIntro";
 import { getPublicPostsByTag } from "@/lib/payload/public";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 type TagPageProps = {
   params: Promise<{

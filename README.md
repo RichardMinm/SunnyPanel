@@ -177,7 +177,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 | `/dashboard` | Agent 工作台 Dashboard |
 | `/admin` | Payload 管理后台 |
 | `/api/agent/...` | Agent API（聊天、回滚、日程、记忆等） |
-| `/api/health` | 健康检查（含数据库连通性） |
+| `/api/health` | Readiness 检查（数据库、Payload migration、LangGraph checkpoint） |
 | `/graphql` | GraphQL 端点 |
 | `/graphql-playground` | GraphQL 调试 |
 
@@ -201,10 +201,12 @@ cp .env.example .env
 docker compose up -d postgres
 ```
 
-4. 首次初始化 LangGraph checkpoint 表：
+4. 执行 Payload migration 并初始化 LangGraph checkpoint 表：
 
 ```bash
+npm run migrate
 npm run agent:checkpoint:setup
+npm run verify:migrations
 ```
 
 此命令需要 `DATABASE_URL`，且必须显式执行；HTTP 请求不会自动运行 checkpoint DDL。
@@ -233,7 +235,7 @@ npm run dev
 - 前台：[http://localhost:3000](http://localhost:3000)
 - 后台：[http://localhost:3000/admin](http://localhost:3000/admin)
 
-首次进入后台时，如果还没有管理员用户，按 Payload 的引导创建首个用户，或运行 `npm run seed` 自动创建。
+首次部署必须通过受信任的本地命令运行 `npm run seed` 创建管理员。通用 HTTP/Payload Collection API 不允许匿名创建首个管理员。
 
 ## 部署
 
@@ -246,7 +248,7 @@ npm run dev
    - `DATABASE_URL` — 指向可访问的 PostgreSQL（Supabase、Neon、Railway 等）
    - `PAYLOAD_DB_PUSH` — 设为 `false`
    - `NEXT_PUBLIC_SERVER_URL` — 设为实际 HTTPS 域名
-4. 部署后运行 `npm run seed` 或通过 `/admin` 创建管理员用户
+4. 在受控发布环境中运行 `npm run seed` 创建首个管理员
 
 生产环境还需在数据库上执行 Payload migration（`npx payload migrate` 或 `npm run migrate`），并在应用接流量前显式执行一次 `npm run agent:checkpoint:setup`。
 
@@ -254,10 +256,10 @@ npm run dev
 
 1. 备份当前 PostgreSQL 数据库，并确认可回滚。
 2. 设置 `PAYLOAD_DB_PUSH=false`，不要让运行时自动改 schema。
-3. 部署新代码和依赖。
-4. 执行 `npm run migrate`。
-5. 执行 `npm run agent:checkpoint:setup`。
-6. 执行 `npm run build`。
+3. 构建应用产物；构建过程不连接或修改数据库。
+4. 使用单实例 release job 执行 `npm run release:prepare`。
+5. 确认 `/api/health` 返回 200 后再接入流量。
+6. 仅在真正的空用户数据库上运行一次 `npm run seed`。
 7. 启动服务并运行 Agent JSON/SSE 冒烟验证。
 
 如需回滚顶层 Agent runtime，请部署上一已验证版本；当前版本不提供进程内 Legacy 切换。
@@ -265,14 +267,27 @@ npm run dev
 ### Docker 完整部署
 
 ```bash
-# 构建并启动（含 Next.js + PostgreSQL）
+# 生产方式：构建镜像，等待 PostgreSQL ready，执行一次性 migration，
+# 然后启动非 root 的 Next.js standalone 容器。
 docker compose up --build -d
+```
+
+本地容器开发使用独立覆盖文件，不会在生产镜像中运行开发服务器：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+首次空库需要创建管理员时显式运行：
+
+```bash
+docker compose --profile tools run --rm seed
 ```
 
 生产环境需额外配置：
 
 - `PAYLOAD_SECRET` — 强随机字符串（`openssl rand -base64 32`）
-- `PAYLOAD_DB_PUSH` — 设为 `false`，通过 `npx payload migrate` 管理 schema
+- `PAYLOAD_DB_PUSH` — 固定为 `false`，由一次性 `migrate` 服务管理 schema
 - `DATABASE_URL` — PostgreSQL 连接串
 - `NEXT_PUBLIC_SERVER_URL` — 实际 HTTPS 域名（Docker 部署需前置反向代理做 SSL 终止）
 - LLM API key — 可选，未配置时 Agent 使用规则降级
@@ -286,6 +301,7 @@ docker compose up -d postgres
 pg_dump "$DATABASE_URL" > /private/tmp/sunnypanel-before-release.sql
 npm run migrate
 npm run agent:checkpoint:setup
+npm run verify:migrations
 npm run build
 npm run start
 ```
@@ -335,6 +351,8 @@ npm run test:agent:e2e       # Agent JSON/SSE/确认幂等 E2E
 npm run test:e2e             # E2E 测试
 npm run typecheck            # TypeScript 类型检查
 npm run agent:checkpoint:setup # 显式创建 LangGraph checkpoint 表
+npm run verify:migrations      # 只读检查 migration 与 dev marker
+npm run release:prepare        # migration + checkpoint setup + 只读校验
 
 npm run migrate              # 执行 Payload 数据库迁移
 npm run migrate:create       # 创建新的迁移文件
@@ -371,7 +389,7 @@ OPENAI_API_KEY=sk-...
 ## 已知限制
 
 - **无多用户角色系统** — 当前权限模型为二元制（已登录 / 匿名）
-- **Agent 依赖外部 LLM** — 未配置 LLM API 时降级为启发式规则，复合意图能力受限
-- **无 CI/CD 流水线** — 需自行配置自动化构建/测试/部署管道
+- **Agent 依赖外部 LLM** — 未配置 LLM API 时，确定性查询仍可使用，但需要模型的问答和复合编排会安全返回不可用
+- **发布仍需外部编排** — GitHub Actions 负责验证；生产密钥、备份、迁移审批和流量切换仍由部署平台管理
 - **仅支持 PostgreSQL** — 未适配 SQLite 或 MySQL
 - **深色主题兼容** — 部分 Payload 内建组件在深色模式下样式未完全适配

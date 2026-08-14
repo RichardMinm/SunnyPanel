@@ -1,36 +1,76 @@
-services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0"
-    depends_on:
-      - postgres
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-    env_file:
-      - .env
-    ports:
-      - "3000:3000"
-    volumes:
-      - .:/app
-      - app_node_modules:/app/node_modules
-      - app_next:/app/.next
-      - app_media:/app/media
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:-http://localhost:3000}
+  PAYLOAD_DB_PUSH: "false"
 
+x-app-build: &app-build
+  context: .
+  dockerfile: Dockerfile
+  args:
+    NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:-http://localhost:3000}
+
+services:
   postgres:
     image: postgres:17-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
+    restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  migrate:
+    build:
+      <<: *app-build
+      target: migration
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment: *app-environment
+    restart: "no"
+
+  app:
+    build:
+      <<: *app-build
+      target: production
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment: *app-environment
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    volumes:
+      - app_media:/app/media
+
+  seed:
+    profiles: ["tools"]
+    build:
+      <<: *app-build
+      target: migration
+    command: ["npm", "run", "seed"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment: *app-environment
+    restart: "no"
+
 volumes:
   app_media:
-  app_next:
-  app_node_modules:
   postgres_data:

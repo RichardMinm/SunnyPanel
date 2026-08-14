@@ -1,9 +1,9 @@
 /**
- * Prepare Payload migration state before production build.
+ * Verify Payload migration state before production startup.
  *
- * - Removes leftover dev-mode markers (batch = -1) that trigger interactive prompts.
+ * - Rejects leftover dev-mode markers (batch = -1) without modifying them.
  * - Verifies every registered migration has a payload_migrations record.
- * - Does NOT backfill migration records without running SQL (that causes schema drift).
+ * - Never changes schema or migration records.
  */
 import "dotenv/config";
 import pg from "pg";
@@ -25,16 +25,19 @@ try {
   const { rows: existingRows } = await client.query(
     "SELECT name, batch FROM payload_migrations ORDER BY id",
   );
-  const existingNames = new Set(existingRows.map((row) => row.name));
   const devRows = existingRows.filter((row) => Number(row.batch) === -1);
 
   if (devRows.length > 0) {
-    await client.query("DELETE FROM payload_migrations WHERE batch = -1");
-    console.log(
-      `[ensure-migrations] Removed ${devRows.length} dev-mode migration marker(s): ${devRows.map((row) => row.name).join(", ")}`,
+    console.error(
+      `[ensure-migrations] Found ${devRows.length} dev-mode migration marker(s): ${devRows.map((row) => row.name).join(", ")}`,
     );
+    console.error(
+      "[ensure-migrations] Refusing to hide schema drift. Reconcile the database before release.",
+    );
+    process.exit(1);
   }
 
+  const existingNames = new Set(existingRows.map((row) => row.name));
   const missingMigrations = migrations
     .map((migration) => migration.name)
     .filter((name) => !existingNames.has(name));
@@ -47,7 +50,7 @@ try {
     process.exit(1);
   }
 
-  console.log("[ensure-migrations] Migration state is ready for production build.");
+  console.log("[ensure-migrations] Migration state is ready for production startup.");
 } catch (error) {
   console.error(
     "[ensure-migrations] Failed:",

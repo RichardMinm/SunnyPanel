@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/formatters";
 import { getSiteCopy } from "@/lib/site-copy";
 import { getPublicPosts } from "@/lib/payload/public";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   alternates: {
