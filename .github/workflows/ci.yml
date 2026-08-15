@@ -79,3 +79,26 @@ jobs:
 
       - name: Build production container
         run: docker build --target production -t sunnypanel:ci .
+
+      - name: Start production container
+        run: >-
+          docker run --detach
+          --name sunnypanel-ci-runtime
+          --network host
+          --env AGENT_DISABLE_LLM
+          --env DATABASE_URL
+          --env NEXT_PUBLIC_SERVER_URL=http://127.0.0.1:3000
+          --env PAYLOAD_DB_PUSH
+          --env PAYLOAD_SECRET
+          sunnypanel:ci
+
+      - name: Verify production readiness
+        run: npm run smoke:release-health
+
+      - name: Show production logs on failure
+        if: failure()
+        run: docker logs sunnypanel-ci-runtime
+
+      - name: Stop production container
+        if: always()
+        run: docker rm --force sunnypanel-ci-runtime
