@@ -17,11 +17,31 @@ type ExactScheduleCompletionIntent = Extract<
   { intent: "modify_record" }
 >;
 
+export type ExactScheduleCompletionReference = Readonly<{
+  scheduleId: number;
+  title: string;
+}>;
+
 const exactScheduleCompletionPattern =
   /^(?:将|把)日程\s*#([1-9]\d*)\s*「([^」\r\n]+)」\s*(?:标记为|设为)完成[。.!！]?$/u;
 
 const normalizeContractText = (value: string): string =>
   value.normalize("NFKC").trim();
+
+export const parseExactScheduleCompletionReference = (
+  originalRequest: string,
+): ExactScheduleCompletionReference | null => {
+  const match = normalizeContractText(originalRequest).match(
+    exactScheduleCompletionPattern,
+  );
+  if (!match) return null;
+
+  const scheduleId = Number(match[1]);
+  const title = normalizeContractText(match[2]);
+  if (!Number.isSafeInteger(scheduleId) || title.length === 0) return null;
+
+  return Object.freeze({ scheduleId, title });
+};
 
 /**
  * Deterministic boundary for an already-authorized, already-identified
@@ -42,16 +62,9 @@ export const resolveExactScheduleCompletionIntent = ({
     return null;
   }
 
-  const match = normalizeContractText(originalRequest).match(
-    exactScheduleCompletionPattern,
-  );
-  if (!match) return null;
-
-  const scheduleId = Number(match[1]);
-  const requestedTitle = normalizeContractText(match[2]);
-  if (!Number.isSafeInteger(scheduleId) || requestedTitle.length === 0) {
-    return null;
-  }
+  const reference = parseExactScheduleCompletionReference(originalRequest);
+  if (!reference) return null;
+  const { scheduleId, title: requestedTitle } = reference;
 
   const matchingSchedules = (context.schedules ?? []).filter(
     (schedule) => schedule.id === scheduleId,

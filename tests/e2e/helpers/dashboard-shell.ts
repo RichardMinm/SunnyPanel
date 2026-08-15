@@ -145,6 +145,20 @@ export async function deletePrivateCoreRecord(
   ).toBe(true);
 }
 
+export async function updatePrivateCoreRecord(
+  page: Page,
+  collection: string,
+  id: number,
+  data: Record<string, unknown>,
+) {
+  assertLocalBaseUrl();
+  const response = await page.request.patch(`/api/${collection}/${id}`, {
+    data,
+    headers: getPayloadAuthHeaders(page),
+  });
+  expect(response.ok(), `更新 ${collection} #${id} 应成功（HTTP ${response.status()}）`).toBe(true);
+}
+
 export async function getDashboardShell(
   page: Page,
   options: { threadId?: number } = {},

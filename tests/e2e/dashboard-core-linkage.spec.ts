@@ -9,6 +9,7 @@ import {
   queryPrivateCoreRecords,
   readPrivateCoreRecord,
   switchDashboardView,
+  updatePrivateCoreRecord,
 } from "./helpers/dashboard-shell";
 
 test.describe.configure({ mode: "serial" });
@@ -223,6 +224,11 @@ test("manual Schedule completion propagates and preserves exact linked navigatio
       "true",
     );
   } finally {
+    for (const planRecord of created.filter((record) => record.collection === "plans")) {
+      await updatePrivateCoreRecord(page, "plans", planRecord.id, {
+        lastAgentRun: null,
+      }).catch(() => undefined);
+    }
     const timelineEvents = await queryPrivateCoreRecords<CoreRecord>(
       page,
       "timeline-events",

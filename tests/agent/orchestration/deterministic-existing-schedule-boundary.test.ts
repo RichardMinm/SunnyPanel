@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { resolveExactScheduleCompletionIntent } from "../../../src/lib/agent/orchestration/deterministic-existing-schedule-boundary";
+import { hydrateExactScheduleCompletionContext } from "../../../src/lib/agent/orchestration/exact-schedule-context";
 import type { AgentPromptContext } from "../../../src/lib/agent/prompts";
 
 const context: AgentPromptContext = {
@@ -48,6 +49,58 @@ test("resolves the same exact mutation from the default ask surface", () => {
 
   assert.equal(intent?.intent, "modify_record");
   assert.equal(intent?.args.targetId, 41);
+});
+
+test("hydrates an exact planned schedule outside the ordinary calendar window", async () => {
+  let requestedId: number | null = null;
+  const hydrated = await hydrateExactScheduleCompletionContext({
+    loadSchedule: async (scheduleId) => {
+      requestedId = scheduleId;
+      return {
+        date: "2026-09-30T00:00:00.000Z",
+        id: scheduleId,
+        status: "planned",
+        title: "完成核心链路验收",
+      };
+    },
+    message: "将日程 #41「完成核心链路验收」标记为完成",
+    source: { schedules: [] },
+  });
+
+  assert.equal(requestedId, 41);
+  assert.deepEqual(hydrated.schedules, [
+    {
+      date: "2026-09-30T00:00:00.000Z",
+      id: 41,
+      status: "planned",
+      title: "完成核心链路验收",
+    },
+  ]);
+});
+
+test("does not hydrate title conflicts, completed schedules, or ambiguous text", async () => {
+  const source = { schedules: [] };
+  for (const [message, schedule] of [
+    [
+      "将日程 #41「完成核心链路验收」标记为完成",
+      { id: 41, status: "planned", title: "另一个日程" },
+    ],
+    [
+      "将日程 #41「完成核心链路验收」标记为完成",
+      { id: 41, status: "done", title: "完成核心链路验收" },
+    ],
+    [
+      "把核心链路验收标记为完成",
+      { id: 41, status: "planned", title: "完成核心链路验收" },
+    ],
+  ] as const) {
+    const hydrated = await hydrateExactScheduleCompletionContext({
+      loadSchedule: async () => schedule,
+      message,
+      source,
+    });
+    assert.equal(hydrated, source);
+  }
 });
 
 test("accepts NFKC-equivalent syntax without weakening the exact title contract", () => {

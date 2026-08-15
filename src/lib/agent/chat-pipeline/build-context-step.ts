@@ -3,12 +3,14 @@ import type { Payload } from "payload";
 import { buildAgentContext, DEFAULT_AGENT_CONTEXT_BUDGET } from "@/lib/agent/context-builder";
 import type { ContextPreferences } from "@/lib/agent/chat-pipeline/runtime-deps";
 import { buildSharedContextSnapshot } from "@/lib/agent/shared-context";
+import { hydrateExactScheduleCompletionContext } from "@/lib/agent/orchestration/exact-schedule-context";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import type { AgentChatResponse, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
 import type { AgentPromptThreadSummary } from "@/lib/agent/thread-summary";
 import { createTokenUsageSnapshot, estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import { getAgentWorkspaceContextSource } from "@/lib/payload/workspace";
+import { getScheduleItemById } from "@/lib/schedule/items";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
 import type { SectionName, ScheduleDateRange } from "@/lib/agent/context-loading-policy";
 
@@ -76,12 +78,17 @@ export const runBuildContextStep = async ({
     status: "running",
     title: "正在建立上下文",
   });
-  const contextSource = await getAgentWorkspaceContextSource({
+  const loadedContextSource = await getAgentWorkspaceContextSource({
     budget: DEFAULT_AGENT_CONTEXT_BUDGET,
     sections: loadingSections,
     dateRange,
     targetDocument,
     payload,
+  });
+  const contextSource = await hydrateExactScheduleCompletionContext({
+    loadSchedule: (scheduleId) => getScheduleItemById(scheduleId, payload),
+    message,
+    source: loadedContextSource,
   });
   const baseContext = buildAgentContext({
     budget: DEFAULT_AGENT_CONTEXT_BUDGET,

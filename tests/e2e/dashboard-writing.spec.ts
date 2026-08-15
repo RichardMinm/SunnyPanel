@@ -12,7 +12,7 @@ test("写作工作台可进入并切换预览", async ({ page }) => {
 
   const navigation = page.getByRole("navigation", { name: "工作台导航" });
   await navigation.hover();
-  await navigation.getByRole("button", { name: "新建" }).click();
+  await navigation.getByRole("button", { name: "新建", exact: true }).click();
   await page.getByRole("menuitem", { name: "新文章" }).click();
 
   await workspace.getByRole("textbox", { name: "标题" }).fill("E2E 写作页冒烟");
