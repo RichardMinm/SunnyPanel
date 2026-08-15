@@ -74,6 +74,11 @@ jobs:
       - name: LangGraph checkpoint integration
         run: npm run test:agent:checkpoint
 
+      - name: Previous-release database upgrade
+        env:
+          UPGRADE_TEST_DATABASE_URL: postgres://sunnypanel_ci:sunnypanel_ci@localhost:5432/sunnypanel_upgrade_ci
+        run: npm run test:migrations:upgrade
+
       - name: Build
         run: npm run build
 

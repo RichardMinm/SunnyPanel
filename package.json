@@ -26,6 +26,7 @@
     "test:e2e": "playwright test",
     "test:e2e:public": "playwright test tests/e2e/public-site-smoke.spec.ts",
     "test:e2e:public:local": "PLAYWRIGHT_SKIP_WEBSERVER=1 playwright test tests/e2e/public-site-smoke.spec.ts",
+    "test:migrations:upgrade": "node --import tsx scripts/verify-upgrade-migrations.mjs",
     "smoke:agent": "node --import dotenv/config scripts/agent-smoke.mjs",
     "smoke:release-health": "node scripts/smoke-release-health.mjs",
     "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
