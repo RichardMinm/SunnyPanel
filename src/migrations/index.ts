@@ -9,6 +9,7 @@ import * as migration_20260708_062012 from './20260708_062012';
 import * as migration_20260728_add_core_timeline_linkage from './20260728_add_core_timeline_linkage';
 import * as migration_20260805_094941 from './20260805_094941';
 import * as migration_20260810_add_media_visibility from './20260810_add_media_visibility';
+import * as migration_20260815_add_deepseek_agent_provider from './20260815_add_deepseek_agent_provider';
 
 export const migrations = [
   {
@@ -65,5 +66,10 @@ export const migrations = [
     up: migration_20260810_add_media_visibility.up,
     down: migration_20260810_add_media_visibility.down,
     name: '20260810_add_media_visibility',
+  },
+  {
+    up: migration_20260815_add_deepseek_agent_provider.up,
+    down: migration_20260815_add_deepseek_agent_provider.down,
+    name: '20260815_add_deepseek_agent_provider',
   },
 ];

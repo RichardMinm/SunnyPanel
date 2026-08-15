@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { migrations } from "../../src/migrations/index";
@@ -15,6 +16,24 @@ const appliedMigrations = migrations.map((migration, index) => ({
   batch: index + 1,
   name: migration.name,
 }));
+
+test("release migrations align the Agent provider database contract", () => {
+  const migration = readFileSync(
+    "src/migrations/20260815_add_deepseek_agent_provider.ts",
+    "utf8",
+  );
+
+  assert.equal(
+    migrations.at(-1)?.name,
+    "20260815_add_deepseek_agent_provider",
+  );
+  assert.match(
+    migration,
+    /AS ENUM\('deepseek', 'openai-compatible', 'openai', 'zai'\)/u,
+  );
+  assert.match(migration, /SET DEFAULT 'deepseek'/u);
+  assert.match(migration, /WHERE "provider"::text = 'deepseek'/u);
+});
 
 test("release readiness requires every migration and checkpoint table", () => {
   assert.deepEqual(

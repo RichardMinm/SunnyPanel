@@ -6,10 +6,14 @@ import pg from "pg";
 
 import { migrations } from "../src/migrations/index.ts";
 import * as mediaVisibilityMigration from "../src/migrations/20260810_add_media_visibility.ts";
+import * as deepseekProviderMigration from "../src/migrations/20260815_add_deepseek_agent_provider.ts";
 
 const targetConnectionString = process.env.UPGRADE_TEST_DATABASE_URL?.trim();
 const sourceConnectionString = process.env.DATABASE_URL?.trim();
-const latestMigrationName = "20260810_add_media_visibility";
+const previousReleaseUpgradeNames = [
+  "20260810_add_media_visibility",
+  "20260815_add_deepseek_agent_provider",
+];
 const allowedHosts = new Set(["127.0.0.1", "localhost"]);
 
 if (!targetConnectionString) {
@@ -108,6 +112,11 @@ const createPreviousReleaseFixture = async () => {
   const db = drizzle({ client: pool });
 
   try {
+    await deepseekProviderMigration.down({
+      db,
+      payload: undefined,
+      req: undefined,
+    });
     await mediaVisibilityMigration.down({
       db,
       payload: undefined,
@@ -122,8 +131,8 @@ const createPreviousReleaseFixture = async () => {
   try {
     await client.connect();
     await client.query(
-      "DELETE FROM payload_migrations WHERE name = $1",
-      [latestMigrationName],
+      "DELETE FROM payload_migrations WHERE name = ANY($1::text[])",
+      [previousReleaseUpgradeNames],
     );
 
     const mediaResult = await client.query(
@@ -201,6 +210,29 @@ const verifyUpgradedDatabase = async ({ mediaId, postId }) => {
     );
     assert.equal(indexResult.rows[0]?.index_name, "media_visibility_idx");
 
+    const providerEnum = await client.query(
+      `SELECT enumlabel
+       FROM pg_enum
+       JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+       JOIN pg_namespace ON pg_namespace.oid = pg_type.typnamespace
+       WHERE pg_namespace.nspname = 'public'
+         AND pg_type.typname = 'enum_agent_settings_provider'
+       ORDER BY enumsortorder`,
+    );
+    assert.deepEqual(
+      providerEnum.rows.map((row) => row.enumlabel),
+      ["deepseek", "openai-compatible", "openai", "zai"],
+    );
+
+    const providerColumn = await client.query(
+      `SELECT column_default
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'agent_settings'
+         AND column_name = 'provider'`,
+    );
+    assert.match(String(providerColumn.rows[0]?.column_default), /deepseek/u);
+
     const migrationRows = await client.query(
       "SELECT name, batch FROM payload_migrations ORDER BY id",
     );
@@ -209,10 +241,12 @@ const verifyUpgradedDatabase = async ({ mediaId, postId }) => {
       .map((migration) => migration.name)
       .filter((name) => !appliedNames.has(name));
     assert.deepEqual(missingNames, []);
-    assert.equal(
-      migrationRows.rows.filter((row) => row.name === latestMigrationName).length,
-      1,
-    );
+    for (const name of previousReleaseUpgradeNames) {
+      assert.equal(
+        migrationRows.rows.filter((row) => row.name === name).length,
+        1,
+      );
+    }
     assert.equal(
       migrationRows.rows.filter((row) => Number(row.batch) === -1).length,
       0,
