@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 
+import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { getPayload } from "payload";
 
 import { migrations } from "../src/migrations/index.ts";
 import * as mediaVisibilityMigration from "../src/migrations/20260810_add_media_visibility.ts";
@@ -104,26 +104,17 @@ const dropTargetDatabase = async () => {
 };
 
 const createPreviousReleaseFixture = async () => {
-  process.env.DATABASE_URL = targetConnectionString;
-  process.env.NODE_ENV = "production";
-  process.env.PAYLOAD_DB_PUSH = "false";
-
-  const { default: config } = await import("../payload.config.ts");
-  const payload = await getPayload({ config });
+  const pool = new pg.Pool({ connectionString: targetConnectionString });
+  const db = drizzle({ client: pool });
 
   try {
-    assert.ok(payload.db.drizzle, "Payload PostgreSQL adapter must expose Drizzle.");
     await mediaVisibilityMigration.down({
-      db: payload.db.drizzle,
-      payload,
+      db,
+      payload: undefined,
       req: undefined,
     });
   } finally {
-    // Payload resets its adapter state on destroy, but the PostgreSQL adapter
-    // keeps the underlying pool open. Close it before the isolated database is
-    // dropped so FORCE does not terminate an idle client and emit a late error.
-    await payload.db.pool?.end();
-    await payload.destroy();
+    await pool.end();
   }
 
   const client = new pg.Client({ connectionString: targetConnectionString });
