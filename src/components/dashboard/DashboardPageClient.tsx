@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { AgentWorkbench } from "@/components/dashboard/agent";
 import { ConfirmDialog } from "@/components/dashboard/agent/ConfirmDialog";
@@ -17,34 +17,6 @@ export function DashboardPageClient({
 }: DashboardPageClientProps) {
   const chat = useAgentDashboardChat({ initialThreadId });
   const [discardDraftDialogOpen, setDiscardDraftDialogOpen] = useState(false);
-
-  /* Phase P2: Fire suggestion sync after mount — non-blocking, non-critical.
-     Previously this ran server-side on every dashboard page load, blocking
-     the HTML response for up to 23s (LLM call + 22+ DB queries). */
-  const syncInFlightRef = useRef(false);
-
-  useEffect(() => {
-    /* Deduplication: skip if already in-flight, or if synced within this
-       browser session (checked via sessionStorage). Failures are silent —
-       GET /api/agent/suggestions serves cached suggestions regardless. */
-    if (syncInFlightRef.current) return;
-
-    const SYNC_COOLDOWN_KEY = "sunny-suggestion-sync-last";
-    const COOLDOWN_MS = 5 * 60 * 1000; // 5 min
-
-    try {
-      const lastSync = sessionStorage.getItem(SYNC_COOLDOWN_KEY);
-      if (lastSync && Date.now() - Number(lastSync) < COOLDOWN_MS) return;
-    } catch { /* storage unavailable */ }
-
-    syncInFlightRef.current = true;
-    fetch("/api/agent/suggestions/sync", { method: "POST" })
-      .then(() => {
-        try { sessionStorage.setItem(SYNC_COOLDOWN_KEY, String(Date.now())); } catch { /* noop */ }
-      })
-      .catch(() => { /* fire-and-forget */ })
-      .finally(() => { syncInFlightRef.current = false; });
-  }, []);
 
   const handleArchiveThread = useCallback(
     async (id: number) => {

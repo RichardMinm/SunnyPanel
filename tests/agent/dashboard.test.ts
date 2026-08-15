@@ -641,16 +641,16 @@ describe("Dashboard layout contracts", () => {
     assert.match(read("src/components/dashboard/agent/AgentComposer.tsx"), /AppIconButton/);
   });
 
-  test("Dashboard syncs learning suggestions through the server endpoint without client inbox state", () => {
+  test("Dashboard does not start hidden suggestion generation when the page mounts", () => {
     const loadDashboardData = read("src/lib/dashboard/load-dashboard-data.ts");
     const pageClient = read("src/components/dashboard/DashboardPageClient.tsx");
     const messagingHook = read("src/components/dashboard/agent-chat/use-agent-chat-messaging.ts");
     const syncRoute = read("src/app/api/agent/suggestions/sync/route.ts");
 
     assert.doesNotMatch(loadDashboardData, /syncAgentSuggestionsFromWorkspaceSnapshot/);
-    assert.match(pageClient, /\/api\/agent\/suggestions\/sync/);
-    assert.match(pageClient, /method: "POST"/);
-    assert.match(pageClient, /syncInFlightRef/);
+    assert.doesNotMatch(pageClient, /\/api\/agent\/suggestions\/sync/);
+    assert.doesNotMatch(pageClient, /sunny-suggestion-sync-last/);
+    assert.doesNotMatch(pageClient, /syncInFlightRef/);
     assert.match(syncRoute, /syncAgentSuggestionsFromWorkspaceSnapshot/);
     assert.match(syncRoute, /getCachedWorkspaceSnapshot/);
     assert.doesNotMatch(pageClient, /initialSuggestions/);

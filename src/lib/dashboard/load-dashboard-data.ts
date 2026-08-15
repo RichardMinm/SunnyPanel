@@ -28,11 +28,11 @@ export const parseDashboardThreadId = (value?: string | string[]) => {
  * Dashboard server-component data loader — critical path only.
  *
  * Phase P2: Only parses the threadId from URL search params.
- * The workspace snapshot, suggestion sync, and pending suggestions
- * have been moved out of the HTML response critical path:
+ * The workspace snapshot, suggestion generation, and pending suggestions
+ * stay out of the HTML response critical path:
  *
  *   - Workspace snapshot → triggered on-demand by agent pipeline
- *   - Suggestion sync → POST /api/agent/suggestions/sync (client fires after mount)
+ *   - Suggestion generation → triggered by the business event that changed content
  *   - Pending suggestions → GET /api/agent/suggestions (client fetches on mount)
  *
  * This keeps the root document response fast (≤ 500ms target).

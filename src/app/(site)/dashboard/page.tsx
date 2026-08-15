@@ -39,9 +39,9 @@ const buildAdminRoute = (path: string, redirectPath: string) =>
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const timing = createServerTiming("/dashboard");
 
-  /* Phase P2: Lightweight auth check — only JWT verification, no workspace loading.
-     The full workspace snapshot and suggestion sync are now triggered client-side
-     via POST /api/agent/suggestions/sync (non-blocking). */
+  /* Keep the page request on the lightweight authentication path. Workspace
+     snapshots are loaded by the Agent only when a turn needs them. Suggestion
+     generation is event-driven and must not start as hidden work on page mount. */
   const authResult = await timing.measure("auth", () => getPayloadAuthResult());
 
   if (!authResult.user) {

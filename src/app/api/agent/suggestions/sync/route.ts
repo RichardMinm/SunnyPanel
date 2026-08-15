@@ -11,8 +11,10 @@ import { getPayloadAuthResult } from "@/lib/payload/auth";
  * Runs the workspace snapshot → suggestion generation → LLM enhancement → DB sync
  * pipeline that was previously executed on every dashboard page load server-side.
  *
- * Moved out of the HTML response critical path (Phase P2).
- * Called by the client after dashboard hydration as a fire-and-forget fetch.
+ * This endpoint is intentionally not called when Dashboard mounts. It remains an
+ * authenticated, explicit maintenance boundary for callers that can await and
+ * observe the expensive generation work. Content publication invokes the same
+ * service directly after the relevant business event.
  */
 export async function POST() {
   const timing = createServerTiming("POST /api/agent/suggestions/sync");
