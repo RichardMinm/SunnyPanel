@@ -39,6 +39,17 @@ test("resolves an exact actor-authorized planned schedule completion", () => {
   });
 });
 
+test("resolves the same exact mutation from the default ask surface", () => {
+  const intent = resolveExactScheduleCompletionIntent({
+    authenticatedActor: { collection: "users", id: 7 },
+    context: { ...context, workbenchMode: "ask" },
+    originalRequest: "将日程 #41「完成核心链路验收」标记为完成",
+  });
+
+  assert.equal(intent?.intent, "modify_record");
+  assert.equal(intent?.args.targetId, 41);
+});
+
 test("accepts NFKC-equivalent syntax without weakening the exact title contract", () => {
   const intent = resolveExactScheduleCompletionIntent({
     authenticatedActor: { collection: "users", id: 7 },
@@ -69,11 +80,19 @@ test("rejects unknown IDs and title conflicts", () => {
   );
 });
 
-test("rejects non-execute mode and unauthenticated actors", () => {
+test("rejects non-action workbench modes and unauthenticated actors", () => {
   assert.equal(
     resolveExactScheduleCompletionIntent({
       authenticatedActor: { collection: "users", id: 7 },
       context: { ...context, workbenchMode: "today" },
+      originalRequest: "将日程 #41「完成核心链路验收」标记为完成",
+    }),
+    null,
+  );
+  assert.equal(
+    resolveExactScheduleCompletionIntent({
+      authenticatedActor: { collection: "users", id: 7 },
+      context: { ...context, workbenchMode: "answer" },
       originalRequest: "将日程 #41「完成核心链路验收」标记为完成",
     }),
     null,

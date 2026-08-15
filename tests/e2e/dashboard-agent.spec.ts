@@ -44,6 +44,7 @@ test("Agent Workspace 左侧只负责导航，右侧检查器默认隐藏", asyn
   await expect(nav.locator(".sunny-codex-sidebar-window-controls")).toHaveCount(0);
   await expect(nav.getByText("主操作")).toBeVisible();
   await expect(nav.getByRole("button", { name: "新对话" })).toBeVisible();
+  await nav.hover();
   await expect(nav.getByRole("textbox", { name: "搜索会话" })).toBeVisible();
   await expect(nav.getByRole("button", { name: "搜索" })).toHaveCount(0);
   await expect(nav.getByRole("button", { name: "命令中心" })).toHaveCount(0);

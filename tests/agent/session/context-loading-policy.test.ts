@@ -429,6 +429,24 @@ test("workbench mode overrides message keywords", () => {
   assert.equal(policy.meta.confidence, 0.9);
 });
 
+test("default ask mode loads the business context named by the current message", () => {
+  const schedulePolicy = resolveContextLoadingPolicy({
+    message: "将日程 #41「完成核心链路验收」标记为完成",
+    workbenchMode: "ask",
+  });
+  assert.equal(schedulePolicy.meta.source, "message_keyword");
+  assert.equal(schedulePolicy.meta.level, "schedule");
+  assert.equal(schedulePolicy.meta.dateRange?.type, "upcoming");
+  assert.ok(schedulePolicy.sections.has("schedules"));
+
+  const plainQuestionPolicy = resolveContextLoadingPolicy({
+    message: "什么是结构化输出？",
+    workbenchMode: "ask",
+  });
+  assert.equal(plainQuestionPolicy.meta.source, "workbench");
+  assert.equal(plainQuestionPolicy.meta.level, "minimal");
+});
+
 test("pendingAction has highest priority", () => {
   const policy = resolveContextLoadingPolicy({
     message: "你好",

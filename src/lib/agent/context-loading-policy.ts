@@ -346,8 +346,8 @@ export type ResolvePolicyInput = {
  *
  * Priority (strongest first):
  *   1. pendingAction.action.intent — we're confirming a previous proposal
- *   2. workbenchMode — strongest explicit user signal
- *   3. Message keywords — heuristic fallback (with composite detection)
+ *   2. Explicit domain workbenchMode — strongest user-selected signal
+ *   3. Message keywords — also refine the default ask/answer surface
  *   4. lastIntent — carry-over from previous turn
  *   5. Session domain — contextual signal from coordinator
  *   6. default — minimal
@@ -377,8 +377,18 @@ export const resolveContextLoadingPolicy = (input: ResolvePolicyInput): ContextL
     };
   }
 
-  /* 2. Workbench mode → explicit user signal */
-  if (workbenchMode) {
+  /* 2. Domain workbench mode → explicit user signal.
+   *
+   * `ask` is the default Dashboard surface rather than an explicit request to
+   * suppress business context. Let the current message refine ask/answer below,
+   * otherwise a normal "complete schedule #…" turn never loads the referenced
+   * schedule before the deterministic resource boundary runs. */
+  const hasExplicitDomainWorkbenchMode =
+    workbenchMode !== null
+    && workbenchMode !== undefined
+    && workbenchMode !== "ask"
+    && workbenchMode !== "answer";
+  if (hasExplicitDomainWorkbenchMode) {
     const level = resolveLevelFromWorkbench(workbenchMode);
     const sections = new Set(PRESETS[level]);
     return {
@@ -431,6 +441,25 @@ export const resolveContextLoadingPolicy = (input: ResolvePolicyInput): ContextL
         reason: `message_keyword → ${hint.level}`,
         allowSecondPass: hint.level !== "full",
         dateRange: hint.dateRange,
+      },
+    };
+  }
+
+  /* A generic ask/answer turn with no domain signal remains minimal. */
+  if (workbenchMode) {
+    const level = resolveLevelFromWorkbench(workbenchMode);
+    const sections = new Set(PRESETS[level]);
+    return {
+      sections,
+      meta: {
+        level,
+        sections: [...sections],
+        loadedSections: [],
+        skippedSections: [],
+        confidence: 0.6,
+        source: "workbench",
+        reason: `workbench:${workbenchMode}`,
+        allowSecondPass: true,
       },
     };
   }

@@ -37,7 +37,7 @@ export const resolveExactScheduleCompletionIntent = ({
     authenticatedActor.collection !== "users"
     || !Number.isSafeInteger(authenticatedActor.id)
     || authenticatedActor.id <= 0
-    || context.workbenchMode !== "execute"
+    || (context.workbenchMode !== "ask" && context.workbenchMode !== "execute")
   ) {
     return null;
   }
