@@ -96,13 +96,33 @@ jobs:
       - name: Install release browser
         run: npx playwright install --with-deps chromium
 
+      - name: Start deterministic Agent provider
+        env:
+          AGENT_E2E_FAKE_PROVIDER: "1"
+          AGENT_E2E_FAKE_PROVIDER_TOKEN: sunnypanel-ci-fake-provider
+        run: |
+          npm run agent:e2e-provider > /tmp/sunnypanel-agent-e2e-provider.log 2>&1 &
+          echo $! > /tmp/sunnypanel-agent-e2e-provider.pid
+          for attempt in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:4010/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/sunnypanel-agent-e2e-provider.log
+          exit 1
+
       - name: Start production container
         run: >-
           docker run --detach
           --name sunnypanel-ci-runtime
           --network host
-          --env AGENT_DISABLE_LLM
+          --env AGENT_DISABLE_LLM=0
           --env DATABASE_URL
+          --env DEEPSEEK_API_KEY=sunnypanel-ci-fake-provider
+          --env DEEPSEEK_API_PROTOCOL=chat_completions
+          --env DEEPSEEK_BASE_URL=http://127.0.0.1:4010/v1
+          --env DEEPSEEK_MODEL=sunnypanel-ci-fake-model
           --env NEXT_PUBLIC_SERVER_URL=http://127.0.0.1:3000
           --env PAYLOAD_DB_PUSH
           --env PAYLOAD_SECRET
@@ -139,7 +159,17 @@ jobs:
           if docker inspect sunnypanel-ci-runtime >/dev/null 2>&1; then
             docker logs sunnypanel-ci-runtime
           fi
+          if [ -f /tmp/sunnypanel-agent-e2e-provider.log ]; then
+            cat /tmp/sunnypanel-agent-e2e-provider.log
+          fi
 
       - name: Stop production container
         if: always()
         run: docker rm --force sunnypanel-ci-runtime 2>/dev/null || true
+
+      - name: Stop deterministic Agent provider
+        if: always()
+        run: |
+          if [ -f /tmp/sunnypanel-agent-e2e-provider.pid ]; then
+            kill "$(cat /tmp/sunnypanel-agent-e2e-provider.pid)" 2>/dev/null || true
+          fi
