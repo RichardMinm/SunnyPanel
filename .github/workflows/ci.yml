@@ -79,11 +79,22 @@ jobs:
           UPGRADE_TEST_DATABASE_URL: postgres://sunnypanel_ci:sunnypanel_ci@localhost:5432/sunnypanel_upgrade_ci
         run: npm run test:migrations:upgrade
 
+      - name: Seed disposable release database twice
+        env:
+          SEED_ADMIN_EMAIL: release-ci@sunnypanel.local
+          SEED_ADMIN_PASSWORD: SunnyPanelReleaseCI-2026
+        run: |
+          npm run seed
+          npm run seed
+
       - name: Build
         run: npm run build
 
       - name: Build production container
         run: docker build --target production -t sunnypanel:ci .
+
+      - name: Install release browser
+        run: npx playwright install --with-deps chromium
 
       - name: Start production container
         run: >-
@@ -99,6 +110,28 @@ jobs:
 
       - name: Verify production readiness
         run: npm run smoke:release-health
+
+      - name: Verify production Agent API
+        env:
+          AGENT_E2E_EMAIL: release-ci@sunnypanel.local
+          AGENT_E2E_PASSWORD: SunnyPanelReleaseCI-2026
+          AGENT_E2E_SERVER_URL: http://127.0.0.1:3000
+        run: npm run test:agent:e2e
+
+      - name: Verify production Agent smoke
+        env:
+          AGENT_SMOKE_EMAIL: release-ci@sunnypanel.local
+          AGENT_SMOKE_PASSWORD: SunnyPanelReleaseCI-2026
+          AGENT_SMOKE_SERVER_URL: http://127.0.0.1:3000
+        run: npm run smoke:agent
+
+      - name: Verify production browser flows
+        env:
+          AGENT_E2E_EMAIL: release-ci@sunnypanel.local
+          AGENT_E2E_PASSWORD: SunnyPanelReleaseCI-2026
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+          PLAYWRIGHT_SKIP_WEBSERVER: "1"
+        run: npm run test:e2e:release
 
       - name: Show production logs on failure
         if: failure()

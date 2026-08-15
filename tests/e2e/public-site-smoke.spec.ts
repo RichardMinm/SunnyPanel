@@ -1,14 +1,23 @@
 import { expect, test } from "@playwright/test";
 
-const publicRoutes = ["/", "/blog", "/notes", "/timeline", "/about", "/tags/test", "/categories/test"] as const;
+const publicRoutes = ["/", "/blog", "/notes", "/timeline", "/tags/test"] as const;
+const emptyDatabaseRoutes = ["/about", "/categories/test"] as const;
 
 test.describe("public site smoke", () => {
   for (const route of publicRoutes) {
     test(`${route} renders public surface`, async ({ page }) => {
       const response = await page.goto(route, { waitUntil: "domcontentloaded" });
 
-      expect(response?.status()).toBeGreaterThanOrEqual(200);
-      expect(response?.status()).toBeLessThan(500);
+      expect(response?.ok()).toBe(true);
+      await expect(page.locator("body")).toBeVisible();
+    });
+  }
+
+  for (const route of emptyDatabaseRoutes) {
+    test(`${route} returns the intentional not-found surface`, async ({ page }) => {
+      const response = await page.goto(route, { waitUntil: "domcontentloaded" });
+
+      expect(response?.status()).toBe(404);
       await expect(page.locator("body")).toBeVisible();
     });
   }
