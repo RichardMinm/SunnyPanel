@@ -119,6 +119,10 @@ const createPreviousReleaseFixture = async () => {
       req: undefined,
     });
   } finally {
+    // Payload resets its adapter state on destroy, but the PostgreSQL adapter
+    // keeps the underlying pool open. Close it before the isolated database is
+    // dropped so FORCE does not terminate an idle client and emit a late error.
+    await payload.db.pool?.end();
     await payload.destroy();
   }
 

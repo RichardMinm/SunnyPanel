@@ -102,8 +102,11 @@ jobs:
 
       - name: Show production logs on failure
         if: failure()
-        run: docker logs sunnypanel-ci-runtime
+        run: |
+          if docker inspect sunnypanel-ci-runtime >/dev/null 2>&1; then
+            docker logs sunnypanel-ci-runtime
+          fi
 
       - name: Stop production container
         if: always()
-        run: docker rm --force sunnypanel-ci-runtime
+        run: docker rm --force sunnypanel-ci-runtime 2>/dev/null || true
