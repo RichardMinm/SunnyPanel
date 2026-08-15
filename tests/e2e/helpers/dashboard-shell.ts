@@ -198,6 +198,17 @@ export async function startNewThread(shell: Locator) {
   await expect(shell.getByLabel("输入要交给 Agent 的话")).toBeVisible();
 }
 
+export async function openDashboardInspector(shell: Locator) {
+  const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
+
+  if (!await inspector.isVisible()) {
+    await shell.getByRole("button", { name: "添加上下文" }).click();
+    await expect(inspector).toBeVisible();
+  }
+
+  return inspector;
+}
+
 export async function switchDashboardView(
   shell: Locator,
   view: DashboardView,

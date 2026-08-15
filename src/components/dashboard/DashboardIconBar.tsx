@@ -305,7 +305,7 @@ export function DashboardIconBar({
                 className={`sunny-dashboard-mode-row${mode.key === activeMode ? " is-active" : ""}`}
                 icon={<DashboardIcon name={mode.icon} />}
                 label={mode.label}
-                onClick={() => onModeChange(mode.key, mode.prompt)}
+                onClick={() => onModeChange(mode.key)}
                 tooltip={mode.label}
                 showTooltip={showSidebarTooltips}
               />
@@ -355,7 +355,7 @@ export function DashboardIconBar({
               {threadListMode === "compact" && filteredThreads.length > 3 ? (
                 <button
                   className="sunny-dashboard-thread-view-all"
-                  onClick={() => onModeChange("agent", "")}
+                  onClick={() => onModeChange("agent")}
                   type="button"
                 >
                   查看全部会话

@@ -4,6 +4,7 @@ import { buildAgentContext, DEFAULT_AGENT_CONTEXT_BUDGET } from "@/lib/agent/con
 import type { ContextPreferences } from "@/lib/agent/chat-pipeline/runtime-deps";
 import { buildSharedContextSnapshot } from "@/lib/agent/shared-context";
 import { hydrateExactScheduleCompletionContext } from "@/lib/agent/orchestration/exact-schedule-context";
+import { parseExactScheduleCompletionReference } from "@/lib/agent/orchestration/deterministic-existing-schedule-boundary";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
 import type { StreamTokenCallback } from "@/lib/agent/client";
 import type { AgentChatResponse, AgentTraceStep, PendingAction } from "@/lib/agent/schemas";
@@ -90,11 +91,15 @@ export const runBuildContextStep = async ({
     message,
     source: loadedContextSource,
   });
+  const exactScheduleReference = parseExactScheduleCompletionReference(message);
   const baseContext = buildAgentContext({
     budget: DEFAULT_AGENT_CONTEXT_BUDGET,
     contextPreferences: contextPreferences ?? undefined,
     message,
     pendingAction,
+    pinnedScheduleIds: exactScheduleReference
+      ? [exactScheduleReference.scheduleId]
+      : undefined,
     source: {
       ...contextSource,
       memories: [],

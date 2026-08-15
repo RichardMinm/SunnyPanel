@@ -89,6 +89,7 @@ export function useAgentDashboardChat({
   const [composerFocusRequestKey, setComposerFocusRequestKey] = useState(0);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const skipInitialThreadLoadRef = useRef(false);
+  const threadLoadGenerationRef = useRef(0);
 
   const setInputAndClearSuggestion = useCallback(
     (value: string) => {
@@ -114,7 +115,11 @@ export function useAgentDashboardChat({
 
   const loadThread = useCallback(
     async (nextThreadId?: number, options?: { preserveInspector?: boolean; listOnly?: boolean }) => {
+      const loadGeneration = ++threadLoadGenerationRef.current;
       const selectedThread = await fetchThread(nextThreadId, { listOnly: options?.listOnly });
+      if (loadGeneration !== threadLoadGenerationRef.current) {
+        return;
+      }
 
       if (!selectedThread) {
         if (typeof nextThreadId === "number") {
@@ -227,6 +232,7 @@ export function useAgentDashboardChat({
   useDashboardUrlThreadSync(threadId, threadHydrated);
 
   const resetThread = useCallback(() => {
+    threadLoadGenerationRef.current += 1;
     skipInitialThreadLoadRef.current = true;
     stopGeneration();
     resetConversationThread();

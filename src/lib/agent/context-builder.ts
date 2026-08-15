@@ -754,6 +754,7 @@ export const buildAgentContext = ({
   contextPreferences,
   message,
   pendingAction,
+  pinnedScheduleIds,
   resolvedIntent,
   source,
   threadSummary,
@@ -763,6 +764,7 @@ export const buildAgentContext = ({
   contextPreferences?: ContextPreferencesInput;
   message: string;
   pendingAction: null | PendingAction;
+  pinnedScheduleIds?: readonly number[];
   resolvedIntent?: AgentIntent | null;
   source: AgentContextSource;
   threadSummary?: AgentPromptContext["threadSummary"];
@@ -839,13 +841,17 @@ export const buildAgentContext = ({
   const timelineCandidates = deriveTimelineCandidates(source).slice(0, effectiveBudget.maxContentItems);
   const agentRuns = selectAgentRuns(source, mode, effectiveBudget);
   const planReviews = selectPlanReviews(source, mode, effectiveBudget);
-  const schedules = [...(source.schedules ?? [])]
-    .sort((left, right) => {
-      const leftKey = `${left.date ?? ""} ${left.startTime ?? ""}`;
-      const rightKey = `${right.date ?? ""} ${right.startTime ?? ""}`;
+  const pinnedScheduleIdSet = new Set(pinnedScheduleIds ?? []);
+  const sortedSchedules = [...(source.schedules ?? [])].sort((left, right) => {
+    const leftKey = `${left.date ?? ""} ${left.startTime ?? ""}`;
+    const rightKey = `${right.date ?? ""} ${right.startTime ?? ""}`;
 
-      return leftKey.localeCompare(rightKey);
-    })
+    return leftKey.localeCompare(rightKey);
+  });
+  const schedules = [
+    ...sortedSchedules.filter((schedule) => pinnedScheduleIdSet.has(schedule.id)),
+    ...sortedSchedules.filter((schedule) => !pinnedScheduleIdSet.has(schedule.id)),
+  ]
     .slice(0, 20);
 
   return {

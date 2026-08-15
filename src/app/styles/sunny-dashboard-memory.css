@@ -15,6 +15,13 @@
   flex-wrap: wrap;
 }
 
+.sunny-memory-head h2 {
+  margin: 0;
+  color: var(--sunny-fg);
+  font-size: var(--text-xl);
+  letter-spacing: -0.02em;
+}
+
 .sunny-memory-back-btn {
   background: none;
   border: 1px solid var(--sunny-border);

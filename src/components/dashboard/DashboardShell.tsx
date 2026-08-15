@@ -331,14 +331,11 @@ export function DashboardShell({
   );
 
   const handleModeChange = useCallback(
-    (_mode: DashboardIconMode, prompt: string) => {
+    (_mode: DashboardIconMode) => {
       setLinkedObjectNavigationRequest(null);
       transitionDashboardMode(_mode);
-      if (prompt) {
-        onRunPrompt(prompt);
-      }
     },
-    [onRunPrompt, transitionDashboardMode],
+    [transitionDashboardMode],
   );
 
   const handleLinkedObjectNavigate = useCallback(

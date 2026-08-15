@@ -135,8 +135,9 @@ export function MemoryCardGrid({ onBackToWorkbench }: MemoryCardGridProps) {
   );
 
   return (
-    <div className="sunny-memory-card-grid">
+    <section aria-labelledby="sunny-memory-title" className="sunny-memory-card-grid">
       <div className="sunny-memory-head">
+        <h2 id="sunny-memory-title">记忆库</h2>
         <button
           type="button"
           className="sunny-memory-back-btn"
@@ -185,6 +186,6 @@ export function MemoryCardGrid({ onBackToWorkbench }: MemoryCardGridProps) {
           <p className="sunny-memory-empty">暂无记忆记录</p>
         ) : null}
       </DashboardStagger>
-    </div>
+    </section>
   );
 }

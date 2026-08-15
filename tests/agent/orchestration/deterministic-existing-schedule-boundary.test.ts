@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { resolveExactScheduleCompletionIntent } from "../../../src/lib/agent/orchestration/deterministic-existing-schedule-boundary";
 import { hydrateExactScheduleCompletionContext } from "../../../src/lib/agent/orchestration/exact-schedule-context";
+import { buildAgentContext } from "../../../src/lib/agent/context-builder";
 import type { AgentPromptContext } from "../../../src/lib/agent/prompts";
 
 const context: AgentPromptContext = {
@@ -76,6 +77,45 @@ test("hydrates an exact planned schedule outside the ordinary calendar window", 
       title: "完成核心链路验收",
     },
   ]);
+});
+
+test("keeps the exact schedule inside the final prompt budget", async () => {
+  const target = {
+    date: "2027-12-31T00:00:00.000Z",
+    id: 99,
+    status: "planned",
+    title: "完成核心链路验收",
+  };
+  const source = await hydrateExactScheduleCompletionContext({
+    loadSchedule: async () => target,
+    message: "将日程 #99「完成核心链路验收」标记为完成",
+    source: {
+      schedules: Array.from({ length: 25 }, (_, index) => ({
+        date: `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+        id: index + 1,
+        status: "planned",
+        title: `普通日程 ${index + 1}`,
+      })),
+    },
+  });
+  const promptContext = buildAgentContext({
+    message: "将日程 #99「完成核心链路验收」标记为完成",
+    pendingAction: null,
+    pinnedScheduleIds: [99],
+    source,
+    workbenchMode: "ask",
+  });
+
+  assert.equal(promptContext.schedules?.length, 20);
+  assert.equal(promptContext.schedules?.[0]?.id, 99);
+  assert.equal(
+    resolveExactScheduleCompletionIntent({
+      authenticatedActor: { collection: "users", id: 7 },
+      context: promptContext,
+      originalRequest: "将日程 #99「完成核心链路验收」标记为完成",
+    })?.args.targetId,
+    99,
+  );
 });
 
 test("does not hydrate title conflicts, completed schedules, or ambiguous text", async () => {

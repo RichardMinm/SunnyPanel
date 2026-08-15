@@ -240,6 +240,8 @@ describe("Dashboard layout contracts", () => {
     assert.match(icons, /export type DashboardIconName/);
     assert.match(sidebarModes, /icon:\s*"calendar"/);
     assert.match(sidebarModes, /icon:\s*"memory"/);
+    assert.doesNotMatch(sidebarModes, /prompt:/);
+    assert.doesNotMatch(shell, /if \(prompt\) \{[\s\S]*onRunPrompt\(prompt\)/);
     assert.match(sidebarItem, /app-sidebar-item__icon[\s\S]*app-sidebar-item__label/);
     assert.doesNotMatch(sidebar, /sunny-codex-sidebar-window-controls/);
     assert.doesNotMatch(sidebar, /sunny-codex-panel-toggle/);

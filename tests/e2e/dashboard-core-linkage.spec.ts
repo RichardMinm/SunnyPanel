@@ -6,6 +6,7 @@ import {
   getDashboardShell,
   loginIfConfigured,
   navigateToScheduleView,
+  openDashboardInspector,
   queryPrivateCoreRecords,
   readPrivateCoreRecord,
   switchDashboardView,
@@ -535,8 +536,7 @@ test("Agent-confirmed Schedule completion exposes receipt metadata and rolls bac
       restoredScheduleCard.getByRole("button", { name: "完成", exact: true }),
     ).toBeVisible();
     await switchDashboardView(shell, "agent");
-    await shell.getByRole("button", { name: "添加上下文", exact: true }).click();
-    const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
+    const inspector = await openDashboardInspector(shell);
     await inspector.getByRole("tab", { name: "计划", exact: true }).click();
     const restoredPlanCard = inspector.getByRole("article", {
       name: `计划：${planTitle}`,

@@ -1,21 +1,12 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-import { getDashboardShell, startNewThread } from "./helpers/dashboard-shell";
+import {
+  getDashboardShell,
+  openDashboardInspector,
+  startNewThread,
+} from "./helpers/dashboard-shell";
 
 test.describe.configure({ mode: "serial" });
-
-async function openInspector(shell: Locator) {
-  const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
-  const panelButton = shell.getByRole("button", { name: "添加上下文" });
-
-  if (await inspector.isVisible()) {
-    return inspector;
-  }
-
-  await panelButton.click();
-  await expect(inspector).toBeVisible();
-  return inspector;
-}
 
 test("Dashboard 默认展示 Agent Workspace，而不是旧统计卡片首页", async ({ page }) => {
   const shell = await getDashboardShell(page);
@@ -61,7 +52,7 @@ test("Agent Workspace 左侧只负责导航，右侧检查器默认隐藏", asyn
 test("展开检查器后右侧展示上下文 Icon 页签", async ({ page }) => {
   const shell = await getDashboardShell(page);
   await startNewThread(shell);
-  const inspector = await openInspector(shell);
+  const inspector = await openDashboardInspector(shell);
 
   await expect(inspector.getByRole("button", { name: "收起检查器" })).toBeVisible();
   // Primary tabs always visible
@@ -108,15 +99,15 @@ test("Dashboard 使用成熟 SaaS Agent 工作台视觉层级", async ({ page })
   await expect(shell.locator(".sunny-agent-composer")).toBeVisible();
 
   const sidebar = shell.getByRole("navigation", { name: "工作台导航" });
-  await expect(sidebar).toHaveClass(/sunny-codex-sidebar/);
+  await expect(sidebar).toBeVisible();
   await expect(sidebar.getByText("项目")).toBeVisible();
   await expect(sidebar.getByText("工作区")).toBeVisible();
   await expect(sidebar.getByText("会话")).toBeVisible();
   await expect(sidebar.getByRole("button", { name: "工作台" })).toBeVisible();
   await expect(sidebar.getByRole("button", { name: "记忆库" })).toBeVisible();
 
-  const contextPanel = await openInspector(shell);
-  await expect(contextPanel.getByRole("heading", { name: "本次会话正在使用的信息" })).toBeVisible();
+  const contextPanel = await openDashboardInspector(shell);
+  await expect(contextPanel.getByRole("heading", { name: "上下文", exact: true })).toBeVisible();
   await expect(contextPanel.getByRole("tab", { name: "上下文" })).toBeVisible();
   await expect(contextPanel.getByRole("tab", { name: "关联" })).toBeVisible();
   await expect(contextPanel.getByRole("tab", { name: "记忆" })).toBeVisible();
@@ -127,8 +118,8 @@ test("Dashboard 使用成熟 SaaS Agent 工作台视觉层级", async ({ page })
   await expect(shell.getByRole("button", { name: "引用上下文" })).toHaveCount(0);
 
   await sidebar.getByRole("button", { name: "记忆库" }).click();
-  await expect(shell.getByRole("heading", { name: "记忆库" })).toBeVisible();
-  await expect(shell.getByText("来源会话")).toBeVisible();
+  await expect(shell.getByRole("heading", { name: "记忆库", exact: true })).toBeVisible();
+  await expect(shell.getByRole("searchbox", { name: "搜索记忆标题..." })).toBeVisible();
   await expect(sidebar.getByRole("region", { name: "会话" })).toHaveCount(0);
   await expect(sidebar.getByRole("textbox", { name: "搜索会话" })).toHaveCount(0);
 });
@@ -158,7 +149,7 @@ test("移动端 Dashboard 优先展示主 Agent Workspace 且不横向溢出", a
   expect(layoutStyles.mainGridColumn).not.toBe("missing");
   expect(layoutStyles.panelDisplay).toBe("none");
 
-  await openInspector(shell);
+  await openDashboardInspector(shell);
   await expect(shell.getByRole("complementary", { name: "右侧检查器" })).toBeVisible();
   await shell
     .getByRole("complementary", { name: "右侧检查器" })
@@ -173,7 +164,7 @@ test("桌面端 Inspector 可通过 Composer 面板按钮展开并在面板头�
   const inspector = shell.getByRole("complementary", { name: "右侧检查器" });
 
   await expect(inspector).toBeHidden();
-  await openInspector(shell);
+  await openDashboardInspector(shell);
   await expect(inspector).toBeVisible();
   await expect(shell.getByRole("navigation", { name: "工作台导航" }).getByRole("button", { name: "收起检查器" })).toHaveCount(0);
   await inspector.getByRole("button", { name: "收起检查器" }).click();

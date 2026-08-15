@@ -124,6 +124,7 @@ export function useWritingDocuments() {
   const draftRef = useRef<WritingDraft | null>(null);
   const isDirtyRef = useRef(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const documentSelectionGenerationRef = useRef(0);
 
   useEffect(() => {
     selectedDocumentRef.current = selectedDocument;
@@ -250,6 +251,7 @@ export function useWritingDocuments() {
 
   const loadDocument = useCallback(
     async (collection: DashboardContentCollection, id: number) => {
+      const selectionGeneration = ++documentSelectionGenerationRef.current;
       clearAutosaveTimer();
       setError(null);
       setIsLoadingDocument(true);
@@ -264,6 +266,10 @@ export function useWritingDocuments() {
           throw new Error("内容不存在");
         }
 
+        if (selectionGeneration !== documentSelectionGenerationRef.current) {
+          return null;
+        }
+
         setSelectedDocument(nextDocument);
         setDocuments((current) => upsertListItem(current, nextDocument));
         setDraft(buildDraftFromDocument(nextDocument));
@@ -272,11 +278,16 @@ export function useWritingDocuments() {
 
         return nextDocument;
       } catch (nextError) {
+        if (selectionGeneration !== documentSelectionGenerationRef.current) {
+          return null;
+        }
         setError(nextError instanceof Error ? nextError.message : "打开内容失败");
         setSaveState("error");
         return null;
       } finally {
-        setIsLoadingDocument(false);
+        if (selectionGeneration === documentSelectionGenerationRef.current) {
+          setIsLoadingDocument(false);
+        }
       }
     },
     [clearAutosaveTimer],
@@ -306,6 +317,7 @@ export function useWritingDocuments() {
       collection: DashboardContentCollection,
       options?: { categoryId?: null | number; title?: string },
     ) => {
+      const selectionGeneration = ++documentSelectionGenerationRef.current;
       clearAutosaveTimer();
       setError(null);
       setSaveState("saving");
@@ -328,9 +340,14 @@ export function useWritingDocuments() {
           throw new Error("创建内容失败");
         }
 
-        applySavedDocument(nextDocument);
+        if (selectionGeneration === documentSelectionGenerationRef.current) {
+          applySavedDocument(nextDocument);
+        }
         return nextDocument;
       } catch (nextError) {
+        if (selectionGeneration !== documentSelectionGenerationRef.current) {
+          return null;
+        }
         setError(nextError instanceof Error ? nextError.message : "创建内容失败");
         setSaveState("error");
         return null;
