@@ -150,28 +150,31 @@ export async function getDashboardShell(
   options: { threadId?: number } = {},
 ) {
   await loginIfConfigured(page);
-  const threadResponse = page.waitForResponse(
-    (response) => {
-      const url = new URL(response.url());
-      return (
-        url.pathname === "/api/agent/thread"
-        && response.request().method() === "GET"
-        && (
-          options.threadId === undefined
-          || url.searchParams.get("threadId") === String(options.threadId)
-        )
-      );
-    },
-  );
+  const threadApiUrl = options.threadId === undefined
+    ? "/api/agent/thread"
+    : `/api/agent/thread?threadId=${options.threadId}`;
+  const threadResponse = await page.request.get(threadApiUrl);
+  await expect(threadResponse.ok()).toBe(true);
+  const threadData = (await threadResponse.json()) as {
+    selectedThread?: { title?: unknown } | null;
+  };
+  const selectedThreadTitle =
+    typeof threadData.selectedThread?.title === "string"
+    && threadData.selectedThread.title.trim().length > 0
+      ? threadData.selectedThread.title.trim()
+      : "新会话";
   const dashboardUrl =
     options.threadId === undefined
       ? "/dashboard"
       : `/dashboard?threadId=${options.threadId}`;
   await page.goto(dashboardUrl, { waitUntil: "domcontentloaded" });
-  await expect((await threadResponse).ok()).toBe(true);
 
   const shell = page.getByTestId("dashboard-shell");
   await expect(shell).toBeVisible();
+  await expect(shell.locator(".sunny-agent-thread-header-title-text")).toHaveText(
+    selectedThreadTitle,
+    { timeout: 30_000 },
+  );
   return shell;
 }
 

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const publicRoutes = ["/", "/blog", "/notes", "/timeline", "/tags/test"] as const;
-const emptyDatabaseRoutes = ["/about", "/categories/test"] as const;
+const publicRoutes = ["/", "/about", "/blog", "/notes", "/timeline", "/tags/test"] as const;
+const emptyDatabaseRoutes = ["/categories/test"] as const;
 
 test.describe("public site smoke", () => {
   for (const route of publicRoutes) {

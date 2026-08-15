@@ -1,18 +1,11 @@
 import { test, expect } from "@playwright/test";
 
+import { loginIfConfigured } from "./helpers/dashboard-shell";
+
 test("写作工作台可进入并切换预览", async ({ page }) => {
-  await page.goto("/admin/login?redirect=%2Fdashboard%3Fmode%3Dwriting");
-
-  const email = process.env.AGENT_E2E_EMAIL;
-  const password = process.env.AGENT_E2E_PASSWORD;
-
-  test.skip(!email || !password, "需要 AGENT_E2E_EMAIL 与 AGENT_E2E_PASSWORD");
-
-  await page.getByLabel(/邮箱|Email/).fill(email!);
-  await page.getByLabel(/密码|Password/).fill(password!);
-  await page.getByRole("button", { name: /登录|Login/ }).click();
-
-  await page.waitForURL(/\/dashboard\?mode=writing/, { timeout: 60_000 });
+  await loginIfConfigured(page);
+  await page.goto("/dashboard?mode=writing", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL(/\/dashboard\?mode=writing/);
 
   const workspace = page.getByTestId("dashboard-writing-workspace");
   await expect(workspace).toBeVisible();
