@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { DashboardIcon } from "@/components/dashboard/icons";
+import { useDashboardModeNavigation } from "@/components/dashboard/DashboardModeContext";
 import { dashboardContentLabels } from "@/lib/dashboard/content/config";
 
 import { WritingInspectorSection } from "./WritingInspectorSection";
@@ -123,6 +124,7 @@ export function WritingMetaPanel({
   onUpdateMetadata,
   saveState,
 }: WritingMetaPanelProps) {
+  const navigateDashboard = useDashboardModeNavigation();
   const title = useMemo(() => {
     if (!document) {
       return "属性";
@@ -290,15 +292,27 @@ export function WritingMetaPanel({
 
       <WritingInspectorSection defaultOpen={false} title="关联">
         <div className="sunny-writing-related-links">
-          <Link className="sunny-writing-related-link" href="/dashboard?mode=checklist">
+          <button
+            className="sunny-writing-related-link"
+            onClick={() => navigateDashboard?.("checklist")}
+            type="button"
+          >
             关联清单
-          </Link>
-          <Link className="sunny-writing-related-link" href="/dashboard?mode=plans">
+          </button>
+          <button
+            className="sunny-writing-related-link"
+            onClick={() => navigateDashboard?.("plans")}
+            type="button"
+          >
             关联计划
-          </Link>
-          <Link className="sunny-writing-related-link" href="/dashboard?mode=timeline">
+          </button>
+          <button
+            className="sunny-writing-related-link"
+            onClick={() => navigateDashboard?.("timeline")}
+            type="button"
+          >
             关联时间线
-          </Link>
+          </button>
         </div>
         <EmptyMuted>前往对应工作区查看和管理关联内容</EmptyMuted>
       </WritingInspectorSection>

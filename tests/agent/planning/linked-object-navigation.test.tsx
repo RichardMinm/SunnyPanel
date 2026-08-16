@@ -20,6 +20,7 @@ import {
   toLinkedObjectNavigationTarget,
   type LinkedObjectNavigationTarget,
 } from "../../../src/components/dashboard/linked-objects/LinkedObjectNavigationContext";
+import { resolveDashboardNavigationDestination } from "../../../src/components/dashboard/dashboard-navigation";
 
 const read = (path: string) => readFileSync(path, "utf8");
 const loadLinkedObjectLink = async () => {
@@ -322,6 +323,24 @@ test("Dashboard mode query replacement preserves threadId and unrelated current 
     replaceDashboardModeInSearch("?threadId=33&mode=timeline", "agent"),
     "/dashboard?threadId=33",
   );
+});
+
+test("Dashboard workspace navigation resolves plan links to the plan inspector", () => {
+  assert.deepEqual(resolveDashboardNavigationDestination("plans"), {
+    activeMode: "agent",
+    inspectorTab: "plans",
+    panelOpen: true,
+  });
+  assert.deepEqual(resolveDashboardNavigationDestination("memory"), {
+    activeMode: "memory",
+    inspectorTab: null,
+    panelOpen: false,
+  });
+  assert.deepEqual(resolveDashboardNavigationDestination("unknown"), {
+    activeMode: "agent",
+    inspectorTab: null,
+    panelOpen: false,
+  });
 });
 
 test("DashboardShell owns navigation provider without route, tab or thread side effects", () => {

@@ -71,6 +71,8 @@ describe("Dashboard Writing workspace contracts", () => {
     assert.equal(meta.includes("即将推出"), false);
     assert.match(meta, /WritingKnowledgePanel/);
     assert.match(meta, /WritingVersionHistory/);
+    assert.doesNotMatch(meta, /href="\/dashboard\?mode=plans"/);
+    assert.match(meta, /navigateDashboard\?\.\("plans"\)/);
   });
 
   test("writing library rail exposes stable user actions and empty states", () => {

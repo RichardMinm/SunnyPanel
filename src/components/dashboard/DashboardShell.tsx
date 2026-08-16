@@ -12,6 +12,7 @@ import { AppShell } from "./AppShell";
 import type { DashboardIconMode } from "./DashboardIconBar";
 import { DashboardInspectorControlProvider } from "./DashboardInspectorControlContext";
 import { DashboardModeProvider } from "./DashboardModeContext";
+import { resolveDashboardNavigationDestination } from "./dashboard-navigation";
 import { DashboardRightPanel } from "./DashboardRightPanel";
 import { DashboardStatusBar } from "./DashboardStatusBar";
 import { InspectorPanelIcon } from "./icons";
@@ -121,18 +122,6 @@ type DashboardShellProps = {
   workbenchMode: AgentWorkbenchMode;
 };
 
-const dashboardUrlModes = new Set<DashboardIconMode>([
-  "agent",
-  "checklist",
-  "memory",
-  "schedule",
-  "timeline",
-  "writing",
-]);
-
-const parseDashboardUrlMode = (value: null | string): DashboardIconMode =>
-  dashboardUrlModes.has(value as DashboardIconMode) ? (value as DashboardIconMode) : "agent";
-
 const SIDEBAR_PINNED_STORAGE_KEY = "sunny-dashboard-sidebar-pinned";
 
 const readSidebarPinned = () => {
@@ -221,6 +210,7 @@ export function DashboardShell({
   const [linkedObjectNavigationRequest, setLinkedObjectNavigationRequest] =
     useState<LinkedObjectNavigationRequest | null>(null);
   const navigationGenerationRef = useRef(0);
+  const initialInspectorTabChangeRef = useRef(onInspectorTabChange);
   const linkedObjectNavigationTarget =
     linkedObjectNavigationRequest?.target ?? null;
   const suppressAutoOpenRef = useRef(false);
@@ -238,9 +228,15 @@ export function DashboardShell({
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- hydrate Dashboard mode from URL after the client route is available */
-    const mode = parseDashboardUrlMode(new URLSearchParams(window.location.search).get("mode"));
-    if (mode !== "agent") {
-      setActiveMode(mode);
+    const destination = resolveDashboardNavigationDestination(
+      new URLSearchParams(window.location.search).get("mode"),
+    );
+    if (destination.activeMode !== "agent") {
+      setActiveMode(destination.activeMode);
+    }
+    if (destination.inspectorTab) {
+      initialInspectorTabChangeRef.current(destination.inspectorTab);
+      setPanelOpen(destination.panelOpen);
     }
     setSidebarPinned(readSidebarPinned());
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -333,9 +329,14 @@ export function DashboardShell({
   const handleModeChange = useCallback(
     (_mode: DashboardIconMode) => {
       setLinkedObjectNavigationRequest(null);
-      transitionDashboardMode(_mode);
+      const destination = resolveDashboardNavigationDestination(_mode);
+      transitionDashboardMode(destination.activeMode);
+      if (destination.inspectorTab) {
+        onInspectorTabChange(destination.inspectorTab);
+        setPanelOpen(destination.panelOpen);
+      }
     },
-    [transitionDashboardMode],
+    [onInspectorTabChange, transitionDashboardMode],
   );
 
   const handleLinkedObjectNavigate = useCallback(
@@ -447,14 +448,15 @@ export function DashboardShell({
 
   return (
     <LinkedObjectNavigationProvider onNavigate={handleLinkedObjectNavigate}>
-    <AppShell
-      panelOpen={activeMode !== "writing" && panelOpen}
-      panelWidth={panelWidth}
-      sidebarCollapsed={activeMode === "writing" && writingFocusMode}
-      sidebarExpanded={sidebarExpanded}
-      sidebarPinned={sidebarPinned}
-      writingMode={activeMode === "writing"}
-    >
+      <DashboardModeProvider onModeChange={handleModeChange} value={activeMode}>
+        <AppShell
+          panelOpen={activeMode !== "writing" && panelOpen}
+          panelWidth={panelWidth}
+          sidebarCollapsed={activeMode === "writing" && writingFocusMode}
+          sidebarExpanded={sidebarExpanded}
+          sidebarPinned={sidebarPinned}
+          writingMode={activeMode === "writing"}
+        >
       {activeMode === "writing" ? (
         <WritingLayoutProvider onFocusModeChange={setWritingFocusMode}>
           <WritingDocumentsProvider>
@@ -514,7 +516,7 @@ export function DashboardShell({
           <MainWorkspace>
             {activeMode === "schedule" ? (
               <ScheduleMonthView
-                onBackToWorkbench={() => setActiveMode("agent")}
+                onBackToWorkbench={() => handleModeChange("agent")}
                 threadId={threadId}
                 isSubmitting={isSubmitting}
                 navigationTarget={
@@ -528,12 +530,12 @@ export function DashboardShell({
               />
             ) : activeMode === "memory" ? (
               <MemoryCardGrid
-                onBackToWorkbench={() => setActiveMode("agent")}
+                onBackToWorkbench={() => handleModeChange("agent")}
                 threadId={threadId}
               />
             ) : activeMode === "checklist" ? (
               <ChecklistView
-                onBackToWorkbench={() => setActiveMode("agent")}
+                onBackToWorkbench={() => handleModeChange("agent")}
                 threadId={threadId}
                 navigationTarget={
                   linkedObjectNavigationTarget?.type === "checklist"
@@ -546,7 +548,7 @@ export function DashboardShell({
               />
             ) : activeMode === "timeline" ? (
               <TimelineView
-                onBackToWorkbench={() => setActiveMode("agent")}
+                onBackToWorkbench={() => handleModeChange("agent")}
                 threadId={threadId}
                 navigationTarget={
                   linkedObjectNavigationTarget?.type === "timeline"
@@ -559,9 +561,7 @@ export function DashboardShell({
               />
             ) : (
               <DashboardInspectorControlProvider value={inspectorControl}>
-                <DashboardModeProvider value={activeMode}>
-                  {children}
-                </DashboardModeProvider>
+                {children}
               </DashboardInspectorControlProvider>
             )}
           </MainWorkspace>
@@ -626,7 +626,8 @@ export function DashboardShell({
           ) : null}
         </>
       )}
-    </AppShell>
+        </AppShell>
+      </DashboardModeProvider>
     </LinkedObjectNavigationProvider>
   );
 }

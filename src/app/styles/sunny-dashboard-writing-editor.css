@@ -536,8 +536,15 @@
 }
 
 .sunny-writing-related-link {
+  appearance: none;
+  background: none;
+  border: 0;
   color: var(--writing-accent);
+  cursor: pointer;
+  font-family: inherit;
   font-size: var(--text-sm-compact);
+  padding: 0;
+  text-align: left;
   text-decoration: none;
 }
 
