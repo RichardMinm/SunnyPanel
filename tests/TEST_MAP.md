@@ -140,6 +140,8 @@ Required invariants:
   `unavailable`, or `cancelled`) rather than Provider-specific event names.
 - Partial, unavailable, and cancelled output is visibly retryable but never
   promoted to a persisted completed assistant message.
+- Production Agent E2E and smoke require exactly one final successful terminal;
+  `done` must precede it and `persist` must be true.
 - Thread metadata displays product state/tags without internal thread IDs.
 - Ordinary answers stay lightweight while structured artifacts use cards.
 - Agent Ops reports execute and rollback reliability separately over an explicit

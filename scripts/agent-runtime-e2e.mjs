@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
+import {
+  assertSuccessfulAgentSseEvents,
+  parseAgentSseText,
+} from "./lib/agent-sse-contract.mjs";
+
 const serverUrl =
   process.env.AGENT_E2E_SERVER_URL ??
   process.env.NEXT_PUBLIC_SERVER_URL ??
@@ -196,26 +201,7 @@ const streamResponse = await assertOk(
   "Agent SSE chat",
 );
 const streamText = await streamResponse.text();
-const streamEvents = streamText
-  .split("\n\n")
-  .filter(Boolean)
-  .map((block) => {
-    const event = block
-      .split("\n")
-      .find((line) => line.startsWith("event:"))
-      ?.slice("event:".length)
-      .trim();
-    const data = block
-      .split("\n")
-      .find((line) => line.startsWith("data:"))
-      ?.slice("data:".length)
-      .trim();
-
-    return {
-      data: data ? JSON.parse(data) : null,
-      event,
-    };
-  });
+const streamEvents = parseAgentSseText(streamText, "Agent runtime E2E SSE");
 const eventNames = streamEvents.map(({ event }) => event);
 
 for (const eventName of [
@@ -225,9 +211,12 @@ for (const eventName of [
   "trace",
   "usage",
   "done",
+  "terminal",
 ]) {
   assert.ok(eventNames.includes(eventName), `SSE must include ${eventName}`);
 }
+
+assertSuccessfulAgentSseEvents(streamEvents, "Agent runtime E2E SSE");
 
 const meta = streamEvents.find(({ event }) => event === "meta")?.data;
 const done = streamEvents.find(({ event }) => event === "done")?.data;

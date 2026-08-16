@@ -1,3 +1,8 @@
+import {
+  assertSuccessfulAgentSseEvents,
+  readAgentSseEvents,
+} from "./lib/agent-sse-contract.mjs";
+
 const serverUrl = process.env.AGENT_SMOKE_SERVER_URL ?? process.env.NEXT_PUBLIC_SERVER_URL ?? "http://127.0.0.1:3000";
 const email = process.env.AGENT_SMOKE_EMAIL;
 const password = process.env.AGENT_SMOKE_PASSWORD;
@@ -18,45 +23,6 @@ const extractCookieHeader = (response) => {
   const setCookie = response.headers.getSetCookie?.() ?? [response.headers.get("set-cookie")].filter(Boolean);
 
   return setCookie.map((cookie) => cookie.split(";")[0]).join("; ");
-};
-
-const readStreamEvents = async (response) => {
-  const reader = response.body?.getReader();
-
-  if (!reader) {
-    throw new Error("Streaming response has no body.");
-  }
-
-  const decoder = new TextDecoder();
-  const events = [];
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-
-    if (done) {
-      break;
-    }
-
-    buffer += decoder.decode(value, { stream: true });
-
-    const blocks = buffer.split("\n\n");
-    buffer = blocks.pop() ?? "";
-
-    for (const block of blocks) {
-      const event = block
-        .split("\n")
-        .find((line) => line.startsWith("event:"))
-        ?.replace("event:", "")
-        .trim();
-
-      if (event) {
-        events.push(event);
-      }
-    }
-  }
-
-  return events;
 };
 
 const loginResponse = await fetch(`${serverUrl}/api/users/login`, {
@@ -118,13 +84,16 @@ const chatResponse = await fetch(`${serverUrl}/api/agent/chat`, {
 
 await assertOk(chatResponse, "chat");
 
-const events = await readStreamEvents(chatResponse);
+const streamEvents = await readAgentSseEvents(chatResponse, "Agent smoke SSE");
+const eventNames = streamEvents.map(({ event }) => event);
 
-for (const event of ["status", "meta", "token", "done"]) {
-  if (!events.includes(event)) {
+for (const event of ["status", "meta", "token", "done", "terminal"]) {
+  if (!eventNames.includes(event)) {
     throw new Error(`chat stream did not include ${event} event`);
   }
 }
+
+assertSuccessfulAgentSseEvents(streamEvents, "Agent smoke SSE");
 
 const threadResponse = await fetch(`${serverUrl}/api/agent/thread`, {
   headers: {

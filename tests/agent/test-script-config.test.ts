@@ -65,6 +65,21 @@ test("Agent runtime E2E covers the remaining migration-critical HTTP paths", () 
   assert.match(script, /controlledFailure/);
   assert.match(script, /unwrapDocument/);
   assert.match(script, /return unwrapDocument\(await response\.json\(\)\)/);
+  assert.match(script, /assertSuccessfulAgentSseEvents/);
+  assert.match(script, /"terminal"/);
+});
+
+test("Agent production smoke enforces the shared successful SSE terminal contract", () => {
+  const command = packageJson.scripts?.["smoke:agent"] ?? "";
+  const script = readFileSync(
+    resolve(process.cwd(), "scripts/agent-smoke.mjs"),
+    "utf8",
+  );
+
+  assert.match(command, /agent-smoke\.mjs/);
+  assert.match(script, /readAgentSseEvents/);
+  assert.match(script, /assertSuccessfulAgentSseEvents/);
+  assert.match(script, /"terminal"/);
 });
 
 test("action receipt migration cascades required user and thread relations", () => {
