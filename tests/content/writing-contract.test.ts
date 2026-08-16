@@ -314,18 +314,47 @@ describe("content editor contracts", () => {
     const versionsRoute = read("src/app/api/dashboard/content/[collection]/[id]/versions/route.ts");
     const backlinksRoute = read("src/app/api/dashboard/content/[collection]/[id]/backlinks/route.ts");
     const versionHistory = read("src/components/dashboard/writing/WritingVersionHistory.tsx");
+    const writingDocuments = read("src/components/dashboard/writing/use-writing-documents.ts");
     const knowledge = read("src/components/dashboard/writing/WritingKnowledgePanel.tsx");
     const editor = read("src/components/content-editor/ContentEditor.tsx");
 
     assert.deepEqual(
-      missingBoundaries(versionsRoute, ["findVersions", "findVersionByID", "restoreVersion", "overrideAccess: false"]),
+      missingBoundaries(versionsRoute, [
+        "findVersions",
+        "findByID",
+        "disableErrors: true",
+        "isStaleDashboardContentUpdate",
+        "lastKnownUpdatedAt",
+        "findVersionByID",
+        "restoreVersion",
+        "overrideAccess: false",
+      ]),
       [],
     );
     assert.match(versionHistory, /当前内容会先保存为一个可恢复版本/);
+    assert.match(writingDocuments, /lastKnownUpdatedAt: restoreBase\.updatedAt/);
+    assert.match(writingDocuments, /restoreBase = saved/);
     assert.match(backlinksRoute, /linksToDocument/);
     assert.match(knowledge, /本文目录/);
     assert.match(knowledge, /引用本文/);
     assert.match(editor, /InternalDocumentLinkDialog/);
+  });
+
+  test("version restore keeps conflicts visible and ignores stale history responses", () => {
+    const versionHistory = read("src/components/dashboard/writing/WritingVersionHistory.tsx");
+    const failedResult = versionHistory.indexOf('result.status === "failed"');
+    const closeDialog = versionHistory.indexOf("setRestoreTarget(null)", failedResult);
+    const failedBranchEnd = versionHistory.indexOf("return;", failedResult);
+
+    assert.match(versionHistory, /loadGenerationRef/);
+    assert.match(versionHistory, /loadGeneration !== loadGenerationRef\.current/);
+    assert.match(versionHistory, /setRestoreError\(result\.message\)/);
+    assert.ok(failedResult >= 0, "restore failures must be handled explicitly");
+    assert.ok(
+      failedBranchEnd >= 0 && failedBranchEnd < closeDialog,
+      "a failed restore must return before closing the confirmation dialog",
+    );
+    assert.match(versionHistory, /message=\{restoreError \?\?/);
   });
 
   test("architecture guard: editor upload and publish helpers keep stable request boundaries", () => {

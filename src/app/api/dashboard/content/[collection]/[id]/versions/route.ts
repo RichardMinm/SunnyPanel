@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { mapPayloadError } from "@/lib/dashboard/content/api-errors";
 import { normalizeDashboardContentDocument } from "@/lib/dashboard/content/normalize";
 import {
+  isStaleDashboardContentUpdate,
   parseDashboardContentBody,
   parseDashboardContentId,
   validateDashboardContentCollection,
@@ -97,10 +98,33 @@ export async function POST(request: Request, context: VersionRouteContext) {
   if (!versionId) {
     return NextResponse.json({ message: "请选择要恢复的版本" }, { status: 400 });
   }
+  const lastKnownUpdatedAt = typeof body.lastKnownUpdatedAt === "string"
+    ? body.lastKnownUpdatedAt.trim()
+    : "";
+  if (!lastKnownUpdatedAt) {
+    return NextResponse.json({ message: "缺少当前文档版本信息，请刷新后重试" }, { status: 400 });
+  }
 
   const payload = await getPayloadClient();
 
   try {
+    const existing = await payload.findByID({
+      collection: target.collection,
+      depth: 0,
+      disableErrors: true,
+      id: target.id,
+      overrideAccess: false,
+      user: authResult.user,
+    });
+
+    if (!existing) {
+      return NextResponse.json({ message: "内容不存在" }, { status: 404 });
+    }
+
+    if (isStaleDashboardContentUpdate(String(existing.updatedAt), lastKnownUpdatedAt)) {
+      return NextResponse.json({ message: "内容已在其他位置更新" }, { status: 409 });
+    }
+
     const version = await payload.findVersionByID({
       collection: target.collection,
       depth: 0,

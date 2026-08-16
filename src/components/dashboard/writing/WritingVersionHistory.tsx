@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/dashboard/agent/ConfirmDialog";
 
@@ -31,11 +31,14 @@ export function WritingVersionHistory({ document }: { document: WritingDocument 
   const [versions, setVersions] = useState<WritingDocumentVersion[]>([]);
   const [error, setError] = useState<null | string>(null);
   const [loading, setLoading] = useState(true);
+  const [restoreError, setRestoreError] = useState<null | string>(null);
   const [restoreTarget, setRestoreTarget] = useState<null | WritingDocumentVersion>(null);
   const [restoring, setRestoring] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const loadGenerationRef = useRef(0);
 
   const loadVersions = useCallback(async () => {
+    const loadGeneration = ++loadGenerationRef.current;
     setLoading(true);
     setError(null);
 
@@ -45,27 +48,42 @@ export function WritingVersionHistory({ document }: { document: WritingDocument 
       );
       const body = (await response.json().catch(() => null)) as VersionResponse | null;
       if (!response.ok) throw new Error(body?.message ?? "加载版本历史失败");
+      if (loadGeneration !== loadGenerationRef.current) return;
       setVersions(body?.versions ?? []);
     } catch (nextError) {
+      if (loadGeneration !== loadGenerationRef.current) return;
       setError(nextError instanceof Error ? nextError.message : "加载版本历史失败");
     } finally {
-      setLoading(false);
+      if (loadGeneration === loadGenerationRef.current) {
+        setLoading(false);
+      }
     }
   }, [document.collection, document.id]);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- document selection and restore completion refresh persisted version history */
+    setRestoreTarget(null);
+    setRestoreError(null);
     void loadVersions();
     /* eslint-enable react-hooks/set-state-in-effect */
+    return () => {
+      loadGenerationRef.current += 1;
+    };
   }, [loadVersions, refreshKey]);
 
   const handleRestore = async () => {
     if (!restoreTarget) return;
     setRestoring(true);
-    const restored = await restoreDocumentVersion(document, restoreTarget.id);
+    setRestoreError(null);
+    const result = await restoreDocumentVersion(document, restoreTarget.id);
     setRestoring(false);
+    if (result.status === "failed") {
+      setRestoreError(result.message);
+      return;
+    }
+
     setRestoreTarget(null);
-    if (restored) setRefreshKey((current) => current + 1);
+    setRefreshKey((current) => current + 1);
   };
 
   if (loading) {
@@ -94,7 +112,13 @@ export function WritingVersionHistory({ document }: { document: WritingDocument 
               <p>{version.title}</p>
               {version.excerpt ? <small>{version.excerpt}</small> : null}
               {index > 0 ? (
-                <button onClick={() => setRestoreTarget(version)} type="button">
+                <button
+                  onClick={() => {
+                    setRestoreError(null);
+                    setRestoreTarget(version);
+                  }}
+                  type="button"
+                >
                   恢复此版本
                 </button>
               ) : null}
@@ -108,8 +132,11 @@ export function WritingVersionHistory({ document }: { document: WritingDocument 
       <ConfirmDialog
         busy={restoring}
         confirmLabel="恢复"
-        message="当前内容会先保存为一个可恢复版本，然后再恢复所选历史内容。"
-        onCancel={() => setRestoreTarget(null)}
+        message={restoreError ?? "当前内容会先保存为一个可恢复版本，然后再恢复所选历史内容。"}
+        onCancel={() => {
+          setRestoreError(null);
+          setRestoreTarget(null);
+        }}
         onConfirm={() => void handleRestore()}
         open={restoreTarget !== null}
         title="恢复历史版本？"

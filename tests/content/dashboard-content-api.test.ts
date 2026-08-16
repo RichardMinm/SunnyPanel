@@ -50,11 +50,39 @@ describe("dashboard content API contracts", () => {
   test("API routes use Payload auth and local API", () => {
     const route = read("src/app/api/dashboard/content/route.ts");
     const detailRoute = read("src/app/api/dashboard/content/[collection]/[id]/route.ts");
+    const versionsRoute = read("src/app/api/dashboard/content/[collection]/[id]/versions/route.ts");
 
     assert.match(route, /getPayloadAuthResult/);
     assert.match(route, /getPayloadClient/);
     assert.match(detailRoute, /lastKnownUpdatedAt/);
     assert.match(detailRoute, /isStaleDashboardContentUpdate/);
+    assert.match(versionsRoute, /lastKnownUpdatedAt/);
+    assert.match(versionsRoute, /isStaleDashboardContentUpdate/);
+  });
+
+  test("version restore requires an up-to-date document snapshot before restoring", () => {
+    const versionsRoute = read("src/app/api/dashboard/content/[collection]/[id]/versions/route.ts");
+    const postRoute = versionsRoute.slice(versionsRoute.indexOf("export async function POST"));
+    const currentDocumentRead = postRoute.indexOf(".findByID({");
+    const staleCheck = postRoute.indexOf("isStaleDashboardContentUpdate(");
+    const versionOwnershipRead = postRoute.indexOf("payload.findVersionByID({");
+    const restoreCall = postRoute.indexOf("payload.restoreVersion({");
+
+    assert.ok(currentDocumentRead >= 0, "restore must re-read the current document");
+    assert.ok(staleCheck > currentDocumentRead, "restore must compare the persisted update time");
+    assert.ok(versionOwnershipRead > staleCheck, "a stale restore must return before version lookup");
+    assert.ok(restoreCall > versionOwnershipRead, "version ownership must be checked before restore");
+    assert.match(postRoute, /findByID\(\{[\s\S]*?disableErrors:\s*true[\s\S]*?overrideAccess:\s*false/);
+    assert.match(
+      postRoute,
+      /if \(!lastKnownUpdatedAt\)[\s\S]*?status:\s*400/,
+      "restore must reject requests without the caller's current document version",
+    );
+    assert.match(
+      postRoute,
+      /if \(isStaleDashboardContentUpdate\([\s\S]*?return NextResponse\.json\(\{ message: "内容已在其他位置更新" \}, \{ status: 409 \}\);[\s\S]*?payload\.findVersionByID/,
+      "a stale request must terminate with 409 before any restore path",
+    );
   });
 
   test("isStaleDashboardContentUpdate detects autosave conflicts", () => {

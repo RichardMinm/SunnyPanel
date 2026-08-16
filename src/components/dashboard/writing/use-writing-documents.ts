@@ -31,6 +31,10 @@ type DocumentResponse = {
   message?: string;
 };
 
+export type RestoreDocumentVersionResult =
+  | { document: WritingDocument; status: "restored" }
+  | { message: string; status: "failed" };
+
 const AUTOSAVE_MS = 1500;
 
 const parseCollection = (value: null | string): DashboardContentCollection | null =>
@@ -542,12 +546,27 @@ export function useWritingDocuments() {
   );
 
   const restoreDocumentVersion = useCallback(
-    async (document: WritingDocument, versionId: string) => {
+    async (
+      document: WritingDocument,
+      versionId: string,
+    ): Promise<RestoreDocumentVersionResult> => {
       clearAutosaveTimer();
 
+      const currentDocument = selectedDocumentRef.current;
+      if (!currentDocument || getDocumentKey(currentDocument) !== getDocumentKey(document)) {
+        const message = "当前文档已切换，请重新选择要恢复的版本";
+        setError(message);
+        setSaveState("error");
+        return { message, status: "failed" };
+      }
+
+      let restoreBase = currentDocument;
       if (isDirtyRef.current) {
         const saved = await flushSave();
-        if (!saved) return null;
+        if (!saved) {
+          return { message: "当前修改保存失败，请处理后再恢复历史版本", status: "failed" };
+        }
+        restoreBase = saved;
       }
 
       setError(null);
@@ -556,9 +575,12 @@ export function useWritingDocuments() {
       try {
         const data = await readDashboardJson<DocumentResponse>(
           await fetch(
-            `/api/dashboard/content/${document.collection}/${document.id}/versions`,
+            `/api/dashboard/content/${restoreBase.collection}/${restoreBase.id}/versions`,
             {
-              body: JSON.stringify({ versionId }),
+              body: JSON.stringify({
+                lastKnownUpdatedAt: restoreBase.updatedAt,
+                versionId,
+              }),
               headers: { "Content-Type": "application/json" },
               method: "POST",
             },
@@ -568,11 +590,12 @@ export function useWritingDocuments() {
         const restored = data.document;
         if (!restored) throw new Error("恢复版本失败");
         applySavedDocument(restored);
-        return restored;
+        return { document: restored, status: "restored" };
       } catch (nextError) {
-        setError(nextError instanceof Error ? nextError.message : "恢复版本失败");
+        const message = nextError instanceof Error ? nextError.message : "恢复版本失败";
+        setError(message);
         setSaveState("error");
-        return null;
+        return { message, status: "failed" };
       }
     },
     [applySavedDocument, clearAutosaveTimer, flushSave],

@@ -1,6 +1,6 @@
 # SunnyPanel test map
 
-Updated: 2026-08-14
+Updated: 2026-08-16
 
 This map describes the current product test boundaries. Historical rollout
 phases and one-time Provider Gates belong in Git history or evaluation docs,
@@ -200,6 +200,8 @@ Required invariants:
 
 - `tests/integration` requires a non-production PostgreSQL database.
 - `tests/e2e` requires a running application and isolated test credentials/data.
+- `tests/e2e/dashboard-writing.spec.ts` verifies that stale version restores
+  return `409` and preserve the newer document saved by another window.
 - Provider-backed evaluations require separate user approval, disclosure,
   request budgets, and sanitized reports. They are observations, not unit tests.
 
