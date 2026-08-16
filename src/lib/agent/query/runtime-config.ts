@@ -6,10 +6,10 @@ export type BoundaryOwnedQueryConfig = {
 };
 
 export const resolveQueryAdoption = (value = process.env.AGENT_QUERY_ADOPTION): QueryAdoption =>
-  value === "admin" ? "admin" : "off";
+  value === undefined ? "admin" : value === "admin" ? "admin" : "off";
 
 export const resolveQueryRuntime = (value = process.env.AGENT_QUERY_RUNTIME): QueryRuntime =>
-  value === "langchain" ? "langchain" : "legacy";
+  value === undefined ? "langchain" : value === "langchain" ? "langchain" : "legacy";
 
 export const resolveBoundaryOwnedQueryConfig = (
   orchestratorPlanSource: null | string | undefined,

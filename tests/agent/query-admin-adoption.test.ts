@@ -43,17 +43,17 @@ const planFacts = (): PlanProgressFacts => ({
   weeklyRhythm: null,
 });
 
-test("query adoption config is exact, default-off, and read dynamically", () => {
-  assert.equal(resolveQueryAdoption(undefined), "off");
-  assert.equal(resolveQueryAdoption(""), "off");
-  assert.equal(resolveQueryAdoption("off"), "off");
-  assert.equal(resolveQueryAdoption("admin"), "admin");
-  for (const denied of ["on", "true", "ADMIN", " admin ", "unexpected"]) {
-    assert.equal(resolveQueryAdoption(denied), "off");
-  }
-
+test("query adoption defaults to admin while explicit empty, off, or invalid values fail closed", () => {
   const previous = process.env.AGENT_QUERY_ADOPTION;
   try {
+    delete process.env.AGENT_QUERY_ADOPTION;
+    assert.equal(resolveQueryAdoption(), "admin");
+
+    for (const denied of ["", "off", "on", "true", "ADMIN", " admin ", "unexpected"]) {
+      process.env.AGENT_QUERY_ADOPTION = denied;
+      assert.equal(resolveQueryAdoption(), "off");
+    }
+
     process.env.AGENT_QUERY_ADOPTION = "admin";
     assert.equal(resolveQueryAdoption(), "admin");
     process.env.AGENT_QUERY_ADOPTION = "off";

@@ -25,18 +25,32 @@ const aggregateIntent: AgentIntent = {
   intent: "query_progress",
 };
 
-test("Orchestrator runtime is permanently LangChain while query adoption remains separately gated", () => {
-  const previous = process.env.AGENT_ORCHESTRATOR_RUNTIME;
+test("Orchestrator and Boundary-owned Query commentary default to LangChain with independent kill switches", () => {
+  const previousOrchestrator = process.env.AGENT_ORCHESTRATOR_RUNTIME;
+  const previousQueryRuntime = process.env.AGENT_QUERY_RUNTIME;
+  const previousQueryAdoption = process.env.AGENT_QUERY_ADOPTION;
   try {
     for (const value of ["", "legacy", "unknown"]) {
       process.env.AGENT_ORCHESTRATOR_RUNTIME = value;
       assert.equal(resolveOrchestratorRuntimeMode(), "langchain");
     }
-    assert.equal(resolveQueryRuntime(undefined), "legacy");
-    assert.equal(resolveQueryAdoption(undefined), "off");
+
+    delete process.env.AGENT_QUERY_RUNTIME;
+    delete process.env.AGENT_QUERY_ADOPTION;
+    assert.equal(resolveQueryRuntime(), "langchain");
+    assert.equal(resolveQueryAdoption(), "admin");
+
+    process.env.AGENT_QUERY_RUNTIME = "legacy";
+    process.env.AGENT_QUERY_ADOPTION = "off";
+    assert.equal(resolveQueryRuntime(), "legacy");
+    assert.equal(resolveQueryAdoption(), "off");
   } finally {
-    if (previous === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
-    else process.env.AGENT_ORCHESTRATOR_RUNTIME = previous;
+    if (previousOrchestrator === undefined) delete process.env.AGENT_ORCHESTRATOR_RUNTIME;
+    else process.env.AGENT_ORCHESTRATOR_RUNTIME = previousOrchestrator;
+    if (previousQueryRuntime === undefined) delete process.env.AGENT_QUERY_RUNTIME;
+    else process.env.AGENT_QUERY_RUNTIME = previousQueryRuntime;
+    if (previousQueryAdoption === undefined) delete process.env.AGENT_QUERY_ADOPTION;
+    else process.env.AGENT_QUERY_ADOPTION = previousQueryAdoption;
   }
 });
 

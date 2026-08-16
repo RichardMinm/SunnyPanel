@@ -118,8 +118,6 @@ jobs:
           --name sunnypanel-ci-runtime
           --network host
           --env AGENT_DISABLE_LLM=0
-          --env AGENT_QUERY_ADOPTION=admin
-          --env AGENT_QUERY_RUNTIME=langchain
           --env DATABASE_URL
           --env DEEPSEEK_API_KEY=sunnypanel-ci-fake-provider
           --env DEEPSEEK_API_PROTOCOL=chat_completions

@@ -139,9 +139,22 @@ test("plan ID lookup disables Payload not-found errors and validates an accompan
   }]);
 });
 
-test("runtime defaults to Legacy and exact eligibility stays narrow", () => {
-  assert.equal(resolveQueryRuntime(undefined), "legacy");
-  assert.equal(resolveQueryRuntime("unexpected"), "legacy");
+test("runtime defaults to LangChain while explicit empty, Legacy, or invalid values fail closed", () => {
+  const previous = process.env.AGENT_QUERY_RUNTIME;
+  try {
+    delete process.env.AGENT_QUERY_RUNTIME;
+    assert.equal(resolveQueryRuntime(), "langchain");
+    for (const denied of ["", "legacy", "LANGCHAIN", " langchain ", "unexpected"]) {
+      process.env.AGENT_QUERY_RUNTIME = denied;
+      assert.equal(resolveQueryRuntime(), "legacy");
+    }
+    process.env.AGENT_QUERY_RUNTIME = "langchain";
+    assert.equal(resolveQueryRuntime(), "langchain");
+  } finally {
+    if (previous === undefined) delete process.env.AGENT_QUERY_RUNTIME;
+    else process.env.AGENT_QUERY_RUNTIME = previous;
+  }
+
   assert.deepEqual(LANGCHAIN_QUERY_INTENTS, ["query_progress", "query_plan_progress"]);
   assert.equal(classifyQueryEligibility(intent("answer_question"), "langchain").eligible, false);
   assert.equal(classifyQueryEligibility(intent("query_progress", { scope: "all" }), "langchain").eligible, true);
@@ -195,6 +208,29 @@ test("only deterministic Boundary-owned queries may start Query commentary", () 
         runtime: "legacy",
       });
     }
+  } finally {
+    if (previousRuntime === undefined) delete process.env.AGENT_QUERY_RUNTIME;
+    else process.env.AGENT_QUERY_RUNTIME = previousRuntime;
+    if (previousAdoption === undefined) delete process.env.AGENT_QUERY_ADOPTION;
+    else process.env.AGENT_QUERY_ADOPTION = previousAdoption;
+  }
+});
+
+test("unset defaults enable only deterministic Boundary-owned Query commentary", () => {
+  const previousRuntime = process.env.AGENT_QUERY_RUNTIME;
+  const previousAdoption = process.env.AGENT_QUERY_ADOPTION;
+  try {
+    delete process.env.AGENT_QUERY_RUNTIME;
+    delete process.env.AGENT_QUERY_ADOPTION;
+
+    assert.deepEqual(resolveBoundaryOwnedQueryConfig("heuristic"), {
+      adoption: "admin",
+      runtime: "langchain",
+    });
+    assert.deepEqual(resolveBoundaryOwnedQueryConfig("llm"), {
+      adoption: "off",
+      runtime: "legacy",
+    });
   } finally {
     if (previousRuntime === undefined) delete process.env.AGENT_QUERY_RUNTIME;
     else process.env.AGENT_QUERY_RUNTIME = previousRuntime;
