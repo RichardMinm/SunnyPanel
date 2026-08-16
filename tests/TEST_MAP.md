@@ -142,6 +142,9 @@ Required invariants:
   promoted to a persisted completed assistant message.
 - Production Agent E2E and smoke require exactly one final successful terminal;
   `done` must precede it and `persist` must be true.
+- The production-container Gate explicitly enables the admin LangChain Query
+  seam and proves aggregate commentary appears exactly once; its deterministic
+  Provider accepts streaming only for the enum-only qualitative protocol.
 - Thread metadata displays product state/tags without internal thread IDs.
 - Ordinary answers stay lightweight while structured artifacts use cards.
 - Agent Ops reports execute and rollback reliability separately over an explicit

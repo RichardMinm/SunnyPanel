@@ -5,6 +5,7 @@ import {
   assertSuccessfulAgentSseEvents,
   parseAgentSseText,
 } from "./lib/agent-sse-contract.mjs";
+import { AGGREGATE_QUERY_COMMENTARY_MARKER } from "./lib/agent-e2e-provider-protocol.mjs";
 
 const serverUrl =
   process.env.AGENT_E2E_SERVER_URL ??
@@ -13,6 +14,7 @@ const serverUrl =
 const email = process.env.AGENT_E2E_EMAIL;
 const password = process.env.AGENT_E2E_PASSWORD;
 const timeoutMs = Number(process.env.AGENT_E2E_TIMEOUT_MS ?? 30_000);
+const expectQueryCommentary = process.env.AGENT_E2E_EXPECT_QUERY_COMMENTARY === "1";
 
 if (!email || !password) {
   console.error(
@@ -163,6 +165,15 @@ const assertChatContract = (response, turnId) => {
   assert.ok(Array.isArray(response.trace));
 };
 
+const assertAggregateCommentaryOnce = (answer, label) => {
+  assert.equal(typeof answer, "string", `${label} must include an answer`);
+  assert.equal(
+    answer.split(AGGREGATE_QUERY_COMMENTARY_MARKER).length - 1,
+    1,
+    `${label} must include the aggregate Query commentary exactly once`,
+  );
+};
+
 const queryTurnId = `e2e-json-${randomUUID()}`;
 const queryResponse = await chat({
   message: "查一下整体进度",
@@ -172,6 +183,9 @@ const queryResponse = await chat({
 });
 assertChatContract(queryResponse, queryTurnId);
 assert.equal(queryResponse.intent, "query_progress");
+if (expectQueryCommentary) {
+  assertAggregateCommentaryOnce(queryResponse.assistantMessage, "JSON query response");
+}
 
 const replayResponse = await chat({
   message: "查一下整体进度",
@@ -226,6 +240,9 @@ assert.equal(done?.turnId, sseTurnId);
 assert.equal(done?.intent, "query_progress");
 assert.ok(done?.tokenUsage?.totalTokens > 0);
 assert.ok(Array.isArray(done?.trace));
+if (expectQueryCommentary) {
+  assertAggregateCommentaryOnce(done?.assistantMessage, "SSE query response");
+}
 
 const planTitle = `LangGraph E2E ${randomUUID()}`;
 const proposalTurnId = `e2e-proposal-${randomUUID()}`;

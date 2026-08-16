@@ -1,5 +1,10 @@
 import { createServer } from "node:http";
 
+import {
+  buildOpenAIChatCompletionSse,
+  resolveQueryQualitativeStream,
+} from "./lib/agent-e2e-provider-protocol.mjs";
+
 const enabled = process.env.AGENT_E2E_FAKE_PROVIDER === "1";
 const token = process.env.AGENT_E2E_FAKE_PROVIDER_TOKEN?.trim();
 const port = Number(process.env.AGENT_E2E_FAKE_PROVIDER_PORT ?? 4010);
@@ -20,6 +25,20 @@ const WORKSPACE_PREFIX = "[WORKSPACE CONTEXT — UNTRUSTED user data";
 const jsonResponse = (response, status, body) => {
   response.writeHead(status, { "Content-Type": "application/json" });
   response.end(JSON.stringify(body));
+};
+
+const sseResponse = (response, body, completion) => {
+  response.writeHead(200, {
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "Content-Type": "text/event-stream; charset=utf-8",
+  });
+  response.end(buildOpenAIChatCompletionSse({
+    content: completion.content,
+    created: Math.floor(Date.now() / 1000),
+    includeUsage: body.stream_options?.include_usage === true,
+    model: String(body.model ?? "sunnypanel-release-fixture"),
+  }));
 };
 
 const stringContent = (content) => {
@@ -189,7 +208,20 @@ const server = createServer((request, response) => {
     if (receivedBytes > MAX_REQUEST_BYTES) return;
     try {
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-      if (body?.stream === true || body?.response_format?.type !== "json_object") {
+      if (body?.stream === true) {
+        const queryCompletion = resolveQueryQualitativeStream(body);
+        if (!queryCompletion) {
+          jsonResponse(response, 400, {
+            error: {
+              message: "Only enum-only Query qualitative streaming is supported.",
+            },
+          });
+          return;
+        }
+        sseResponse(response, body, queryCompletion);
+        return;
+      }
+      if (body?.response_format?.type !== "json_object") {
         jsonResponse(response, 400, {
           error: { message: "Only non-streaming JSON mode is supported." },
         });

@@ -118,6 +118,8 @@ jobs:
           --name sunnypanel-ci-runtime
           --network host
           --env AGENT_DISABLE_LLM=0
+          --env AGENT_QUERY_ADOPTION=admin
+          --env AGENT_QUERY_RUNTIME=langchain
           --env DATABASE_URL
           --env DEEPSEEK_API_KEY=sunnypanel-ci-fake-provider
           --env DEEPSEEK_API_PROTOCOL=chat_completions
@@ -134,6 +136,7 @@ jobs:
       - name: Verify production Agent API
         env:
           AGENT_E2E_EMAIL: release-ci@sunnypanel.local
+          AGENT_E2E_EXPECT_QUERY_COMMENTARY: "1"
           AGENT_E2E_PASSWORD: SunnyPanelReleaseCI-2026
           AGENT_E2E_SERVER_URL: http://127.0.0.1:3000
         run: npm run test:agent:e2e

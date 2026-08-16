@@ -66,7 +66,28 @@ test("Agent runtime E2E covers the remaining migration-critical HTTP paths", () 
   assert.match(script, /unwrapDocument/);
   assert.match(script, /return unwrapDocument\(await response\.json\(\)\)/);
   assert.match(script, /assertSuccessfulAgentSseEvents/);
+  assert.match(script, /AGGREGATE_QUERY_COMMENTARY_MARKER/);
+  assert.match(script, /AGENT_E2E_EXPECT_QUERY_COMMENTARY === "1"/);
+  assert.match(script, /if \(expectQueryCommentary\)/);
+  assert.match(script, /assertAggregateCommentaryOnce/);
   assert.match(script, /"terminal"/);
+});
+
+test("production Agent E2E enables and exercises only the allowlisted Query commentary stream", () => {
+  const provider = readFileSync(
+    resolve(process.cwd(), "scripts/agent-e2e-provider.mjs"),
+    "utf8",
+  );
+  const workflow = readFileSync(
+    resolve(process.cwd(), ".github/workflows/ci.yml"),
+    "utf8",
+  );
+
+  assert.match(provider, /resolveQueryQualitativeStream/);
+  assert.match(provider, /Only enum-only Query qualitative streaming is supported/);
+  assert.match(workflow, /--env AGENT_QUERY_RUNTIME=langchain/);
+  assert.match(workflow, /--env AGENT_QUERY_ADOPTION=admin/);
+  assert.match(workflow, /AGENT_E2E_EXPECT_QUERY_COMMENTARY: "1"/);
 });
 
 test("Agent production smoke enforces the shared successful SSE terminal contract", () => {
