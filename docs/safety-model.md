@@ -123,7 +123,7 @@ v1 不承诺：
 
 The guarded Query path trusts only the server-authenticated Payload user passed through the API boundary. It describes that actor as a **trusted single-user admin actor**. Client `isAdmin` or role values, headers, and message text do not enable adoption. Unauthenticated requests are rejected before the agent handler.
 
-This is not a complete role system. The current model has no independent fine-grained RBAC and does not provide multi-user authorization semantics. The runtime and adoption settings must both opt in; any unrecognized value is disabled.
+This is not a complete role system. The current model has no independent fine-grained RBAC and does not provide multi-user authorization semantics. Boundary ownership, trusted actor, runtime, adoption, exact intent, and exact arguments must all pass. Any explicit empty or unrecognized runtime/adoption value fails closed.
 
 ## Provider Data Minimization
 
@@ -138,7 +138,7 @@ Threats and controls:
 | Unsafe escalation | Local validator rejects admitted escalation patterns. |
 | Provider timeout or error | Query completes with canonical facts only. |
 | Client-side admin forgery | Actor status comes from the server authentication result. |
-| Accidental runtime enablement | `AGENT_QUERY_RUNTIME=langchain` and `AGENT_QUERY_ADOPTION=admin` must both pass. |
+| Accidental scope expansion | Unset defaults apply only after deterministic Boundary ownership, trusted actor, and exact read allowlist checks; explicit `legacy` or `off` disables the path. |
 | Duplicate model call | Exact allowlist excludes `answer_question`; adopted dispatch permits at most one Query Provider call. |
 | Hidden Legacy fallback | Provider failure omits commentary and does not start Legacy after Provider work. |
 | Query-path business mutation | Query modules have no Executor or write capability. |

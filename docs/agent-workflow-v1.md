@@ -48,7 +48,7 @@ Primary preResolvedIntent
    → response
 ```
 
-Current adoption supports only exact `query_progress` aggregate variants without a checklist title and exact `query_plan_progress` with a positive integer `planId`. Defaults remain `AGENT_QUERY_RUNTIME=legacy` and `AGENT_QUERY_ADOPTION=off`; wider adoption is not enabled. The complete contract is in `docs/query-runtime-v1.md`.
+Current adoption supports only exact deterministic Boundary-owned `query_progress` aggregate variants without a checklist title and exact `query_plan_progress` with a positive integer `planId`. Unset configuration defaults this narrow path to `langchain/admin`; LLM-owned or unsupported queries remain outside it. Either `AGENT_QUERY_RUNTIME=legacy` or `AGENT_QUERY_ADOPTION=off` is an immediate kill switch. The complete contract is in `docs/query-runtime-v1.md`.
 
 Rules:
 

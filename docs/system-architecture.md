@@ -182,4 +182,4 @@ The Provider is downstream and optional. It cannot feed facts or decisions back 
 - No Query-specific durable storage.
 - Existing conversation persistence stores the final complete answer.
 - Observation collection is bounded, in-process, and non-durable; it is not enterprise audit storage.
-- Defaults remain `AGENT_QUERY_RUNTIME=legacy` and `AGENT_QUERY_ADOPTION=off`.
+- Unset configuration defaults only deterministic Boundary-owned eligible queries to `langchain/admin`; `legacy` and `off` remain independent kill switches.
