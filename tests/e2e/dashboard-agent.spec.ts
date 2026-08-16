@@ -202,9 +202,13 @@ test("移动端中断回复可重试且不会把部分内容带入下一次请�
   await expect(shell.getByText("重试成功")).toBeVisible();
   await expect(shell.getByText("回复中断，已有内容未保存")).toHaveCount(0);
   expect(callCount).toBe(2);
-  expect(submittedMessages[1]).toEqual([
-    { content: "验证中断重试", role: "user" },
-  ]);
+  expect(submittedMessages[1]).toEqual(submittedMessages[0]);
+  expect(submittedMessages[1]?.filter(
+    ({ content, role }) => role === "user" && content === "验证中断重试",
+  )).toHaveLength(1);
+  expect(submittedMessages[1]?.some(
+    ({ content, role }) => role === "assistant" && content === "已经生成的部分内容",
+  )).toBe(false);
 });
 
 test("桌面端 Inspector 可通过 Composer 面板按钮展开并在面板头收起", async ({ page }) => {
