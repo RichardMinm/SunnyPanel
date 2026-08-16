@@ -12,7 +12,19 @@
 | Production-wide adoption | not enabled |
 | Legacy removal | not authorized |
 
-This is a guarded, read-only adoption path. It does not replace the Router, does not make LangChain the default Query runtime, and does not authorize wider production adoption. The implementation is in `src/lib/agent/query`; the production seam remains the trusted `preResolvedIntent` path in `src/lib/agent/chat-pipeline/legacy-heuristic-resolution-step.ts`.
+This is a guarded, read-only adoption path. It does not replace the Router, does not make LangChain the default Query runtime, and does not authorize wider production adoption. The implementation is in `src/lib/agent/query`; the production seam accepts commentary only for a deterministic Boundary-owned `preResolvedIntent` whose `orchestratorPlanSource` is exactly `heuristic`. LLM-, null-, or unknown-source plans are forced to `legacy/off` before Query facts or Provider work.
+
+## Query Ownership
+
+Every active Query intent has exactly one owner:
+
+| Intent | Ownership |
+| --- | --- |
+| `query_progress`, `query_plan_progress` | `LANGCHAIN_ENHANCED` — deterministic canonical facts with optional qualitative commentary |
+| `capability_query`, `query_checklist_progress`, `query_memory`, `query_plan`, `query_schedule`, `query_timeline` | `DETERMINISTIC` |
+| `evaluate_plan` | `NOT_PURE_READ` |
+
+The executable inventory is `ACTIVE_QUERY_OWNERSHIP`; `ACTIVE_LEGACY_QUERY_MODEL_CALLS` is locked to `0`. The compatibility runtime name `legacy` remains a kill-switch value, but it does not represent an active Legacy Query model owner.
 
 ## Supported Scope
 
@@ -67,23 +79,25 @@ Client-provided `isAdmin`, role fields, headers, or message content do not parti
 
 The gate order is fixed:
 
-1. runtime must be `langchain`;
-2. adoption must be `admin`;
-3. the server-derived actor must be trusted;
-4. the intent must be exactly allowlisted;
-5. arguments must match the exact eligible shape.
+1. the intent must be owned by the deterministic Boundary (`source=heuristic`);
+2. runtime must be `langchain`;
+3. adoption must be `admin`;
+4. the server-derived actor must be trusted;
+5. the intent must be exactly allowlisted;
+6. arguments must match the exact eligible shape.
 
 Rejection occurs before the new facts loader and before the Query Provider. Rejection reasons are sanitized categories such as `runtime_legacy`, `adoption_disabled`, `actor_not_admin`, `intent_not_eligible`, and `argument_shape_not_eligible`. The gate does not mutate the Primary intent.
 
 ## Data Flow
 
 ```text
-Primary preResolvedIntent
+Deterministic Boundary-owned preResolvedIntent
+→ Ownership Gate
 → Runtime / Adoption Gate
 → Trusted Actor Check
 → Exact Intent / Args Eligibility
 ├─ Rejected
-│  → Existing Legacy Path
+│  → Existing deterministic / domain-owned path
 └─ Adopted
    → Shared QueryFacts Loader
    → Deterministic Canonical Answer
@@ -180,7 +194,7 @@ The collector is non-durable and is not an enterprise audit log. It is process-l
 
 ### Gate rejected
 
-- Continue the existing Legacy path.
+- Continue the existing deterministic or domain-owned path.
 - Do not invoke the new `QueryFacts` path.
 - Do not call the Query Provider.
 
@@ -225,7 +239,11 @@ The safe default is both values above. The deterministic and live rollback drill
 
 Real Provider evaluation is manual-only and is not part of default CI.
 
-## Live Evaluation Evidence
+## Historical Limited-adoption Live Evidence
+
+The following 40-observation run predates the Boundary ownership closure and the
+default-activation gate. It remains valid evidence for the enum-only commentary
+contract, but it does not prove the current ownership wiring or a new default.
 
 The final admin limited-adoption run used DeepSeek V4-Pro and completed 40 observations:
 

@@ -185,12 +185,17 @@ Steps:
 6. Visit the public page via "View Public Page" link.
 7. Return, unpublish → status returns to "draft".
 8. Archive → status becomes "archived" (not shown in public site).
+9. Open Version History and restore an older version. The current content is saved first.
+10. In a two-window demo, update the document in the second window, then try to
+    restore from the stale first window. The restore is rejected as a conflict and
+    the newer content remains intact.
 
 Key points to mention:
 
 - Content lifecycle: draft → published → archived.
 - Publish/unpublish requires explicit user action.
 - Agent cannot auto-publish.
+- Version restore uses optimistic concurrency and never silently overwrites a newer save.
 
 ---
 
@@ -232,7 +237,9 @@ Goal: Show data linkage and progress auto-sync.
 
 Steps:
 
-1. Navigate to a Plan that has linked checklists and schedule items.
+1. Open a linked Plan from Writing or Agent results. SunnyPanel returns to Agent
+   Workspace and opens the plan inspector; it does not navigate to a separate
+   `?mode=plans` page.
 2. Show that Checklist.planId points back to the Plan.
 3. Show that ScheduleItems appear in Plan.linkedContent.
 4. Mark a checklist item as completed.
@@ -266,6 +273,11 @@ Steps:
 4. Show schedule rollback:
    - Rollback created schedule items.
    - Plan.linkedContent schedule-item links are cleaned up.
+5. Open Agent Ops and show the bounded recent Receipt sample:
+   - execute and rollback are reported separately;
+   - pending does not enter the success-rate denominator;
+   - indeterminate is shown explicitly;
+   - no completed sample is displayed as "暂无已完成样本" rather than 0%.
 
 Key points to mention:
 
@@ -273,6 +285,7 @@ Key points to mention:
 - Write intent always requires confirmation.
 - Rollback is deterministic and explicit.
 - Not an enterprise audit system — local-only rollback for Payload writes.
+- The Agent Ops sample is a recent operational window, not a global SLO.
 
 ---
 
@@ -282,5 +295,5 @@ Key points to mention:
 - No external Calendar integration or rollback.
 - No auto-rescheduling.
 - Checklist items are embedded (not independent collection).
-- TimelineEvent.relatedPlan not yet implemented.
-- Legacy data not backfilled with planId.
+- Some legacy Checklist/Plan records may still need a one-time `planId` backfill;
+  current Timeline-to-Plan linkage is implemented.

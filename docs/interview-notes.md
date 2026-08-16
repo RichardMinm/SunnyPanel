@@ -1,5 +1,9 @@
 # Query Runtime Interview Notes
 
+> Historical snapshot: these notes describe the earlier limited-adoption design.
+> The current ownership/default contract is maintained in
+> `docs/query-runtime-v1.md` and the Wave 2 completion report.
+
 ## 为什么没有直接把 Router 切成 LLM-first？
 
 Router Canary 证明了失败回退的安全性，但同步延迟不稳定，clarify adoption 没有形成足够价值，且 timeout 与 unsafe mismatch 必须阻塞采用。SunnyPanel 因此保持 Primary authoritative，不为了框架迁移牺牲既有安全合同。Query Runtime 只消费可信的 `preResolvedIntent`，没有切换 Router。

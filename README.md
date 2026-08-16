@@ -19,7 +19,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 ### Agent 驱动的工作流
 
 - **复合意图理解**：一次说「制定考研计划 + 排进下周日程 + 每周五复盘」，Agent 自动拆解为 DAG 子任务
-- **多 Agent 协作**：6 个专业 Agent（Plan / Schedule / Review / Memory / Content / Query）通过 Agent Bus 协同，各自拥有独立 LLM 推理
+- **多 Agent 协作**：6 个能力域（Plan / Schedule / Review / Memory / Content / Query）通过 Agent Bus 协同；模型调用受严格 schema、能力边界和单轮预算约束，确定性查询不重复调用模型
 - **DryRun → 确认 → 执行 → 回滚**：每个写操作都有完整的 dry-run 预览、风险分级和回滚策略
 - **长期记忆**：向量检索 + 类型分类，Agent 记住你的偏好、写作风格和工作流规则
 - **Dashboard 即 Agent 工作台**：对话面板、审批卡片、Trace 时间线、产物管理
@@ -27,7 +27,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 ### 公开表达
 
 - `Home`、`Blog`、`Notes`、`Updates`、`Timeline`、`Checklists`、`About`、`Now`
-- **Markdown 所见即所得写作**：MDXEditor，Markdown 纯文本存库
+- **结构化富文本写作**：Dashboard Writing 使用 TipTap，`contentRich` 是权威内容；Markdown 仅保留为旧内容迁移与兼容回退
 - **Timeline 作为长期记忆骨架**：公开写作、动态、项目进展自动形成时间线叙事
 
 ### 数据与工具
@@ -62,7 +62,6 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 ┌────────┐┌────────┐┌────────┐
 │  Plan  ││Schedule││ Review │  ...
 │  Agent ││ Agent  ││ Agent  │
-│  +LLM  ││  +LLM  ││  +LLM  │
 └────────┘└────────┘└────────┘
         │
         ▼
@@ -90,14 +89,16 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 - Action Receipt：以 thread + action 为幂等键，阻止重复确认造成重复写入
 - 6 个专业 Agent 定义与路由，Agent Bus 消息传递
 - 15 个工具含完整 dryRun / execute / rollback 生命周期，逐工具风险分级
-- OpenAI Function Calling 支持，带 LLM → 启发式降级链路
+- LangChain Structured Output + 确定性边界校验；模型协议失败采用 typed fail-closed，不猜测 intent、不绕过安全链路
 - 长期记忆系统：类型分类、向量检索、相关性评分
 - AgentRun 审计追溯、rollback API、token 统计
+- Agent Ops 以最近 N 条 Receipt 分别展示执行与回滚的成功、失败、处理中和状态未知；无完成样本时不伪造成功率
 - API 速率限制、结构化日志
 - Dashboard 全屏 Agent 工作台：对话、审批、追踪、产物、上下文字段
 
 ### 写作与内容
-- Markdown 纯文本存库，MDXEditor 所见即所得编辑
+- TipTap 结构化富文本编辑，`contentRich` 权威存储，Markdown 兼容旧内容
+- 版本历史恢复会先保存当前内容，并用更新时间做并发保护；其他窗口已更新时返回冲突，不覆盖较新内容
 - 公开站点与 Admin 共用 `sunny-prose` 渲染层与 CSS token
 - 浅色 / 深色主题兼容
 - Lexical JSON → Markdown 迁移脚本
@@ -112,7 +113,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 ### 站点体验
 - 全站 `Cmd/Ctrl + K` 命令面板：导航、新建内容、进入后台
 - Live Preview：Payload Admin 内实时预览公开页面
-- Dashboard：Focus Hero、日程日历、计划跑道、内容队列、Timeline 缺口
+- Dashboard：Agent Workspace、Writing、Schedule、Checklist、Timeline、Memory，并在 Agent 右侧检查关联计划
 - 安全响应头（X-Content-Type-Options、X-Frame-Options 等）
 
 ## 技术栈
@@ -372,7 +373,7 @@ PAYLOAD_SECRET=<openssl rand -base64 32 生成的密钥>
 DATABASE_URL=postgresql://user:password@127.0.0.1:5432/sunnypanel
 NEXT_PUBLIC_SERVER_URL=http://localhost:3000
 
-# 可选 — Agent LLM（未配置时使用规则降级）
+# 可选 — Agent LLM（未配置时确定性能力仍可用，需要模型的能力会安全返回不可用）
 OPENAI_API_KEY=sk-...
 ```
 
@@ -384,7 +385,7 @@ OPENAI_API_KEY=sk-...
 - 用自然语言告诉 Agent 你想做什么（制定计划、排日程、写周报、记偏好）
 - 维护 Timeline 节点，让它成为公开内容的长期记忆层
 - 用命令面板 `Cmd/Ctrl + K` 快速进入常用页面
-- 写作时在 Admin 编辑器中使用 Markdown 快捷键，所见即所得
+- 写作时在 Dashboard Writing 使用 TipTap 富文本编辑器、内容块与版本历史
 
 ## 已知限制
 
