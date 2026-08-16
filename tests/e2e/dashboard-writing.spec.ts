@@ -15,9 +15,27 @@ test("写作工作台可进入并切换预览", async ({ page }) => {
   await navigation.getByRole("button", { name: "新建", exact: true }).click();
   await page.getByRole("menuitem", { name: "新文章" }).click();
 
-  await workspace.getByRole("textbox", { name: "标题" }).fill("E2E 写作页冒烟");
+  await workspace.getByPlaceholder("未命名").fill("E2E 写作页冒烟");
   await workspace.getByRole("button", { name: "预览" }).click();
   await expect(workspace.getByRole("button", { name: "返回编辑" })).toBeVisible();
+  await workspace.getByRole("button", { name: "返回编辑" }).click();
+
+  const showInspector = workspace.getByRole("button", { name: "展开属性栏" });
+  if (await showInspector.isVisible()) {
+    await showInspector.click();
+  }
+  const metadata = workspace.getByRole("complementary", { name: "写作属性" });
+  await metadata.getByRole("button", { name: "关联", exact: true }).click();
+  await metadata.getByRole("button", { name: "关联计划" }).click();
+
+  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+  await expect(page).not.toHaveURL(/mode=plans|mode=writing/);
+  const planInspector = page.getByRole("complementary", { name: "右侧检查器" });
+  await expect(planInspector).toBeVisible();
+  await expect(planInspector.getByRole("tab", { name: "计划" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 });
 
 test("历史版本恢复不会覆盖其他窗口刚保存的内容", async ({ page }) => {

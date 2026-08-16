@@ -158,6 +158,55 @@ test("移动端 Dashboard 优先展示主 Agent Workspace 且不横向溢出", a
   await expect(shell.getByRole("complementary", { name: "右侧检查器" })).toBeHidden();
 });
 
+test("移动端中断回复可重试且不会把部分内容带入下一次请求", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const shell = await getDashboardShell(page);
+  const submittedMessages: Array<Array<{ content?: string; role?: string }>> = [];
+  let callCount = 0;
+
+  await page.route("**/api/agent/chat", async (route) => {
+    callCount += 1;
+    const body = route.request().postDataJSON() as {
+      messages?: Array<{ content?: string; role?: string }>;
+    };
+    submittedMessages.push(body.messages ?? []);
+    const partial = callCount === 1;
+    const streamBody = partial
+      ? [
+          'event: token\ndata: {"block":"response","content":"已经生成的部分内容"}',
+          'event: terminal\ndata: {"partialOutputEmitted":true,"persist":false,"retryable":true,"status":"partial"}',
+          "",
+        ].join("\n\n")
+      : [
+          'event: token\ndata: {"block":"response","content":"重试成功"}',
+          'event: done\ndata: {"assistantMessage":"重试成功","confidence":1,"engine":"workflow","intent":"answer_question","pendingAction":null,"threadId":1,"trace":[]}',
+          'event: terminal\ndata: {"partialOutputEmitted":false,"persist":true,"retryable":false,"status":"complete"}',
+          "",
+        ].join("\n\n");
+
+    await route.fulfill({
+      body: streamBody,
+      contentType: "text/event-stream; charset=utf-8",
+      status: 200,
+    });
+  });
+
+  const composer = shell.getByLabel("输入要交给 Agent 的话");
+  await composer.fill("验证中断重试");
+  await shell.getByRole("button", { name: "发送" }).click();
+
+  await expect(shell.getByText("已经生成的部分内容")).toBeVisible();
+  await expect(shell.getByText("回复中断，已有内容未保存")).toBeVisible();
+  await shell.getByRole("button", { name: "重试", exact: true }).click();
+
+  await expect(shell.getByText("重试成功")).toBeVisible();
+  await expect(shell.getByText("回复中断，已有内容未保存")).toHaveCount(0);
+  expect(callCount).toBe(2);
+  expect(submittedMessages[1]).toEqual([
+    { content: "验证中断重试", role: "user" },
+  ]);
+});
+
 test("桌面端 Inspector 可通过 Composer 面板按钮展开并在面板头收起", async ({ page }) => {
   const shell = await getDashboardShell(page);
   await startNewThread(shell);
