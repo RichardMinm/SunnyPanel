@@ -1,7 +1,6 @@
 import { enrichContentIntent } from "./content-agent";
 import { enrichMemoryIntent } from "./memory-agent";
 import { enrichPlanIntent } from "./plan-agent";
-import { enrichQueryIntent } from "./query-agent";
 import { enrichReviewIntent } from "./review-agent";
 import { enrichScheduleIntent } from "./schedule-agent";
 import type { SpecializedAgentDefinition } from "./types";
@@ -54,7 +53,6 @@ export const contentAgentDefinition: SpecializedAgentDefinition = {
 };
 
 export const queryAgentDefinition: SpecializedAgentDefinition = {
-  enrichIntent: enrichQueryIntent,
   id: "query",
   role: "query",
   supportedIntents: ["query_progress", "query_plan_progress", "answer_question"],

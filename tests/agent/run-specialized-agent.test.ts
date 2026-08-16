@@ -6,6 +6,7 @@ import {
   runSpecializedAgentForTask,
 } from "../../src/lib/agent/agents/run-specialized-agent";
 import { evaluateSpecialistTaskCompleteness } from "../../src/lib/agent/agents/specialist-task-completeness";
+import { queryAgentDefinition } from "../../src/lib/agent/agents/registry";
 import type { SpecializedAgentDefinition } from "../../src/lib/agent/agents/types";
 import { createModelCallBudgetRecorder } from "../../src/lib/agent/orchestration/model-call-budget";
 import type { TaskNode } from "../../src/lib/agent/orchestration/types";
@@ -159,13 +160,36 @@ test("calls the specialist exactly once for an open-ended incomplete task", asyn
   assert.equal(recorder.snapshot().unexpectedDuplicateCalls, 0);
 });
 
-test("keeps unknown and weakly constrained task shapes on the specialist path", () => {
+test("bypasses legacy Query model ownership while keeping open-ended domain tasks on specialists", () => {
   assert.equal(
     evaluateSpecialistTaskCompleteness(task({ args: {}, intent: "query_progress" })).disposition,
-    "required_incomplete",
+    "bypassed_complete",
+  );
+  assert.equal(
+    evaluateSpecialistTaskCompleteness(task({ args: { planId: 7 }, intent: "query_plan_progress" })).disposition,
+    "bypassed_complete",
   );
   assert.equal(
     evaluateSpecialistTaskCompleteness(task({ args: {}, intent: "compose_schedule_item" })).disposition,
     "required_incomplete",
   );
+});
+
+test("the production Query specialist has no active model enrichment entrypoint", async () => {
+  const recorder = createModelCallBudgetRecorder();
+  const queryTask = task({ args: {}, intent: "query_progress" });
+
+  assert.equal(queryAgentDefinition.enrichIntent, undefined);
+  const result = await runSpecializedAgentForTask(queryTask, {
+    dryRunContext: {} as never,
+    intent: queryIntent("query_progress"),
+    message: "查看整体进度",
+    modelCallRecorder: recorder,
+    promptContext,
+  });
+
+  assert.equal(result.intent.intent, "query_progress");
+  assert.equal(result.disposition, "bypassed_complete");
+  assert.equal(recorder.snapshot().specialistLogicalCalls, 0);
+  assert.equal(recorder.snapshot().specialistProviderAttempts, 0);
 });

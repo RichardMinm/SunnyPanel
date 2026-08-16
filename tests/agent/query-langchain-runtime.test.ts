@@ -12,6 +12,10 @@ import {
   resolveBoundaryOwnedQueryConfig,
   resolveQueryRuntime,
 } from "../../src/lib/agent/query/runtime-config";
+import {
+  ACTIVE_LEGACY_QUERY_MODEL_CALLS,
+  ACTIVE_QUERY_OWNERSHIP,
+} from "../../src/lib/agent/query/ownership";
 import { parseAgentIntentResult, type AgentIntent } from "../../src/lib/agent/schemas";
 import { formatProgressAssistantMessage } from "../../src/lib/agent/progress";
 import { LANGCHAIN_QUERY_INTENTS, QUERY_CONTENT_CHAR_CAP, type PlanProgressFacts } from "../../src/lib/agent/query/types";
@@ -157,6 +161,21 @@ test("runtime defaults to Legacy and exact eligibility stays narrow", () => {
   for (const planId of [-1, 0, Number.NaN, Number.POSITIVE_INFINITY, 1.5]) {
     assert.equal(classifyQueryEligibility(intent("query_plan_progress", { planId }), "langchain").eligible, false);
   }
+});
+
+test("every active Query has one owner and no active Legacy Query model call", () => {
+  assert.deepEqual(ACTIVE_QUERY_OWNERSHIP, {
+    capability_query: "DETERMINISTIC",
+    evaluate_plan: "NOT_PURE_READ",
+    query_checklist_progress: "DETERMINISTIC",
+    query_memory: "DETERMINISTIC",
+    query_plan: "DETERMINISTIC",
+    query_plan_progress: "LANGCHAIN_ENHANCED",
+    query_progress: "LANGCHAIN_ENHANCED",
+    query_schedule: "DETERMINISTIC",
+    query_timeline: "DETERMINISTIC",
+  });
+  assert.equal(ACTIVE_LEGACY_QUERY_MODEL_CALLS, 0);
 });
 
 test("only deterministic Boundary-owned queries may start Query commentary", () => {
