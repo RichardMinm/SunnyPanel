@@ -40,6 +40,17 @@ const snapshot: AgentOpsSnapshot = {
       threadId: 301,
       title: "SunnyPanel Q3 上线计划",
     },
+    {
+      actionId: "action-rollback-plan",
+      collection: "plans",
+      createdAt: "2026-07-03T08:03:00.000Z",
+      documentId: 55,
+      id: 202,
+      operation: "rollback" as const,
+      status: "indeterminate",
+      threadId: 301,
+      title: "SunnyPanel Q3 上线计划",
+    },
   ],
   recentRuns: [
     {
@@ -52,10 +63,29 @@ const snapshot: AgentOpsSnapshot = {
       totalTokens: 150,
     },
   ],
+  receiptReliability: {
+    execute: {
+      failed: 0,
+      indeterminate: 0,
+      pending: 0,
+      succeeded: 1,
+      successRate: 1,
+      total: 1,
+    },
+    rollback: {
+      failed: 0,
+      indeterminate: 1,
+      pending: 0,
+      succeeded: 0,
+      successRate: 0,
+      total: 1,
+    },
+    sampleSize: 2,
+  },
   summary: {
     failureCount: 1,
     pendingCount: 1,
-    receiptsCount: 1,
+    receiptsCount: 2,
     runsCount: 1,
   },
 };
@@ -68,6 +98,12 @@ test("AgentOpsPanel renders summary and operations sections", () => {
   assert.match(markup, /Receipts/);
   assert.match(markup, /Pending/);
   assert.match(markup, /Failures/);
+  assert.match(markup, /写入与回滚可靠性/);
+  assert.match(markup, /最近 2 条 Receipt 样本/);
+  assert.match(markup, /执行成功率/);
+  assert.match(markup, /回滚成功率/);
+  assert.match(markup, /100%/);
+  assert.match(markup, /状态不确定 1/);
   assert.match(markup, /Recent Runs/);
   assert.match(markup, /planning/);
   assert.match(markup, /gpt-5/);
@@ -93,6 +129,25 @@ test("AgentOpsPanel renders friendly empty states", () => {
     pendingActions: [],
     recentReceipts: [],
     recentRuns: [],
+    receiptReliability: {
+      execute: {
+        failed: 0,
+        indeterminate: 0,
+        pending: 0,
+        succeeded: 0,
+        successRate: null,
+        total: 0,
+      },
+      rollback: {
+        failed: 0,
+        indeterminate: 0,
+        pending: 0,
+        succeeded: 0,
+        successRate: null,
+        total: 0,
+      },
+      sampleSize: 0,
+    },
     summary: {
       failureCount: 0,
       pendingCount: 0,
@@ -106,6 +161,8 @@ test("AgentOpsPanel renders friendly empty states", () => {
   assert.match(markup, /暂无 receipt/);
   assert.match(markup, /暂无待确认操作/);
   assert.match(markup, /暂无失败或不确定动作/);
+  assert.match(markup, /最近 0 条 Receipt 样本/);
+  assert.equal(markup.match(/暂无已完成样本/g)?.length, 2);
 });
 
 test("AgentOpsPanel does not render raw JSON blobs", () => {

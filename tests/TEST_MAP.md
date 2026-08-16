@@ -125,6 +125,7 @@ Representative paths:
 - `tests/agent/conversation-continuity.test.ts`
 - `tests/agent/conversation-follow-up.test.ts`
 - `tests/agent/dashboard.test.ts`
+- `tests/agent/ops/agent-ops-api.test.ts`
 - `tests/agent/ops/*.test.tsx`
 
 Required invariants:
@@ -141,6 +142,9 @@ Required invariants:
   promoted to a persisted completed assistant message.
 - Thread metadata displays product state/tags without internal thread IDs.
 - Ordinary answers stay lightweight while structured artifacts use cards.
+- Agent Ops reports execute and rollback reliability separately over an explicit
+  recent Receipt sample; pending and indeterminate states are never hidden in a
+  success rate.
 
 ### Release readiness
 

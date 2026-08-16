@@ -43,12 +43,26 @@ export type AgentOpsSnapshot = {
     message: string;
     createdAt?: string;
   }>;
+  receiptReliability: {
+    execute: AgentOpsReceiptReliability;
+    rollback: AgentOpsReceiptReliability;
+    sampleSize: number;
+  };
   summary: {
     runsCount: number;
     receiptsCount: number;
     pendingCount: number;
     failureCount: number;
   };
+};
+
+export type AgentOpsReceiptReliability = {
+  failed: number;
+  indeterminate: number;
+  pending: number;
+  succeeded: number;
+  successRate: null | number;
+  total: number;
 };
 
 type AgentOpsCollection = "agent-action-receipts" | "agent-runs" | "agent-threads";
@@ -215,6 +229,49 @@ const mapPendingAction = (thread: Record<string, unknown>): null | AgentOpsSnaps
   };
 };
 
+const emptyReceiptReliability = (): AgentOpsReceiptReliability => ({
+  failed: 0,
+  indeterminate: 0,
+  pending: 0,
+  succeeded: 0,
+  successRate: null,
+  total: 0,
+});
+
+const summarizeReceiptReliability = (
+  receipts: AgentOpsSnapshot["recentReceipts"],
+): AgentOpsSnapshot["receiptReliability"] => {
+  const reliability = {
+    execute: emptyReceiptReliability(),
+    rollback: emptyReceiptReliability(),
+    sampleSize: receipts.length,
+  };
+
+  for (const receipt of receipts) {
+    const bucket = receipt.operation === "rollback"
+      ? reliability.rollback
+      : reliability.execute;
+    bucket.total += 1;
+
+    if (receipt.status === "succeeded") {
+      bucket.succeeded += 1;
+    } else if (receipt.status === "pending") {
+      bucket.pending += 1;
+    } else if (receipt.status === "failed") {
+      bucket.failed += 1;
+    } else if (receipt.status === "indeterminate") {
+      bucket.indeterminate += 1;
+    }
+  }
+
+  for (const bucket of [reliability.execute, reliability.rollback]) {
+    const completed = bucket.succeeded + bucket.failed + bucket.indeterminate;
+    bucket.successRate = completed === 0 ? null : bucket.succeeded / completed;
+  }
+
+  return reliability;
+};
+
 export async function buildAgentOpsSnapshot({
   limit,
   payload,
@@ -296,6 +353,7 @@ export async function buildAgentOpsSnapshot({
     pendingActions,
     recentReceipts,
     recentRuns,
+    receiptReliability: summarizeReceiptReliability(recentReceipts),
     summary: {
       failureCount: failures.length,
       pendingCount: pendingActions.length,

@@ -6,7 +6,10 @@ import { AppBadge } from "@/components/primitives/AppBadge";
 import { AppCard } from "@/components/primitives/AppCard";
 import { AppSection } from "@/components/primitives/AppSection";
 import { formatCollectionLabel } from "./constants";
-import type { AgentOpsSnapshot } from "@/lib/agent/ops/snapshot";
+import type {
+  AgentOpsReceiptReliability,
+  AgentOpsSnapshot,
+} from "@/lib/agent/ops/snapshot";
 
 type AgentOpsPanelProps = {
   limit?: number;
@@ -18,6 +21,25 @@ const emptySnapshot: AgentOpsSnapshot = {
   pendingActions: [],
   recentReceipts: [],
   recentRuns: [],
+  receiptReliability: {
+    execute: {
+      failed: 0,
+      indeterminate: 0,
+      pending: 0,
+      succeeded: 0,
+      successRate: null,
+      total: 0,
+    },
+    rollback: {
+      failed: 0,
+      indeterminate: 0,
+      pending: 0,
+      succeeded: 0,
+      successRate: null,
+      total: 0,
+    },
+    sampleSize: 0,
+  },
   summary: {
     failureCount: 0,
     pendingCount: 0,
@@ -41,6 +63,42 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
 
 function EmptyState({ children }: { children: string }) {
   return <p className="sunny-agent-ops-empty">{children}</p>;
+}
+
+const formatSuccessRate = (value: null | number) =>
+  value === null ? "暂无已完成样本" : `${Math.round(value * 100)}%`;
+
+function ReliabilityTile({
+  label,
+  metric,
+}: {
+  label: string;
+  metric: AgentOpsReceiptReliability;
+}) {
+  const needsAttention = metric.failed + metric.indeterminate;
+
+  return (
+    <AppCard padding="sm" variant="quiet">
+      <div className="sunny-agent-ops-row-head">
+        <strong>{label}</strong>
+        <AppBadge
+          tone={
+            metric.successRate === null
+              ? "muted"
+              : needsAttention > 0
+                ? "warning"
+                : "success"
+          }
+        >
+          {formatSuccessRate(metric.successRate)}
+        </AppBadge>
+      </div>
+      <p>
+        成功 {metric.succeeded} · 失败 {metric.failed} · 状态不确定 {metric.indeterminate}
+      </p>
+      <small>执行中 {metric.pending} · 共 {metric.total} 条</small>
+    </AppCard>
+  );
 }
 
 export function AgentOpsPanel({ limit = 20, snapshot: providedSnapshot }: AgentOpsPanelProps) {
@@ -109,6 +167,16 @@ export function AgentOpsPanel({ limit = 20, snapshot: providedSnapshot }: AgentO
         <SummaryTile label="Pending" value={data.summary.pendingCount} />
         <SummaryTile label="Failures" value={data.summary.failureCount} />
       </div>
+
+      <AppSection title="写入与回滚可靠性">
+        <p className="sunny-agent-ops-trace-note">
+          最近 {data.receiptReliability.sampleSize} 条 Receipt 样本；成功率仅按已结束样本计算，执行中单独统计。
+        </p>
+        <div className="sunny-agent-ops-summary-grid">
+          <ReliabilityTile label="执行成功率" metric={data.receiptReliability.execute} />
+          <ReliabilityTile label="回滚成功率" metric={data.receiptReliability.rollback} />
+        </div>
+      </AppSection>
 
       <AppSection title="Activity / Trace">
         <AppCard padding="sm" variant="quiet">

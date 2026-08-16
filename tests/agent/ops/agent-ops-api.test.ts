@@ -162,12 +162,93 @@ test("Agent ops snapshot returns recent runs receipts pending actions and failur
   assert.equal(snapshot.pendingActions[0]?.actionId, "pending-action");
   assert.equal(snapshot.pendingActions[0]?.intent, "create_checklist");
   assert.equal(snapshot.failures.length, 2);
+  assert.deepEqual(snapshot.receiptReliability, {
+    execute: {
+      failed: 0,
+      indeterminate: 0,
+      pending: 0,
+      succeeded: 1,
+      successRate: 1,
+      total: 1,
+    },
+    rollback: {
+      failed: 0,
+      indeterminate: 1,
+      pending: 0,
+      succeeded: 0,
+      successRate: 0,
+      total: 1,
+    },
+    sampleSize: 2,
+  });
   assert.deepEqual(snapshot.summary, {
     failureCount: 2,
     pendingCount: 1,
     receiptsCount: 2,
     runsCount: 2,
   });
+});
+
+test("Agent ops receipt reliability separates execute rollback pending and indeterminate states", async () => {
+  const receiptDocs = [
+    { id: 1, operation: "execute", status: "succeeded" },
+    { id: 2, operation: "execute", status: "failed" },
+    { id: 3, operation: "execute", status: "pending" },
+    { id: 4, operation: "execute", status: "indeterminate" },
+    { id: 5, operation: "rollback", status: "succeeded" },
+    { id: 6, operation: "rollback", status: "pending" },
+    { id: 7, operation: "rollback", status: "indeterminate" },
+  ].map((receipt) => ({
+    actionId: `action-${receipt.id}`,
+    createdAt: `2026-07-03T08:0${receipt.id}:00.000Z`,
+    intent: "create_plan",
+    thread: 301,
+    ...receipt,
+  }));
+  const payload: AgentOpsPayloadClient = {
+    find: async (args) => ({
+      docs: args.collection === "agent-action-receipts" ? receiptDocs : [],
+      totalDocs: args.collection === "agent-action-receipts" ? receiptDocs.length : 0,
+    }),
+  };
+
+  const snapshot = await buildAgentOpsSnapshot({ limit: 20, payload, userId: 7 });
+
+  assert.equal(snapshot.receiptReliability.sampleSize, 7);
+  assert.deepEqual(snapshot.receiptReliability.execute, {
+    failed: 1,
+    indeterminate: 1,
+    pending: 1,
+    succeeded: 1,
+    successRate: 1 / 3,
+    total: 4,
+  });
+  assert.deepEqual(snapshot.receiptReliability.rollback, {
+    failed: 0,
+    indeterminate: 1,
+    pending: 1,
+    succeeded: 1,
+    successRate: 1 / 2,
+    total: 3,
+  });
+});
+
+test("Agent ops receipt reliability uses null success rates when no receipt has completed", async () => {
+  const payload: AgentOpsPayloadClient = {
+    find: async (args) => ({
+      docs: args.collection === "agent-action-receipts"
+        ? [{ id: 1, operation: "execute", status: "pending" }]
+        : [],
+      totalDocs: args.collection === "agent-action-receipts" ? 1 : 0,
+    }),
+  };
+
+  const snapshot = await buildAgentOpsSnapshot({ limit: 20, payload, userId: 7 });
+
+  assert.equal(snapshot.receiptReliability.sampleSize, 1);
+  assert.equal(snapshot.receiptReliability.execute.pending, 1);
+  assert.equal(snapshot.receiptReliability.execute.successRate, null);
+  assert.equal(snapshot.receiptReliability.rollback.successRate, null);
 });
 
 test("Agent ops snapshot is read-only and does not expose sensitive raw fields", async () => {
@@ -196,8 +277,6 @@ test("Agent ops snapshot limits returned rows", async () => {
 });
 
 /* ── M6-B1: Receipt collection / documentId / title extraction ── */
-
-type OpsFindResult = { docs: Array<Record<string, unknown>>; totalDocs?: number };
 
 const RICH_RECEIPTS: Record<string, unknown>[] = [
   {
