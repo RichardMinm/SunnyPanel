@@ -368,7 +368,7 @@ test("LangChain runtime resolves a pure progress query before the full Orchestra
 
     assert.equal(result.outcome, "continue");
     if (result.outcome !== "continue") return;
-    assert.equal(result.data.orchestratorPlanSource, "llm");
+    assert.equal(result.data.orchestratorPlanSource, "heuristic");
     assert.equal(result.data.preResolvedIntent?.intent, "query_progress");
     assert.deepEqual(result.data.preResolvedIntent?.args, {});
   } finally {

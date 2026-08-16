@@ -8,7 +8,10 @@ import { classifyQueryEligibility } from "../../src/lib/agent/query/intent-scope
 import { renderCanonicalFactBlock } from "../../src/lib/agent/query/langchain-query-agent";
 import { buildQueryMessages } from "../../src/lib/agent/query/prompt";
 import { projectQualitativeQueryFacts } from "../../src/lib/agent/query/qualitative-projection";
-import { resolveQueryRuntime } from "../../src/lib/agent/query/runtime-config";
+import {
+  resolveBoundaryOwnedQueryConfig,
+  resolveQueryRuntime,
+} from "../../src/lib/agent/query/runtime-config";
 import { parseAgentIntentResult, type AgentIntent } from "../../src/lib/agent/schemas";
 import { formatProgressAssistantMessage } from "../../src/lib/agent/progress";
 import { LANGCHAIN_QUERY_INTENTS, QUERY_CONTENT_CHAR_CAP, type PlanProgressFacts } from "../../src/lib/agent/query/types";
@@ -153,6 +156,31 @@ test("runtime defaults to Legacy and exact eligibility stays narrow", () => {
   );
   for (const planId of [-1, 0, Number.NaN, Number.POSITIVE_INFINITY, 1.5]) {
     assert.equal(classifyQueryEligibility(intent("query_plan_progress", { planId }), "langchain").eligible, false);
+  }
+});
+
+test("only deterministic Boundary-owned queries may start Query commentary", () => {
+  const previousRuntime = process.env.AGENT_QUERY_RUNTIME;
+  const previousAdoption = process.env.AGENT_QUERY_ADOPTION;
+  try {
+    process.env.AGENT_QUERY_RUNTIME = "langchain";
+    process.env.AGENT_QUERY_ADOPTION = "admin";
+
+    assert.deepEqual(resolveBoundaryOwnedQueryConfig("heuristic"), {
+      adoption: "admin",
+      runtime: "langchain",
+    });
+    for (const source of ["llm", null, undefined, "unknown"]) {
+      assert.deepEqual(resolveBoundaryOwnedQueryConfig(source), {
+        adoption: "off",
+        runtime: "legacy",
+      });
+    }
+  } finally {
+    if (previousRuntime === undefined) delete process.env.AGENT_QUERY_RUNTIME;
+    else process.env.AGENT_QUERY_RUNTIME = previousRuntime;
+    if (previousAdoption === undefined) delete process.env.AGENT_QUERY_ADOPTION;
+    else process.env.AGENT_QUERY_ADOPTION = previousAdoption;
   }
 });
 

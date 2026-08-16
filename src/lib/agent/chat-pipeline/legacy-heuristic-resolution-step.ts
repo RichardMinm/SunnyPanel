@@ -47,7 +47,7 @@ import type {
 } from "@/lib/agent/prompts/writing-assist";
 import type { IntentResolution } from "./resolve-intent-step";
 import { dispatchPreResolvedQuery } from "@/lib/agent/query/dispatcher";
-import { resolveQueryAdoption, resolveQueryRuntime } from "@/lib/agent/query/runtime-config";
+import { resolveBoundaryOwnedQueryConfig } from "@/lib/agent/query/runtime-config";
 import { ConversationalAnswerStreamFailure } from "@/lib/agent/answer/errors";
 import { runConversationalAnswer } from "@/lib/agent/answer/runtime";
 import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
@@ -177,14 +177,15 @@ export const resolveLegacyHeuristicStep = async (
     preResolvedIntent &&
     shouldTrustOrchestratorPreResolve(preResolvedIntent, orchestratorPlanSource)
   ) {
+    const queryConfig = resolveBoundaryOwnedQueryConfig(orchestratorPlanSource);
     const queryDispatch = await dispatchPreResolvedQuery({
       actor: { isAdmin: user.collection === "users" },
-      adoption: resolveQueryAdoption(),
+      adoption: queryConfig.adoption,
       emitToken,
       intent: preResolvedIntent,
       message,
       modelCallRecorder,
-      runtime: resolveQueryRuntime(),
+      runtime: queryConfig.runtime,
       stream,
     });
 

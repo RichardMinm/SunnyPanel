@@ -828,7 +828,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         return {
           outcome: "continue",
           data: {
-            orchestratorPlanSource: "llm",
+            orchestratorPlanSource: "heuristic",
             orchestratorRuntime: "langchain",
             preResolvedIntent: boundary.preResolvedIntent,
             tokenUsage,

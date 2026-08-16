@@ -1,10 +1,27 @@
 import type { QueryAdoption, QueryRuntime } from "./types";
 
+export type BoundaryOwnedQueryConfig = {
+  adoption: QueryAdoption;
+  runtime: QueryRuntime;
+};
+
 export const resolveQueryAdoption = (value = process.env.AGENT_QUERY_ADOPTION): QueryAdoption =>
   value === "admin" ? "admin" : "off";
 
 export const resolveQueryRuntime = (value = process.env.AGENT_QUERY_RUNTIME): QueryRuntime =>
   value === "langchain" ? "langchain" : "legacy";
+
+export const resolveBoundaryOwnedQueryConfig = (
+  orchestratorPlanSource: null | string | undefined,
+): BoundaryOwnedQueryConfig => orchestratorPlanSource === "heuristic"
+  ? {
+      adoption: resolveQueryAdoption(),
+      runtime: resolveQueryRuntime(),
+    }
+  : {
+      adoption: "off",
+      runtime: "legacy",
+    };
 
 const boundedMs = (value: string | undefined, fallback: number, max: number) => {
   const parsed = Number(value);

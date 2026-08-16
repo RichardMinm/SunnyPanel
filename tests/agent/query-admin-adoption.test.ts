@@ -254,7 +254,8 @@ test("production adoption derives admin status only from the authenticated serve
     /handleAgentChatPost\(\{\s*body,\s*signal: request\.signal,\s*user: authResult\.user,\s*\}\)/u,
   );
   assert.match(step, /actor: \{ isAdmin: user\.collection === "users" \}/);
-  assert.match(step, /adoption: resolveQueryAdoption\(\)/);
+  assert.match(step, /resolveBoundaryOwnedQueryConfig\(orchestratorPlanSource\)/);
+  assert.match(step, /adoption: queryConfig\.adoption/);
   assert.doesNotMatch(step, /message\.(?:isAdmin|role)|body\.(?:isAdmin|role)/);
 });
 
