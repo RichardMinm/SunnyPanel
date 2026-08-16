@@ -7,6 +7,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 ## Demo / Docs
 
 - [Query Runtime v1](docs/query-runtime-v1.md) — guarded LangChain query scope, safety boundaries, evidence, and rollback
+- [Wave 2 Completion](docs/wave2-product-hardening-completion.md) — product-hardening scope, release evidence, limitations, and rollback
 - [Demo Script](docs/demo-script.md) — 3 分钟演示与 10 分钟技术讲解脚本
 - [Showcase](docs/showcase.md) — 面向 GitHub / 项目展示的产品说明
 - [Agent Workflow v1](docs/agent-workflow-v1.md) — Planning、Checklist、Schedule、Safety、Rollback 的工作流总览
@@ -90,6 +91,7 @@ SunnyPanel 是一个 **AI 原生的个人长期工作台**——LLM Agent 作为
 - 6 个专业 Agent 定义与路由，Agent Bus 消息传递
 - 15 个工具含完整 dryRun / execute / rollback 生命周期，逐工具风险分级
 - LangChain Structured Output + 确定性边界校验；模型协议失败采用 typed fail-closed，不猜测 intent、不绕过安全链路
+- 确定性边界拥有的总体/计划进度查询默认使用 LangChain 做可选定性表达；事实答案由本地代码生成，超时自动省略表达，可用 `AGENT_QUERY_RUNTIME=legacy` 或 `AGENT_QUERY_ADOPTION=off` 即时回滚
 - 长期记忆系统：类型分类、向量检索、相关性评分
 - AgentRun 审计追溯、rollback API、token 统计
 - Agent Ops 以最近 N 条 Receipt 分别展示执行与回滚的成功、失败、处理中和状态未知；无完成样本时不伪造成功率

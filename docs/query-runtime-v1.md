@@ -6,13 +6,13 @@
 | --- | --- |
 | Implementation | complete |
 | Deterministic verification | passed |
-| Admin limited adoption evaluation | passed |
-| Default runtime | `legacy` |
-| Default adoption | `off` |
-| Production-wide adoption | not enabled |
+| Boundary-owned live safety evaluation | passed |
+| Default runtime | `langchain` |
+| Default adoption | `admin` |
+| Production adoption | enabled only for exact Boundary-owned read variants |
 | Legacy removal | not authorized |
 
-This is a guarded, read-only adoption path. It does not replace the Router, does not make LangChain the default Query runtime, and does not authorize wider production adoption. The implementation is in `src/lib/agent/query`; the production seam accepts commentary only for a deterministic Boundary-owned `preResolvedIntent` whose `orchestratorPlanSource` is exactly `heuristic`. LLM-, null-, or unknown-source plans are forced to `legacy/off` before Query facts or Provider work.
+This is a guarded, read-only adoption path. It does not replace the Router and does not authorize wider Query or write adoption. The implementation is in `src/lib/agent/query`; the production seam accepts commentary only for a deterministic Boundary-owned `preResolvedIntent` whose `orchestratorPlanSource` is exactly `heuristic`. LLM-, null-, or unknown-source plans are forced to `legacy/off` before Query facts or Provider work. When configuration is unset, only that narrow Boundary-owned path defaults to `langchain/admin`.
 
 ## Query Ownership
 
@@ -62,12 +62,12 @@ These exclusions avoid repeated Primary model work, unverified semantic baseline
 
 `src/lib/agent/query/runtime-config.ts` resolves configuration dynamically per request:
 
-| Variable | Accepted enabled value | Any other or missing value |
-| --- | --- | --- |
-| `AGENT_QUERY_RUNTIME` | `langchain` | `legacy` |
-| `AGENT_QUERY_ADOPTION` | `admin` | `off` |
+| Variable | Missing value | Accepted enabled value | Empty, rollback, or invalid value |
+| --- | --- | --- | --- |
+| `AGENT_QUERY_RUNTIME` | `langchain` | `langchain` | `legacy` |
+| `AGENT_QUERY_ADOPTION` | `admin` | `admin` | `off` |
 
-Both values must be enabled for adoption. Values such as `on`, `true`, different casing, or padded strings do not enable adoption. Commentary timeouts default to 8 seconds for first text and 30 seconds total, with bounded configuration ceilings of 12 and 45 seconds respectively. These timeout settings affect optional commentary, not canonical fact generation.
+Both values must resolve to their enabled state for adoption. Explicit `legacy` or `off` disables adoption immediately. Empty values and values such as `on`, `true`, different casing, or padded strings fail closed to `legacy/off`. Commentary timeouts default to 8 seconds for first text and 30 seconds total, with bounded configuration ceilings of 12 and 45 seconds respectively. These timeout settings affect optional commentary, not canonical fact generation.
 
 ## Trusted Actor Boundary
 
@@ -227,14 +227,14 @@ AGENT_QUERY_ADOPTION=off
 AGENT_QUERY_RUNTIME=legacy
 ```
 
-The safe default is both values above. The deterministic and live rollback drills verify that a disabled switch produces the Legacy outcome with zero facts-loader and Provider calls on the guarded path.
+These are explicit operational kill switches. The deterministic rollback contracts verify that either disabled switch produces the Legacy outcome with zero facts-loader and Provider calls on the guarded path. Removing both variables restores the narrow `langchain/admin` default.
 
 ## Test Evidence
 
-- `tests/agent/query-langchain-runtime.test.ts`: fact parity, default runtime, exact scope, canonical rendering, one-load behavior, oversized pre-Provider degradation, Primary immutability, and exclusions.
+- `tests/agent/query-langchain-runtime.test.ts`: fact parity, default and rollback runtime, exact scope, canonical rendering, one-load behavior, oversized pre-Provider degradation, Primary immutability, and exclusions.
 - `tests/agent/query-qualitative-projection.test.ts`: enum projection, input audit, buffered output, tool/numeric rejection, canonical-first composition, persistence, and omission.
 - `tests/agent/query-langchain-evaluation.test.ts`: fixed sanitized fixture and safety metric contracts.
-- `tests/agent/query-admin-adoption.test.ts`: default-off adoption, trusted actor, exact gate, dual switches, bounded observations, no mutation, and no duplicate calls.
+- `tests/agent/query-admin-adoption.test.ts`: default and rollback adoption, trusted actor, exact gate, dual switches, bounded observations, no mutation, and no duplicate calls.
 - `tests/agent/query-admin-adoption-evaluation.test.ts`: 30+10 matrix, independent safety failures, latency/product gates, aggregate-only report, and explicit live opt-in.
 
 Real Provider evaluation is manual-only and is not part of default CI.
@@ -267,17 +267,43 @@ The final admin limited-adoption run used DeepSeek V4-Pro and completed 40 obser
 
 These figures are observed limited-adoption data, not a production SLA and not evidence for every Provider.
 
+## Wave 2 Default-activation Live Evidence
+
+The default-activation Gate ran on the immutable pre-switch HEAD
+`5ab37485f8fc608ee99e5f4b37ce6d4c9d85b6d1` with DeepSeek V4-Pro. It sent
+only the static commentary protocol and 13 enum-only synthetic projections.
+It used exactly 13 logical calls and 13 Provider attempts for 24 observations.
+
+- completed: 24/24;
+- eligible / Provider / clarify / existing-path observations: 14 / 13 / 2 / 8;
+- canonical answers complete: 14/14;
+- fact mismatch: 0/14;
+- single Provider call: 13/13; maximum facts-loader calls: 1;
+- commentary accepted / omitted: 6 / 7;
+- every omission reason: `first_token_timeout` at the bounded 8-second limit;
+- duplicate model call, input-boundary failure, invented resource, prompt-injection success, unsafe escalation, accepted execution claim, partial output, and post-Provider Legacy fallback: 0;
+- raw workspace text, user request, resource ID, numeric fact, date, or free text sent to the Provider: 0;
+- tool execution, task execution, database mutation, and forbidden retention: 0;
+- observed final latency P50 / upper tail: 8002 ms / 8032 ms;
+- observed TTFT P50 / upper tail: 5122 ms / 7918 ms;
+- usage and cost: N/A because the Provider returned no usable metadata.
+
+The formal safety/default-activation gate passed. The separate optional-commentary
+product threshold did not pass because acceptance was 46.2%, below 70%. Default
+activation is still safe because the canonical answer is complete before the
+Provider call and all seven timeouts degraded to canonical-only output. This is
+not evidence that commentary is highly available and it is not a latency SLA.
+
 ## Current Limitations
 
-- Defaults remain `legacy` and `off`.
 - Only two exact read variants are eligible.
 - Positive plan queries require a known positive integer ID.
-- Provider upper-tail latency was approximately eight seconds in the limited run.
-- Commentary may be omitted; it is not a guaranteed product feature.
+- Provider upper-tail latency remains approximately eight seconds.
+- Commentary was accepted in only 6/13 Provider observations in the Wave 2 Gate; it is optional and may be omitted.
 - The observation collector is bounded, process-local, and non-durable.
 - The actor model is single-user admin, not multi-user RBAC.
 - Not all Query intents are supported.
-- Legacy remains required.
+- The `legacy/off` compatibility path remains available as the operational kill switch.
 - No formal production SLA is claimed.
 
 ## Non-goals
@@ -300,4 +326,4 @@ AGENT_QUERY_ADOPTION=off
 AGENT_QUERY_RUNTIME=legacy
 ```
 
-Git rollback must use `git revert`, not destructive reset. Revert the closure showcase commit first, then the closure technical-doc commit. If C2 itself must be reverted after its no-ff merge, revert that merge separately with `git revert -m 1 <merge-commit>`.
+Git rollback must use `git revert`, not destructive reset. Revert the default-activation commit first; revert earlier Wave 2 commits in reverse order only if their independent fixes also need to be removed.

@@ -9,25 +9,26 @@ Executable local demonstration for the guarded Query runtime and existing SunnyP
 3. Select an existing visible plan with a positive integer ID. Keep that ID only in a local shell variable such as `DEMO_PLAN_ID`; do not add it to Git, screenshots, or this document.
 4. Do not create a temporary plan or other business resource solely for the demo.
 5. Keep the Provider API key only in the local environment. Never display `.env`, request authorization, cookies, raw prompts, or raw responses.
-6. Start and finish with:
+6. Start with both Query variables unset so the current narrow default is exercised:
 
 ```text
-AGENT_QUERY_RUNTIME=legacy
-AGENT_QUERY_ADOPTION=off
+AGENT_QUERY_RUNTIME=<unset>
+AGENT_QUERY_ADOPTION=<unset>
 ```
 
-7. The manual Provider evaluation is not default CI and may read existing local Payload data. Use only an approved evaluation database.
+7. Finish by stopping the demo service. If a rollback drill was performed, unset both variables before the next normal start.
+8. The manual Provider evaluation is not default CI and may read existing local Payload data. Use only an approved evaluation database.
 
-### Scene Q1: Default Legacy
+### Scene Q1: Default Boundary-owned Query
 
-Run the service with the default values and send an aggregate progress question through the authenticated Agent chat UI, for example “查看当前计划和清单进展”.
+Run the service with both Query variables unset and send an aggregate progress question through the authenticated Agent chat UI, for example “查看当前计划和清单进展”.
 
 Expected evidence:
 
-- effective runtime is `legacy`;
-- effective adoption is `off`;
-- the guarded LangChain Query facts loader and Query Provider are not called;
-- Legacy remains the default safe path.
+- effective runtime is `langchain`;
+- effective adoption is `admin`;
+- only a deterministic Boundary-owned eligible intent can enter the guarded facts and commentary path;
+- the canonical deterministic answer remains complete when commentary is omitted.
 
 If the Primary does not resolve the exact `query_progress` intent during a live presentation, use the deterministic gate test below instead of claiming a UI adoption result:
 
@@ -35,7 +36,7 @@ If the Primary does not resolve the exact `query_progress` intent during a live 
 env -u DATABASE_URL -u AGENT_DEBUG_LOG node --import tsx --test tests/agent/query-admin-adoption.test.ts
 ```
 
-### Scene Q2: Admin Limited Aggregate Adoption
+### Scene Q2: Explicit Admin Aggregate Adoption
 
 Restart or run the service process with explicit local settings:
 
@@ -133,14 +134,14 @@ Verify the next request follows Legacy with no guarded facts or Provider call. T
 AGENT_QUERY_RUNTIME=legacy
 ```
 
-Verify the same result. End the demo by restoring both defaults:
+Verify the same result. End the rollback drill by removing both explicit kill switches:
 
 ```text
-AGENT_QUERY_RUNTIME=legacy
-AGENT_QUERY_ADOPTION=off
+AGENT_QUERY_RUNTIME=<unset>
+AGENT_QUERY_ADOPTION=<unset>
 ```
 
-Do not leave the local service running with admin adoption enabled.
+Do not leave the local service running with a rollback value unless that rollback is intentional.
 
 ### Query Demo Prohibitions
 
