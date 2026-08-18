@@ -4,6 +4,7 @@ export type ModelCallRole =
   | "replan"
   | "conversational_answer"
   | "query_commentary"
+  | "learning"
   | "specialist";
 
 export type ModelCallAuthorizationErrorCode =
@@ -108,6 +109,8 @@ export const createModelCallAuthorizer = (
 export type L3BTurnCallAccounting = {
   answerLogicalCalls: number;
   answerProviderAttempts: number;
+  learningLogicalCalls: number;
+  learningProviderAttempts: number;
   orchestratorLogicalCalls: number;
   orchestratorProviderAttempts: number;
   residualPlannerLogicalCalls: number;
@@ -122,6 +125,7 @@ export type L3BTurnCallAccounting = {
 export type TurnModelCallBudget = L3BTurnCallAccounting & {
   /** Compatibility aliases retained for existing production callers. */
   conversationalAnswerCalls: number;
+  learningCalls: number;
   orchestratorCalls: number;
   queryCommentaryCalls: number;
   queryCommentaryLogicalCalls: number;
@@ -148,6 +152,8 @@ export type ModelCallBudgetProjection = Readonly<{
   answerProviderAttempts: number;
   fullOrchestratorLogicalCalls: number;
   fullOrchestratorProviderAttempts: number;
+  learningLogicalCalls: number;
+  learningProviderAttempts: number;
   queryCommentaryLogicalCalls: number;
   queryCommentaryProviderAttempts: number;
   replanLogicalCalls: number;
@@ -163,6 +169,9 @@ const emptyBudget = (): TurnModelCallBudget => ({
   answerLogicalCalls: 0,
   answerProviderAttempts: 0,
   conversationalAnswerCalls: 0,
+  learningCalls: 0,
+  learningLogicalCalls: 0,
+  learningProviderAttempts: 0,
   orchestratorCalls: 0,
   orchestratorLogicalCalls: 0,
   orchestratorProviderAttempts: 0,
@@ -187,11 +196,13 @@ const roleCounter: Record<
   | "conversationalAnswerCalls"
   | "orchestratorCalls"
   | "queryCommentaryCalls"
+  | "learningCalls"
   | "residualPlannerCalls"
   | "replanCalls"
   | "specialistCalls"
 > = {
   conversational_answer: "conversationalAnswerCalls",
+  learning: "learningCalls",
   orchestrator: "orchestratorCalls",
   query_commentary: "queryCommentaryCalls",
   residual_planner: "residualPlannerCalls",
@@ -204,11 +215,13 @@ const logicalRoleCounter: Record<
   | "answerLogicalCalls"
   | "orchestratorLogicalCalls"
   | "queryCommentaryLogicalCalls"
+  | "learningLogicalCalls"
   | "residualPlannerLogicalCalls"
   | "replanLogicalCalls"
   | "specialistLogicalCalls"
 > = {
   conversational_answer: "answerLogicalCalls",
+  learning: "learningLogicalCalls",
   orchestrator: "orchestratorLogicalCalls",
   query_commentary: "queryCommentaryLogicalCalls",
   residual_planner: "residualPlannerLogicalCalls",
@@ -221,11 +234,13 @@ const providerAttemptCounter: Record<
   | "answerProviderAttempts"
   | "orchestratorProviderAttempts"
   | "queryCommentaryProviderAttempts"
+  | "learningProviderAttempts"
   | "residualPlannerProviderAttempts"
   | "replanProviderAttempts"
   | "specialistProviderAttempts"
 > = {
   conversational_answer: "answerProviderAttempts",
+  learning: "learningProviderAttempts",
   orchestrator: "orchestratorProviderAttempts",
   query_commentary: "queryCommentaryProviderAttempts",
   residual_planner: "residualPlannerProviderAttempts",
@@ -270,6 +285,8 @@ export const projectModelCallBudget = (
   answerProviderAttempts: budget.answerProviderAttempts,
   fullOrchestratorLogicalCalls: budget.orchestratorLogicalCalls,
   fullOrchestratorProviderAttempts: budget.orchestratorProviderAttempts,
+  learningLogicalCalls: budget.learningLogicalCalls,
+  learningProviderAttempts: budget.learningProviderAttempts,
   queryCommentaryLogicalCalls: budget.queryCommentaryLogicalCalls,
   queryCommentaryProviderAttempts: budget.queryCommentaryProviderAttempts,
   replanLogicalCalls: budget.replanLogicalCalls,

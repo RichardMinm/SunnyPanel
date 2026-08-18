@@ -33,6 +33,9 @@ test("records legitimate model calls by role and scope", () => {
     answerLogicalCalls: 1,
     answerProviderAttempts: 1,
     conversationalAnswerCalls: 1,
+    learningCalls: 0,
+    learningLogicalCalls: 0,
+    learningProviderAttempts: 0,
     orchestratorCalls: 1,
     orchestratorLogicalCalls: 1,
     orchestratorProviderAttempts: 2,
@@ -71,6 +74,9 @@ test("counts a repeated role and scope as an unexpected duplicate", () => {
     answerLogicalCalls: 1,
     answerProviderAttempts: 0,
     conversationalAnswerCalls: 1,
+    learningCalls: 0,
+    learningLogicalCalls: 0,
+    learningProviderAttempts: 0,
     orchestratorCalls: 1,
     orchestratorLogicalCalls: 1,
     orchestratorProviderAttempts: 0,
@@ -111,6 +117,8 @@ test("terminal projection exposes every production role without compatibility co
     answerProviderAttempts: 0,
     fullOrchestratorLogicalCalls: 1,
     fullOrchestratorProviderAttempts: 1,
+    learningLogicalCalls: 0,
+    learningProviderAttempts: 0,
     queryCommentaryLogicalCalls: 0,
     queryCommentaryProviderAttempts: 0,
     replanLogicalCalls: 0,
@@ -123,9 +131,9 @@ test("terminal projection exposes every production role without compatibility co
   });
 });
 
-test("authorizer rejects before a seventh logical role call across all six roles", () => {
+test("authorizer rejects before an eighth logical role call across all seven roles", () => {
   const authorizer = createAuthorizer()({
-    logicalCallMaximum: 6,
+    logicalCallMaximum: 7,
     providerAttemptMaximum: 24,
     providerAttemptsPerObservationMaximum: 4,
   });
@@ -138,6 +146,7 @@ test("authorizer rejects before a seventh logical role call across all six roles
     "query_commentary",
     "replan",
     "specialist",
+    "learning",
   ] as const;
   for (const [index, role] of roles.entries()) {
     assert.equal(recorder.record(role, `scope-${index + 1}`), true);
@@ -146,7 +155,7 @@ test("authorizer rejects before a seventh logical role call across all six roles
   let forbiddenCallbackCalls = 0;
   assert.throws(
     () => {
-      recorder.record("orchestrator", "scope-7");
+      recorder.record("orchestrator", "scope-8");
       forbiddenCallbackCalls += 1;
     },
     (error: unknown) =>

@@ -22,6 +22,10 @@ import {
 import type { AgentConversationState } from "@/lib/agent/conversation/types";
 import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/retired-intent-response";
 import { isConversationalIntent, type AgentChatMessage } from "@/lib/agent/schemas";
+import {
+  ModelCallAuthorizationError,
+  type ModelCallBudgetRecorder,
+} from "@/lib/agent/orchestration/model-call-budget";
 
 type LearningInput = Parameters<typeof runAgentLearningLoop>[0];
 
@@ -102,6 +106,7 @@ export const createAgentTurnFinalizer = ({
   eventStore,
   markSuggestionDone = markSuggestionDoneDefault,
   message,
+  modelCallRecorder,
   pendingBefore,
   project,
   resolvedHistory = [],
@@ -111,11 +116,13 @@ export const createAgentTurnFinalizer = ({
   turnId,
   user,
   workbenchMode,
+  signal,
 }: {
   conversationStateBefore?: AgentConversationState | null;
   eventStore: AgentThreadEventStore;
   markSuggestionDone?: (id: number) => Promise<unknown>;
   message: string;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   pendingBefore: null | PendingAction;
   project: (projection: AgentThreadProjection) => Promise<unknown>;
   resolvedHistory?: AgentChatMessage[];
@@ -125,6 +132,7 @@ export const createAgentTurnFinalizer = ({
   turnId: string;
   user: { id: number };
   workbenchMode?: AgentWorkbenchMode | null;
+  signal?: AbortSignal;
 }): AgentTurnFinalizer => {
   let finalizedResponse: AgentChatResponse | null = null;
 
@@ -185,36 +193,9 @@ export const createAgentTurnFinalizer = ({
       pushTrace(step);
     };
 
-    if (!(failure && projectFailureAssistantMessage === false)) {
-      try {
-        await runLearningLoop({
-        assistantMessage: completedResponse.assistantMessage,
-        existingMemories,
-        intent: completedResponse.intent,
-        message,
-        pendingActionAfter: completedResponse.pendingAction,
-        pendingActionBefore: pendingBefore,
-        pushTrace: pushLearningTrace,
-        sourceThread: thread.id,
-        tokenUsage: completedResponse.tokenUsage ?? tokenUsage,
-        user,
-        });
-      } catch (error) {
-        pushLearningTrace({
-        detail: error instanceof Error ? error.message : String(error),
-        id: "turn-learning-failure",
-        kind: "error",
-        status: "error",
-        title: "学习循环未完成",
-        });
-      }
-    }
-
-    completedResponse.trace = mergeTrace(
-      completedResponse.trace,
-      learningTrace,
-    );
-
+    // Persist the authoritative terminal response before optional post-turn
+    // learning. A slow or failed enhancement must never make a completed turn
+    // disappear or be replayed as unfinished.
     try {
       await eventStore.append({
         eventKey,
@@ -254,6 +235,48 @@ export const createAgentTurnFinalizer = ({
 
       throw error;
     }
+
+    if (!(failure && projectFailureAssistantMessage === false)) {
+      try {
+        await runLearningLoop({
+          assistantMessage: completedResponse.assistantMessage,
+          existingMemories,
+          intent: completedResponse.intent,
+          learningModelInvocation: {
+            logicalCallAuthorizer: (scopeId) => {
+              if (modelCallRecorder?.record("learning", scopeId) === false) {
+                throw new ModelCallAuthorizationError(
+                  "MODEL_LOGICAL_CALL_LIMIT_EXCEEDED",
+                );
+              }
+            },
+            providerAttemptAuthorizer: () =>
+              modelCallRecorder?.recordProviderAttempt("learning"),
+            signal,
+          },
+          message,
+          pendingActionAfter: completedResponse.pendingAction,
+          pendingActionBefore: pendingBefore,
+          pushTrace: pushLearningTrace,
+          sourceThread: thread.id,
+          tokenUsage: completedResponse.tokenUsage ?? tokenUsage,
+          user,
+        });
+      } catch {
+        pushLearningTrace({
+          detail: "LEARNING_POST_TURN_FAILED",
+          id: "turn-learning-failure",
+          kind: "error",
+          status: "error",
+          title: "学习循环未完成",
+        });
+      }
+    }
+
+    completedResponse.trace = mergeTrace(
+      completedResponse.trace,
+      learningTrace,
+    );
 
     if (!failure && completedResponse.pendingAction === null && suggestionSource) {
       try {

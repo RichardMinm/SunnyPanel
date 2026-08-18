@@ -1,6 +1,10 @@
 import { getPayloadClient } from "@/lib/payload/client";
 
-import { cosineSimilarity, embedText } from "./memory-embeddings";
+import {
+  cosineSimilarity,
+  embedText,
+  resolveAgentEmbeddingConfig,
+} from "./memory-embeddings";
 import { computeMemoryRankScore } from "./memory-ranking";
 import type { AgentMemoryDocument } from "./memory-schema";
 import { scoreAgentMemoryRelevance } from "./memory-schema";
@@ -35,7 +39,7 @@ const parseEmbedding = (value: unknown): number[] | null => {
 };
 
 export const isVectorMemoryEnabled = () =>
-  process.env.AGENT_VECTOR_MEMORY !== "false" && process.env.AGENT_VECTOR_MEMORY !== "0";
+  resolveAgentEmbeddingConfig() !== null;
 
 export const syncMemoryEmbedding = async (memoryId: number, text: string) => {
   if (!isVectorMemoryEnabled()) {

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+
 import {
   evaluateLearningCandidate,
   runAgentLearningLoop,
@@ -10,6 +12,41 @@ import { persistMemoryWithEmbedding } from "../../src/lib/agent/memory";
 import type { AgentMemoryDocument, AgentMemoryInput, AgentMemoryType } from "../../src/lib/agent/memory";
 import type { AgentSuggestionDraft } from "../../src/lib/agent/suggestions";
 import type { AgentChatResponse, PendingAction } from "../../src/lib/agent/schemas";
+import { createModelConfig, type ModelConfig } from "../../src/lib/agent/llm/model-config";
+import type { ModelFactory } from "../../src/lib/agent/llm/model-factory";
+
+const learningModelConfig = (): ModelConfig => {
+  const config = createModelConfig({
+    apiKey: "sk-learning-test",
+    baseURL: "https://api.test.example/v1",
+    maxRetries: 0,
+    model: "learning-test-model",
+    provider: "openai",
+    structuredOutputMode: "json_schema",
+  });
+  if ("code" in config) throw new Error(config.safeMessage);
+  return config;
+};
+
+const fakeLearningModelFactory = (output: unknown): ModelFactory => () => ({
+  withStructuredOutput: () => ({
+    invoke: async () => {
+      if (output instanceof Error) throw output;
+      return output;
+    },
+  }),
+}) as unknown as BaseChatModel;
+
+const withLearningModelEnabled = async <T>(run: () => Promise<T>): Promise<T> => {
+  const previous = process.env.AGENT_DISABLE_LLM;
+  delete process.env.AGENT_DISABLE_LLM;
+  try {
+    return await run();
+  } finally {
+    if (previous === undefined) delete process.env.AGENT_DISABLE_LLM;
+    else process.env.AGENT_DISABLE_LLM = previous;
+  }
+};
 
 const tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]> = {
   contextTokens: 10,
@@ -157,61 +194,56 @@ test("learning candidate evaluation skips duplicate existing memory", () => {
 
 test("learning loop falls back when LLM extraction is unavailable", async () => {
   const saved: AgentMemoryInput[] = [];
-  const result = await runAgentLearningLoop({
-    assistantMessage: "结论：我会减少铺垫。",
-    completeStructuredFn: async () => null,
-    existingMemories: [],
-    intent: "answer_question",
-    message: "记住我喜欢少一点铺垫，先说结论。",
-    pendingActionAfter: null,
-    pendingActionBefore: null,
-    upsertMemoryFn: async (memory) => {
-      saved.push(memory);
+  const result = await withLearningModelEnabled(() => runAgentLearningLoop({
+      assistantMessage: "结论：我会减少铺垫。",
+      existingMemories: [],
+      intent: "answer_question",
+      learningModelInvocation: {
+        modelConfig: learningModelConfig(),
+        modelFactory: fakeLearningModelFactory(new Error("provider unavailable")),
+      },
+      message: "记住我喜欢少一点铺垫，先说结论。",
+      pendingActionAfter: null,
+      pendingActionBefore: null,
+      upsertMemoryFn: async (memory) => {
+        saved.push(memory);
 
-      return memoryDoc({
-        content: memory.content,
-        id: 102,
-        title: memory.title,
-        type: memory.type as AgentMemoryType,
-      });
-    },
-    user: { id: 1 },
-  });
+        return memoryDoc({
+          content: memory.content,
+          id: 102,
+          title: memory.title,
+          type: memory.type as AgentMemoryType,
+        });
+      },
+      user: { id: 1 },
+    }));
 
   assert.equal(result.source, "fallback");
   assert.equal(saved.length, 1);
   assert.match(saved[0]?.content ?? "", /少一点铺垫|先说结论/);
 });
 
-test("learning loop uses valid LLM candidate but keeps policy gate local", async () => {
+test("learning loop never auto-saves a model-only candidate", async () => {
   const saved: AgentMemoryInput[] = [];
-  const result = await runAgentLearningLoop({
+  const suggestions: AgentSuggestionDraft[] = [];
+  const result = await withLearningModelEnabled(() => runAgentLearningLoop({
     assistantMessage: "结论：后续会默认短答案。",
-    completeStructuredFn: async ({ parse }) => {
-      const data = parse({
-        candidates: [
-          {
-            confidence: 0.91,
-            content: "用户偏好默认短答案，先给结论，再给必要细节。",
-            reason: "用户明确表达回答风格偏好。",
-            signal: "explicit_preference",
-            title: "回答长度偏好",
-            type: "preference",
-          },
-        ],
-      });
-
-      return data
-        ? {
-            data,
-            raw: "{}",
-            tokenUsage,
-          }
-        : null;
-    },
     existingMemories: [],
     intent: "answer_question",
-    message: "以后默认短答案，先给结论。",
+    learningModelInvocation: {
+      modelConfig: learningModelConfig(),
+      modelFactory: fakeLearningModelFactory({
+        candidates: [{
+          confidence: 0.91,
+          content: "用户偏好默认短答案，先给结论，再给必要细节。",
+          reason: "用户可能在表达回答风格偏好。",
+          signal: "explicit_preference",
+          title: "回答长度偏好",
+          type: "preference",
+        }],
+      }),
+    },
+    message: "这次请简洁一些。",
     pendingActionAfter: null,
     pendingActionBefore: null,
     upsertMemoryFn: async (memory) => {
@@ -224,44 +256,39 @@ test("learning loop uses valid LLM candidate but keeps policy gate local", async
         type: memory.type as AgentMemoryType,
       });
     },
+    upsertSuggestionFn: async (_uniqueKey, suggestion) => {
+      if (suggestion) suggestions.push(suggestion);
+      return null;
+    },
     user: { id: 1 },
-  });
+  }));
 
   assert.equal(result.source, "llm");
-  assert.equal(saved.length, 1);
-  assert.equal(saved[0]?.type, "preference");
-  assert.match(saved[0]?.content ?? "", /默认短答案/);
+  assert.equal(saved.length, 0);
+  assert.equal(result.decisions[0]?.action, "suggest_memory");
+  assert.equal(suggestions.length, 1);
 });
 
 test("learning loop turns implicit low-confidence candidates into confirmable suggestions", async () => {
   let savedCount = 0;
   const suggestions: AgentSuggestionDraft[] = [];
-  const result = await runAgentLearningLoop({
+  const result = await withLearningModelEnabled(() => runAgentLearningLoop({
     assistantMessage: "结论：我会按路径回答。",
-    completeStructuredFn: async ({ parse }) => {
-      const data = parse({
-        candidates: [
-          {
-            confidence: 0.7,
-            content: "用户可能偏好学习咨询先给路径，不急着生成计划。",
-            reason: "用户这轮纠偏像是在表达工作流偏好，但不够明确。",
-            signal: "inferred",
-            title: "学习咨询偏好候选",
-            type: "workflow_rule",
-          },
-        ],
-      });
-
-      return data
-        ? {
-            data,
-            raw: "{}",
-            tokenUsage,
-          }
-        : null;
-    },
     existingMemories: [],
     intent: "answer_question",
+    learningModelInvocation: {
+      modelConfig: learningModelConfig(),
+      modelFactory: fakeLearningModelFactory({
+        candidates: [{
+          confidence: 0.7,
+          content: "用户可能偏好学习咨询先给路径，不急着生成计划。",
+          reason: "用户这轮纠偏像是在表达工作流偏好，但不够明确。",
+          signal: "inferred",
+          title: "学习咨询偏好候选",
+          type: "workflow_rule",
+        }],
+      }),
+    },
     message: "这次给路径就行",
     pendingActionAfter: null,
     pendingActionBefore: null,
@@ -283,7 +310,7 @@ test("learning loop turns implicit low-confidence candidates into confirmable su
       return null;
     },
     user: { id: 1 },
-  });
+  }));
 
   assert.equal(savedCount, 0);
   assert.equal(result.decisions[0]?.action, "suggest_memory");

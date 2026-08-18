@@ -103,6 +103,8 @@ Representative paths:
 - `tests/agent/orchestration/resource-readiness-guard.test.ts`
 - `tests/agent/orchestration/query-scope-*.test.ts`
 - `tests/agent/planning/planning-specialist-model-seam.test.ts`
+- `tests/agent/memory-learning-model-seam.test.ts`
+- `tests/agent/memory-embedding-boundary.test.ts`
 
 Required invariants:
 
@@ -113,6 +115,23 @@ Required invariants:
 - Invalid schema, DAG, intent, or resource output fails closed.
 - Planning and Checklist draft specialists use the shared structured boundary,
   retain their assigned intent, and reject execution or persistence fields.
+- Learning extraction uses the shared strict structured boundary, treats turn
+  and workspace data as untrusted, and gives the model candidate authority
+  only; deterministic message evidence and policy retain save authority.
+- Learning logical calls and Provider attempts are first-class turn accounting,
+  while the retired generic Memory specialist cannot add a second model call.
+- The production turn finalizer commits its terminal event before optional
+  learning, wires learning through the same turn accounting recorder, and never
+  lets a later learning failure revoke or rewrite the terminal result.
+- Model reasoning cannot authorize a workflow-rule archive; only deterministic
+  evidence of an explicit user preference may do so.
+- Learning candidates containing credentials, cookies, tokens, or database URLs
+  are ignored before memory, embedding, or suggestion persistence, and write
+  failures cannot place raw secrets in trace output.
+- Embeddings are independently configured, explicitly opt-in, fail null, and
+  never inherit the Agent chat Provider tuple or block deterministic retrieval.
+- Active Memory/Learning model seams contain no legacy structured helper,
+  direct chat transport, or manual JSON parsing.
 - Prompt-JSON schema retries contain only sanitized schema paths and static
   field allowlists, never Provider values or raw responses.
 - DeepSeek Responses JSON Schema and terminal-status envelopes fail closed.

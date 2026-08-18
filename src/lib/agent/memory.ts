@@ -1,6 +1,5 @@
 import { getPayloadClient } from "../payload/client";
 import {
-  inferAgentMemoryType,
   scoreAgentMemoryRelevance,
   validateAgentMemoryData,
   type AgentMemoryDocument,
@@ -20,14 +19,6 @@ export {
   type AgentMemoryType,
   type AgentMemoryWriteData,
 } from "./memory-schema";
-
-const normalizeWhitespace = (value: string) => value.trim().replace(/\s+/g, " ");
-
-const deriveMemoryTitle = (content: string) => {
-  const normalized = normalizeWhitespace(content);
-
-  return normalized.length <= 36 ? normalized : `${normalized.slice(0, 36).trimEnd()}...`;
-};
 
 export const getRelevantMemories = async (query: string, limit = 6, intentHint?: string) => {
   const { isVectorMemoryEnabled, searchMemoriesByVector } = await import("./memory-vector");
@@ -206,54 +197,4 @@ export const upsertMemory = async (memory: AgentMemoryInput) => {
     data: data as never,
     overrideAccess: true,
   }) as Promise<AgentMemoryDocument>;
-};
-
-type AutoArchiveInput = {
-  message: string;
-  plan: import("./orchestration/types").OrchestratorPlan;
-  proposals: import("./schemas").ProposedAgentAction[];
-  userConfirmed: boolean;
-};
-
-const extractWorkflowPreference = (message: string) => {
-  const patterns = [
-    /(?:以后|今后|每次都|记得|不要|必须|优先)[^。！？\n]{4,80}/,
-    /(?:排日程|制定计划|写复盘)[^。！？\n]{0,20}(?:都|要|记得)[^。！？\n]{4,60}/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = message.match(pattern);
-
-    if (match?.[0]) {
-      return normalizeWhitespace(match[0]);
-    }
-  }
-
-  return null;
-};
-
-export const autoArchiveMemoryFromExecution = async (input: AutoArchiveInput) => {
-  const preference = extractWorkflowPreference(input.message);
-
-  if (preference) {
-    await persistMemoryWithEmbedding({
-      confidence: input.userConfirmed ? 0.85 : 0.72,
-      content: preference,
-      title: deriveMemoryTitle(preference),
-      type: inferAgentMemoryType(preference),
-    });
-
-    return;
-  }
-
-  if (input.plan.mode === "compound" && input.proposals.length >= 2 && input.plan.reasoning.trim().length > 12) {
-    const content = `复合请求执行模式：${input.plan.reasoning.slice(0, 160)}`;
-
-    await persistMemoryWithEmbedding({
-      confidence: 0.65,
-      content,
-      title: "复合意图拆解偏好",
-      type: "workflow_rule",
-    });
-  }
 };

@@ -10,7 +10,6 @@ import type { AgentRoleArtifactMap } from "../agents/types";
 import { recordAutoApproval as defaultRecordAutoApproval } from "../audit";
 import { executeAgentIntent, type AgentIntentExecutor } from "../executor";
 import { logAgentEvent } from "../logger";
-import { autoArchiveMemoryFromExecution } from "../memory";
 import { buildConfirmedIntentSet, getConsecutiveAutoCount, incrementAutoCount, shouldAutoApprove } from "../permission-resolver";
 import type { AgentPromptContext } from "../prompts";
 import { buildProposedActionMessage, dryRunAgentIntent } from "../safety";
@@ -148,27 +147,6 @@ const buildArtifactPayload = <T extends AgentRole>(
         report: typeof payload.report === "string" ? payload.report : task.label,
       } as AgentRoleArtifactMap[T];
   }
-};
-
-const maybeAutoArchiveMemory = (
-  plan: OrchestratorPlan,
-  message: string,
-  proposals: ProposedAgentAction[],
-) => {
-  if (plan.mode !== "compound" || proposals.length <= 1 || !message.trim()) {
-    return;
-  }
-
-  void autoArchiveMemoryFromExecution({
-    message,
-    plan,
-    proposals,
-    userConfirmed: false,
-  }).catch((error) => {
-    logAgentEvent("warn", "memory.auto_archive_failed", {
-      error: error instanceof Error ? error.message : "unknown",
-    });
-  });
 };
 
 const resumableObservationStatuses = new Set([
@@ -1009,8 +987,6 @@ export const executeOrchestrationGraph = async (
       queueState: buildQueueState(),
     });
   }
-
-  maybeAutoArchiveMemory(plan, message, sortedProposals);
 
   if (clarifyMessage) {
     readOnlyMessages.push(`部分子任务需要补充信息：${clarifyMessage}`);

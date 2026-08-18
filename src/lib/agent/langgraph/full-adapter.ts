@@ -77,6 +77,7 @@ import {
 } from "@/lib/agent/schedule/prepare-schedule-creation";
 import { evaluateScheduleDraftRevision } from "@/lib/agent/schedule/revise-draft-flow";
 import { createNativeOrchestrationTaskExecutor } from "@/lib/agent/orchestration/native-task-executor";
+import { ModelCallAuthorizationError } from "@/lib/agent/orchestration/model-call-budget";
 import { summarizeExecutionQueue } from "@/lib/agent/orchestration/observations";
 import {
   projectCompletedOrchestrationToPlan,
@@ -717,6 +718,16 @@ export const createRunFullLangGraphAgentChatPipeline = (
         assistantMessage: normalizedTurn.assistantMessage,
         existingMemories: currentContextMemories ?? [],
         intent: normalizedTurn.intent,
+        learningModelInvocation: {
+          logicalCallAuthorizer: (scopeId) => {
+            if (modelCallRecorder?.record("learning", scopeId) === false) {
+              throw new ModelCallAuthorizationError("MODEL_LOGICAL_CALL_LIMIT_EXCEEDED");
+            }
+          },
+          providerAttemptAuthorizer: () =>
+            modelCallRecorder?.recordProviderAttempt("learning"),
+          signal,
+        },
         message,
         pendingActionAfter: normalizedTurn.nextPendingAction,
         pendingActionBefore: pendingAction,

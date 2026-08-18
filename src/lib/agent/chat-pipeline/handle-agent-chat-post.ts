@@ -237,10 +237,12 @@ export const handleAgentChatPost = async (input: {
 
   const intentModelEngine = await getAgentIntentModelEngine();
   const userPreferences = await getUserPreferences(user.id);
+  const modelCallRecorder = createModelCallBudgetRecorder();
   const finalizeTurn = createAgentTurnFinalizer({
     conversationStateBefore: conversationState as never,
     eventStore,
     message,
+    modelCallRecorder,
     pendingBefore: pendingAction,
     project: (projection) =>
       payload.update({
@@ -256,11 +258,11 @@ export const handleAgentChatPost = async (input: {
     turnId,
     user,
     workbenchMode,
+    signal,
   });
   const perfTimer = isPerfTraceEnabled()
     ? createPerformanceTimer(turnId)
     : null;
-  const modelCallRecorder = createModelCallBudgetRecorder();
   const pipelineDeps = {
     baseTokenUsage,
     contextPreferences,

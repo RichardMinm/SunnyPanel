@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import test from "node:test";
 
 import {
@@ -9,6 +11,7 @@ import type {
   AgentThreadEventStore,
 } from "../../src/lib/agent/thread-events";
 import type { AgentChatResponse } from "../../src/lib/agent/schemas";
+import { createModelCallBudgetRecorder } from "../../src/lib/agent/orchestration/model-call-budget";
 import type { AgentThread } from "../../src/payload-types";
 
 const tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]> = {
@@ -129,7 +132,7 @@ test("turn finalizer writes one terminal event and runs learning once", async ()
   assert.equal(projections, 1);
 });
 
-test("turn finalizer persists the response after learning trace is complete", async () => {
+test("turn finalizer commits the terminal event before optional learning starts", async () => {
   const { events, store } = createMemoryStore();
   const emittedTrace: NonNullable<AgentChatResponse["trace"]> = [];
   const thread = {
@@ -153,6 +156,10 @@ test("turn finalizer persists the response after learning trace is complete", as
     pendingBefore: null,
     project: async () => undefined,
     runLearningLoop: async ({ pushTrace }) => {
+      assert.equal(
+        events.some((event) => event.eventType === "assistant_completed"),
+        true,
+      );
       pushTrace?.({
         detail: "学习完成",
         id: "learning-loop",
@@ -199,7 +206,123 @@ test("turn finalizer persists the response after learning trace is complete", as
 
   assert.equal(emittedTrace.at(-1)?.id, "learning-loop");
   assert.equal(response.trace?.at(-1)?.id, "learning-loop");
-  assert.equal(persistedResponse?.trace?.at(-1)?.id, "learning-loop");
+  assert.equal(persistedResponse?.assistantMessage, "进度正常");
+  assert.equal(persistedResponse?.trace?.some((step) => step.id === "learning-loop"), false);
+  assert.equal(
+    events.filter((event) => event.eventType === "assistant_completed").length,
+    1,
+  );
+});
+
+test("turn finalizer injects learning model accounting into the production learning call", async () => {
+  const { store } = createMemoryStore();
+  const recorder = createModelCallBudgetRecorder();
+  let receivedInvocation = false;
+  const options = {
+    eventStore: store,
+    message: "总结进度",
+    modelCallRecorder: recorder,
+    pendingBefore: null,
+    project: async () => undefined,
+    runLearningLoop: async (input: Parameters<Parameters<typeof createAgentTurnFinalizer>[0]["runLearningLoop"]>[0]) => {
+      const invocation = input.learningModelInvocation;
+      receivedInvocation = Boolean(invocation);
+      invocation?.logicalCallAuthorizer?.("learning-candidate:turn-finalizer");
+      invocation?.providerAttemptAuthorizer?.(1);
+      return {
+        candidates: [],
+        decisions: [],
+        savedMemories: [],
+        source: "fallback" as const,
+        suggestedMemories: [],
+      };
+    },
+    thread: { id: 46, messages: [], pendingAction: null } as unknown as AgentThread,
+    turnId: "turn-learning-accounting",
+    user: { id: 7 },
+  };
+  const finalize = createAgentTurnFinalizer(
+    options as Parameters<typeof createAgentTurnFinalizer>[0],
+  );
+
+  await finalize({
+    existingMemories: [],
+    pushTrace: () => undefined,
+    response: {
+      assistantMessage: "进度正常",
+      engine: "workflow",
+      intent: "query_progress",
+      pendingAction: null,
+      tokenUsage,
+    },
+    tokenUsage,
+  });
+
+  const snapshot = recorder.snapshot();
+  assert.equal(receivedInvocation, true);
+  assert.equal(snapshot.learningLogicalCalls, 1);
+  assert.equal(snapshot.learningProviderAttempts, 1);
+});
+
+test("the active chat entry creates and passes the recorder before constructing the finalizer", () => {
+  const source = readFileSync(
+    resolve(process.cwd(), "src/lib/agent/chat-pipeline/handle-agent-chat-post.ts"),
+    "utf8",
+  );
+  const recorderIndex = source.indexOf("const modelCallRecorder = createModelCallBudgetRecorder()");
+  const finalizerIndex = source.indexOf("const finalizeTurn = createAgentTurnFinalizer(");
+  const finalizerConstruction = source.slice(finalizerIndex, finalizerIndex + 1_200);
+
+  assert.notEqual(recorderIndex, -1);
+  assert.notEqual(finalizerIndex, -1);
+  assert.equal(recorderIndex < finalizerIndex, true);
+  assert.match(finalizerConstruction, /modelCallRecorder/u);
+});
+
+test("learning failure cannot revoke or rewrite the already committed terminal event", async () => {
+  const { events, store } = createMemoryStore();
+  const rawSecret = "synthetic-learning-failure-secret-42";
+  const pushedTrace: AgentChatResponse["trace"] = [];
+  let terminalVisibleAtLearningStart = false;
+  const finalize = createAgentTurnFinalizer({
+    eventStore: store,
+    message: "总结进度",
+    pendingBefore: null,
+    project: async () => undefined,
+    runLearningLoop: async () => {
+      terminalVisibleAtLearningStart = events.some(
+        (event) => event.eventType === "assistant_completed",
+      );
+      throw new Error(`learning failed token=${rawSecret}`);
+    },
+    thread: { id: 47, messages: [], pendingAction: null } as unknown as AgentThread,
+    turnId: "turn-learning-failure-after-terminal",
+    user: { id: 7 },
+  });
+
+  const response = await finalize({
+    existingMemories: [],
+    pushTrace: (step) => pushedTrace?.push(step),
+    response: {
+      assistantMessage: "进度正常",
+      engine: "workflow",
+      intent: "query_progress",
+      pendingAction: null,
+      tokenUsage,
+    },
+    tokenUsage,
+  });
+
+  const terminalEvents = events.filter(
+    (event) => event.eventType === "assistant_completed",
+  );
+  const persisted = terminalEvents[0]?.payload as { response?: AgentChatResponse };
+  assert.equal(terminalVisibleAtLearningStart, true);
+  assert.equal(response.assistantMessage, "进度正常");
+  assert.equal(terminalEvents.length, 1);
+  assert.equal(events.some((event) => event.eventType === "turn_failed"), false);
+  assert.equal(persisted.response?.assistantMessage, "进度正常");
+  assert.doesNotMatch(JSON.stringify(terminalEvents), new RegExp(rawSecret, "u"));
 });
 
 test("turn finalizer marks accepted inbox suggestion done only after successful completion", async () => {
