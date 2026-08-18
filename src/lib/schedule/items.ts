@@ -74,7 +74,11 @@ export const endOfWeek = (date: Date = new Date()): Date => {
 
 const getPayload = async (payload?: Payload) => payload ?? getPayloadClient();
 
-export const getScheduleForDate = async (date: string | Date, payload?: Payload): Promise<ScheduleItemRecord[]> => {
+export const getScheduleForDate = async (
+  date: string | Date,
+  payload?: Payload,
+  req?: unknown,
+): Promise<ScheduleItemRecord[]> => {
   const payloadClient = (await getPayload(payload)) as unknown as {
     find: (args: unknown) => Promise<{ docs: ScheduleItemRecord[] }>;
   };
@@ -85,6 +89,7 @@ export const getScheduleForDate = async (date: string | Date, payload?: Payload)
     depth: 1,
     limit: 100,
     overrideAccess: true,
+    ...(req ? { req } : {}),
     sort: "startTime",
     where: {
       and: [
@@ -137,6 +142,7 @@ export const getScheduleForDateRange = async (
   startDate: Date,
   endDate: Date,
   payload?: Payload,
+  req?: unknown,
 ): Promise<ScheduleItemRecord[]> => {
   const days: Date[] = [];
   let cursor = startOfDate(startDate);
@@ -145,7 +151,7 @@ export const getScheduleForDateRange = async (
     days.push(cursor);
     cursor = new Date(cursor.getTime() + dayInMs);
   }
-  const results = await Promise.all(days.map((d) => getScheduleForDate(d, payload)));
+  const results = await Promise.all(days.map((d) => getScheduleForDate(d, payload, req)));
   return results.flat();
 };
 
@@ -210,7 +216,11 @@ const normalizeScheduleInput = (data: ScheduleItemInput) => ({
   title: data.title.trim(),
 });
 
-export const createScheduleItem = async (data: ScheduleItemInput, payload?: Payload): Promise<ScheduleItemRecord> => {
+export const createScheduleItem = async (
+  data: ScheduleItemInput,
+  payload?: Payload,
+  req?: unknown,
+): Promise<ScheduleItemRecord> => {
   const payloadClient = (await getPayload(payload)) as unknown as {
     create: (args: unknown) => Promise<ScheduleItemRecord>;
   };
@@ -219,6 +229,7 @@ export const createScheduleItem = async (data: ScheduleItemInput, payload?: Payl
     collection: scheduleCollection,
     data: normalizeScheduleInput(data),
     overrideAccess: true,
+    ...(req ? { req } : {}),
   });
 };
 

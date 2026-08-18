@@ -5,7 +5,10 @@ import { applyPolicyGuard } from "@/lib/agent/policy/guard";
 import { attachCapabilityToProposedAction } from "@/lib/agent/capabilities/adapters";
 import { normalizeRouterOutput } from "@/lib/agent/router/normalize-router-output";
 import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
-import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
+import {
+  ModelCallAuthorizationError,
+  type ModelCallBudgetRecorder,
+} from "@/lib/agent/orchestration/model-call-budget";
 import { recordDryRunTrace, recordPolicyGuardOutputTrace, recordPolicyTrace, recordResolverTrace, recordToolPlanTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type { AgentTraceRecorder } from "@/lib/agent/trace";
 import { resolveDeleteTarget, resolveModifyTarget } from "@/lib/agent/resolver/target-resolver";
@@ -26,6 +29,7 @@ import { detectScheduleConflicts, getScheduleForDateRange, getScheduleItemById }
 import { decomposePlanForCompose } from "@/lib/agent/workflows/plan-decomposer";
 import type { DecomposedPlan } from "@/lib/agent/workflows/plan-decomposer";
 import { normalizeComposePlanArgs } from "@/lib/agent/workflows/plan-seed";
+import { prepareSchedulePlanProposalFromPayload } from "@/lib/agent/workflows/plan-schedule-link";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
 
 import {
@@ -454,11 +458,30 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
             findTimelineEvent: findChecklistTimelineEvent,
             now: context.now,
             planCandidates: context.plans,
+            prepareSchedulePlanProposal: (args) =>
+              prepareSchedulePlanProposalFromPayload(args, payload, {
+                logicalCallAuthorizer: (scopeId) => {
+                  if (modelCallRecorder?.record("specialist", scopeId) === false) {
+                    throw new ModelCallAuthorizationError("MODEL_LOGICAL_CALL_LIMIT_EXCEEDED");
+                  }
+                },
+                providerAttemptAuthorizer: () =>
+                  modelCallRecorder?.recordProviderAttempt("specialist"),
+              }),
             promptContext: context,
             resolveChecklistGroupForAppend,
             resolveChecklistItem,
             resolveDeleteRecord: (args) => resolveDeleteRecordTarget(args, { payload }),
             resolveScheduleItem: (itemId) => getScheduleItemById(itemId, payload),
+            scheduleModelInvocation: {
+              logicalCallAuthorizer: (scopeId) => {
+                if (modelCallRecorder?.record("specialist", scopeId) === false) {
+                  throw new ModelCallAuthorizationError("MODEL_LOGICAL_CALL_LIMIT_EXCEEDED");
+                }
+              },
+              providerAttemptAuthorizer: () =>
+                modelCallRecorder?.recordProviderAttempt("specialist"),
+            },
             scheduleSlots: normalizedConversationState?.scheduling?.slots ?? null,
           });
           const latencyMs = Date.now() - dryRunStartedAt;

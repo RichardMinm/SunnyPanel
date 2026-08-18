@@ -464,6 +464,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
         dryRunContext: buildOrchestrationDryRunContext({
           context:
             context as BuildContextStepResult["context"],
+          modelCallRecorder,
           payload,
         }),
         executeAction: executeOrchestrationAction,

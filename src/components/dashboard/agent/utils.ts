@@ -8,6 +8,10 @@ import {
   parseScheduleCreationPublicPresentation,
   type ScheduleCreationPublicPresentation,
 } from "@/lib/agent/schedule/public-confirmation-presentation";
+import {
+  frozenSchedulePlanProposalSchema,
+  type FrozenSchedulePlanProposal,
+} from "@/lib/agent/schedule/model-schemas";
 
 import { riskLevelLabelMap } from "./constants";
 import { isRecord } from "@/lib/shared/is-record";
@@ -623,4 +627,20 @@ export const getScheduleCreationProposalFromAction = (action: ProposedAgentActio
   return parseScheduleCreationPublicPresentation(
     explicitPresentation ?? action.afterSnapshot,
   );
+};
+
+export const getSchedulePlanProposalFromAction = (
+  action: ProposedAgentAction,
+): FrozenSchedulePlanProposal | null => {
+  if (action.intent !== "schedule_plan") return null;
+
+  const argsProposal = isRecord(action.args) ? action.args.proposal : undefined;
+  const snapshotProposal = isRecord(action.afterSnapshot)
+    ? action.afterSnapshot.proposal
+    : undefined;
+  const parsed = frozenSchedulePlanProposalSchema.safeParse(
+    argsProposal ?? snapshotProposal,
+  );
+
+  return parsed.success ? parsed.data : null;
 };

@@ -8,6 +8,7 @@ import {
   scheduleConflictSuggestionToUserMessage,
   type ScheduleConflictSuggestion,
 } from "@/lib/agent/schedule/conflict-suggestions";
+import { formatFrozenScheduleItemTitle } from "@/lib/agent/schedule/model-schemas";
 
 import {
   formatCollectionLabel,
@@ -24,6 +25,7 @@ import {
   getDecomposedFromAction,
   getPlanProposalFromAction,
   getScheduleCreationProposalFromAction,
+  getSchedulePlanProposalFromAction,
   getScheduleProposalFromAction,
 } from "./utils";
 
@@ -154,6 +156,7 @@ export function AgentApprovalCard({
   const decomposedPlan = getDecomposedFromAction(action);
   const scheduleProposal = getScheduleProposalFromAction(action);
   const scheduleCreationProposal = getScheduleCreationProposalFromAction(action);
+  const schedulePlanProposal = getSchedulePlanProposalFromAction(action);
   const motivationDuplicatesGoal =
     planProposal?.motivation &&
     planProposal.goal &&
@@ -203,6 +206,12 @@ export function AgentApprovalCard({
             scheduleCreationProposal.conflictSummary.conflictCount > 0
               ? "保留冲突提醒，系统不会自动重排"
               : "保留本次冲突检测摘要",
+            "保留执行摘要以便撤销或追踪",
+          ]
+      : schedulePlanProposal
+        ? [
+            "确认后仅写入下方列出的日程",
+            "执行前再次检查计划版本和时间冲突",
             "保留执行摘要以便撤销或追踪",
           ]
       : action.changes.slice(0, 3).map((change) => change.preview);
@@ -401,6 +410,40 @@ export function AgentApprovalCard({
                 <p>没有检测到同时间段冲突。</p>
               </div>
             )}
+          </div>
+        ) : schedulePlanProposal ? (
+          <div className="sunny-agent-proposal-card sunny-agent-schedule-proposal">
+            <div>
+              <span>计划排期</span>
+              <strong>{schedulePlanProposal.planTitle}</strong>
+            </div>
+            <div className="sunny-agent-proposal-grid">
+              <div>
+                <span>日程项</span>
+                <p>将创建 {schedulePlanProposal.items.length} 个日程项</p>
+              </div>
+              <div>
+                <span>开始日期</span>
+                <p>{schedulePlanProposal.startDate}</p>
+              </div>
+              <div>
+                <span>确认内容</span>
+                <p>以下内容将原样写入</p>
+              </div>
+            </div>
+            <div className="sunny-agent-proposal-columns">
+              <div>
+                <span>完整排期明细</span>
+                <ul>
+                  {schedulePlanProposal.items.map((item) => (
+                    <li key={item.taskKey}>
+                      <strong>{item.date} · {item.isAllDay ? "全天" : `${item.startTime}-${item.endTime}`}</strong>
+                      <span> — {formatFrozenScheduleItemTitle(item)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
         ) : scheduleCreationProposal ? (
           <div className="sunny-agent-proposal-card sunny-agent-schedule-proposal">

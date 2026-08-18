@@ -436,6 +436,7 @@ export type SchedulePlanArgs = {
   planId: number;
   defaultDurationMinutes?: number;
   defaultStartTime?: null | string;
+  proposal?: import("./schedule/model-schemas").FrozenSchedulePlanProposal;
   startDate?: null | string;
 };
 
@@ -1333,6 +1334,7 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
     value.intent === "create_plan" ||
     value.intent === "create_schedule_items" ||
     value.intent === "reschedule_item" ||
+    value.intent === "schedule_plan" ||
     value.intent === "save_memory"
       ? value.intent
       : null;
@@ -1352,6 +1354,7 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
       | CreateChecklistArgs
       | CreatePlanArgs
       | CreateScheduleItemsArgs
+      | SchedulePlanArgs
       | SaveMemoryArgs
     >,
     intent,

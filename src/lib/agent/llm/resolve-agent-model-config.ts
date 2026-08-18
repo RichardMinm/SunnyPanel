@@ -1,4 +1,3 @@
-import { getAgentModelConfig } from "../client";
 import {
   createModelConfig,
   type ModelApiProtocol,
@@ -29,10 +28,12 @@ export type AgentStructuredModelOverrides = Readonly<{
  * pass to createChatModel()/invokeStructured().
  */
 export const resolveAgentStructuredModelConfig = async (
-  getConfig: AgentModelSettingsResolver = getAgentModelConfig,
+  getConfig?: AgentModelSettingsResolver,
   overrides: AgentStructuredModelOverrides = {},
 ): Promise<ModelConfig | null> => {
-  const settings = await getConfig();
+  const resolver = getConfig
+    ?? (await import("../client")).getAgentModelConfig;
+  const settings = await resolver();
   if (!settings) return null;
 
   const resolved = createModelConfig({

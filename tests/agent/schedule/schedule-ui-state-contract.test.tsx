@@ -168,6 +168,59 @@ const createScheduleAction = (): ProposedAgentAction => ({
   summary: "创建 1 个日程项「清单日程草案：1 项任务」",
 });
 
+const schedulePlanAction = (): ProposedAgentAction => {
+  const proposal = {
+    items: [
+      {
+        date: "2026-08-19",
+        endTime: "10:30",
+        isAllDay: false,
+        phaseTitle: "研究阶段",
+        startTime: "09:00",
+        taskKey: "task-001",
+        title: "[P0] 复现漏洞",
+      },
+      {
+        date: "2026-08-20",
+        endTime: null,
+        isAllDay: true,
+        phaseTitle: "总结阶段",
+        startTime: null,
+        taskKey: "task-002",
+        title: "整理结论",
+      },
+    ],
+    planFingerprint: "d".repeat(64),
+    planId: 101,
+    planTitle: "Fastjson 研究计划",
+    source: "model" as const,
+    startDate: "2026-08-19",
+  };
+
+  return {
+    affectedDocuments: [{
+      collection: "schedule-items",
+      operation: "create",
+      visibility: "private",
+    }],
+    afterSnapshot: { proposal },
+    args: { planId: 101, proposal },
+    beforeSnapshot: null,
+    changes: [{
+      collection: "schedule-items",
+      operation: "create",
+      preview: "按已冻结草案创建 2 个日程项",
+      visibility: "private",
+    }],
+    id: "action-schedule-plan-ui-state-contract",
+    intent: "schedule_plan",
+    requiresConfirmation: true,
+    riskLevel: "medium",
+    rollbackAvailable: true,
+    summary: "将计划「Fastjson 研究计划」的阶段任务排入日程",
+  };
+};
+
 test("ScheduleDraftCard renders draft-only state without confirmation or result language", async () => {
   const ScheduleDraftCard = await loadScheduleDraftCard();
   const markup = renderToStaticMarkup(
@@ -208,6 +261,27 @@ test("create_schedule_items confirmation renders pending write state", async () 
   assert.match(markup, /不会自动重排/);
   assert.doesNotMatch(markup, /已创建日程/);
   assert.doesNotMatch(markup, /尚未写入日程/);
+});
+
+test("schedule_plan confirmation renders every frozen item with exact date and time", async () => {
+  const AgentApprovalCard = await loadAgentApprovalCard();
+  const markup = renderToStaticMarkup(
+    createElement(AgentApprovalCard, {
+      action: schedulePlanAction(),
+      disabled: false,
+      onCancel: () => undefined,
+      onConfirm: () => undefined,
+    }),
+  );
+
+  assert.match(markup, /等待确认/);
+  assert.match(markup, /Fastjson 研究计划/);
+  assert.match(markup, /将创建 2 个日程项/);
+  assert.match(markup, /2026-08-19 · 09:00-10:30/);
+  assert.match(markup, /\[研究阶段\].*\[P0\] 复现漏洞/s);
+  assert.match(markup, /2026-08-20 · 全天/);
+  assert.match(markup, /总结阶段.*整理结论/s);
+  assert.match(markup, /以下内容将原样写入/);
 });
 
 test("conflict suggestions explain draft-only local checks", async () => {

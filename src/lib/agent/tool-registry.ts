@@ -56,6 +56,8 @@ import { generateScheduleConflictSuggestions } from "./schedule/conflict-suggest
 import type { ScheduleDraft } from "./schedule/draft";
 import type { LocalBusyBlock } from "./schedule/free-slots";
 import type { ScheduleSlots } from "./schedule/readiness";
+import type { ScheduleModelInvocationOptions } from "./schedule/model-invocation";
+import type { FrozenSchedulePlanProposal } from "./schedule/model-schemas";
 import {
   composeTimelineEventProposal,
   formatTimelineProposal,
@@ -171,6 +173,9 @@ type FindLocalBusyBlocks = (args: {
   endDate: string;
   startDate: string;
 }) => Promise<LocalBusyBlock[]>;
+type PrepareSchedulePlanProposal = (
+  args: SchedulePlanArgs,
+) => Promise<FrozenSchedulePlanProposal | null>;
 type ResolvedChecklistItem = NonNullable<Awaited<ReturnType<ResolveChecklistItem>>["resolved"]>;
 type ResolvedChecklistGroup = NonNullable<Awaited<ReturnType<ResolveChecklistGroupForAppend>>["resolved"]>;
 
@@ -181,12 +186,14 @@ export type AgentToolDryRunContext = {
   findTimelineEvent?: FindTimelineEvent;
   now?: string;
   planCandidates?: PlanCandidate[];
+  prepareSchedulePlanProposal?: PrepareSchedulePlanProposal;
   promptContext?: AgentPromptContext;
   resolveChecklistGroupForAppend?: ResolveChecklistGroupForAppend;
   resolveChecklistItem?: ResolveChecklistItem;
   resolveDeleteRecord?: ResolveDeleteRecord;
   resolveModifyRecord?: ResolveModifyRecord;
   resolveScheduleItem?: ResolveScheduleItem;
+  scheduleModelInvocation?: ScheduleModelInvocationOptions;
   scheduleSlots?: ScheduleSlots | null;
 };
 
@@ -913,6 +920,7 @@ const composeScheduleItemDryRun = async (
   }
 
   const firstProposal = await composeScheduleProposalAsync(enrichedArgs, {
+    modelInvocation: context.scheduleModelInvocation,
     now: context.now,
     planCandidates: context.planCandidates,
   });
@@ -935,6 +943,7 @@ const composeScheduleItemDryRun = async (
     },
     {
       conflicts: conflictAdjustment ? [] : conflicts,
+      modelInvocation: context.scheduleModelInvocation,
       now: context.now,
       planCandidates: context.planCandidates,
     } satisfies ScheduleComposerContext,
@@ -1491,10 +1500,29 @@ const schedulePlanDryRun = async (
     });
   }
 
+  const proposal = await context.prepareSchedulePlanProposal?.(args) ?? null;
+
+  if (!proposal) {
+    return createClarifyResult({
+      args: {
+        defaultDurationMinutes: args.defaultDurationMinutes,
+        defaultStartTime: args.defaultStartTime,
+        planId: args.planId,
+        startDate: args.startDate,
+      },
+      intent: "schedule_plan",
+      missingFields: ["scheduleProposal"],
+      question: `暂时无法为计划「${targetPlan.title}」生成可确认的排期草案，请稍后重试。`,
+    });
+  }
+
+  const firstDate = proposal.items[0]?.date ?? proposal.startDate;
+  const lastDate = proposal.items[proposal.items.length - 1]?.date ?? firstDate;
+
   return {
     action: {
       ...actionBase({
-        args,
+        args: { ...args, proposal },
         context,
         intent: "schedule_plan",
         riskLevel: "medium",
@@ -1510,27 +1538,29 @@ const schedulePlanDryRun = async (
       afterSnapshot: {
         planId: targetPlan.id,
         planTitle: targetPlan.title,
-        startDate: args.startDate ?? new Date().toISOString().split("T")[0],
+        proposal,
+        scheduleCount: proposal.items.length,
+        startDate: proposal.startDate,
       },
       beforeSnapshot: null,
       changes: [
         {
-          afterPreview: `将根据计划的阶段拆解生成每日日程条目。`,
+          afterPreview: `将创建 ${proposal.items.length} 条日程，日期范围 ${firstDate} 至 ${lastDate}。`,
           beforePreview: "当前计划尚未排入日程。",
           collection: "schedule-items",
           operation: "create",
-          preview: `将计划「${targetPlan.title}」的任务排入日程`,
+          preview: `按已冻结草案将计划「${targetPlan.title}」的任务排入日程`,
           timelineAffected: false,
           visibility: "private",
         },
       ],
-      rollbackAvailable: false,
+      rollbackAvailable: true,
       rollbackPayload: {
-        reason: "需要在执行后才能拿到具体创建的日程条目 ID。",
-        strategy: "delete_created_document",
+        reason: "执行成功后会用本次创建的全部日程项 ID 完整化 rollback。",
+        strategy: "delete_created_documents",
         target: {
           collection: "schedule-items",
-          documentId: null,
+          documentIds: [],
         },
       },
     },

@@ -372,6 +372,33 @@ test("executeOrchestrationGraph observes real affected documents after auto exec
           title: "线性代数复习",
         },
       ],
+      prepareSchedulePlanProposal: async () => ({
+        items: [
+          {
+            date: "2026-08-19",
+            endTime: "10:00",
+            isAllDay: false,
+            phaseTitle: "矩阵基础",
+            startTime: "09:00",
+            taskKey: "task-001",
+            title: "复习矩阵运算",
+          },
+          {
+            date: "2026-08-20",
+            endTime: "10:00",
+            isAllDay: false,
+            phaseTitle: "线性方程组",
+            startTime: "09:00",
+            taskKey: "task-002",
+            title: "练习高斯消元",
+          },
+        ],
+        planFingerprint: "b".repeat(64),
+        planId: 7,
+        planTitle: "线性代数复习",
+        source: "deterministic",
+        startDate: "2026-08-19",
+      }),
     },
     {
       autoApproval: {

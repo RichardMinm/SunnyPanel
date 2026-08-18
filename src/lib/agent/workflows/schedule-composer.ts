@@ -4,6 +4,7 @@ import type {
   ScheduleConflict,
   ScheduleProposal,
 } from "../schemas";
+import type { ScheduleModelInvocationOptions } from "../schedule/model-invocation";
 
 type ScheduleComposerPlanCandidate = {
   id?: null | number;
@@ -21,6 +22,7 @@ type ScheduleConflictSource = {
 
 export type ScheduleComposerContext = {
   conflicts?: ScheduleConflict[];
+  modelInvocation?: ScheduleModelInvocationOptions;
   now?: string;
   planCandidates?: ScheduleComposerPlanCandidate[];
 };
@@ -362,6 +364,7 @@ export const composeScheduleProposalAsync = async (
     const llmParsed = await inferScheduleTimeWithLLM(
       sourceText,
       context.now ?? new Date().toISOString(),
+      context.modelInvocation,
     );
 
     if (llmParsed && llmParsed.confidence >= 0.45) {

@@ -1,10 +1,12 @@
 import { getPayloadClient } from "@/lib/payload/client";
+import type { Plan } from "@/payload-types";
 import {
   updateScheduleItemStatus,
   type ScheduleItemRecord,
 } from "@/lib/schedule/items";
 
 import type { CancelScheduleItemArgs, RescheduleItemArgs, SchedulePlanArgs } from "../schemas";
+import type { FrozenSchedulePlanProposal } from "../schedule/model-schemas";
 import {
   createAgentRun,
   createOwnedRollbackToolResult,
@@ -62,13 +64,42 @@ export const buildScheduleItemStatusRollbackPayload = (item: Pick<ScheduleItemRe
   },
 });
 
+type SchedulePlanPayload = Awaited<ReturnType<typeof getPayloadClient>>;
+type SchedulePlanAudit = Awaited<ReturnType<typeof createAgentRun>>;
+type SchedulePlanCreatedItem = import("../workflows/plan-schedule-link").CreatedSchedulePlanItem;
+
+export type SchedulePlanExecutionDependencies = {
+  getPayloadClientFn?: typeof getPayloadClient;
+  isProposalSafeFn?: (
+    proposal: FrozenSchedulePlanProposal,
+    payload: SchedulePlanPayload,
+    plan: Plan,
+  ) => Promise<boolean>;
+  persistExecutionFn?: (
+    plan: Plan,
+    proposal: FrozenSchedulePlanProposal,
+    dependencies: { payload: SchedulePlanPayload },
+  ) => Promise<{ audit: SchedulePlanAudit; items: SchedulePlanCreatedItem[] }>;
+};
+
 export const schedulePlanFromIntent = async (
   args: SchedulePlanArgs,
   onTrace?: AgentExecutionTraceReporter,
+  dependencies: SchedulePlanExecutionDependencies = {},
 ): Promise<AgentToolResult> => {
-  const payload = await getPayloadClient();
+  if (!args.proposal || args.proposal.planId !== args.planId) {
+    return {
+      assistantMessage: "这次排期没有可验证的确认草案，未创建任何日程。请重新生成排期预览后再确认。",
+      pendingAction: null,
+      status: "failed",
+    };
+  }
+  const proposal = args.proposal;
+
+  const payload = await (dependencies.getPayloadClientFn ?? getPayloadClient)();
   const plan = await payload.findByID({
     collection: "plans",
+    disableErrors: true,
     id: args.planId,
     overrideAccess: true,
   });
@@ -77,38 +108,77 @@ export const schedulePlanFromIntent = async (
     return {
       assistantMessage: `找不到 ID 为 ${args.planId} 的计划。请确认计划 ID 是否正确。`,
       pendingAction: null,
+      status: "failed",
     };
   }
 
-  const phases = plan.phases as
-    | Array<{ title: string; goal: string; estimatedDays: number; milestones: Array<{ title: string; tasks: string[]; estimatedHours: number }> }>
-    | null
-    | undefined;
-
-  if (!phases || !Array.isArray(phases) || phases.length === 0) {
+  const {
+    isFrozenSchedulePlanProposalCurrentlySafe,
+    persistFrozenSchedulePlanProposalWithAudit,
+    summarizeScheduleGeneration,
+  } = await import("../workflows/plan-schedule-link");
+  const proposalSafe = dependencies.isProposalSafeFn
+    ? await dependencies.isProposalSafeFn(proposal, payload, plan)
+    : await isFrozenSchedulePlanProposalCurrentlySafe(
+        proposal,
+        payload as never,
+        plan,
+      );
+  if (!proposalSafe) {
     return {
-      assistantMessage: `计划「${plan.title}」还没有阶段拆解数据。你可以先说「为${plan.title}制定计划」让 Agent 重新拆解。`,
+      assistantMessage: `计划「${plan.title}」的排期草案已与当前日程冲突或失效，未创建任何日程。请重新生成预览。`,
       pendingAction: null,
+      status: "failed",
     };
   }
-
-  const { generateScheduleFromPlan, summarizeScheduleGeneration } =
-    await import("../workflows/plan-schedule-link");
 
   onTrace?.({
-    detail: `${phases.length} 个阶段待排入日程`,
+    detail: `${proposal.items.length} 条已确认日程待写入`,
     id: "tool-schedule-plan-prepare",
     kind: "action",
     status: "running",
-    title: `准备为「${plan.title}」生成日程`,
+    title: `准备执行「${plan.title}」的确认排期`,
   });
 
-  const startDate = args.startDate || new Date().toISOString().split("T")[0];
-  const items = await generateScheduleFromPlan(plan, phases, {
-    startDate,
-    defaultStartTime: args.defaultStartTime || "09:00",
-    defaultDurationMinutes: args.defaultDurationMinutes ?? 90,
-  });
+  const startDate = proposal.startDate;
+  const execution = dependencies.persistExecutionFn
+    ? await dependencies.persistExecutionFn(plan, proposal, { payload })
+    : await persistFrozenSchedulePlanProposalWithAudit(
+        plan,
+        proposal,
+        (items, transactionPayload) => createAgentRun({
+          affectedDocuments: items.map((item) => ({
+            collection: "schedule-items",
+            documentId: item.id,
+            operation: "create",
+            visibility: "private",
+          })),
+          afterSnapshot: {
+            planFingerprint: proposal.planFingerprint,
+            planId: plan.id,
+            planTitle: plan.title,
+            scheduleCount: items.length,
+            startDate,
+          },
+          beforeSnapshot: null,
+          goal: `将计划「${plan.title}」的任务排入日程`,
+          nextAction: `查看 ${startDate} 的日程安排`,
+          payload: transactionPayload as never,
+          relatedPlan: plan.id,
+          rollbackAvailable: true,
+          rollbackPayload: buildDeleteCreatedScheduleItemsRollbackPayload(items),
+          status: "succeeded",
+          steps: items.map((item) => ({
+            level: "info" as const,
+            message: `${item.date} ${item.title}`,
+          })),
+          summary: `Agent 已从计划「${plan.title}」生成 ${items.length} 条日程`,
+          title: `Agent scheduled plan · ${plan.title}`,
+          workflow: "planning",
+        }),
+        { payload: payload as never },
+      );
+  const { audit: agentRun, items } = execution;
 
   onTrace?.({
     detail: summarizeScheduleGeneration(items),
@@ -118,39 +188,10 @@ export const schedulePlanFromIntent = async (
     title: `已生成 ${items.length} 条日程`,
   });
 
-  const agentRun = await createAgentRun({
-    affectedDocuments: items.map((item) => ({
-      collection: "schedule-items",
-      documentId: item.id,
-      operation: "create",
-      visibility: "private",
-    })),
-    afterSnapshot: {
-      planId: plan.id,
-      planTitle: plan.title,
-      scheduleCount: items.length,
-      startDate,
-    },
-    beforeSnapshot: null,
-    goal: `将计划「${plan.title}」的任务排入日程`,
-    nextAction: `查看 ${startDate} 的日程安排`,
-    relatedPlan: plan.id,
-    rollbackAvailable: true,
-    rollbackPayload: buildDeleteCreatedScheduleItemsRollbackPayload(items),
-    status: "succeeded",
-    steps: items.map((item) => ({
-      level: "info" as const,
-      message: `${item.date} [${item.phaseTitle}] ${item.title}`,
-    })),
-    summary: `Agent 已从计划「${plan.title}」生成 ${items.length} 条日程`,
-    title: `Agent scheduled plan · ${plan.title}`,
-    workflow: "planning",
-  });
-
   return createOwnedRollbackToolResult({
     assistantMessage: `已将计划「${plan.title}」排入日程，共生成 ${items.length} 条：\n${items
       .slice(0, 10)
-      .map((item) => `- ${item.date} [${item.phaseTitle}] ${item.title}`)
+      .map((item) => `- ${item.date} ${item.title}`)
       .join("\n")}${items.length > 10 ? `\n...等共 ${items.length} 条` : ""}`,
     pendingAction: null,
     rollbackPayload: buildDeleteCreatedScheduleItemsRollbackPayload(items),

@@ -38,7 +38,10 @@ import type {
   ResidualRejectionReason,
 } from "@/lib/agent/orchestration/residual-langchain-planner";
 import { resolveOrchestratorRuntimeMode } from "@/lib/agent/orchestration/runtime-config";
-import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
+import {
+  ModelCallAuthorizationError,
+  type ModelCallBudgetRecorder,
+} from "@/lib/agent/orchestration/model-call-budget";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
 import { projectCompletedOrchestrationToPlan } from "@/lib/agent/orchestration/projection";
 import { logAgentEvent } from "@/lib/agent/logger";
@@ -68,6 +71,7 @@ import { resolveRouterCanaryRouting } from "@/lib/agent/router/router-canary";
 import { estimateTokenCount, splitIntoWordTokens } from "@/lib/agent/token-usage";
 import type { AgentThread } from "@/payload-types";
 import { detectScheduleConflicts, getScheduleItemById } from "@/lib/schedule/items";
+import { prepareSchedulePlanProposalFromPayload } from "@/lib/agent/workflows/plan-schedule-link";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
 
 import {
@@ -233,10 +237,12 @@ export type OrchestrationStepResult =
 
 export const buildOrchestrationDryRunContext = ({
   context,
+  modelCallRecorder,
   overrides,
   payload,
 }: {
   context: BuildContextStepResult["context"];
+  modelCallRecorder?: ModelCallBudgetRecorder;
   overrides?: Partial<AgentToolDryRunContext>;
   payload: Payload;
 }): AgentToolDryRunContext => ({
@@ -256,11 +262,30 @@ export const buildOrchestrationDryRunContext = ({
   findTimelineEvent: findChecklistTimelineEvent,
   now: context.now,
   planCandidates: context.plans,
+  prepareSchedulePlanProposal: (args) =>
+    prepareSchedulePlanProposalFromPayload(args, payload, {
+      logicalCallAuthorizer: (scopeId) => {
+        if (modelCallRecorder?.record("specialist", scopeId) === false) {
+          throw new ModelCallAuthorizationError("MODEL_LOGICAL_CALL_LIMIT_EXCEEDED");
+        }
+      },
+      providerAttemptAuthorizer: () =>
+        modelCallRecorder?.recordProviderAttempt("specialist"),
+    }),
   resolveChecklistGroupForAppend,
   resolveChecklistItem,
   resolveDeleteRecord: (args) => resolveDeleteRecordTarget(args, { payload }),
   resolveScheduleItem: (itemId: number) =>
     getScheduleItemById(itemId, payload),
+  scheduleModelInvocation: {
+    logicalCallAuthorizer: (scopeId) => {
+      if (modelCallRecorder?.record("specialist", scopeId) === false) {
+        throw new ModelCallAuthorizationError("MODEL_LOGICAL_CALL_LIMIT_EXCEEDED");
+      }
+    },
+    providerAttemptAuthorizer: () =>
+      modelCallRecorder?.recordProviderAttempt("specialist"),
+  },
   ...overrides,
 });
 
@@ -328,6 +353,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
   };
   const graphDryRunContext = buildOrchestrationDryRunContext({
     context,
+    modelCallRecorder,
     overrides: dryRunContextOverrides,
     payload,
   });

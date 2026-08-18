@@ -182,6 +182,8 @@ Representative paths:
 - `tests/agent/planning/*.test.tsx`
 - `tests/agent/schedule/*.test.ts`
 - `tests/agent/schedule/*.test.tsx`
+- `tests/agent/schedule/schedule-specialist-model-seam.test.ts`
+- `tests/agent/schedule/schedule-plan-frozen-proposal.test.ts`
 
 Required invariants:
 
@@ -194,6 +196,14 @@ Required invariants:
   cross-feature links.
 - Progress facts are deterministic.
 - Conflict handling, completion, rollback, and idempotency remain covered.
+- Schedule model enrichment uses strict shared schemas, isolates untrusted
+  context, accounts for every logical call and Provider attempt, and falls
+  back without writing when the Provider or schema fails.
+- Plan scheduling lets the model assign only trusted task keys and temporal
+  fields; deterministic code rejects unknown/duplicate keys, invalid dates or
+  times, and conflicts before a complete proposal can be frozen.
+- Frozen plan scheduling commits atomically, rolls back create or commit
+  failures, and reports rollback failure as an indeterminate transaction.
 - User-visible status and priority values are localized and formatted.
 
 ### Content and palette

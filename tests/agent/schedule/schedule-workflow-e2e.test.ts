@@ -426,6 +426,24 @@ test("legacy single schedule and schedule_plan dry-runs stay on their original i
           title: "SunnyPanel 第一版上线计划",
         },
       ],
+      prepareSchedulePlanProposal: async () => ({
+        items: [
+          {
+            date: "2026-06-29",
+            endTime: "10:30",
+            isAllDay: false,
+            phaseTitle: "上线阶段",
+            startTime: "09:00",
+            taskKey: "task-001",
+            title: "完成上线准备",
+          },
+        ],
+        planFingerprint: "c".repeat(64),
+        planId: 99,
+        planTitle: "SunnyPanel 第一版上线计划",
+        source: "deterministic",
+        startDate: "2026-06-29",
+      }),
     },
   );
 

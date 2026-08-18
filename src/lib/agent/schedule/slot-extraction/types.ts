@@ -1,7 +1,7 @@
 import type { ScheduleSlotKey, ScheduleSlots } from "../readiness";
 
 /** Keys that the LLM is allowed to extract. sourceType/sourcePlanId/sourceChecklistId/tasks are excluded. */
-export const ALLOWED_LLM_SLOT_KEYS = new Set<ScheduleSlotKey>([
+export const ALLOWED_LLM_SLOT_KEY_VALUES = [
   "availableDays",
   "availableTimeWindows",
   "conflictPolicy",
@@ -12,7 +12,11 @@ export const ALLOWED_LLM_SLOT_KEYS = new Set<ScheduleSlotKey>([
   "preferredTime",
   "priorityRule",
   "scheduleGranularity",
-]);
+] as const satisfies readonly ScheduleSlotKey[];
+
+export const ALLOWED_LLM_SLOT_KEYS = new Set<ScheduleSlotKey>(
+  ALLOWED_LLM_SLOT_KEY_VALUES,
+);
 
 export type ScheduleSlotExtractionInput = {
   userMessage: string;
