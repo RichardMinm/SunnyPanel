@@ -281,7 +281,15 @@ const toPreparedTask = (
 export const createNativeOrchestrationTaskExecutor = (
   options: NativeOrchestrationTaskExecutorOptions,
 ): NativeOrchestrationSubgraphDependencies => {
-  const executeIntent = options.executeIntent ?? executeAgentIntent;
+  const executeIntent = options.executeIntent
+    ?? ((intent, onTrace, executionOptions) => executeAgentIntent(
+      intent,
+      onTrace,
+      {
+        ...executionOptions,
+        modelCallRecorder: options.modelCallRecorder,
+      },
+    ));
   const executeAction =
     options.executeAction ??
     ((intent: AgentIntent) => executeIntent(intent));

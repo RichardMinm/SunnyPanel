@@ -8,6 +8,8 @@ import { persistPlanOperatingReview } from "./plan-operating";
 import { calculatePlanChecklistProgress } from "./planning/plan-checklist-progress";
 import type { EvaluatePlanArgs } from "./schemas";
 import { getAgentProgressSnapshot } from "./progress";
+import type { ReviewModelInvocationOptions } from "./review/model-invocation";
+import { isModelCallAuthorizationError } from "./orchestration/model-call-budget";
 
 type EvaluationResult = {
   assistantMessage: string;
@@ -108,19 +110,25 @@ const persistPlanReview = async (result: EvaluationResult) => {
 /**
  * 在规则评估之上叠加 LLM 语义增强（summary/recommendations）。LLM 不可用或失败时原样返回规则结论。
  */
-const applyEvaluationEnhancement = async (result: EvaluationResult): Promise<EvaluationResult> => {
+const applyEvaluationEnhancement = async (
+  result: EvaluationResult,
+  modelInvocation?: ReviewModelInvocationOptions,
+): Promise<EvaluationResult> => {
   if (result.recommendations.length === 0) {
     return result;
   }
 
   try {
-    const enhancement = await enhanceEvaluationWithLLM({
-      health: result.health,
-      metrics: result.metrics,
-      recommendations: result.recommendations,
-      scope: result.scope,
-      summary: result.assistantMessage,
-    });
+    const enhancement = await enhanceEvaluationWithLLM(
+      {
+        health: result.health,
+        metrics: result.metrics,
+        recommendations: result.recommendations,
+        scope: result.scope,
+        summary: result.assistantMessage,
+      },
+      modelInvocation,
+    );
     const merged = mergeEvaluationEnhancement(
       {
         health: result.health,
@@ -137,7 +145,8 @@ const applyEvaluationEnhancement = async (result: EvaluationResult): Promise<Eva
       assistantMessage: merged.summary,
       recommendations: merged.recommendations,
     };
-  } catch {
+  } catch (error) {
+    if (isModelCallAuthorizationError(error)) throw error;
     return result;
   }
 };
@@ -199,11 +208,19 @@ const buildOverallEvaluation = async (): Promise<EvaluationResult> => {
 export const evaluatePlan = async (
   args: EvaluatePlanArgs = {},
   options: {
+    enhanceWithModel?: boolean;
+    modelInvocation?: ReviewModelInvocationOptions;
     persistReview?: boolean;
   } = {},
 ): Promise<EvaluationResult> => {
   if (!args.planId && !args.planTitle) {
-    const result = await applyEvaluationEnhancement(await buildOverallEvaluation());
+    const deterministicResult = await buildOverallEvaluation();
+    const result = options.enhanceWithModel === false
+      ? deterministicResult
+      : await applyEvaluationEnhancement(
+          deterministicResult,
+          options.modelInvocation,
+        );
 
     return options.persistReview ? persistPlanReview(result) : result;
   }
@@ -318,20 +335,27 @@ export const evaluatePlan = async (
     recommendations,
     scope: "plan",
   };
-  const result = await applyEvaluationEnhancement(baseResult);
+  const result = options.enhanceWithModel === false
+    ? baseResult
+    : await applyEvaluationEnhancement(
+        baseResult,
+        options.modelInvocation,
+      );
 
   return options.persistReview ? persistPlanReview(result) : result;
 };
 
-export const evaluatePlanFromIntent = async (args: EvaluatePlanArgs) => {
+export const evaluatePlanFromIntent = async (
+  args: EvaluatePlanArgs,
+  options: { modelInvocation?: ReviewModelInvocationOptions } = {},
+) => {
   const result = await evaluatePlan(args, {
-    persistReview: true,
+    modelInvocation: options.modelInvocation,
+    persistReview: false,
   });
 
   return {
-    assistantMessage: result.reviewId
-      ? `${result.assistantMessage} 我已经把这次评估保存为 PlanReview #${result.reviewId}。`
-      : result.assistantMessage,
+    assistantMessage: result.assistantMessage,
     pendingAction: null,
   };
 };

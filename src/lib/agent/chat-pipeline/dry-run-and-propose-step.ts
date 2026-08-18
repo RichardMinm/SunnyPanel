@@ -30,6 +30,7 @@ import { decomposePlanForCompose } from "@/lib/agent/workflows/plan-decomposer";
 import type { DecomposedPlan } from "@/lib/agent/workflows/plan-decomposer";
 import { normalizeComposePlanArgs } from "@/lib/agent/workflows/plan-seed";
 import { prepareSchedulePlanProposalFromPayload } from "@/lib/agent/workflows/plan-schedule-link";
+import { prepareWeeklyReviewProposal } from "@/lib/agent/workflows/weekly-review";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
 
 import {
@@ -467,6 +468,19 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
                 },
                 providerAttemptAuthorizer: () =>
                   modelCallRecorder?.recordProviderAttempt("specialist"),
+              }),
+            prepareWeeklyReviewProposal: (args) =>
+              prepareWeeklyReviewProposal(args, {
+                payload: payload as never,
+                reviewModelInvocation: {
+                  logicalCallAuthorizer: (scopeId) => {
+                    if (modelCallRecorder?.record("specialist", scopeId) === false) {
+                      throw new ModelCallAuthorizationError("MODEL_LOGICAL_CALL_LIMIT_EXCEEDED");
+                    }
+                  },
+                  providerAttemptAuthorizer: () =>
+                    modelCallRecorder?.recordProviderAttempt("specialist"),
+                },
               }),
             promptContext: context,
             resolveChecklistGroupForAppend,

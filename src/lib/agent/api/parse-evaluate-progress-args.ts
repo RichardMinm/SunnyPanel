@@ -32,9 +32,8 @@ export const parseEvaluatePlanArgsFromSearchParams = (params: URLSearchParams): 
     planTitle: params.get("planTitle"),
   });
 
-/** POST body：缺字段或 `persistReview !== false` 时持久化评估为 PlanReview。 */
-export const shouldPersistEvaluateReviewFromBody = (body: unknown) =>
-  !isRecord(body) || body.persistReview !== false;
+/** Plan evaluation is a read-only contract; saving belongs to confirmed weekly_review. */
+export const shouldPersistEvaluateReviewFromBody = (_body: unknown) => false;
 
 const parseProgressScope = (value: unknown): QueryProgressArgs["scope"] => {
   if (value === "all" || value === "checklists" || value === "plans") {

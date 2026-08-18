@@ -184,6 +184,7 @@ Representative paths:
 - `tests/agent/schedule/*.test.tsx`
 - `tests/agent/schedule/schedule-specialist-model-seam.test.ts`
 - `tests/agent/schedule/schedule-plan-frozen-proposal.test.ts`
+- `tests/agent/review/*.test.ts`
 
 Required invariants:
 
@@ -204,6 +205,15 @@ Required invariants:
   times, and conflicts before a complete proposal can be frozen.
 - Frozen plan scheduling commits atomically, rolls back create or commit
   failures, and reports rollback failure as an indeterminate transaction.
+- Review facts, hard risks, resources, and state remain deterministic; Review
+  model calls can only add bounded prose through strict shared schemas.
+- A saved Weekly Review freezes the complete fingerprinted proposal before
+  confirmation and executes it without recomputation; its review, newly created
+  suggestions, and audit record commit or roll back as one transaction. Plan
+  evaluation remains a read-only operation with no review, run, or Plan mutation.
+- The Weekly Review confirmation card renders the exact frozen completion,
+  risk, gap, and recommendation facts in user-facing language without exposing
+  internal fingerprints or model provenance.
 - User-visible status and priority values are localized and formatted.
 
 ### Content and palette

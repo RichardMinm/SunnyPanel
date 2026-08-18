@@ -336,7 +336,7 @@ test("executeRollbackFromPayload restores checklist groups and an existing timel
   );
 });
 
-test("executeRollbackFromPayload deletes weekly review artifacts and archives suggestions", async () => {
+test("executeRollbackFromPayload deletes only the weekly review artifacts created by the action", async () => {
   const payload = await getPayloadClient();
   const result = await executeRollbackFromPayload(
     {
@@ -361,16 +361,54 @@ test("executeRollbackFromPayload deletes weekly review artifacts and archives su
   assert.deepEqual(deletes, [
     { collection: "plan-reviews", id: 700, overrideAccess: true },
     { collection: "agent-runs", id: 920, overrideAccess: true },
+    { collection: "agent-suggestions", id: 301, overrideAccess: true },
+    { collection: "agent-suggestions", id: 302, overrideAccess: true },
   ]);
+});
 
-  const suggestionUpdates = getPayloadStubOperations()
-    .filter((operation) => operation.type === "update")
-    .map((operation) => operation.args as { collection?: string; data?: { status?: string }; id?: number });
-  assert.deepEqual(
-    suggestionUpdates.map((args) => ({ collection: args.collection, id: args.id, status: args.data?.status })),
-    [
-      { collection: "agent-suggestions", id: 301, status: "dismissed" },
-      { collection: "agent-suggestions", id: 302, status: "dismissed" },
-    ],
+test("weekly review rollback uses one transaction when the payload exposes a transaction runner", async () => {
+  const operations: string[] = [];
+  const transactionalPayload = {
+    create: async () => ({}),
+    delete: async (args: unknown) => {
+      const input = args as { collection?: string; id?: number };
+      operations.push(`delete:${input.collection}:${input.id}`);
+      return {};
+    },
+    findByID: async () => null,
+    runInTransaction: async (
+      _userId: number,
+      operation: (payload: unknown) => Promise<unknown>,
+    ) => {
+      operations.push("begin");
+      const result = await operation(transactionalPayload);
+      operations.push("commit");
+      return result;
+    },
+    update: async () => ({}),
+  };
+
+  await executeRollbackFromPayload(
+    {
+      strategy: "delete_created_weekly_review_artifacts",
+      target: {
+        agentRunId: null,
+        collection: "plan-reviews",
+        planReviewId: 700,
+        suggestionIds: [301],
+      },
+    },
+    {
+      payload: transactionalPayload as never,
+      persistAudit: false,
+      userId: 7,
+    },
   );
+
+  assert.deepEqual(operations, [
+    "begin",
+    "delete:plan-reviews:700",
+    "delete:agent-suggestions:301",
+    "commit",
+  ]);
 });

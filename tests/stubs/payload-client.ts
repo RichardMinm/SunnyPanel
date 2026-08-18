@@ -27,6 +27,16 @@ type GlobalArgs<TSlug extends GlobalSlug> = {
 } & Record<string, unknown>;
 
 type PayloadStub = {
+  config: {
+    admin: { user: "users" };
+    i18n: {
+      fallbackLanguage: "en";
+      supportedLanguages: { en: Record<string, never> };
+      translations: Record<string, never>;
+    };
+    localization: undefined;
+    serverURL: undefined;
+  };
   create: <TDocument = never, TSlug extends CollectionSlug = CollectionSlug>(
     args: CollectionArgs<TSlug>,
   ) => Promise<PayloadDoc<TDocument, TSlug>>;
@@ -40,6 +50,12 @@ type PayloadStub = {
     args: CollectionArgs<TSlug>,
   ) => Promise<PayloadDoc<TDocument, TSlug> | null>;
   findGlobal: <TSlug extends GlobalSlug = GlobalSlug>(args: GlobalArgs<TSlug>) => Promise<GlobalDoc<TSlug>>;
+  db: {
+    beginTransaction: () => Promise<number>;
+    commitTransaction: (id: number | string) => Promise<void>;
+    rollbackTransaction: (id: number | string) => Promise<void>;
+  };
+  logger: { error: () => void };
   update: <TDocument = never, TSlug extends CollectionSlug = CollectionSlug>(
     args: CollectionArgs<TSlug>,
   ) => Promise<PayloadDoc<TDocument, TSlug>>;
@@ -63,6 +79,16 @@ const recordOperation = (type: PayloadStubOperation["type"], args: unknown) => {
 };
 
 const payloadStub: PayloadStub = {
+  config: {
+    admin: { user: "users" },
+    i18n: {
+      fallbackLanguage: "en",
+      supportedLanguages: { en: {} },
+      translations: {},
+    },
+    localization: undefined,
+    serverURL: undefined,
+  },
   create: async (args) => {
     recordOperation("create", args);
 
@@ -72,6 +98,11 @@ const payloadStub: PayloadStub = {
     recordOperation("delete", args);
 
     return (deleteHandler ? await deleteHandler(args) : {}) as never;
+  },
+  db: {
+    beginTransaction: async () => 1,
+    commitTransaction: async () => undefined,
+    rollbackTransaction: async () => undefined,
   },
   find: async (args) => {
     recordOperation("find", args);
@@ -88,6 +119,7 @@ const payloadStub: PayloadStub = {
 
     return (findGlobalHandler ? await findGlobalHandler(args) : {}) as never;
   },
+  logger: { error: () => undefined },
   update: async (args) => {
     recordOperation("update", args);
 

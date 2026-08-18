@@ -7,6 +7,7 @@ import {
   resolveAgentIntent,
 } from "../../src/lib/agent/intent-resolution";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
+import type { FrozenWeeklyReviewProposal } from "../../src/lib/agent/review/model-schemas";
 import {
   buildProposedActionMessage,
   createIntentFromProposedAction,
@@ -48,6 +49,27 @@ const fakeChecklist = {
   visibility: "private",
 };
 
+const frozenWeeklyReviewProposal: FrozenWeeklyReviewProposal = {
+  assistantMessage: "本周完成：完成首页改版\n风险：存在逾期计划\n叙事缺口：缺少里程碑记录\n下周建议：先关闭逾期计划",
+  completed: ["完成首页改版"],
+  createSuggestions: true,
+  health: "risk",
+  metrics: {
+    completedPlans: 1,
+    overduePlans: 1,
+  },
+  narrativeGaps: ["缺少里程碑记录"],
+  recommendations: ["先关闭逾期计划"],
+  reviewedAt: "2026-05-06T00:00:00.000Z",
+  risks: ["存在逾期计划"],
+  scope: "overall",
+  snapshotFingerprint: "a".repeat(64),
+  source: "deterministic",
+  suggestionDrafts: [],
+  summary: "本周完成：完成首页改版；风险：存在逾期计划。",
+  title: "Weekly Review · 2026-05-06",
+};
+
 const dryRunContext: AgentToolDryRunContext = {
   createActionId: () => "test-action-id",
   detectScheduleConflicts: async () => [],
@@ -61,6 +83,7 @@ const dryRunContext: AgentToolDryRunContext = {
       title: "整体计划",
     },
   ],
+  prepareWeeklyReviewProposal: async () => frozenWeeklyReviewProposal,
   resolveChecklistGroupForAppend: async () => ({
     question: null,
     resolved: {
@@ -323,7 +346,7 @@ test("weekly review preview bypasses confirmation but saved review requires conf
   assert.equal(savedProposal.riskLevel, "medium");
   assert.equal(savedProposal.requiresConfirmation, true);
   assert.equal(savedProposal.changes[0]?.collection, "plan-reviews");
-  assert.match(buildProposedActionMessage(savedProposal), /生成并保存本周 PlanReview/);
+  assert.match(buildProposedActionMessage(savedProposal), /保存本周复盘/);
 
   const restoredIntent = createIntentFromProposedAction(savedProposal);
 
@@ -332,6 +355,7 @@ test("weekly review preview bypasses confirmation but saved review requires conf
     createSuggestions: true,
     now: null,
     persistReview: true,
+    proposal: frozenWeeklyReviewProposal,
   });
 });
 

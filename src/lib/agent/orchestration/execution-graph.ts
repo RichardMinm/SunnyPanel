@@ -322,7 +322,15 @@ export const executeOrchestrationGraph = async (
   const autoApproval = options.autoApproval;
   const disableToolFailureRepair = options.disableToolFailureRepair ?? false;
   const disabledLoopDirectiveModes = new Set(options.disabledLoopDirectiveModes ?? []);
-  const executeIntent = options.executeIntent ?? executeAgentIntent;
+  const executeIntent = options.executeIntent
+    ?? ((intent, onTrace, executionOptions) => executeAgentIntent(
+      intent,
+      onTrace,
+      {
+        ...executionOptions,
+        modelCallRecorder: options.modelCallRecorder,
+      },
+    ));
   const executeAction =
     options.executeAction ??
     ((intent: AgentIntent) => executeIntent(intent));

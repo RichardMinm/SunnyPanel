@@ -23,6 +23,7 @@ import type { AgentThread } from "@/payload-types";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
 import { resolveCreatedPlanConversationState } from "@/lib/agent/planning/created-plan-lifecycle";
 import type { AgentTraceRecorder } from "@/lib/agent/trace";
+import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 
 export type ExecuteAndPersistStepParams = {
   batchExecuteIntents?: AgentIntent[];
@@ -34,6 +35,7 @@ export type ExecuteAndPersistStepParams = {
   executionApproved?: boolean;
   executedCapability?: (name: string) => void;
   isDirectAnswer: boolean;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   nextPendingAfterExecute?: null | PendingAction;
   pendingAction?: null | PendingAction;
   persistAgentTurn: (args: {
@@ -91,6 +93,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
     executionApproved = false,
     executedCapability,
     isDirectAnswer,
+    modelCallRecorder,
     nextPendingAfterExecute,
     pendingAction = null,
     persistAgentTurn,
@@ -164,6 +167,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
       toolName: "execute_batch",
     });
     const batchResult = await executeBatchIntents(batchExecuteIntents, pushTrace, {
+      modelCallRecorder,
       userId: user.id,
     });
     const affectedDocuments = sanitizeAffectedDocuments(batchResult.affectedDocuments);
@@ -507,6 +511,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
       };
     } else {
       execution = await executeAgentIntent(resolution.intent, pushTrace, {
+        modelCallRecorder,
         userId: user.id,
       });
 

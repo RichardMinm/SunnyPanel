@@ -27,7 +27,22 @@ import {
   getScheduleCreationProposalFromAction,
   getSchedulePlanProposalFromAction,
   getScheduleProposalFromAction,
+  getWeeklyReviewProposalFromAction,
 } from "./utils";
+
+const weeklyReviewMetricLabels: Readonly<Record<string, string>> = {
+  activePlans: "进行中计划",
+  backlogPlans: "待安排计划",
+  checklistCompletionRate: "清单完成率",
+  completedChecklistItems: "已完成清单项",
+  completedPlans: "已完成计划",
+  failedAgentRuns: "失败任务",
+  narrativeGaps: "记录缺口",
+  overduePlans: "逾期计划",
+  recentPublicContent: "近期公开内容",
+  recentTimelineEvents: "近期时间线记录",
+  totalChecklistItems: "清单项总数",
+};
 
 export type AgentApprovalCardProps = {
   action: null | ProposedAgentAction;
@@ -157,6 +172,15 @@ export function AgentApprovalCard({
   const scheduleProposal = getScheduleProposalFromAction(action);
   const scheduleCreationProposal = getScheduleCreationProposalFromAction(action);
   const schedulePlanProposal = getSchedulePlanProposalFromAction(action);
+  const weeklyReviewProposal = getWeeklyReviewProposalFromAction(action);
+  const weeklyReviewMetrics = weeklyReviewProposal
+    ? Object.entries(weeklyReviewProposal.metrics)
+        .filter(([key]) => key in weeklyReviewMetricLabels)
+        .map(([key, value]) => ({
+          label: weeklyReviewMetricLabels[key]!,
+          value: String(value),
+        }))
+    : [];
   const motivationDuplicatesGoal =
     planProposal?.motivation &&
     planProposal.goal &&
@@ -212,6 +236,14 @@ export function AgentApprovalCard({
         ? [
             "确认后仅写入下方列出的日程",
             "执行前再次检查计划版本和时间冲突",
+            "保留执行摘要以便撤销或追踪",
+          ]
+      : weeklyReviewProposal
+        ? [
+            "确认后仅保存下方展示的复盘内容",
+            weeklyReviewProposal.createSuggestions
+              ? "同时生成下周行动建议"
+              : "不生成额外行动建议",
             "保留执行摘要以便撤销或追踪",
           ]
       : action.changes.slice(0, 3).map((change) => change.preview);
@@ -410,6 +442,83 @@ export function AgentApprovalCard({
                 <p>没有检测到同时间段冲突。</p>
               </div>
             )}
+          </div>
+        ) : weeklyReviewProposal ? (
+          <div className="sunny-agent-proposal-card sunny-agent-review-proposal">
+            <div>
+              <span>本周回顾</span>
+              <strong>{weeklyReviewProposal.title}</strong>
+            </div>
+            <div className="sunny-agent-proposal-grid">
+              <div>
+                <span>状态</span>
+                <p>{{ healthy: "进展健康", attention: "需要关注", risk: "存在风险" }[weeklyReviewProposal.health]}</p>
+              </div>
+              <div>
+                <span>风险</span>
+                <p>{weeklyReviewProposal.risks.length} 项</p>
+              </div>
+              <div>
+                <span>下周建议</span>
+                <p>{weeklyReviewProposal.recommendations.length} 项</p>
+              </div>
+            </div>
+            <div className="sunny-agent-proposal-brief">
+              <span>保存摘要</span>
+              <p>{weeklyReviewProposal.summary}</p>
+            </div>
+            {weeklyReviewMetrics.length > 0 ? (
+              <div className="sunny-agent-proposal-columns">
+                <div>
+                  <span>关键指标</span>
+                  <ul>
+                    {weeklyReviewMetrics.map((metric) => (
+                      <li key={metric.label}>
+                        <strong>{metric.label}</strong> — {metric.value}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
+            <div className="sunny-agent-proposal-columns">
+              <div>
+                <span>本周完成</span>
+                <ul>
+                  {weeklyReviewProposal.completed.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+              <div>
+                <span>风险与缺口</span>
+                <ul>
+                  {[...weeklyReviewProposal.risks, ...weeklyReviewProposal.narrativeGaps]
+                    .map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+              <div>
+                <span>下周建议</span>
+                <ul>
+                  {weeklyReviewProposal.recommendations.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            </div>
+            {weeklyReviewProposal.createSuggestions && weeklyReviewProposal.suggestionDrafts.length > 0 ? (
+              <div className="sunny-agent-proposal-columns">
+                <div>
+                  <span>准备添加的行动建议</span>
+                  <p>如果已有同一条建议，将保留现有记录，不重复创建。</p>
+                  <ul>
+                    {weeklyReviewProposal.suggestionDrafts.map((suggestion) => (
+                      <li key={suggestion.uniqueKey}>
+                        <strong>{suggestion.title}</strong>
+                        <span> — {suggestion.reason}</span>
+                        <p>继续处理：{suggestion.suggestedPrompt}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : schedulePlanProposal ? (
           <div className="sunny-agent-proposal-card sunny-agent-schedule-proposal">

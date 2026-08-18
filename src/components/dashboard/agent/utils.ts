@@ -12,6 +12,10 @@ import {
   frozenSchedulePlanProposalSchema,
   type FrozenSchedulePlanProposal,
 } from "@/lib/agent/schedule/model-schemas";
+import {
+  frozenWeeklyReviewProposalSchema,
+  type FrozenWeeklyReviewProposal,
+} from "@/lib/agent/review/model-schemas";
 
 import { riskLevelLabelMap } from "./constants";
 import { isRecord } from "@/lib/shared/is-record";
@@ -639,6 +643,22 @@ export const getSchedulePlanProposalFromAction = (
     ? action.afterSnapshot.proposal
     : undefined;
   const parsed = frozenSchedulePlanProposalSchema.safeParse(
+    argsProposal ?? snapshotProposal,
+  );
+
+  return parsed.success ? parsed.data : null;
+};
+
+export const getWeeklyReviewProposalFromAction = (
+  action: ProposedAgentAction,
+): FrozenWeeklyReviewProposal | null => {
+  if (action.intent !== "weekly_review") return null;
+
+  const argsProposal = isRecord(action.args) ? action.args.proposal : undefined;
+  const snapshotProposal = isRecord(action.afterSnapshot)
+    ? action.afterSnapshot.proposal
+    : undefined;
+  const parsed = frozenWeeklyReviewProposalSchema.safeParse(
     argsProposal ?? snapshotProposal,
   );
 

@@ -31,7 +31,10 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const result = await evaluatePlan(parseEvaluatePlanArgsFromSearchParams(url.searchParams));
+  const result = await evaluatePlan(
+    parseEvaluatePlanArgsFromSearchParams(url.searchParams),
+    { enhanceWithModel: false, persistReview: false },
+  );
 
   return NextResponse.json(result);
 }
@@ -45,6 +48,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const result = await evaluatePlan(parseEvaluatePlanArgs(body), {
+    enhanceWithModel: false,
     persistReview: shouldPersistEvaluateReviewFromBody(body),
   });
 

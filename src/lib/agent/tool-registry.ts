@@ -58,6 +58,7 @@ import type { LocalBusyBlock } from "./schedule/free-slots";
 import type { ScheduleSlots } from "./schedule/readiness";
 import type { ScheduleModelInvocationOptions } from "./schedule/model-invocation";
 import type { FrozenSchedulePlanProposal } from "./schedule/model-schemas";
+import type { FrozenWeeklyReviewProposal } from "./review/model-schemas";
 import {
   composeTimelineEventProposal,
   formatTimelineProposal,
@@ -75,7 +76,7 @@ import { createScheduleItemsFromIntent } from "./tools/schedule-create-items";
 
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
 type WritableAgentIntent = Extract<AgentIntent, { intent: AgentWriteIntentName }>;
-type ClarifiableAgentIntentName = Exclude<AgentWriteIntentName, "compose_checklist" | "compose_timeline_event" | "weekly_review" | "query_schedule">;
+type ClarifiableAgentIntentName = Exclude<AgentWriteIntentName, "compose_checklist" | "compose_timeline_event" | "query_schedule">;
 type ToolRiskLevel = ProposedAgentAction["riskLevel"];
 
 /** What this tool does — read, draft a proposal, generate a dry-run preview, write data, or roll back. */
@@ -176,6 +177,9 @@ type FindLocalBusyBlocks = (args: {
 type PrepareSchedulePlanProposal = (
   args: SchedulePlanArgs,
 ) => Promise<FrozenSchedulePlanProposal | null>;
+type PrepareWeeklyReviewProposal = (
+  args: WeeklyReviewArgs,
+) => Promise<FrozenWeeklyReviewProposal | null>;
 type ResolvedChecklistItem = NonNullable<Awaited<ReturnType<ResolveChecklistItem>>["resolved"]>;
 type ResolvedChecklistGroup = NonNullable<Awaited<ReturnType<ResolveChecklistGroupForAppend>>["resolved"]>;
 
@@ -187,6 +191,7 @@ export type AgentToolDryRunContext = {
   now?: string;
   planCandidates?: PlanCandidate[];
   prepareSchedulePlanProposal?: PrepareSchedulePlanProposal;
+  prepareWeeklyReviewProposal?: PrepareWeeklyReviewProposal;
   promptContext?: AgentPromptContext;
   resolveChecklistGroupForAppend?: ResolveChecklistGroupForAppend;
   resolveChecklistItem?: ResolveChecklistItem;
@@ -370,6 +375,7 @@ const createClarifyResult = ({
     | RescheduleItemArgs
     | SaveMemoryArgs
     | SchedulePlanArgs
+    | WeeklyReviewArgs
   >;
   intent: ClarifiableAgentIntentName;
   missingFields: string[];
@@ -1088,18 +1094,67 @@ const weeklyReviewDryRun = async (
   const persistReview = args.persistReview !== false;
   const riskLevel: ToolRiskLevel = persistReview ? "medium" : "low";
 
+  if (!persistReview) {
+    return {
+      action: {
+        ...actionBase({
+          args: {
+            createSuggestions: args.createSuggestions !== false,
+            now: args.now ?? null,
+            persistReview: false,
+          },
+          context,
+          intent: "weekly_review",
+          riskLevel,
+          summary: "预览本周复盘，不保存内容",
+        }),
+        affectedDocuments: [],
+        afterSnapshot: { scope: "weekly_review_preview" },
+        beforeSnapshot: null,
+        changes: [{
+          afterPreview: "只生成本周回顾预览，不写入数据库。",
+          beforePreview: "当前尚未生成这次周复盘。",
+          collection: "plan-reviews",
+          operation: "create",
+          preview: "预览本周完成、风险、记录缺口和下周建议。",
+          timelineAffected: false,
+          visibility: "private",
+        }],
+        rollbackAvailable: false,
+        rollbackPayload: null,
+      },
+      type: "proposed_action",
+    };
+  }
+
+  const proposal = await context.prepareWeeklyReviewProposal?.(args) ?? null;
+
+  if (!proposal) {
+    return createClarifyResult({
+      args: {
+        createSuggestions: args.createSuggestions !== false,
+        now: args.now ?? null,
+        persistReview,
+      },
+      intent: "weekly_review",
+      missingFields: ["weeklyReviewProposal"],
+      question: "暂时无法生成可确认的本周回顾，请稍后重试。",
+    });
+  }
+
   return {
     action: {
       ...actionBase({
         args: {
-          createSuggestions: args.createSuggestions !== false,
+          createSuggestions: proposal.createSuggestions,
           now: args.now ?? null,
           persistReview,
+          proposal,
         },
         context,
         intent: "weekly_review",
         riskLevel,
-        summary: persistReview ? "生成并保存本周 PlanReview" : "预览本周回顾，不写入 PlanReview",
+        summary: persistReview ? "保存本周复盘" : "预览本周复盘，不保存内容",
       }),
       affectedDocuments: persistReview
         ? [
@@ -1126,32 +1181,36 @@ const weeklyReviewDryRun = async (
         : [],
       afterSnapshot: persistReview
         ? {
-            createSuggestions: args.createSuggestions !== false,
+            createSuggestions: proposal.createSuggestions,
+            proposal,
             scope: "weekly_review",
+            snapshotFingerprint: proposal.snapshotFingerprint,
           }
         : {
+            proposal,
             scope: "weekly_review_preview",
+            snapshotFingerprint: proposal.snapshotFingerprint,
           },
       beforeSnapshot: null,
       changes: [
         {
           afterPreview: persistReview
-            ? "将创建一条整体 PlanReview，并记录对应 AgentRun。"
-            : "只生成本周回顾预览，不写入数据库。",
-          beforePreview: "当前尚未生成这次 Weekly Review。",
+            ? `将按确认内容保存本周复盘，并记录 ${proposal.recommendations.length} 项下周建议。`
+            : "只展示已生成的本周回顾，不写入数据库。",
+          beforePreview: "当前尚未保存这次周复盘。",
           collection: "plan-reviews",
           operation: "create",
           preview: persistReview
-            ? "根据计划、清单、Timeline、公开内容和 AgentRun 生成本周回顾。"
-            : "预览本周完成、风险、叙事缺口和下周建议。",
+            ? `保存已确认的本周复盘：${proposal.risks.length} 项风险、${proposal.recommendations.length} 项建议。`
+            : proposal.assistantMessage,
           timelineAffected: false,
           visibility: "private",
         },
       ],
-      rollbackAvailable: false,
+      rollbackAvailable: persistReview,
       rollbackPayload: persistReview
         ? {
-            reason: "PlanReview 和 AgentSuggestion 需要执行后才知道 documentId；AgentRun 将保留为所有权绑定的回滚审计。",
+            reason: "复盘和行动建议需要保存后才能取得记录编号；运行记录将保留为所有权绑定的回滚审计。",
             strategy: "delete_created_weekly_review_artifacts",
             target: {
               agentRunId: null,
@@ -2664,7 +2723,7 @@ export const agentToolRegistry = {
     supportsRollback: true,
   },
   weekly_review: {
-    description: "Generate a weekly workspace review from plans, checklists, timeline events, public content, and recent AgentRuns.",
+    description: "根据计划、清单、时间线和近期进展生成本周复盘。",
     dryRun: weeklyReviewDryRun,
     execute: (args, context, onTrace) => {
       if (!context.weeklyReview) {
@@ -2678,7 +2737,7 @@ export const agentToolRegistry = {
     requiresConfirmation: true,
     riskLevel: "medium",
     rollback: {
-      description: "Delete or archive the created weekly PlanReview, AgentRun, and generated suggestions.",
+      description: "撤销本次新建的复盘内容和行动建议，保留必要的审计记录。",
       status: "planned",
     },
     capability: "write",

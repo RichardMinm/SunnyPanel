@@ -5,6 +5,7 @@ import {
   composeTimelineEventProposal,
 } from "../../src/lib/agent/workflows/timeline-composer";
 import {
+  prepareWeeklyReviewProposal,
   runWeeklyReviewWorkflow,
   type WeeklyReviewSnapshot,
 } from "../../src/lib/agent/workflows/weekly-review";
@@ -70,12 +71,25 @@ const weeklySnapshot: WeeklyReviewSnapshot = {
 
 test("weekly review workflow contract generates PlanReview payload", async () => {
   const capturedReviews: Array<Record<string, unknown>> = [];
+  const proposal = await prepareWeeklyReviewProposal(
+    {
+      createSuggestions: false,
+      now: "2026-05-08T00:00:00.000Z",
+      persistReview: true,
+    },
+    {
+      collectSnapshot: async () => weeklySnapshot,
+    },
+  );
+
+  assert.ok(proposal);
 
   const result = await runWeeklyReviewWorkflow(
     {
       createSuggestions: false,
       now: "2026-05-08T00:00:00.000Z",
       persistReview: true,
+      proposal,
     },
     {
       collectSnapshot: async () => weeklySnapshot,

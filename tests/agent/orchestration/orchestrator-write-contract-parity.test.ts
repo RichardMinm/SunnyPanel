@@ -9,6 +9,7 @@ import {
 import { mapStructuredOutputToPlan } from "../../../src/lib/agent/orchestration/orchestrator-mapper";
 import { orchestratorPlanToIntent } from "../../../src/lib/agent/orchestration/orchestrator-plan-to-intent";
 import { ORCHESTRATION_WRITE_INTENTS } from "../../../src/lib/agent/intent/write-intents";
+import type { FrozenSchedulePlanProposal } from "../../../src/lib/agent/schedule/model-schemas";
 import { dryRunAgentIntent } from "../../../src/lib/agent/safety";
 import { agentToolRegistry } from "../../../src/lib/agent/tool-registry";
 
@@ -37,6 +38,23 @@ const resourceIndex = buildResourceIndex({
   plans: [{ id: 101, title: "复习计划" }],
   schedules: [{ id: 301, title: "数学复习" }],
 });
+
+const frozenSchedulePlanProposal: FrozenSchedulePlanProposal = {
+  items: [{
+    date: "2026-07-21",
+    endTime: "10:30",
+    isAllDay: false,
+    phaseTitle: "复习阶段",
+    startTime: "09:00",
+    taskKey: "task-001",
+    title: "数学复习",
+  }],
+  planFingerprint: "a".repeat(64),
+  planId: 101,
+  planTitle: "复习计划",
+  source: "deterministic",
+  startDate: "2026-07-21",
+};
 
 const writeCases = [
   ["add_completion_note", {
@@ -162,6 +180,7 @@ describe("orchestrator write contract parity", () => {
         createActionId: () => `dry-run-${intent}`,
         findTimelineEvent: async () => null,
         planCandidates: [{ id: 101, priority: "high", state: "active", title: "复习计划" }],
+        prepareSchedulePlanProposal: async () => frozenSchedulePlanProposal,
         resolveChecklistGroupForAppend: async () => ({
           question: null,
           resolved: {

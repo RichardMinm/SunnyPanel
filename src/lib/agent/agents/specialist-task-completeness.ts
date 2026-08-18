@@ -18,6 +18,7 @@ const deterministicallyCompleteIntents = new Set<AgentIntent["intent"]>([
   "reschedule_item",
   "save_memory",
   "schedule_plan",
+  "weekly_review",
 ]);
 
 export const evaluateSpecialistTaskCompleteness = (

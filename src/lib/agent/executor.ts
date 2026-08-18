@@ -21,6 +21,10 @@ import type { AgentIntent, AgentTraceStep } from "./schemas";
 import { executeAgentTool } from "./tool-registry";
 import { executeWeeklyReviewFromIntent } from "./workflows/weekly-review-server";
 import {
+  ModelCallAuthorizationError,
+  type ModelCallBudgetRecorder,
+} from "./orchestration/model-call-budget";
+import {
   addCompletionNoteFromIntent,
   appendPlanItemFromIntent,
   cancelScheduleItemFromIntent,
@@ -41,6 +45,7 @@ import {
 type AgentExecutionTraceReporter = (step: AgentTraceStep) => void;
 
 type AgentExecutionOptions = {
+  modelCallRecorder?: ModelCallBudgetRecorder;
   userId?: number;
 };
 
@@ -62,6 +67,7 @@ export type TransactionalExecutionOptions = {
     input: TrustedRollbackRequestInput,
   ) => ReturnType<typeof executeTrustedRollbackRequest>;
   isRollbackExecutable?: (rollbackPayload: unknown) => boolean;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   rollbackPayloadStore?: RollbackPayloadStore;
   userId?: number;
 };
@@ -168,7 +174,10 @@ export const executeAgentIntentsTransactional = async (
     const single = intents[0];
 
     return single
-      ? (options.executeIntent ?? executeAgentIntent)(single, onTrace, { userId: options.userId })
+      ? (options.executeIntent ?? executeAgentIntent)(single, onTrace, {
+          modelCallRecorder: options.modelCallRecorder,
+          userId: options.userId,
+        })
       : { assistantMessage: "", pendingAction: null };
   }
 
@@ -279,7 +288,10 @@ export const executeAgentIntentsTransactional = async (
             ...step,
             id: `${step.id}-transaction-${index}`,
           }),
-        { userId: options.userId },
+        {
+          modelCallRecorder: options.modelCallRecorder,
+          userId: options.userId,
+        },
       );
 
       const hasExecutableRollback =
@@ -442,7 +454,24 @@ export const executeAgentIntent = async (
     case "delete_record":
     case "modify_record":
       const result = await runWithAgentExecutionContext({ userId: options.userId }, () =>
-        executeAgentTool(intent, toolExecutors, onTrace),
+        executeAgentTool(intent, {
+          ...toolExecutors,
+          weeklyReview: (args, trace) => executeWeeklyReviewFromIntent(
+            args,
+            trace,
+            {
+              reviewModelInvocation: {
+                logicalCallAuthorizer: (scopeId) => {
+                  if (options.modelCallRecorder?.record("specialist", scopeId) === false) {
+                    throw new ModelCallAuthorizationError("MODEL_LOGICAL_CALL_LIMIT_EXCEEDED");
+                  }
+                },
+                providerAttemptAuthorizer: () =>
+                  options.modelCallRecorder?.recordProviderAttempt("specialist"),
+              },
+            },
+          ),
+        }, onTrace),
       );
       return (
         result ?? {
@@ -511,7 +540,17 @@ export const executeAgentIntent = async (
         title: "已切换到计划评估流程",
       });
       return runWithAgentExecutionContext({ userId: options.userId }, () =>
-        evaluatePlanFromIntent(intent.args),
+        evaluatePlanFromIntent(intent.args, {
+          modelInvocation: {
+            logicalCallAuthorizer: (scopeId) => {
+              if (options.modelCallRecorder?.record("specialist", scopeId) === false) {
+                throw new ModelCallAuthorizationError("MODEL_LOGICAL_CALL_LIMIT_EXCEEDED");
+              }
+            },
+            providerAttemptAuthorizer: () =>
+              options.modelCallRecorder?.recordProviderAttempt("specialist"),
+          },
+        }),
       );
     case "create_checklist":
       return createChecklistFromIntent(intent.args, onTrace, { userId: options.userId });

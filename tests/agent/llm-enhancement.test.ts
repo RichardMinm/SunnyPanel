@@ -84,14 +84,17 @@ const evalInput: EvaluationEnhancementInput = {
   summary: "整体评估：5 项计划...",
 };
 
-test("mergeEvaluationEnhancement overlays summary/recommendations but keeps health and metrics", () => {
+test("mergeEvaluationEnhancement appends prose while keeping canonical facts and recommendations", () => {
   const merged = mergeEvaluationEnhancement(evalInput, {
     recommendations: ["今天先把 2 项逾期计划重新定下一步"],
     summary: "整体偏紧：先止损逾期计划。",
   });
 
-  assert.equal(merged.summary, "整体偏紧：先止损逾期计划。");
-  assert.deepEqual(merged.recommendations, ["今天先把 2 项逾期计划重新定下一步"]);
+  assert.equal(merged.summary, "整体评估：5 项计划...\n整体偏紧：先止损逾期计划。");
+  assert.deepEqual(merged.recommendations, [
+    "先处理 2 项逾期计划",
+    "今天先把 2 项逾期计划重新定下一步",
+  ]);
   assert.equal(merged.health, "risk");
   assert.deepEqual(merged.metrics, { overduePlans: 2, planCount: 5 });
 });
@@ -105,11 +108,20 @@ test("mergeEvaluationEnhancement returns the rule-based result when enhancement 
 test("parseEvaluationEnhancement rejects empty payloads", () => {
   assert.equal(parseEvaluationEnhancement({}), null);
   assert.equal(parseEvaluationEnhancement({ recommendations: [] }), null);
-  assert.deepEqual(parseEvaluationEnhancement({ summary: "ok" }), { summary: "ok" });
+  assert.equal(parseEvaluationEnhancement({ summary: "ok" }), null);
+  assert.deepEqual(
+    parseEvaluationEnhancement({ recommendations: [], summary: "ok" }),
+    { recommendations: [], summary: "ok" },
+  );
 });
 
 test("enhanceEvaluationWithLLM returns null when the model is unavailable", async () => {
-  const result = await enhanceEvaluationWithLLM(evalInput, { complete: async () => null });
-
-  assert.equal(result, null);
+  const previous = process.env.AGENT_DISABLE_LLM;
+  process.env.AGENT_DISABLE_LLM = "1";
+  try {
+    assert.equal(await enhanceEvaluationWithLLM(evalInput), null);
+  } finally {
+    if (previous === undefined) delete process.env.AGENT_DISABLE_LLM;
+    else process.env.AGENT_DISABLE_LLM = previous;
+  }
 });

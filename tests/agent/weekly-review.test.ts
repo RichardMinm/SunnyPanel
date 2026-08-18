@@ -4,6 +4,7 @@ import { beforeEach, test } from "node:test";
 import { executeAgentIntent } from "../../src/lib/agent/executor";
 import {
   buildWeeklyReviewFromSnapshot,
+  prepareWeeklyReviewProposal,
   runWeeklyReviewWorkflow,
   type WeeklyReviewSnapshot,
 } from "../../src/lib/agent/workflows/weekly-review";
@@ -83,6 +84,28 @@ const snapshot: WeeklyReviewSnapshot = {
   recentTimelineEvents: [],
 };
 
+const prepareFrozenWeeklyReview = async ({
+  createSuggestions = true,
+  now = "2026-05-08T00:00:00.000Z",
+}: {
+  createSuggestions?: boolean;
+  now?: string;
+} = {}) => {
+  const proposal = await prepareWeeklyReviewProposal(
+    {
+      createSuggestions,
+      now,
+      persistReview: true,
+    },
+    {
+      collectSnapshot: async () => snapshot,
+    },
+  );
+
+  assert.ok(proposal);
+  return proposal;
+};
+
 test("generates weekly review from mocked data", () => {
   const review = buildWeeklyReviewFromSnapshot(snapshot, "2026-05-08T00:00:00.000Z");
 
@@ -96,12 +119,14 @@ test("generates weekly review from mocked data", () => {
 
 test("weekly review workflow creates AgentRun", async () => {
   const capturedAgentRuns: Array<Record<string, unknown>> = [];
+  const proposal = await prepareFrozenWeeklyReview();
 
   const result = await runWeeklyReviewWorkflow(
     {
       createSuggestions: true,
       now: "2026-05-08T00:00:00.000Z",
       persistReview: true,
+      proposal,
     },
     {
       collectSnapshot: async () => snapshot,
@@ -130,7 +155,7 @@ test("weekly review workflow creates AgentRun", async () => {
   assert.equal(agentRunData["status"], "succeeded");
   assert.equal(agentRunData["rollbackAvailable"], true);
   assert.deepEqual(agentRunData["rollbackPayload"], {
-    reason: "删除本次 Weekly Review 创建的 PlanReview，并将自动生成的建议归档为 dismissed；AgentRun 保留为回滚审计。",
+    reason: "删除本次周复盘和由它新建的行动建议；运行记录保留为回滚审计。",
     strategy: "delete_created_weekly_review_artifacts",
     target: {
       agentRunId: null,
@@ -145,17 +170,19 @@ test("weekly review workflow creates AgentRun", async () => {
       value: 45,
     },
   ]);
-  assert.match(result.assistantMessage, /已保存为 PlanReview #45/);
+  assert.match(result.assistantMessage, /本周复盘已保存/);
 });
 
 test("weekly review workflow creates suggestions for next actions", async () => {
   const suggestionKeys: string[] = [];
+  const proposal = await prepareFrozenWeeklyReview();
 
   const result = await runWeeklyReviewWorkflow(
     {
       createSuggestions: true,
       now: "2026-05-08T00:00:00.000Z",
       persistReview: true,
+      proposal,
     },
     {
       collectSnapshot: async () => snapshot,
@@ -180,6 +207,10 @@ test("weekly review workflow creates suggestions for next actions", async () => 
 
 test("persisted weekly review returns and stores its durable rollback AgentRun source", async () => {
   let storedAgentRunData: Record<string, unknown> | undefined;
+  const proposal = await prepareFrozenWeeklyReview({
+    createSuggestions: false,
+    now: "2026-07-28T00:00:00.000Z",
+  });
 
   setPayloadStubFindHandler(async () => ({ docs: [], totalDocs: 0 }));
   setPayloadStubCreateHandler(async (input) => {
@@ -213,6 +244,7 @@ test("persisted weekly review returns and stores its durable rollback AgentRun s
         createSuggestions: false,
         now: "2026-07-28T00:00:00.000Z",
         persistReview: true,
+        proposal,
       },
       intent: "weekly_review",
     },
@@ -234,6 +266,11 @@ test("persisted weekly review returns and stores its durable rollback AgentRun s
 });
 
 test("persisted weekly review fails closed when its AgentRun source is invalid", async () => {
+  const proposal = await prepareFrozenWeeklyReview({
+    createSuggestions: false,
+    now: "2026-07-28T00:00:00.000Z",
+  });
+
   setPayloadStubFindHandler(async () => ({ docs: [], totalDocs: 0 }));
   setPayloadStubCreateHandler(async (input) => {
     const args = input as {
@@ -264,6 +301,7 @@ test("persisted weekly review fails closed when its AgentRun source is invalid",
         createSuggestions: false,
         now: "2026-07-28T00:00:00.000Z",
         persistReview: true,
+        proposal,
       },
       intent: "weekly_review",
     },
@@ -274,5 +312,5 @@ test("persisted weekly review fails closed when its AgentRun source is invalid",
   assert.equal(result.status, "failed");
   assert.equal(result.rollbackPayload, undefined);
   assert.equal(result.rollbackSourceRunId, undefined);
-  assert.match(result.assistantMessage, /回滚来源不可用/);
+  assert.match(result.assistantMessage, /撤销审计记录不完整/);
 });

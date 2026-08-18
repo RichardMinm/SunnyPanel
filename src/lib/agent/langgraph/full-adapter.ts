@@ -317,6 +317,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
         actionId: action.id,
         execute: () =>
           orchestrationExecuteIntent(intent, pushTrace, {
+            modelCallRecorder,
             userId: user.id,
           }),
         intent: intent.intent,
@@ -470,6 +471,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
         executeAction: executeOrchestrationAction,
         executeIntent: (intent) =>
           orchestrationExecuteIntent(intent, pushTrace, {
+            modelCallRecorder,
             userId: user.id,
           }),
         message: graphInput?.message ?? message,
@@ -1607,6 +1609,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
             emitToken,
             executionApproved: dryRun.executionApproved,
             isDirectAnswer: dryRun.isDirectAnswer,
+            modelCallRecorder,
             nextPendingAfterExecute:
               resolutionData.nextPendingAfterExecute ?? undefined,
             persistAgentTurn: bufferAgentTurn,

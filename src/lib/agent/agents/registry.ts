@@ -1,7 +1,6 @@
 import { enrichContentIntent } from "./content-agent";
 import { enrichMemoryIntent } from "./memory-agent";
 import { enrichPlanIntent } from "./plan-agent";
-import { enrichReviewIntent } from "./review-agent";
 import { enrichScheduleIntent } from "./schedule-agent";
 import type { SpecializedAgentDefinition } from "./types";
 
@@ -31,7 +30,6 @@ export const scheduleAgentDefinition: SpecializedAgentDefinition = {
 };
 
 export const reviewAgentDefinition: SpecializedAgentDefinition = {
-  enrichIntent: enrichReviewIntent,
   id: "review",
   role: "review",
   supportedIntents: ["weekly_review", "evaluate_plan", "query_plan_progress"],

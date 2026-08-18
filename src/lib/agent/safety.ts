@@ -18,6 +18,7 @@ import {
 import type { UserPreferences } from "./user-preferences";
 import { isRecord } from "@/lib/shared/is-record";
 import { frozenSchedulePlanProposalSchema } from "./schedule/model-schemas";
+import { frozenWeeklyReviewProposalSchema } from "./review/model-schemas";
 
 const riskLabelMap: Record<ProposedAgentAction["riskLevel"], string> = {
   high: "高风险",
@@ -93,6 +94,27 @@ export const createIntentFromProposedAction = (action: ProposedAgentAction): Age
     confidence: 1,
     intent: action.intent,
   });
+
+  if (parsed?.intent === "weekly_review") {
+    const snapshotProposal = isRecord(action.afterSnapshot)
+      ? action.afterSnapshot.proposal
+      : undefined;
+    const argsProposal = isRecord(action.args)
+      ? action.args.proposal
+      : undefined;
+    const proposal = frozenWeeklyReviewProposalSchema.safeParse(
+      argsProposal ?? snapshotProposal,
+    );
+    if (!proposal.success) return null;
+
+    return {
+      ...parsed,
+      args: {
+        ...parsed.args,
+        proposal: proposal.data,
+      },
+    };
+  }
 
   if (parsed?.intent !== "schedule_plan") return parsed;
 

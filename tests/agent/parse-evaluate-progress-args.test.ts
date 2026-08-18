@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
@@ -34,11 +35,18 @@ test("parseEvaluatePlanArgsFromSearchParams maps query keys", () => {
   });
 });
 
-test("shouldPersistEvaluateReviewFromBody defaults to true except explicit false", () => {
-  assert.equal(shouldPersistEvaluateReviewFromBody(null), true);
-  assert.equal(shouldPersistEvaluateReviewFromBody({}), true);
-  assert.equal(shouldPersistEvaluateReviewFromBody({ persistReview: true }), true);
+test("shouldPersistEvaluateReviewFromBody keeps plan evaluation read-only", () => {
+  assert.equal(shouldPersistEvaluateReviewFromBody(null), false);
+  assert.equal(shouldPersistEvaluateReviewFromBody({}), false);
+  assert.equal(shouldPersistEvaluateReviewFromBody({ persistReview: true }), false);
   assert.equal(shouldPersistEvaluateReviewFromBody({ persistReview: false }), false);
+});
+
+test("the standalone evaluation API stays deterministic and makes no unaccounted model call", () => {
+  const source = readFileSync("src/app/api/agent/evaluate/route.ts", "utf8");
+
+  assert.match(source, /enhanceWithModel:\s*false/u);
+  assert.match(source, /persistReview:\s*false/u);
 });
 
 test("parseQueryProgressArgs normalizes scope", () => {

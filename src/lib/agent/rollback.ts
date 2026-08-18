@@ -1229,35 +1229,56 @@ export const executeRollbackFromPayload = async (
     if (typeof planReviewId !== "number") {
       throw new Error("delete_created_weekly_review_artifacts 需要 planReviewId。");
     }
-
-    const affectedDocuments: RollbackAffectedDocument[] = [];
-
-    await payload.delete({
-      collection: "plan-reviews",
-      id: planReviewId,
-      overrideAccess: true,
-    });
-    affectedDocuments.push(affectedDocument("plan-reviews", planReviewId, "delete"));
-
-    if (typeof agentRunId === "number") {
-      await payload.delete({
-        collection: "agent-runs",
-        id: agentRunId,
-        overrideAccess: true,
-      });
-      affectedDocuments.push(affectedDocument("agent-runs", agentRunId, "delete"));
+    if (!options.payload && !isTrustedUserId(userId)) {
+      throw new RollbackExecutionError(
+        "The related resource is not available to this operation.",
+        "zero_effect",
+      );
     }
 
-    for (const suggestionId of suggestionIds ?? []) {
-      // 建议是幂等 upsert 的，回滚时归档（dismissed）而非物理删除，避免误删历史建议。
-      await payload.update({
-        collection: "agent-suggestions",
-        data: { dismissedAt: new Date().toISOString(), status: "dismissed" },
-        id: suggestionId,
+    const transactionPayload: RollbackPayloadClient = options.payload
+      ? options.payload
+      : createTransactionalRollbackPayload({
+          payload: payload as unknown as Payload,
+        });
+    const deleteArtifacts = async (activePayload: RollbackPayloadClient) => {
+      const affectedDocuments: RollbackAffectedDocument[] = [];
+      await activePayload.delete({
+        collection: "plan-reviews",
+        id: planReviewId,
         overrideAccess: true,
       });
-      affectedDocuments.push(affectedDocument("agent-suggestions", suggestionId, "update"));
-    }
+      affectedDocuments.push(affectedDocument("plan-reviews", planReviewId, "delete"));
+
+      if (typeof agentRunId === "number") {
+        await activePayload.delete({
+          collection: "agent-runs",
+          id: agentRunId,
+          overrideAccess: true,
+        });
+        affectedDocuments.push(affectedDocument("agent-runs", agentRunId, "delete"));
+      }
+
+      for (const suggestionId of suggestionIds ?? []) {
+        // Weekly Review 只把本次新建的建议 ID 写进 rollback payload，
+        // 因此可以安全删除，不会改动先前已存在的建议状态。
+        await activePayload.delete({
+          collection: "agent-suggestions",
+          id: suggestionId,
+          overrideAccess: true,
+        });
+        affectedDocuments.push(affectedDocument("agent-suggestions", suggestionId, "delete"));
+      }
+
+      return affectedDocuments;
+    };
+    const affectedDocuments = transactionPayload.runInTransaction
+      ? await transactionPayload.runInTransaction(
+          userId as number,
+          deleteArtifacts,
+          scheduleRollbackTransactionOptions,
+        )
+      : await deleteArtifacts(transactionPayload);
 
     const result = buildRollbackResult({
       affectedDocuments,

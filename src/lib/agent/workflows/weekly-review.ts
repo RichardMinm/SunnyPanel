@@ -1,7 +1,16 @@
+import { createHash } from "node:crypto";
+import { commitTransaction, createLocalReq, initTransaction, type Payload } from "payload";
+
 import type { AgentSuggestionDraft, AgentSuggestionRelatedContent } from "../suggestions-core";
 import type { WeeklyReviewArgs } from "../schemas";
 import { getCurrentAgentUserId } from "../execution-context";
 import { buildAgentRunOwnerWhere } from "../run-access";
+import type { ReviewModelInvocationOptions } from "../review/model-invocation";
+import {
+  frozenWeeklyReviewProposalSchema,
+  type FrozenWeeklyReviewProposal,
+  type WeeklyReviewLLMInsights,
+} from "../review/model-schemas";
 
 type PayloadFindResult<TDoc> = {
   docs: TDoc[];
@@ -111,6 +120,7 @@ export type WeeklyReviewWorkflowDeps = {
   createPlanReview?: (data: unknown) => Promise<{ id: number }>;
   now?: Date | string;
   payload?: WeeklyReviewPayload;
+  reviewModelInvocation?: ReviewModelInvocationOptions;
   upsertSuggestion?: (uniqueKey: string, suggestion: AgentSuggestionDraft) => Promise<unknown>;
   userId?: number;
   validateAgentRunData?: (value: unknown) => unknown;
@@ -125,7 +135,7 @@ export const buildWeeklyReviewRollbackPayload = ({
   suggestionIds?: number[];
 }) => ({
   reason:
-    "删除本次 Weekly Review 创建的 PlanReview，并将自动生成的建议归档为 dismissed；AgentRun 保留为回滚审计。",
+    "删除本次周复盘和由它新建的行动建议；运行记录保留为回滚审计。",
   strategy: "delete_created_weekly_review_artifacts" as const,
   target: {
     agentRunId: null,
@@ -134,6 +144,100 @@ export const buildWeeklyReviewRollbackPayload = ({
     suggestionIds,
   },
 });
+
+export class WeeklyReviewPersistenceIndeterminateError extends Error {
+  constructor(cause?: unknown) {
+    super("Weekly review persistence rollback failed.", { cause });
+    this.name = "WeeklyReviewPersistenceIndeterminateError";
+  }
+}
+
+export const runWeeklyReviewPersistenceTransaction = async <T>({
+  commit,
+  operation,
+  rollback,
+}: {
+  commit: () => Promise<void>;
+  operation: () => Promise<T>;
+  rollback: () => Promise<void>;
+}): Promise<T> => {
+  let result: T;
+  try {
+    result = await operation();
+  } catch (error) {
+    try {
+      await rollback();
+    } catch {
+      throw new WeeklyReviewPersistenceIndeterminateError(error);
+    }
+    throw error;
+  }
+
+  try {
+    await commit();
+    return result;
+  } catch (error) {
+    try {
+      await rollback();
+    } catch {
+      throw new WeeklyReviewPersistenceIndeterminateError(error);
+    }
+    throw error;
+  }
+};
+
+const rollbackWeeklyReviewTransaction = async (
+  payload: Payload,
+  req: Awaited<ReturnType<typeof createLocalReq>>,
+) => {
+  if (req.transactionID == null) return;
+  await payload.db.rollbackTransaction(await req.transactionID);
+  delete req.transactionID;
+};
+
+const createWeeklyReviewSuggestionIfAbsent = async (
+  payload: Payload,
+  req: Awaited<ReturnType<typeof createLocalReq>>,
+  suggestion: AgentSuggestionDraft,
+): Promise<null | number> => {
+  const existing = await payload.find({
+    collection: "agent-suggestions",
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+    pagination: false,
+    req,
+    where: {
+      uniqueKey: {
+        equals: suggestion.uniqueKey,
+      },
+    },
+  });
+  if (existing.docs.length > 0) return null;
+
+  const created = await payload.create({
+    collection: "agent-suggestions",
+    data: {
+      acceptedAt: null,
+      completedAt: null,
+      createdBy: suggestion.createdBy,
+      dismissedAt: null,
+      reason: suggestion.reason,
+      relatedContent: suggestion.relatedContent,
+      relatedPlan: suggestion.relatedPlan,
+      riskLevel: suggestion.riskLevel,
+      source: suggestion.source,
+      status: "pending",
+      suggestedPrompt: suggestion.suggestedPrompt,
+      title: suggestion.title,
+      uniqueKey: suggestion.uniqueKey,
+    },
+    overrideAccess: true,
+    req,
+  });
+
+  return created.id;
+};
 
 const dayInMs = 1000 * 60 * 60 * 24;
 
@@ -369,10 +473,10 @@ export const buildWeeklyReviewFromSnapshot = (
   const recentTimelineEvents = snapshot.recentTimelineEvents.filter((event) => isWithinDays(event.eventDate, now, 7));
   const failedRuns = snapshot.agentRuns.filter((run) => run.status === "failed");
   const completed = [
-    `${snapshot.plans.done.length} 项计划处于 done`,
+    `${snapshot.plans.done.length} 项计划已完成`,
     `清单完成 ${checklistStats.completedItems}/${checklistStats.totalItems}`,
     `${recentPublicContent.length} 条公开内容在最近 7 天更新`,
-    `${recentTimelineEvents.length} 个 Timeline 节点进入最近 7 天叙事`,
+    `${recentTimelineEvents.length} 个时间线节点进入最近 7 天记录`,
   ];
   const risks: string[] = [];
   const narrativeGaps: string[] = [];
@@ -395,13 +499,13 @@ export const buildWeeklyReviewFromSnapshot = (
   }
 
   if (failedRuns.length > 0) {
-    risks.push(`${failedRuns.length} 次 AgentRun 失败：${summarizeList(failedRuns.map((run) => run.title), "未命名运行")}`);
+    risks.push(`${failedRuns.length} 次自动任务失败：${summarizeList(failedRuns.map((run) => run.title), "未命名任务")}`);
     recommendations.push(`复盘失败运行 ${quote(failedRuns[0].title)}，把失败原因和恢复动作写成可执行清单。`);
     suggestionDrafts.push(
       createSuggestion({
-        reason: `${quote(failedRuns[0].title)} 在最近 AgentRun 中失败，会影响后续自动化可靠性。`,
+        reason: `${quote(failedRuns[0].title)} 最近执行失败，会影响后续自动化可靠性。`,
         riskLevel: "high",
-        suggestedPrompt: `复盘失败的 AgentRun ${quote(failedRuns[0].title)}，整理失败原因和恢复动作`,
+        suggestedPrompt: `复盘失败任务 ${quote(failedRuns[0].title)}，整理失败原因和恢复动作`,
         title: `修复失败运行：${failedRuns[0].title}`,
         uniqueKey: `weekly-review:${weekKey}:failed-agent-run:${failedRuns[0].id}`,
       }),
@@ -415,13 +519,13 @@ export const buildWeeklyReviewFromSnapshot = (
 
   if (activePlansWithoutOutputs.length > 0) {
     narrativeGaps.push(`${activePlansWithoutOutputs.length} 项 active 计划还没有关联产出。`);
-    recommendations.push(`给 ${quote(activePlansWithoutOutputs[0].title)} 补一个可见产出或 Timeline 节点。`);
+    recommendations.push(`给 ${quote(activePlansWithoutOutputs[0].title)} 补一个可见产出或时间线节点。`);
     suggestionDrafts.push(
       createSuggestion({
         reason: `${quote(activePlansWithoutOutputs[0].title)} 正在推进但缺少可见产出，叙事链条容易断。`,
         relatedPlan: activePlansWithoutOutputs[0].id,
         riskLevel: "medium",
-        suggestedPrompt: `为${quote(activePlansWithoutOutputs[0].title)}补一个可见产出或 Timeline 节点`,
+        suggestedPrompt: `为${quote(activePlansWithoutOutputs[0].title)}补一个可见产出或时间线节点`,
         title: `补齐计划叙事：${activePlansWithoutOutputs[0].title}`,
         uniqueKey: `weekly-review:${weekKey}:narrative-gap-plan:${activePlansWithoutOutputs[0].id}`,
       }),
@@ -429,11 +533,11 @@ export const buildWeeklyReviewFromSnapshot = (
   }
 
   if (recentPublicContent.length > 0 && recentTimelineEvents.length === 0) {
-    narrativeGaps.push("最近 7 天有公开内容，但没有同步形成 Timeline 节点。");
-    recommendations.push(`把 ${quote(recentPublicContent[0].title)} 补进 Timeline，让公开产出进入长期叙事。`);
+    narrativeGaps.push("最近 7 天有公开内容，但没有同步形成时间线节点。");
+    recommendations.push(`把 ${quote(recentPublicContent[0].title)} 补进时间线，让公开产出进入长期记录。`);
     suggestionDrafts.push(
       createSuggestion({
-        reason: `${quote(recentPublicContent[0].title)} 已公开更新，但本周 Timeline 还没有承接它。`,
+        reason: `${quote(recentPublicContent[0].title)} 已公开更新，但本周时间线还没有承接它。`,
         relatedContent: [
           {
             relationTo: recentPublicContent[0].kind,
@@ -441,8 +545,8 @@ export const buildWeeklyReviewFromSnapshot = (
           },
         ],
         riskLevel: "low",
-        suggestedPrompt: `帮我把${quote(recentPublicContent[0].title)}整理成一个 Timeline 节点`,
-        title: `补本周 Timeline：${recentPublicContent[0].title}`,
+        suggestedPrompt: `帮我把${quote(recentPublicContent[0].title)}整理成一个时间线节点`,
+        title: `补充本周时间线：${recentPublicContent[0].title}`,
         uniqueKey: `weekly-review:${weekKey}:timeline-public-content:${recentPublicContent[0].kind}:${recentPublicContent[0].id}`,
       }),
     );
@@ -458,7 +562,7 @@ export const buildWeeklyReviewFromSnapshot = (
   }
 
   if (narrativeGaps.length === 0) {
-    narrativeGaps.push("暂无明显叙事缺口，继续保持 Plan -> Output -> Timeline 的闭环。");
+    narrativeGaps.push("暂无明显记录缺口，继续保持计划、产出和时间线之间的关联。");
   }
 
   if (recommendations.length === 0) {
@@ -506,12 +610,113 @@ export const buildWeeklyReviewFromSnapshot = (
   };
 };
 
+const appendUnique = (base: string[], additions: string[]) => {
+  const seen = new Set(base.map((item) => item.trim()));
+  return [
+    ...base,
+    ...additions.filter((item) => {
+      const normalized = item.trim();
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    }),
+  ];
+};
+
+export const mergeWeeklyReviewInsights = <T extends Pick<
+  WeeklyReviewResult,
+  | "completed"
+  | "health"
+  | "metrics"
+  | "narrativeGaps"
+  | "recommendations"
+  | "risks"
+  | "suggestionDrafts"
+>>(
+  ruleBased: T,
+  insights: WeeklyReviewLLMInsights | null,
+): T & { summaryTone?: string } => insights
+  ? {
+      ...ruleBased,
+      narrativeGaps: appendUnique(ruleBased.narrativeGaps, insights.narrativeGaps),
+      recommendations: appendUnique(ruleBased.recommendations, insights.recommendations),
+      summaryTone: insights.summaryTone,
+    }
+  : ruleBased;
+
+const buildWeeklyReviewFingerprint = (
+  snapshot: WeeklyReviewSnapshot,
+  review: Omit<WeeklyReviewResult, "agentRunId" | "assistantMessage" | "reviewId">,
+) => createHash("sha256")
+  .update(JSON.stringify({ review, snapshot }))
+  .digest("hex");
+
+const formatFrozenWeeklyReviewAssistantMessage = ({
+  completed,
+  narrativeGaps,
+  recommendations,
+  risks,
+  summaryTone,
+}: Pick<
+  WeeklyReviewResult,
+  "completed" | "narrativeGaps" | "recommendations" | "risks"
+> & { summaryTone?: string }) => [
+  summaryTone,
+  `本周完成：${completed.join("；")}`,
+  `风险：${risks.join("；")}`,
+  `叙事缺口：${narrativeGaps.join("；")}`,
+  `下周建议：${recommendations.join("；")}`,
+].filter(Boolean).join("\n");
+
+export const prepareWeeklyReviewProposal = async (
+  args: WeeklyReviewArgs = {},
+  deps: WeeklyReviewWorkflowDeps = {},
+): Promise<FrozenWeeklyReviewProposal | null> => {
+  const payload = deps.payload ?? null;
+  if (!deps.collectSnapshot && !payload) return null;
+
+  const now = resolveNow(args.now ?? deps.now);
+  const userId = deps.userId ?? getCurrentAgentUserId();
+  const snapshot = deps.collectSnapshot
+    ? await deps.collectSnapshot()
+    : await collectWeeklyReviewSnapshot(payload as WeeklyReviewPayload, { userId });
+  const ruleBased = buildWeeklyReviewFromSnapshot(snapshot, now);
+  const { enhanceWeeklyReviewWithLLM } = await import("./weekly-review-llm");
+  const insights = await enhanceWeeklyReviewWithLLM(
+    ruleBased.metrics,
+    ruleBased,
+    deps.reviewModelInvocation,
+  );
+  const merged = mergeWeeklyReviewInsights(ruleBased, insights);
+  const reviewedAt = now.toISOString();
+  const assistantMessage = formatFrozenWeeklyReviewAssistantMessage(merged);
+  const proposal = {
+    assistantMessage,
+    completed: merged.completed,
+    createSuggestions: args.createSuggestions !== false,
+    health: merged.health,
+    metrics: merged.metrics,
+    narrativeGaps: merged.narrativeGaps,
+    recommendations: merged.recommendations,
+    reviewedAt,
+    risks: merged.risks,
+    scope: "overall" as const,
+    snapshotFingerprint: buildWeeklyReviewFingerprint(snapshot, ruleBased),
+    source: insights ? "model" as const : "deterministic" as const,
+    suggestionDrafts: merged.suggestionDrafts,
+    summary: assistantMessage,
+    title: `本周复盘 · ${reviewedAt.slice(0, 10)}`,
+  };
+  const parsed = frozenWeeklyReviewProposalSchema.safeParse(proposal);
+  return parsed.success ? parsed.data : null;
+};
+
 export const formatWeeklyReviewMessage = (
   review: Omit<WeeklyReviewResult, "assistantMessage">,
 ) => {
   const savedLine = review.reviewId
-    ? `已保存为 PlanReview #${review.reviewId}`
-    : "尚未保存为 PlanReview。";
+    ? `复盘已保存，编号 #${review.reviewId}`
+    : "这次仅生成复盘预览，尚未保存。";
 
   return [
     `本周完成：${review.completed.join("；")}`,
@@ -526,150 +731,201 @@ export const runWeeklyReviewWorkflow = async (
   args: WeeklyReviewArgs = {},
   deps: WeeklyReviewWorkflowDeps = {},
 ): Promise<WeeklyReviewResult> => {
-  const now = resolveNow(args.now ?? deps.now);
   const payload = deps.payload ?? null;
-
-  if (!deps.collectSnapshot && !payload) {
-    throw new Error("Weekly review workflow requires either collectSnapshot or payload.");
-  }
-
   const userId = deps.userId ?? getCurrentAgentUserId();
-  const snapshot = deps.collectSnapshot
-    ? await deps.collectSnapshot()
-    : await collectWeeklyReviewSnapshot(payload as WeeklyReviewPayload, { userId });
-  const review = buildWeeklyReviewFromSnapshot(snapshot, now);
-
-  const { enhanceWeeklyReviewWithLLM } = await import("./weekly-review-llm");
-  const llmInsights = await enhanceWeeklyReviewWithLLM(review.metrics, review);
-
-  const mergedReview = llmInsights
-    ? {
-        ...review,
-        narrativeGaps: llmInsights.narrativeGaps.length > 0 ? llmInsights.narrativeGaps : review.narrativeGaps,
-        recommendations: llmInsights.recommendations.length > 0 ? llmInsights.recommendations : review.recommendations,
-        risks: llmInsights.risks.length > 0 ? llmInsights.risks : review.risks,
-      }
-    : review;
-
-  const assistantMessageBase = llmInsights
-    ? [
-        llmInsights.summaryTone,
-        `本周完成：${mergedReview.completed.join("；")}`,
-        `风险：${mergedReview.risks.join("；")}`,
-        `叙事缺口：${mergedReview.narrativeGaps.join("；")}`,
-        `下周建议：${mergedReview.recommendations.join("；")}`,
-      ].join("\n")
-    : formatWeeklyReviewMessage(mergedReview);
 
   if (args.persistReview === false) {
+    const proposal = await prepareWeeklyReviewProposal(args, deps);
+    if (!proposal) {
+      throw new Error("Weekly review preview could not be prepared.");
+    }
     return {
-      ...mergedReview,
-      assistantMessage: assistantMessageBase,
+      assistantMessage: proposal.assistantMessage,
+      completed: proposal.completed,
+      health: proposal.health,
+      metrics: proposal.metrics,
+      narrativeGaps: proposal.narrativeGaps,
+      recommendations: proposal.recommendations,
+      risks: proposal.risks,
+      suggestionDrafts: proposal.suggestionDrafts,
     };
   }
 
-  const reviewedAt = now.toISOString();
-  const title = `Weekly Review · ${reviewedAt.slice(0, 10)}`;
-  const summary = [
-    llmInsights?.summaryTone,
-    `本周完成：${mergedReview.completed.join("；")}`,
-    `风险：${mergedReview.risks.join("；")}`,
-    `叙事缺口：${mergedReview.narrativeGaps.join("；")}`,
-    `下周建议：${mergedReview.recommendations.join("；")}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const parsedProposal = frozenWeeklyReviewProposalSchema.safeParse(args.proposal);
+  if (!parsedProposal.success) {
+    throw new Error("Confirmed weekly review proposal is invalid.");
+  }
+  const proposal = parsedProposal.data;
+  const reviewedAt = proposal.reviewedAt;
+  const title = proposal.title;
+  const summary = proposal.summary;
   const rawPlanReviewData = {
-    health: mergedReview.health,
-    metrics: mergedReview.metrics,
-    recommendations: mergedReview.recommendations.map((content) => ({
+    health: proposal.health,
+    metrics: proposal.metrics,
+    recommendations: proposal.recommendations.map((content) => ({
       content,
     })),
     reviewedAt,
-    scope: "overall",
+    scope: proposal.scope,
     source: "agent",
     summary,
     title,
   };
   const planReviewData = deps.validatePlanReviewData ? deps.validatePlanReviewData(rawPlanReviewData) : rawPlanReviewData;
-  const createPlanReview = deps.createPlanReview ?? ((data) => (payload as WeeklyReviewPayload).create({
-    collection: "plan-reviews",
-    data,
-    overrideAccess: true,
-  }));
-  const planReview = await createPlanReview(planReviewData);
-  const upsertSuggestion = deps.upsertSuggestion;
-
-  const suggestionResults = args.createSuggestions === false
-    ? []
-    : await Promise.all(
-        mergedReview.suggestionDrafts.map((suggestion) => {
-          if (!upsertSuggestion) {
-            throw new Error("Weekly review workflow requires upsertSuggestion when createSuggestions is enabled.");
-          }
-
-          return upsertSuggestion(suggestion.uniqueKey, suggestion);
-        }),
-      );
-  const suggestionIds = suggestionResults
-    .map((result) =>
-      result && typeof result === "object" && typeof (result as { id?: unknown }).id === "number"
-        ? (result as { id: number }).id
-        : null,
-    )
-    .filter((id): id is number => id !== null);
-  const rollbackPayload = buildWeeklyReviewRollbackPayload({
-    planReviewId: planReview.id,
-    suggestionIds,
-  });
-  const rawAgentRunData = {
-    afterSnapshot: {
-      llmEnhanced: Boolean(llmInsights),
-      metrics: mergedReview.metrics,
-      recommendationCount: mergedReview.recommendations.length,
-      reviewId: planReview.id,
-      suggestionKeys: mergedReview.suggestionDrafts.map((suggestion) => suggestion.uniqueKey),
-    },
-    completedAt: reviewedAt,
-    goal: "生成本周回顾，识别完成项、风险、叙事缺口和下周建议",
-    nextAction: mergedReview.recommendations[0] ?? null,
-    relatedContent: [
-      {
-        relationTo: "plan-reviews",
-        value: planReview.id,
+  const buildAgentRunData = (
+    planReviewId: number,
+    suggestionIds: number[],
+  ) => {
+    const rollbackPayload = buildWeeklyReviewRollbackPayload({
+      planReviewId,
+      suggestionIds,
+    });
+    const rawAgentRunData = {
+      afterSnapshot: {
+        llmEnhanced: proposal.source === "model",
+        metrics: proposal.metrics,
+        recommendationCount: proposal.recommendations.length,
+        reviewId: planReviewId,
+        snapshotFingerprint: proposal.snapshotFingerprint,
+        suggestionKeys: proposal.suggestionDrafts.map((suggestion) => suggestion.uniqueKey),
       },
-    ],
-    startedAt: reviewedAt,
-    rollbackAvailable: true,
-    rollbackPayload,
-    status: "succeeded",
-    steps: [
-      {
-        level: "info",
-        message: "已读取 active/backlog/done plans、checklists、timeline、public content 与 AgentRuns。",
-        recordedAt: reviewedAt,
-      },
-      {
-        level: review.health === "risk" ? "warn" : "info",
-        message: `生成 Weekly Review：health=${mergedReview.health}，suggestions=${suggestionResults.length}`,
-        recordedAt: reviewedAt,
-      },
-    ],
-    summary,
-    title,
-    trigger: "agent",
-    user: userId,
-    workflow: "weekly-review",
+      completedAt: reviewedAt,
+      goal: "生成本周回顾，识别完成项、风险、叙事缺口和下周建议",
+      nextAction: proposal.recommendations[0] ?? null,
+      relatedContent: [
+        {
+          relationTo: "plan-reviews",
+          value: planReviewId,
+        },
+      ],
+      startedAt: reviewedAt,
+      rollbackAvailable: true,
+      rollbackPayload,
+      status: "succeeded",
+      steps: [
+        {
+          level: "info",
+          message: "已汇总计划、清单、时间线、公开内容和近期运行记录。",
+          recordedAt: reviewedAt,
+        },
+        {
+          level: proposal.health === "risk" ? "warn" : "info",
+          message: `已生成本周复盘：${proposal.risks.length} 项风险，${proposal.recommendations.length} 项下周建议。`,
+          recordedAt: reviewedAt,
+        },
+      ],
+      summary,
+      title,
+      trigger: "agent",
+      user: userId,
+      workflow: "weekly-review",
+    };
+    return {
+      data: deps.validateAgentRunData
+        ? deps.validateAgentRunData(rawAgentRunData)
+        : rawAgentRunData,
+      rollbackPayload,
+    };
   };
-  const agentRunData = deps.validateAgentRunData ? deps.validateAgentRunData(rawAgentRunData) : rawAgentRunData;
-  const createAgentRun = deps.createAgentRun ?? ((data) => (payload as WeeklyReviewPayload).create({
-    collection: "agent-runs",
-    data,
-    overrideAccess: true,
-  }));
-  const agentRun = await createAgentRun(agentRunData);
+
+  let planReview: { id: number };
+  let agentRun: { id: number };
+  let suggestionIds: number[];
+
+  const useProductionTransaction = Boolean(
+    payload
+    && !deps.createPlanReview
+    && !deps.createAgentRun
+    && !deps.upsertSuggestion,
+  );
+
+  if (useProductionTransaction) {
+    const transactionPayload = payload as unknown as Payload;
+    const req = await createLocalReq(
+      userId ? { user: { id: userId } as never } : {},
+      transactionPayload,
+    );
+    const started = await initTransaction(req);
+    if (!started) throw new Error("Weekly review transaction is unavailable.");
+
+    ({ agentRun, planReview, suggestionIds } = await runWeeklyReviewPersistenceTransaction({
+      commit: () => commitTransaction(req),
+      operation: async () => {
+        const createdReview = await transactionPayload.create({
+          collection: "plan-reviews",
+          data: planReviewData as never,
+          overrideAccess: true,
+          req,
+        });
+        const createdSuggestionIds: number[] = [];
+        if (proposal.createSuggestions) {
+          for (const suggestion of proposal.suggestionDrafts) {
+            const id = await createWeeklyReviewSuggestionIfAbsent(
+              transactionPayload,
+              req,
+              suggestion,
+            );
+            if (id !== null) createdSuggestionIds.push(id);
+          }
+        }
+        const { data: agentRunData } = buildAgentRunData(
+          createdReview.id,
+          createdSuggestionIds,
+        );
+        const createdRun = await transactionPayload.create({
+          collection: "agent-runs",
+          data: agentRunData as never,
+          overrideAccess: true,
+          req,
+        });
+        return {
+          agentRun: { id: createdRun.id },
+          planReview: { id: createdReview.id },
+          suggestionIds: createdSuggestionIds,
+        };
+      },
+      rollback: () => rollbackWeeklyReviewTransaction(transactionPayload, req),
+    }));
+  } else {
+    const createPlanReview = deps.createPlanReview ?? ((data) => (payload as WeeklyReviewPayload).create({
+      collection: "plan-reviews",
+      data,
+      overrideAccess: true,
+    }));
+    planReview = await createPlanReview(planReviewData);
+    const suggestionResults: unknown[] = [];
+    if (proposal.createSuggestions) {
+      if (!deps.upsertSuggestion) {
+        throw new Error("Weekly review workflow requires upsertSuggestion when createSuggestions is enabled.");
+      }
+      for (const suggestion of proposal.suggestionDrafts) {
+        suggestionResults.push(await deps.upsertSuggestion(suggestion.uniqueKey, suggestion));
+      }
+    }
+    suggestionIds = suggestionResults
+      .map((result) =>
+        result && typeof result === "object" && typeof (result as { id?: unknown }).id === "number"
+          ? (result as { id: number }).id
+          : null,
+      )
+      .filter((id): id is number => id !== null);
+    const { data: agentRunData } = buildAgentRunData(planReview.id, suggestionIds);
+    const createAgentRun = deps.createAgentRun ?? ((data) => (payload as WeeklyReviewPayload).create({
+      collection: "agent-runs",
+      data,
+      overrideAccess: true,
+    }));
+    agentRun = await createAgentRun(agentRunData);
+  }
+
   const persistedReview = {
-    ...mergedReview,
+    completed: proposal.completed,
+    health: proposal.health,
+    metrics: proposal.metrics,
+    narrativeGaps: proposal.narrativeGaps,
+    recommendations: proposal.recommendations,
+    risks: proposal.risks,
+    suggestionDrafts: proposal.suggestionDrafts,
     agentRunId: agentRun.id,
     reviewId: planReview.id,
     suggestionIds,
@@ -677,8 +933,6 @@ export const runWeeklyReviewWorkflow = async (
 
   return {
     ...persistedReview,
-    assistantMessage: assistantMessageBase.includes("本周完成")
-      ? `${assistantMessageBase}\n${persistedReview.reviewId ? `已保存为 PlanReview #${persistedReview.reviewId}` : ""}`
-      : formatWeeklyReviewMessage(persistedReview),
+    assistantMessage: `${proposal.assistantMessage}\n本周复盘已保存。`,
   };
 };

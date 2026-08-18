@@ -252,6 +252,7 @@ export type PendingAction = {
     | RescheduleItemArgs
     | SaveMemoryArgs
     | SchedulePlanArgs
+    | WeeklyReviewArgs
   >;
   intent: Extract<
     AgentIntent["intent"],
@@ -268,6 +269,7 @@ export type PendingAction = {
     | "reschedule_item"
     | "save_memory"
     | "schedule_plan"
+    | "weekly_review"
     | "delete_record"
     | "modify_record"
   >;
@@ -370,6 +372,7 @@ export type WeeklyReviewArgs = {
   createSuggestions?: boolean;
   now?: null | string;
   persistReview?: boolean;
+  proposal?: import("./review/model-schemas").FrozenWeeklyReviewProposal;
 };
 
 export type ComposePlanArgs = {
@@ -1335,7 +1338,8 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
     value.intent === "create_schedule_items" ||
     value.intent === "reschedule_item" ||
     value.intent === "schedule_plan" ||
-    value.intent === "save_memory"
+    value.intent === "save_memory" ||
+    value.intent === "weekly_review"
       ? value.intent
       : null;
 
@@ -1356,6 +1360,7 @@ export const parsePendingAction = (value: unknown): null | PendingAction => {
       | CreateScheduleItemsArgs
       | SchedulePlanArgs
       | SaveMemoryArgs
+      | WeeklyReviewArgs
     >,
     intent,
     missingFields: Array.isArray(value.missingFields)
