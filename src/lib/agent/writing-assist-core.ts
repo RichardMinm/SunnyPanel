@@ -1,18 +1,24 @@
 import type { DashboardContentCollection } from "@/lib/dashboard/content/config";
 import type { RichContentDocument } from "@/lib/rich-content/types";
 
-import {
-  type CompleteStructuredOptions,
-  type StructuredLLMResult,
-  completeStructured,
-} from "./llm/complete-structured";
+import { containsSensitiveLearningData } from "./learning/sensitive-data";
+import { invokeStructured } from "./llm/invoke-structured";
+import { resolveAgentStructuredModelConfig } from "./llm/resolve-agent-model-config";
+import { buildStrictSchemaRepairInstruction } from "./llm/schema-repair-instruction";
+import { isAgentLLMDisabled } from "./llm-required";
 import { getRelevantMemories, persistMemoryWithEmbedding, type AgentMemoryDocument } from "./memory";
+import { isModelCallAuthorizationError } from "./orchestration/model-call-budget";
 import {
   buildWritingAssistMessages,
-  parseWritingAssistResult,
   type WritingAssistAction,
   type WritingAssistResult,
 } from "./prompts/writing-assist";
+import {
+  buildWritingModelScope,
+  type WritingModelInvocationOptions,
+} from "./writing/model-invocation";
+import { getWritingAssistSchemaContract } from "./writing/model-schemas";
+import { validateWritingAssistInput } from "./writing/input-contract";
 
 export type WritingAssistRequest = {
   action: WritingAssistAction;
@@ -24,11 +30,9 @@ export type WritingAssistRequest = {
 };
 
 export type WritingAssistDeps = {
-  complete?: (
-    options: CompleteStructuredOptions<WritingAssistResult>,
-  ) => Promise<StructuredLLMResult<WritingAssistResult> | null>;
   fetchRelatedTitles?: (collection: DashboardContentCollection, excludeTitle?: string) => Promise<string[]>;
   fetchStyleMemories?: (query: string) => Promise<string[]>;
+  modelInvocation?: WritingModelInvocationOptions;
 };
 
 const MAX_STYLE_MEMORIES = 3;
@@ -91,7 +95,9 @@ export const runWritingAssist = async (
   request: WritingAssistRequest,
   deps: WritingAssistDeps = {},
 ): Promise<WritingAssistResult> => {
-  const complete = deps.complete ?? completeStructured;
+  if (isAgentLLMDisabled()) return {};
+  if (!validateWritingAssistInput(request).ok) return {};
+
   const fetchStyleMemories = deps.fetchStyleMemories ?? defaultFetchStyleMemories;
   const fetchRelatedTitles = deps.fetchRelatedTitles ?? defaultFetchRelatedTitles;
 
@@ -112,13 +118,55 @@ export const runWritingAssist = async (
     title: request.title,
   });
 
-  const result = await complete({
-    messages,
-    parse: (value) => parseWritingAssistResult(request.action, value),
-    temperature: 0.4,
-  });
+  const contract = getWritingAssistSchemaContract(request.action);
 
-  return result?.data ?? {};
+  try {
+    const modelConfig = deps.modelInvocation?.modelConfig
+      ?? await resolveAgentStructuredModelConfig(undefined, {
+        maxOutputTokens: 8_192,
+        maxRetries: 0,
+        temperature: 0.4,
+        timeoutMs: 30_000,
+      });
+    if (!modelConfig) return {};
+
+    deps.modelInvocation?.logicalCallAuthorizer?.(
+      buildWritingModelScope({
+        action: request.action,
+        collection: request.collection,
+        contentRich: request.contentRich,
+        summary: request.summary,
+        text: request.text,
+        title: request.title,
+      }),
+    );
+
+    const result = await invokeStructured({
+      maxSchemaRetries: 0,
+      maxTransportRetries: 0,
+      messages,
+      modelConfig,
+      modelFactory: deps.modelInvocation?.modelFactory,
+      modelSchema: contract.modelSchema,
+      providerAttemptAuthorizer:
+        deps.modelInvocation?.providerAttemptAuthorizer,
+      providerAttemptObserver: deps.modelInvocation?.providerAttemptObserver,
+      schema: contract.schema,
+      schemaName: contract.schemaName,
+      schemaRepairInstruction: (issues) =>
+        buildStrictSchemaRepairInstruction({
+          allowedFields: contract.allowedFields,
+          contractName: contract.schemaName,
+        }, issues),
+      signal: deps.modelInvocation?.signal,
+      tags: ["agent", "writing", "specialist", request.action],
+    });
+
+    return result.ok ? result.data : {};
+  } catch (error) {
+    if (isModelCallAuthorizationError(error)) throw error;
+    return {};
+  }
 };
 
 export type RememberWritingStyleInput = {
@@ -149,7 +197,7 @@ export const rememberWritingStyle = async (
 ): Promise<AgentMemoryDocument | null> => {
   const sample = input.resultText.trim();
 
-  if (!sample) {
+  if (!sample || containsSensitiveLearningData(sample)) {
     return null;
   }
 

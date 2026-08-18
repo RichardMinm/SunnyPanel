@@ -789,6 +789,15 @@ export const createRunFullLangGraphAgentChatPipeline = (
         input: graphInput,
         tokenUsage: usage,
       }) => {
+        if (workbenchMode === "writing" && !graphInput.pendingAction) {
+          return {
+            orchestratorPlanSource: null,
+            preResolvedIntent: null,
+            tokenUsage: usage,
+            type: "continue",
+          };
+        }
+
         const result = await steps.runOrchestrationStep({
           autoApproval,
           context: context as BuildContextStepResult["context"],
@@ -900,6 +909,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
             preResolvedIntent,
             pushTrace,
             resolvedHistory,
+            signal,
             stream,
             thread,
             tokenUsage: usage,

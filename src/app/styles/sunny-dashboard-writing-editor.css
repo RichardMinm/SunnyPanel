@@ -506,6 +506,43 @@
   pointer-events: none;
 }
 
+.sunny-writing-ai-candidate {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.75rem auto 0;
+  padding: 0.75rem 0.9rem;
+  width: min(100% - 2rem, 760px);
+  border: 1px solid var(--writing-rule);
+  border-radius: 12px;
+  background: var(--writing-card-bg);
+  box-shadow: var(--writing-shadow);
+  color: var(--writing-text);
+}
+
+.sunny-writing-ai-candidate strong {
+  font-size: var(--text-sm);
+}
+
+.sunny-writing-ai-candidate p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0.35rem 0 0;
+  color: var(--writing-muted);
+  font-size: var(--text-sm-compact);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.sunny-writing-ai-candidate-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.35rem;
+}
+
 .sunny-writing-category-empty {
   display: flex;
   align-items: center;

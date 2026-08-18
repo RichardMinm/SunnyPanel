@@ -16,7 +16,7 @@ type WritingAssistContext = {
   title?: string;
 };
 
-type WritingAssistResponse = {
+export type WritingAssistResponse = {
   message?: string;
   outline?: ContentOutlineItem[];
   result?: string;

@@ -204,6 +204,8 @@ Representative paths:
 - `tests/agent/schedule/schedule-specialist-model-seam.test.ts`
 - `tests/agent/schedule/schedule-plan-frozen-proposal.test.ts`
 - `tests/agent/review/*.test.ts`
+- `tests/agent/writing/*.test.ts`
+- `tests/agent/content/*.test.ts`
 
 Required invariants:
 
@@ -233,6 +235,13 @@ Required invariants:
 - The Weekly Review confirmation card renders the exact frozen completion,
   risk, gap, and recommendation facts in user-facing language without exposing
   internal fingerprints or model provenance.
+- Writing Assist uses action-specific strict schemas, isolates all user, style,
+  and related-content text as untrusted data, accounts its specialist call, and
+  never exposes Provider errors or secrets through chat or trace.
+- Timeline composition and completion notes remain deterministic: complete or
+  incomplete Content tasks use zero specialist model calls, ambiguous sources
+  clarify before a proposal, and resource, visibility, and persistence choices
+  cannot be supplied by a model.
 - User-visible status and priority values are localized and formatted.
 
 ### Content and palette

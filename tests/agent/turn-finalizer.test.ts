@@ -214,6 +214,50 @@ test("turn finalizer commits the terminal event before optional learning starts"
   );
 });
 
+test("writing workbench completes without a second post-turn Learning model call", async () => {
+  const { events, store } = createMemoryStore();
+  let learningRuns = 0;
+  const finalize = createAgentTurnFinalizer({
+    eventStore: store,
+    message: "请润色当前段落",
+    pendingBefore: null,
+    project: async () => undefined,
+    runLearningLoop: async () => {
+      learningRuns += 1;
+      return {
+        candidates: [],
+        decisions: [],
+        savedMemories: [],
+        source: "fallback",
+        suggestedMemories: [],
+      };
+    },
+    thread: { id: 49, messages: [], pendingAction: null } as unknown as AgentThread,
+    turnId: "turn-writing-one-call",
+    user: { id: 7 },
+    workbenchMode: "writing",
+  });
+
+  await finalize({
+    existingMemories: [],
+    pushTrace: () => undefined,
+    response: {
+      assistantMessage: "润色后的文本",
+      engine: "workflow",
+      intent: "answer_question",
+      pendingAction: null,
+      tokenUsage,
+    },
+    tokenUsage,
+  });
+
+  assert.equal(learningRuns, 0);
+  assert.equal(
+    events.filter((event) => event.eventType === "assistant_completed").length,
+    1,
+  );
+});
+
 test("turn finalizer injects learning model accounting into the production learning call", async () => {
   const { store } = createMemoryStore();
   const recorder = createModelCallBudgetRecorder();

@@ -30,7 +30,10 @@ import type {
 import type { AgentThread } from "@/payload-types";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
-import type { WritingAssistRequest } from "@/lib/agent/writing-assist-core";
+import type {
+  WritingAssistDeps,
+  WritingAssistRequest,
+} from "@/lib/agent/writing-assist-core";
 import type { WritingAssistResult } from "@/lib/agent/prompts/writing-assist";
 import type {
   StreamTokenCallback,
@@ -81,6 +84,7 @@ export type ResolveIntentStepParams = {
   }) => Promise<AgentThread>;
   pushTrace: (step: AgentTraceStep) => void;
   resolvedHistory: AgentChatMessage[];
+  signal?: AbortSignal;
   stream?: AgentStreamController;
   thread: AgentThread;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
@@ -88,7 +92,10 @@ export type ResolveIntentStepParams = {
   user: { collection?: "users"; id: number };
   userPreferences?: import("@/lib/agent/user-preferences").UserPreferences | null;
   workbenchMode?: AgentWorkbenchMode | null;
-  writingAssistRunner?: (request: WritingAssistRequest) => Promise<WritingAssistResult>;
+  writingAssistRunner?: (
+    request: WritingAssistRequest,
+    deps?: WritingAssistDeps,
+  ) => Promise<WritingAssistResult>;
 };
 
 export type ResolveIntentStepNext = {
@@ -134,6 +141,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     persistAgentTurn,
     pushTrace,
     resolvedHistory,
+    signal,
     stream,
     thread: _thread,
     tokenUsage: tokenUsageIn,
@@ -183,6 +191,7 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     persistAgentTurn,
     pushTrace,
     resolvedHistory,
+    signal,
     stream,
     tokenUsage: tokenUsageIn,
     trace,

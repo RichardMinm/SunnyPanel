@@ -236,7 +236,10 @@ export const createAgentTurnFinalizer = ({
       throw error;
     }
 
-    if (!(failure && projectFailureAssistantMessage === false)) {
+    if (
+      workbenchMode !== "writing"
+      && !(failure && projectFailureAssistantMessage === false)
+    ) {
       try {
         await runLearningLoop({
           assistantMessage: completedResponse.assistantMessage,

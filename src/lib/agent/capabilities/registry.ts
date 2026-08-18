@@ -193,27 +193,6 @@ const executeDraftWritingOutline = async (input: unknown): Promise<CapabilityRes
   const title = str(args.title) || "未命名文档";
   const text = [str(args.summary), str(args.text)].filter(Boolean).join("\n");
 
-  if (process.env.AGENT_DISABLE_LLM !== "1") {
-    try {
-      const { runWritingAssist } = await import("../writing-assist-core");
-      const result = await runWritingAssist({
-        action: "generate_outline",
-        summary: str(args.summary) || undefined,
-        text: str(args.text) || undefined,
-        title,
-      });
-
-      if (result.outline?.length) {
-        return ok(`写作大纲草案「${title}」已生成（未写入数据库）。`, {
-          outline: result.outline,
-          title,
-        });
-      }
-    } catch {
-      // fallback below
-    }
-  }
-
   const outline = text
     ? text
         .split(/\n+/)

@@ -9,6 +9,7 @@ const deterministicallyCompleteIntents = new Set<AgentIntent["intent"]>([
   "cancel_schedule_item",
   "complete_plan_item",
   "compose_plan",
+  "compose_timeline_event",
   "create_checklist",
   "create_plan",
   "create_schedule_items",

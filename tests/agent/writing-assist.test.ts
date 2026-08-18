@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import {
   buildWritingAssistMessages,
   parseWritingAssistResult,
 } from "../../src/lib/agent/prompts/writing-assist";
 import { runResolveIntentStep } from "../../src/lib/agent/chat-pipeline/resolve-intent-step";
-import { createTokenUsageSnapshot } from "../../src/lib/agent/token-usage";
+import { createModelConfig } from "../../src/lib/agent/llm/model-config";
+import type { ModelFactory } from "../../src/lib/agent/llm/model-factory";
 import {
   rememberWritingStyle,
   runWritingAssist,
@@ -46,6 +48,10 @@ describe("writing assist API", () => {
     assert.match(route, /generate_title/);
     assert.match(route, /rewrite/);
     assert.match(route, /AGENT_DISABLE_LLM/);
+    assert.match(route, /assistRequestSchema/);
+    assert.match(route, /dashboardContentCollections/);
+    assert.match(route, /isBoundedWritingRichContent/);
+    assert.match(route, /validateWritingAssistInput/);
   });
 
   test("prompt builder covers selection and document level actions", () => {
@@ -77,6 +83,29 @@ describe("writing assist API", () => {
     assert.match(pane, /type:\s*"heading"/);
     assert.match(pane, /attrs:\s*\{\s*level:\s*item\.level/);
     assert.match(pane, /contentRich:\s*nextContent/);
+    assert.match(pane, /setAssistCandidate/);
+    assert.match(pane, /acceptAssistCandidate/);
+  });
+
+  test("selection rewrite waits for explicit acceptance before replacing editor text", () => {
+    const pane = read("src/components/dashboard/writing/WritingEditorPane.tsx");
+    const slash = read("src/components/content-editor/slash-commands.ts");
+
+    assert.match(slash, /textBetween\(range\.from,\s*range\.to/);
+    assert.match(slash, /insertContentAt\(range,\s*value\)/);
+    assert.match(slash, /capturedDocument/);
+    assert.match(slash, /if \(!isCurrent\(\)\) return false/);
+    const selectionActions = slash.slice(
+      slash.indexOf("const selectionActions"),
+      slash.indexOf("if (!selectionActions.has(action))"),
+    );
+    assert.match(selectionActions, /"rewrite"/);
+    assert.doesNotMatch(selectionActions, /"continue"/);
+    assert.match(pane, /selection\.applyResult\(response\.result\)/);
+    assert.match(pane, /文档已发生变化，请重新生成写作建议/);
+    assert.match(pane, /放弃/);
+    assert.match(pane, /应用/);
+    assert.match(pane, /rememberStyle\(action,\s*response\.result/);
   });
 
   test("writing assist failures are visible in the editor pane", () => {
@@ -101,17 +130,20 @@ describe("writing assist core", () => {
     });
 
     assert.match(messages[0].content, /negative example/);
-    assert.match(messages[1].content, /文风偏好/);
-    assert.match(messages[1].content, /简洁直接/);
-    assert.match(messages[1].content, /近期同类内容/);
-    assert.match(messages[1].content, /上一篇随笔/);
+    const userContext = messages
+      .filter((message) => message.role === "user")
+      .map((message) => message.content)
+      .join("\n");
+    assert.match(userContext, /UNTRUSTED user data/);
+    assert.match(userContext, /文风偏好/);
+    assert.match(userContext, /简洁直接/);
+    assert.match(userContext, /近期同类内容/);
+    assert.match(userContext, /上一篇随笔/);
   });
 
-  test("parse normalizes result, tags, and outline JSON shapes", () => {
+  test("parse accepts only complete action-specific strict shapes", () => {
     assert.deepEqual(parseWritingAssistResult("polish", { result: "  润色  " }), { result: "润色" });
-    assert.deepEqual(parseWritingAssistResult("extract_tags", { tags: ["写作", 7, "灵感"] }), {
-      tags: ["写作", "灵感"],
-    });
+    assert.deepEqual(parseWritingAssistResult("extract_tags", { tags: ["写作", 7, "灵感"] }), {});
 
     const outline = parseWritingAssistResult("generate_outline", {
       outline: [
@@ -119,33 +151,48 @@ describe("writing assist core", () => {
         { id: "s2", level: 9, text: "非法层级" },
       ],
     });
-    assert.equal(outline.outline?.length, 1);
-    assert.equal(outline.outline?.[0]?.id, "s1");
+    assert.deepEqual(outline, {});
   });
 
   test("runWritingAssist feeds style + related context into the shared LLM layer", async () => {
-    const seen: string[] = [];
-    const result = await runWritingAssist(
-      { action: "polish", collection: "posts", text: "原文", title: "标题" },
-      {
-        complete: async ({ messages, parse }) => {
-          for (const message of messages) {
-            seen.push(message.content);
-          }
-          return {
-            data: parse({ result: "润色后的文本" }) ?? {},
-            raw: "",
-            tokenUsage: createTokenUsageSnapshot(),
-          };
+    const previousLlmDisabled = process.env.AGENT_DISABLE_LLM;
+    delete process.env.AGENT_DISABLE_LLM;
+    try {
+      const resolved = createModelConfig({
+        apiKey: "sk-test",
+        baseURL: "https://api.test.example/v1",
+        model: "writing-test-model",
+        provider: "openai",
+        structuredOutputMode: "json_schema",
+      });
+      if ("code" in resolved) throw new Error(resolved.safeMessage);
+      const seen: unknown[][] = [];
+      const modelFactory: ModelFactory = () => ({
+        withStructuredOutput: () => ({
+          invoke: async (messages: unknown[]) => {
+            seen.push(messages);
+            return { result: "润色后的文本" };
+          },
+        }),
+      }) as unknown as BaseChatModel;
+      const result = await runWritingAssist(
+        { action: "polish", collection: "posts", text: "原文", title: "标题" },
+        {
+          fetchRelatedTitles: async () => ["上一篇文章"],
+          fetchStyleMemories: async () => ["文风样例·改写：简洁直接"],
+          modelInvocation: {
+            modelConfig: resolved,
+            modelFactory,
+          },
         },
-        fetchRelatedTitles: async () => ["上一篇文章"],
-        fetchStyleMemories: async () => ["文风样例·改写：简洁直接"],
-      },
-    );
-
-    assert.equal(result.result, "润色后的文本");
-    assert.ok(seen.some((content) => content.includes("简洁直接")));
-    assert.ok(seen.some((content) => content.includes("上一篇文章")));
+      );
+      assert.equal(result.result, "润色后的文本");
+      assert.match(JSON.stringify(seen), /简洁直接/u);
+      assert.match(JSON.stringify(seen), /上一篇文章/u);
+    } finally {
+      if (previousLlmDisabled === undefined) delete process.env.AGENT_DISABLE_LLM;
+      else process.env.AGENT_DISABLE_LLM = previousLlmDisabled;
+    }
   });
 
   test("rememberWritingStyle persists an accepted rewrite as writing_style memory", async () => {

@@ -1,15 +1,25 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
-import { getAgentModelConfig } from "@/lib/agent/client";
-import type { WritingAssistAction } from "@/lib/agent/prompts/writing-assist";
+import { resolveAgentStructuredModelConfig } from "@/lib/agent/llm/resolve-agent-model-config";
+import { logAgentEvent } from "@/lib/agent/logger";
+import {
+  ModelCallAuthorizationError,
+  createModelCallBudgetRecorder,
+} from "@/lib/agent/orchestration/model-call-budget";
+import {
+  isBoundedWritingRichContent,
+  validateWritingAssistInput,
+} from "@/lib/agent/writing/input-contract";
 import {
   rememberWritingStyle,
   runWritingAssist,
 } from "@/lib/agent/writing-assist-core";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { checkRateLimit } from "@/lib/shared/rate-limit";
+import { dashboardContentCollections } from "@/lib/dashboard/content/config";
 
-const writingAssistActions = new Set<WritingAssistAction>([
+const actionSchema = z.enum([
   "condense",
   "continue",
   "expand",
@@ -21,7 +31,22 @@ const writingAssistActions = new Set<WritingAssistAction>([
   "rewrite",
   "summarize",
 ]);
-
+const collectionSchema = z.enum(dashboardContentCollections);
+const assistRequestSchema = z.object({
+  action: actionSchema,
+  collection: collectionSchema.optional(),
+  contentRich: z.custom(isBoundedWritingRichContent).optional(),
+  summary: z.string().max(4_000).optional(),
+  text: z.string().max(50_000).optional(),
+  title: z.string().max(500).optional(),
+}).strict();
+const rememberStyleRequestSchema = z.object({
+  action: z.literal("remember_style"),
+  collection: collectionSchema.optional(),
+  result: z.string().trim().min(1).max(50_000),
+  sourceAction: actionSchema.optional(),
+  text: z.string().max(50_000).optional(),
+}).strict();
 export async function POST(request: Request) {
   const auth = await getPayloadAuthResult();
 
@@ -37,38 +62,51 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = (await request.json().catch(() => null)) as null | Record<string, unknown>;
-  const action = typeof body?.action === "string" ? body.action : "";
+  const body = await request.json().catch(() => null);
+  const action = body && typeof body === "object" && "action" in body
+    ? String(body.action)
+    : "";
 
   // 用户显式采纳改写 → 轻量沉淀 writing_style 记忆，形成"越用越懂文风"的学习闭环。
   if (action === "remember_style") {
-    const resultText = typeof body?.result === "string" ? body.result : "";
-
-    if (!resultText.trim()) {
-      return NextResponse.json({ message: "缺少采纳内容" }, { status: 400 });
+    const parsed = rememberStyleRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ message: "采纳内容格式无效" }, { status: 400 });
     }
 
     try {
-      await rememberWritingStyle({
-        action:
-          typeof body?.sourceAction === "string" &&
-          writingAssistActions.has(body.sourceAction as WritingAssistAction)
-            ? (body.sourceAction as WritingAssistAction)
-            : "rewrite",
-        collection:
-          typeof body?.collection === "string" ? (body.collection as never) : undefined,
-        resultText,
-        sourceText: typeof body?.text === "string" ? body.text : undefined,
+      const memory = await rememberWritingStyle({
+        action: parsed.data.sourceAction ?? "rewrite",
+        collection: parsed.data.collection,
+        resultText: parsed.data.result,
+        sourceText: parsed.data.text,
       });
 
-      return NextResponse.json({ ok: true });
+      return memory
+        ? NextResponse.json({ ok: true })
+        : NextResponse.json(
+            { message: "内容为空或包含敏感凭据，未保存" },
+            { status: 400 },
+          );
     } catch {
       return NextResponse.json({ message: "记忆写入失败" }, { status: 502 });
     }
   }
 
-  if (!writingAssistActions.has(action as WritingAssistAction)) {
+  const parsed = assistRequestSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json({ message: "不支持的操作" }, { status: 400 });
+  }
+  const inputValidation = validateWritingAssistInput(parsed.data);
+  if (!inputValidation.ok) {
+    return NextResponse.json(
+      {
+        message: inputValidation.code === "sensitive_input"
+          ? "内容包含敏感凭据，无法发送给写作模型"
+          : "写作内容格式或大小无效",
+      },
+      { status: 400 },
+    );
   }
 
   if (process.env.AGENT_DISABLE_LLM === "1") {
@@ -85,23 +123,47 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "AI 功能已禁用", result: "" }, { status: 503 });
   }
 
-  const config = await getAgentModelConfig();
+  const config = await resolveAgentStructuredModelConfig(undefined, {
+    maxOutputTokens: 8_192,
+    maxRetries: 0,
+    temperature: 0.4,
+    timeoutMs: 30_000,
+  });
 
   if (!config) {
     return NextResponse.json({ message: "AI 模型未配置" }, { status: 503 });
   }
 
   try {
+    const modelCallRecorder = createModelCallBudgetRecorder();
     const result = await runWritingAssist({
-      action: action as WritingAssistAction,
-      collection: typeof body?.collection === "string" ? (body.collection as never) : undefined,
-      contentRich:
-        body?.contentRich && typeof body.contentRich === "object"
-          ? (body.contentRich as never)
-          : undefined,
-      summary: typeof body?.summary === "string" ? body.summary : undefined,
-      text: typeof body?.text === "string" ? body.text : undefined,
-      title: typeof body?.title === "string" ? body.title : undefined,
+      action: parsed.data.action,
+      collection: parsed.data.collection,
+      contentRich: parsed.data.contentRich as never,
+      summary: parsed.data.summary,
+      text: parsed.data.text,
+      title: parsed.data.title,
+    }, {
+      modelInvocation: {
+        logicalCallAuthorizer: (scopeId) => {
+          if (modelCallRecorder.record("specialist", scopeId) === false) {
+            throw new ModelCallAuthorizationError(
+              "MODEL_LOGICAL_CALL_LIMIT_EXCEEDED",
+            );
+          }
+        },
+        modelConfig: config,
+        providerAttemptAuthorizer: () =>
+          modelCallRecorder.recordProviderAttempt("specialist"),
+        signal: request.signal,
+      },
+    });
+
+    const accounting = modelCallRecorder.snapshot();
+    logAgentEvent("info", "agent.writing_assist", {
+      action: parsed.data.action,
+      logicalCalls: accounting.specialistLogicalCalls,
+      providerAttempts: accounting.specialistProviderAttempts,
     });
 
     return NextResponse.json(result);

@@ -39,6 +39,7 @@ import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-con
 import { isAgentLLMDisabled } from "@/lib/agent/llm-required";
 import {
   runWritingAssist,
+  type WritingAssistDeps,
   type WritingAssistRequest,
 } from "@/lib/agent/writing-assist-core";
 import type {
@@ -50,7 +51,10 @@ import { dispatchPreResolvedQuery } from "@/lib/agent/query/dispatcher";
 import { resolveBoundaryOwnedQueryConfig } from "@/lib/agent/query/runtime-config";
 import { ConversationalAnswerStreamFailure } from "@/lib/agent/answer/errors";
 import { runConversationalAnswer } from "@/lib/agent/answer/runtime";
-import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
+import {
+  ModelCallAuthorizationError,
+  type ModelCallBudgetRecorder,
+} from "@/lib/agent/orchestration/model-call-budget";
 import type { OrchestratorRuntimeMode } from "@/lib/agent/orchestration/runtime-config";
 
 /* ──── Types ──── */
@@ -80,13 +84,17 @@ export type LegacyResolutionParams = {
   }) => Promise<AgentThread>;
   pushTrace: (step: AgentTraceStep) => void;
   resolvedHistory: AgentChatMessage[];
+  signal?: AbortSignal;
   stream?: AgentStreamController;
   tokenUsage: NonNullable<AgentChatResponse["tokenUsage"]>;
   trace: AgentTraceStep[];
   user: { collection?: "users"; id: number };
   userPreferences?: import("@/lib/agent/user-preferences").UserPreferences | null;
   workbenchMode?: AgentWorkbenchMode | null;
-  writingAssistRunner?: (request: WritingAssistRequest) => Promise<WritingAssistResult>;
+  writingAssistRunner?: (
+    request: WritingAssistRequest,
+    deps?: WritingAssistDeps,
+  ) => Promise<WritingAssistResult>;
 };
 
 /* ──── Writing assist helpers ──── */
@@ -161,6 +169,7 @@ export const resolveLegacyHeuristicStep = async (
     persistAgentTurn,
     pushTrace,
     resolvedHistory,
+    signal,
     stream,
     tokenUsage: tokenUsageIn,
     trace: _trace,
@@ -174,6 +183,7 @@ export const resolveLegacyHeuristicStep = async (
 
   /* ── Pre-resolved intent from orchestrator ── */
   if (
+    workbenchMode !== "writing" &&
     preResolvedIntent &&
     shouldTrustOrchestratorPreResolve(preResolvedIntent, orchestratorPlanSource)
   ) {
@@ -266,10 +276,29 @@ export const resolveLegacyHeuristicStep = async (
       return { outcome: "continue", data: { confirmedActionId: null, resolution: { engine: "workflow", intent: { args: { missingFields: ["writing_assist"], question }, confidence: 1, intent: "clarify" } }, tokenUsage } };
     }
 
-    const runner = writingAssistRunner ?? runWritingAssist;
-
     try {
-      const writingResult = await runner({ action, text, title: undefined, summary: undefined, collection: undefined });
+      const request = {
+        action,
+        collection: undefined,
+        summary: undefined,
+        text,
+        title: undefined,
+      } satisfies WritingAssistRequest;
+      const runner = writingAssistRunner ?? runWritingAssist;
+      const writingResult = await runner(request, {
+        modelInvocation: {
+          logicalCallAuthorizer: (scopeId) => {
+            if (modelCallRecorder?.record("specialist", scopeId) === false) {
+              throw new ModelCallAuthorizationError(
+                "MODEL_LOGICAL_CALL_LIMIT_EXCEEDED",
+              );
+            }
+          },
+          providerAttemptAuthorizer: () =>
+            modelCallRecorder?.recordProviderAttempt("specialist"),
+          signal,
+        },
+      });
       const assistantMessage = formatWritingAssistResult(writingResult);
       if (!assistantMessage) throw new Error("写作辅助没有返回可展示结果。");
       for (const token of splitIntoWordTokens(assistantMessage)) { emitToken(token, "response"); await new Promise((r) => setTimeout(r, 6)); }
@@ -278,9 +307,9 @@ export const resolveLegacyHeuristicStep = async (
       const outputTokens = estimateTokenCount(assistantMessage);
       tokenUsage = { ...tokenUsage, outputTokens, totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens };
       return { outcome: "continue", data: { confirmedActionId: null, resolution: { engine: "workflow", intent: { args: { answer: assistantMessage }, confidence: 0.9, intent: "answer_question", reply: assistantMessage } }, tokenUsage } };
-    } catch (error) {
-      pushTrace({ detail: error instanceof Error ? error.message : "AI request failed", id: "writing-assist-chat", kind: "analysis", status: "error", title: "写作辅助失败" });
-      const question = `写作辅助暂时不可用：${error instanceof Error ? error.message : "AI 请求失败"}。`;
+    } catch {
+      pushTrace({ detail: "WRITING_ASSIST_FAILED", id: "writing-assist-chat", kind: "analysis", status: "error", title: "写作辅助失败" });
+      const question = "写作辅助暂时不可用，请稍后重试。";
       const outputTokens = estimateTokenCount(question);
       tokenUsage = { ...tokenUsage, outputTokens, totalTokens: tokenUsage.contextTokens + tokenUsage.inputTokens + outputTokens };
       stream?.complete("stage-response", "写作辅助失败");

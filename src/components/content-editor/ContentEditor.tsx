@@ -12,6 +12,7 @@ import { buildContentEditorExtensions } from "./editor-extensions";
 import { BlockControlsOverlay } from "./BlockControlsOverlay";
 import { SlashCommandList, useSlashCommandState } from "./SlashCommandList";
 import type { SlashCommandHandlers } from "./slash-commands";
+import type { WritingAssistSelection } from "./slash-commands";
 import { FloatingFormatMenu } from "./FloatingFormatMenu";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { InternalDocumentLinkDialog } from "./InternalDocumentLinkDialog";
@@ -24,7 +25,10 @@ type ContentEditorProps = {
   disabled?: boolean;
   focusSignal?: number;
   onChange: (content: RichContentDocument) => void;
-  onWritingAssist?: (action: WritingAssistAction) => void;
+  onWritingAssist?: (
+    action: WritingAssistAction,
+    selection?: WritingAssistSelection,
+  ) => void;
   onWorkflowAction?: SlashCommandHandlers["onWorkflow"];
   variant?: "default" | "writing";
 };

@@ -1,4 +1,3 @@
-import { enrichContentIntent } from "./content-agent";
 import { enrichPlanIntent } from "./plan-agent";
 import { enrichScheduleIntent } from "./schedule-agent";
 import type { SpecializedAgentDefinition } from "./types";
@@ -43,7 +42,6 @@ export const memoryAgentDefinition: SpecializedAgentDefinition = {
 };
 
 export const contentAgentDefinition: SpecializedAgentDefinition = {
-  enrichIntent: enrichContentIntent,
   id: "content",
   role: "content",
   supportedIntents: ["compose_timeline_event", "add_completion_note"],

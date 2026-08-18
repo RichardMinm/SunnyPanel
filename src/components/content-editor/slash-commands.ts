@@ -16,9 +16,18 @@ export type SlashCommandGroup = "ai" | "blocks" | "common" | "lists" | "time" | 
 
 export type SlashCommandKind = "ai" | "block" | "insert" | "workflow";
 
+export type WritingAssistSelection = Readonly<{
+  applyResult: (value: string) => boolean;
+  isCurrent: () => boolean;
+  text: string;
+}>;
+
 export type SlashCommandHandlers = {
   onInternalLink?: (editor: Editor) => void;
-  onWritingAssist?: (action: WritingAssistAction) => void;
+  onWritingAssist?: (
+    action: WritingAssistAction,
+    selection?: WritingAssistSelection,
+  ) => void;
   onWorkflow?: (id: WritingWorkflowActionId) => void;
 };
 
@@ -117,7 +126,42 @@ const formatDateTime = () =>
 
 const aiCommand =
   (action: WritingAssistAction, handlers: SlashCommandHandlers) => (editor: Editor) => {
-    handlers.onWritingAssist?.(action);
+    const selectionActions = new Set<WritingAssistAction>([
+      "condense",
+      "expand",
+      "polish",
+      "rewrite",
+    ]);
+    if (!selectionActions.has(action)) {
+      handlers.onWritingAssist?.(action);
+      return editor.chain().focus().run();
+    }
+
+    const selection = editor.state.selection;
+    const range = selection.empty
+      ? { from: selection.$from.start(), to: selection.$from.end() }
+      : { from: selection.from, to: selection.to };
+    const selectedText = editor.state.doc
+      .textBetween(range.from, range.to, "\n")
+      .trim();
+    const capturedDocument = JSON.stringify(editor.getJSON());
+    const isCurrent = () =>
+      JSON.stringify(editor.getJSON()) === capturedDocument
+      && editor.state.doc.textBetween(range.from, range.to, "\n").trim()
+        === selectedText;
+    handlers.onWritingAssist?.(
+      action,
+      selectedText
+        ? {
+            applyResult: (value) => {
+              if (!isCurrent()) return false;
+              return editor.chain().focus().insertContentAt(range, value).run();
+            },
+            isCurrent,
+            text: selectedText,
+          }
+        : undefined,
+    );
     return editor.chain().focus().run();
   };
 

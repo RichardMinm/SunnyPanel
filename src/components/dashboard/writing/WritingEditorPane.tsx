@@ -19,6 +19,7 @@ import {
 import { createEmptyRichDocument } from "@/lib/rich-content/defaults";
 import { formatWritingSaveStatusLabel } from "@/lib/dashboard/writing-save-status";
 import type { WritingAssistAction } from "@/lib/agent/prompts/writing-assist";
+import type { WritingAssistSelection } from "@/components/content-editor/slash-commands";
 import {
   runWritingWorkflowAction,
   type WritingWorkflowActionId,
@@ -29,6 +30,14 @@ import { canEditTitle } from "./writing-metadata";
 import { WritingDocumentHeader } from "./WritingDocumentHeader";
 import { WritingPublishDialog, type WritingPublishVisibility } from "./WritingPublishDialog";
 import type { WritingDocument, WritingDraft, WritingSaveState } from "./writing-types";
+import type { WritingAssistResponse } from "./use-writing-assist";
+
+type WritingAssistCandidate = Readonly<{
+  action: WritingAssistAction;
+  documentKey: string;
+  response: WritingAssistResponse;
+  selection?: WritingAssistSelection;
+}>;
 
 /*
  * ContentEditor pulls in TipTap (~200KB), 19 extensions, KaTeX CSS, and
@@ -125,7 +134,14 @@ export function WritingEditorPane({
   onUpdateDraft,
   saveState,
 }: WritingEditorPaneProps) {
-  const { error: aiError, isLoading: aiLoading, runAssist } = useWritingAssist();
+  const {
+    error: aiError,
+    isLoading: aiLoading,
+    rememberStyle,
+    runAssist,
+  } = useWritingAssist();
+  const [assistCandidate, setAssistCandidate] =
+    useState<WritingAssistCandidate | null>(null);
   const [publishError, setPublishError] = useState<null | string>(null);
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [publishBusy, setPublishBusy] = useState(false);
@@ -146,15 +162,19 @@ export function WritingEditorPane({
   }, [document]);
 
   const handleAssist = useCallback(
-    async (action: WritingAssistAction) => {
+    async (
+      action: WritingAssistAction,
+      selection?: WritingAssistSelection,
+    ) => {
       if (!document || !draft) {
         return;
       }
 
       const response = await runAssist(action, {
         collection: document.collection,
-        contentRich: draft.contentRich,
+        contentRich: selection ? undefined : draft.contentRich,
         summary: draft.summary,
+        text: selection?.text,
         title: draft.title,
       });
 
@@ -162,7 +182,30 @@ export function WritingEditorPane({
         return;
       }
 
-      if (response.outline?.length) {
+      setAssistCandidate({
+        action,
+        documentKey: `${document.collection}:${document.id}`,
+        response,
+        selection,
+      });
+    },
+    [document, draft, runAssist],
+  );
+
+  const acceptAssistCandidate = useCallback(() => {
+    if (
+      !assistCandidate
+      || !document
+      || !draft
+      || assistCandidate.documentKey !== `${document.collection}:${document.id}`
+    ) {
+      setAssistCandidate(null);
+      return;
+    }
+    const { action, response, selection } = assistCandidate;
+    let applied = false;
+
+    if (response.outline?.length) {
         const nextContent = {
           ...draft.contentRich,
           content: [
@@ -175,21 +218,17 @@ export function WritingEditorPane({
           ],
         };
         onUpdateDraft({ contentRich: nextContent });
-        return;
-      }
-
-      if (response.result) {
+        applied = true;
+    } else if (response.result) {
         if (action === "generate_title") {
           onUpdateDraft({ title: response.result });
-          return;
-        }
-
-        if (action === "generate_summary") {
+          applied = true;
+        } else if (action === "generate_summary" || action === "summarize") {
           onUpdateDraft({ summary: response.result });
-          return;
-        }
-
-        if (action === "continue") {
+          applied = true;
+        } else if (selection) {
+          applied = selection.applyResult(response.result);
+        } else {
           const nextContent = {
             ...draft.contentRich,
             content: [
@@ -201,21 +240,47 @@ export function WritingEditorPane({
             ],
           };
           onUpdateDraft({ contentRich: nextContent });
-          return;
+          applied = true;
         }
-      }
-
-      if (response.tags?.length) {
+    } else if (response.tags?.length) {
         onUpdateDraft({
           metadata: {
             ...draft.metadata,
             tags: response.tags.join(", "),
           },
         });
-      }
-    },
-    [document, draft, onUpdateDraft, runAssist],
-  );
+        applied = true;
+    }
+
+    if (!applied) {
+      setWorkflowToast("文档已发生变化，请重新生成写作建议");
+      window.setTimeout(() => setWorkflowToast(null), 3200);
+      setAssistCandidate(null);
+      return;
+    }
+
+    if (
+      response.result
+      && ["condense", "expand", "polish", "rewrite"].includes(action)
+    ) {
+      void rememberStyle(action, response.result, {
+        collection: document?.collection,
+        text: selection?.text,
+      });
+    }
+    setAssistCandidate(null);
+  }, [assistCandidate, document, draft, onUpdateDraft, rememberStyle]);
+
+  const assistCandidatePreview = useMemo(() => {
+    if (!assistCandidate) return "";
+    if (assistCandidate.response.result) return assistCandidate.response.result;
+    if (assistCandidate.response.tags?.length) {
+      return assistCandidate.response.tags.join("、");
+    }
+    return assistCandidate.response.outline
+      ?.map((item) => `${"#".repeat(item.level)} ${item.text}`)
+      .join("\n") ?? "";
+  }, [assistCandidate]);
 
   const handleWorkflow = useCallback(
     (id: WritingWorkflowActionId) => {
@@ -425,6 +490,30 @@ export function WritingEditorPane({
       {publishError ? <p className="sunny-writing-inline-error">{publishError}</p> : null}
       {error ? <p className="sunny-writing-inline-error">{error}</p> : null}
       {aiError ? <p className="sunny-writing-inline-error">AI 辅助失败：{aiError}</p> : null}
+      {assistCandidate?.documentKey === `${document.collection}:${document.id}` ? (
+        <aside
+          className="sunny-writing-ai-candidate"
+          aria-label="AI 写作建议"
+          data-selection-current={assistCandidate.selection?.isCurrent() ?? true}
+        >
+          <div>
+            <strong>AI 写作建议</strong>
+            <p>{assistCandidatePreview}</p>
+          </div>
+          <div className="sunny-writing-ai-candidate-actions">
+            <AppButton
+              onClick={() => setAssistCandidate(null)}
+              size="sm"
+              variant="ghost"
+            >
+              放弃
+            </AppButton>
+            <AppButton onClick={acceptAssistCandidate} size="sm" variant="primary">
+              应用
+            </AppButton>
+          </div>
+        </aside>
+      ) : null}
 
       <div className="sunny-writing-editor-canvas">
         <WritingDocumentHeader
@@ -444,7 +533,8 @@ export function WritingEditorPane({
           disabled={saveState === "saving"}
           focusSignal={editorFocusSignal}
           onChange={(contentRich) => onUpdateDraft({ contentRich })}
-          onWritingAssist={(action) => void handleAssist(action)}
+          onWritingAssist={(action, selection) =>
+            void handleAssist(action, selection)}
           onWorkflowAction={handleWorkflow}
           variant="writing"
         />
