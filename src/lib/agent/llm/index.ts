@@ -30,6 +30,10 @@ export type {
   AgentStructuredModelOverrides,
 } from "./resolve-agent-model-config";
 
+/* Payload-free strict-schema repair */
+export { buildStrictSchemaRepairInstruction } from "./schema-repair-instruction";
+export type { StrictSchemaRepairContract } from "./schema-repair-instruction";
+
 /* Model errors */
 export {
   isModelError,

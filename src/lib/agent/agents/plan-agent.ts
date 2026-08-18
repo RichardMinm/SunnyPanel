@@ -1,6 +1,7 @@
 import { invokeStructured } from "../llm/invoke-structured";
 import { buildMessages } from "../llm/message-builder";
 import { resolveAgentStructuredModelConfig } from "../llm/resolve-agent-model-config";
+import { buildStrictSchemaRepairInstruction } from "../llm/schema-repair-instruction";
 import {
   checklistDraftFactsBaseSchema,
   checklistDraftFactsSchema,
@@ -37,6 +38,10 @@ const CHECKLIST_SPECIALIST_CONTRACT = `输出合同：
 - priority 只能是 high、medium、low 或 null。
 - 不得输出 schema 外字段，不得声称已经保存或执行。
 合法结构示例：${JSON.stringify(CHECKLIST_DRAFT_EXAMPLE)}`;
+
+const CHECKLIST_DRAFT_TOP_LEVEL_FIELDS = Object.freeze(
+  checklistDraftFactsSchema.keyof().options,
+);
 
 export const buildChecklistDraftMessages = ({
   args,
@@ -116,7 +121,16 @@ export const enrichPlanIntent = async (
     modelFactory: options.modelFactory,
     modelSchema: checklistDraftFactsBaseSchema,
     providerAttemptAuthorizer: options.onProviderAttempt,
+    providerAttemptObserver: options.onProviderAttemptEvent,
     schema: checklistDraftFactsSchema,
+    schemaRepairInstruction: (issues) =>
+      buildStrictSchemaRepairInstruction(
+        {
+          allowedFields: CHECKLIST_DRAFT_TOP_LEVEL_FIELDS,
+          contractName: "ChecklistDraftFacts",
+        },
+        issues,
+      ),
     schemaName: "ChecklistDraftFacts",
     tags: ["agent", "planning", "checklist", "specialist", "draft"],
   });

@@ -1,10 +1,12 @@
 import { invokeStructured } from "../llm/invoke-structured";
 import { buildMessages } from "../llm/message-builder";
 import type { ModelFactory } from "../llm/model-factory";
+import type { StructuredProviderAttemptObserver } from "../llm/invoke-structured";
 import {
   resolveAgentStructuredModelConfig,
   type AgentModelSettingsResolver,
 } from "../llm/resolve-agent-model-config";
+import { buildStrictSchemaRepairInstruction } from "../llm/schema-repair-instruction";
 import {
   planDecompositionBaseSchema,
   planDecompositionSchema,
@@ -32,9 +34,16 @@ export type PlanningModelInvocationOptions = Readonly<{
   logicalCallAuthorizer?: () => void;
   modelFactory?: ModelFactory;
   providerAttemptAuthorizer?: (attempt: number) => void;
+  providerAttemptObserver?: StructuredProviderAttemptObserver;
   signal?: AbortSignal;
   structuredRetryBudget?: PlanningStructuredRetryBudget;
 }>;
+
+export const PLANNING_DECOMPOSITION_TIMEOUT_MS = 45_000;
+
+const PLAN_DECOMPOSITION_TOP_LEVEL_FIELDS = Object.freeze(
+  planDecompositionSchema.keyof().options,
+);
 
 const PLAN_DECOMPOSITION_EXAMPLE: DecomposedPlan = {
   finalGoal: "完成目标并产出可验收结果",
@@ -122,7 +131,7 @@ export const decomposePlanWithLLM = async (
     maxOutputTokens: 4_096,
     maxRetries: 0,
     temperature: 0.3,
-    timeoutMs: 30_000,
+    timeoutMs: PLANNING_DECOMPOSITION_TIMEOUT_MS,
   });
   if (!modelConfig) return null;
   options.logicalCallAuthorizer?.();
@@ -135,7 +144,16 @@ export const decomposePlanWithLLM = async (
     modelFactory: options.modelFactory,
     modelSchema: planDecompositionBaseSchema,
     providerAttemptAuthorizer: options.providerAttemptAuthorizer,
+    providerAttemptObserver: options.providerAttemptObserver,
     schema: planDecompositionSchema,
+    schemaRepairInstruction: (issues) =>
+      buildStrictSchemaRepairInstruction(
+        {
+          allowedFields: PLAN_DECOMPOSITION_TOP_LEVEL_FIELDS,
+          contractName: "PlanningDecompositionDraft",
+        },
+        issues,
+      ),
     schemaName: "PlanningDecompositionDraft",
     signal: options.signal,
     tags: ["agent", "planning", "specialist", "draft"],

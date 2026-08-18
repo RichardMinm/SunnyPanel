@@ -1,10 +1,12 @@
 import { z } from "zod";
 
 import { invokeStructured } from "@/lib/agent/llm/invoke-structured";
+import type { StructuredProviderAttemptObserver } from "@/lib/agent/llm/invoke-structured";
 import { buildMessages } from "@/lib/agent/llm/message-builder";
 import type { ModelConfig } from "@/lib/agent/llm/model-config";
 import type { ModelFactory } from "@/lib/agent/llm/model-factory";
 import { resolveAgentStructuredModelConfig } from "@/lib/agent/llm/resolve-agent-model-config";
+import { buildStrictSchemaRepairInstruction } from "@/lib/agent/llm/schema-repair-instruction";
 import type {
   ClarificationComposerInput,
   ClarificationComposerOutput,
@@ -23,10 +25,22 @@ const clarificationShape = {
 export const clarificationComposerBaseSchema = z.object(clarificationShape);
 export const clarificationComposerSchema = z.object(clarificationShape).strict();
 
+const CLARIFICATION_TOP_LEVEL_FIELDS = Object.freeze(
+  clarificationComposerSchema.keyof().options,
+);
+
+const CLARIFICATION_OUTPUT_EXAMPLE = {
+  message: "我先不直接创建计划。为了生成合适的草案，请补充每天可投入的时间。",
+  questions: ["每天可以投入多少时间？"],
+  safetyNote: "下一步先生成草案，暂时不会写入。",
+  suggestedReply: "每天两小时。",
+} satisfies z.infer<typeof clarificationComposerSchema>;
+
 export type ClarificationModelInvocationOptions = Readonly<{
   modelConfig?: ModelConfig;
   modelFactory?: ModelFactory;
   providerAttemptAuthorizer?: (attempt: number) => void;
+  providerAttemptObserver?: StructuredProviderAttemptObserver;
   signal?: AbortSignal;
 }>;
 
@@ -35,7 +49,7 @@ const CLARIFICATION_SYSTEM_RULES = `你是 SunnyPanel 的 Clarification Wording 
 不得输出内部字段名、execute、receipt、rollback、toolCall、hidden reasoning 或 raw reasoning。
 只返回严格结构化对象，不要输出 Markdown 或额外说明。`;
 
-const buildClarificationMessages = (
+export const buildClarificationMessages = (
   input: ClarificationComposerInput,
 ) => {
   const entity = input.workflow === "schedule_creation" ? "日程" : "计划";
@@ -56,6 +70,8 @@ const buildClarificationMessages = (
       `必须明确当前不会直接写入${entity}，下一步先生成草案。`,
       "不得暴露 sourceType、missingSlots、conflictPolicy 等内部名称。",
       "suggestedReply 必须是用户可直接复制的简短示例。",
+      `严格 JSON 对象必须且只能包含这些字段：${CLARIFICATION_TOP_LEVEL_FIELDS.join(", ")}。`,
+      `合法结构示例：${JSON.stringify(CLARIFICATION_OUTPUT_EXAMPLE)}`,
     ].join("\n"),
     systemRules: CLARIFICATION_SYSTEM_RULES,
     userMessage: [
@@ -104,7 +120,16 @@ export const composeClarificationWithLLM = async (
       modelFactory: options.modelFactory,
       modelSchema: clarificationComposerBaseSchema,
       providerAttemptAuthorizer: options.providerAttemptAuthorizer,
+      providerAttemptObserver: options.providerAttemptObserver,
       schema: clarificationComposerSchema,
+      schemaRepairInstruction: (issues) =>
+        buildStrictSchemaRepairInstruction(
+          {
+            allowedFields: CLARIFICATION_TOP_LEVEL_FIELDS,
+            contractName: "ClarificationWording",
+          },
+          issues,
+        ),
       schemaName: "ClarificationWording",
       signal: options.signal,
       tags: ["agent", "clarification", "wording"],

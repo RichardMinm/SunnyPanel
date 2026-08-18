@@ -6,6 +6,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 
 import { createModelConfig, type ModelConfig } from "../../../src/lib/agent/llm/model-config";
 import type { ModelFactory } from "../../../src/lib/agent/llm/model-factory";
+import { buildStrictSchemaRepairInstruction } from "../../../src/lib/agent/llm/schema-repair-instruction";
 import { enrichPlanIntent } from "../../../src/lib/agent/agents/plan-agent";
 import { evaluateSpecialistTaskCompleteness } from "../../../src/lib/agent/agents/specialist-task-completeness";
 import {
@@ -13,10 +14,15 @@ import {
   planDecompositionSchema,
 } from "../../../src/lib/agent/planning/model-schemas";
 import { composeClarificationWithLLM } from "../../../src/lib/agent/response/clarification";
+import {
+  buildClarificationMessages,
+  clarificationComposerSchema,
+} from "../../../src/lib/agent/response/clarification/llm-composer";
 import type { AgentPromptContext } from "../../../src/lib/agent/prompts";
 import {
   decomposePlanForCompose,
   decomposePlanWithLLM,
+  PLANNING_DECOMPOSITION_TIMEOUT_MS,
 } from "../../../src/lib/agent/workflows/plan-decomposer";
 
 const modelConfig = (): ModelConfig => {
@@ -88,6 +94,7 @@ const context: AgentPromptContext = {
 
 describe("L3-D1 planning specialist structured boundary", () => {
   it("uses strict schemas for plan and checklist draft facts", () => {
+    assert.equal(PLANNING_DECOMPOSITION_TIMEOUT_MS, 45_000);
     assert.equal(planDecompositionSchema.safeParse(validPlan).success, true);
     assert.equal(
       planDecompositionSchema.safeParse({ ...validPlan, execute: true }).success,
@@ -117,6 +124,37 @@ describe("L3-D1 planning specialist structured boundary", () => {
       }).success,
       false,
     );
+  });
+
+  it("publishes every strict clarification field in the prompt-JSON contract", () => {
+    const messages = buildClarificationMessages({
+      knownFacts: ["目标：完成漏洞研究"],
+      maxQuestions: 2,
+      missingNeeds: [{ key: "availableTime", label: "每天可投入时间" }],
+      safetyBoundary: { nextStep: "先生成计划草案", willNotWriteYet: true },
+      tone: "warm",
+      userGoalSummary: "完成漏洞研究",
+      userMessage: "帮我制定研究计划",
+      workflow: "plan_creation",
+    });
+    const systemText = messages
+      .filter((message) => message.role === "system")
+      .map((message) => message.content)
+      .join("\n");
+
+    for (const field of clarificationComposerSchema.keyof().options) {
+      assert.match(systemText, new RegExp(`\\b${field}\\b`, "u"));
+    }
+  });
+
+  it("builds schema repair guidance from paths only, without Provider values", () => {
+    const repair = buildStrictSchemaRepairInstruction(
+      { allowedFields: ["message", "questions"], contractName: "TestContract" },
+      [{ code: "invalid_type", missing: true, path: ["questions", 0] }],
+    );
+
+    assert.match(repair, /questions\.0:invalid_type:missing/u);
+    assert.doesNotMatch(repair, /raw provider value|sk-test/u);
   });
 
   it("decomposes through the shared structured model and isolates workspace data", async () => {

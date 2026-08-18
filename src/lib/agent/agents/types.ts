@@ -5,6 +5,7 @@ import type { AgentToolDryRunContext } from "../tool-registry";
 import type { ModelCallBudgetRecorder } from "../orchestration/model-call-budget";
 import type { ModelConfig } from "../llm/model-config";
 import type { ModelFactory } from "../llm/model-factory";
+import type { StructuredProviderAttemptObserver } from "../llm/invoke-structured";
 
 export type PlanAgentArtifact = {
   checklistId?: number;
@@ -71,6 +72,7 @@ export type SpecializedAgentInvocationOptions = Readonly<{
   modelConfig?: ModelConfig;
   modelFactory?: ModelFactory;
   onProviderAttempt?: (attempt: number) => void;
+  onProviderAttemptEvent?: StructuredProviderAttemptObserver;
 }>;
 
 export type SpecializedAgentRunInput = {

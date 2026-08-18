@@ -113,6 +113,8 @@ Required invariants:
 - Invalid schema, DAG, intent, or resource output fails closed.
 - Planning and Checklist draft specialists use the shared structured boundary,
   retain their assigned intent, and reject execution or persistence fields.
+- Prompt-JSON schema retries contain only sanitized schema paths and static
+  field allowlists, never Provider values or raw responses.
 - DeepSeek Responses JSON Schema and terminal-status envelopes fail closed.
 - Streaming remains on a protocol with observable complete/partial terminals.
 - No raw prompt, response, secret, or reasoning is retained.
