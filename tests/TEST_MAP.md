@@ -246,9 +246,11 @@ Required invariants:
 - Agent Inbox sync persists the deterministic rule drafts without a model
   rewrite, performs no Payload access for an empty candidate set, and never
   reopens accepted, completed, or cooling-down dismissed suggestions.
-- Active Schedule and Suggestions entrypoints cannot import the quarantined
-  legacy `completeStructured` seams; dormant Cognitive Advisory and Tool
-  Planner retirement remains separate D6-B work.
+- Production contains no `completeStructured` file or reference. Retired
+  generic agent prompts, suggestion enhancer, Cognitive model variant, and
+  Tool Planner model/runtime/shadow/flag files remain absent; the retained
+  Tool Planner facade exposes deterministic catalog, validator, types, and
+  fail-closed response contracts only.
 - Timeline composition and completion notes remain deterministic: complete or
   incomplete Content tasks use zero specialist model calls, ambiguous sources
   clarify before a proposal, and resource, visibility, and persistence choices
@@ -302,6 +304,10 @@ The 2026-08-05 cleanup removed tests that could not meet the quality bar:
   observation matrices, report retention, and old fixture decisions. Current
   production branch, schema, safety, resource, and query-boundary contracts are
   covered directly instead.
+- Tests for the retired generic suggestion enhancer, Cognitive model wrapper,
+  and Tool Planner flags/runtime/shadow graph. Deterministic Cognitive
+  Advisory, Capability Catalog, validator, confirmation, Policy, Receipt, and
+  rollback behavior remains covered through active contracts.
 
 The product-facing thread metadata requirement from the deleted sidebar phase
 snapshot was moved into an executable `formatThreadMeta` test in

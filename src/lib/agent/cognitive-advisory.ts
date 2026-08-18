@@ -1,12 +1,7 @@
 import type { AgentArbitrationDecision } from "@/lib/agent/intent/arbitration";
 import { parseDefinitionQuestionIntent } from "@/lib/agent/intent/retired-intent-response";
-import {
-  completeStructured,
-  type CompleteStructuredOptions,
-  type StructuredLLMResult,
-} from "@/lib/agent/llm/complete-structured";
 import type { AgentPromptContext } from "@/lib/agent/prompts";
-import type { AgentChatMessage, AgentTokenUsage, PendingAction } from "@/lib/agent/schemas";
+import type { AgentChatMessage, PendingAction } from "@/lib/agent/schemas";
 import { isRecord } from "@/lib/shared/is-record";
 
 export type AgentQuestionKind =
@@ -73,37 +68,11 @@ export type CognitiveAdvisoryInput = {
   pendingAction: null | PendingAction;
 };
 
-export type AgentAdvisoryPlanSource = "fallback" | "llm";
-
-export type AgentAdvisoryPlannerDiagnostics = {
-  notes: string[];
-  rejectedReason?: string;
-};
-
-export type AgentStructuredPlanResult = {
-  diagnostics?: AgentAdvisoryPlannerDiagnostics;
-  plan: AgentAnswerPlan;
-};
-
-type CompleteStructuredPlannerFn = (
-  options: CompleteStructuredOptions<AgentStructuredPlanResult>,
-) => Promise<StructuredLLMResult<AgentStructuredPlanResult> | null>;
-
-export type CognitiveAdvisoryModelInput = CognitiveAdvisoryInput & {
-  completeStructuredFn?: CompleteStructuredPlannerFn;
-};
-
 export type CognitiveAdvisoryResult = {
   answer: string;
   frame: AgentCognitiveFrame;
   plan: AgentAnswerPlan;
   quality: AgentAnswerQualityCheck;
-};
-
-export type CognitiveAdvisoryModelResult = CognitiveAdvisoryResult & {
-  diagnostics?: AgentAdvisoryPlannerDiagnostics;
-  source: AgentAdvisoryPlanSource;
-  tokenUsage?: AgentTokenUsage;
 };
 
 export const shouldUseCognitiveAdvisory = ({
@@ -674,37 +643,6 @@ export const parseAgentAnswerPlan = (value: unknown): AgentAnswerPlan | null => 
   };
 };
 
-const parseAgentAdvisoryDiagnostics = (value: unknown): AgentAdvisoryPlannerDiagnostics | undefined => {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const notes = getStringArray(value.notes, 6);
-  const rejectedReason = getString(value.rejectedReason);
-
-  return {
-    notes,
-    ...(rejectedReason ? { rejectedReason } : {}),
-  };
-};
-
-const parseAgentStructuredPlanResult = (value: unknown): AgentStructuredPlanResult | null => {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const plan = parseAgentAnswerPlan(value.plan) ?? parseAgentAnswerPlan(value);
-
-  if (!plan) {
-    return null;
-  }
-
-  return {
-    diagnostics: parseAgentAdvisoryDiagnostics(value.diagnostics),
-    plan,
-  };
-};
-
 export const checkAgentAnswerQuality = ({
   answer,
   frame,
@@ -786,124 +724,5 @@ export const buildCognitiveAdvisoryAnswer = (input: CognitiveAdvisoryInput): Cog
     frame,
     plan,
     quality,
-  };
-};
-
-const buildPlannerPromptMessages = ({
-  fallbackPlan,
-  frame,
-  history,
-  message,
-}: {
-  fallbackPlan: AgentAnswerPlan;
-  frame: AgentCognitiveFrame;
-  history: AgentChatMessage[];
-  message: string;
-}) => [
-  {
-    content: [
-      "你是 SunnyPanel Agent 的咨询回答规划器。",
-      "只输出 JSON，不要输出 Markdown。",
-      "你的任务是在只读边界内生成回答计划，不允许创建、保存、排期或声称已经写入。",
-      "只能引用 evidence 中已有的对象名称和事实；如果 evidence 不足，也要先给可执行建议，再说明缺口。",
-      "如果 evidence 包含用户偏好或写作风格，必须在 basis 中显式引用，并在 conclusion/steps 中遵守它。",
-      "JSON 结构必须是：{\"plan\":{\"conclusion\":\"...\",\"basis\":[\"...\"],\"steps\":[\"...\"],\"nextActions\":[\"...\"],\"needsClarification\":false,\"clarificationQuestion\":null},\"diagnostics\":{\"notes\":[\"...\"]}}。",
-      "plan.conclusion 必须直接回答用户问题；steps 至少 2 条；nextActions 至少 1 条。",
-    ].join("\n"),
-    role: "system" as const,
-  },
-  {
-    content: JSON.stringify(
-      {
-        fallbackPlan,
-        frame: {
-          confidence: frame.confidence,
-          evidence: frame.evidence.map((item) => ({
-            reason: item.reason,
-            source: item.source,
-            summary: item.summary,
-            title: item.title,
-          })),
-          goal: frame.goal,
-          isCorrection: frame.isCorrection,
-          missingInfo: frame.missingInfo,
-          questionKind: frame.questionKind,
-          riskBoundary: frame.riskBoundary,
-          writeAllowed: frame.writeAllowed,
-        },
-        recentHistory: history.slice(-6),
-        userMessage: message,
-      },
-      null,
-      2,
-    ),
-    role: "user" as const,
-  },
-];
-
-const withRejectedDiagnostics = (
-  fallback: CognitiveAdvisoryResult,
-  rejectedReason: string,
-): CognitiveAdvisoryModelResult => ({
-  ...fallback,
-  diagnostics: {
-    notes: [],
-    rejectedReason,
-  },
-  source: "fallback",
-});
-
-export const buildCognitiveAdvisoryAnswerWithModel = async (
-  input: CognitiveAdvisoryModelInput,
-): Promise<CognitiveAdvisoryModelResult> => {
-  const fallback = buildCognitiveAdvisoryAnswer(input);
-  const completeStructuredFn = input.completeStructuredFn ?? completeStructured;
-  const messages = buildPlannerPromptMessages({
-    fallbackPlan: fallback.plan,
-    frame: fallback.frame,
-    history: input.history,
-    message: input.message,
-  });
-  const structured = await completeStructuredFn({
-    fallback: () => null,
-    messages,
-    parse: parseAgentStructuredPlanResult,
-    temperature: 0.2,
-  });
-
-  if (!structured) {
-    return withRejectedDiagnostics(fallback, "LLM 结构化回答规划不可用或输出无效，已使用 deterministic fallback。");
-  }
-
-  const plan = structured.data.plan;
-  const answer = renderAgentAnswerPlan(plan);
-  const quality = checkAgentAnswerQuality({
-    answer,
-    frame: fallback.frame,
-    plan,
-  });
-
-  if (
-    !quality.answeredQuestion ||
-    !quality.avoidedUnnecessaryClarification ||
-    !quality.respectedWriteBoundary ||
-    !quality.usedRelevantContext ||
-    !quality.avoidedUnrelatedContext ||
-    quality.score < 0.8
-  ) {
-    return withRejectedDiagnostics(
-      fallback,
-      quality.issues.length > 0 ? quality.issues.join("；") : "LLM 回答规划未通过质量门，已回退。",
-    );
-  }
-
-  return {
-    answer,
-    diagnostics: structured.data.diagnostics,
-    frame: fallback.frame,
-    plan,
-    quality,
-    source: "llm",
-    tokenUsage: structured.tokenUsage,
   };
 };

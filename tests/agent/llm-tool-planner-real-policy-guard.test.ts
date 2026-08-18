@@ -6,9 +6,6 @@ import { evaluatePolicyGuard } from "../../src/lib/agent/policy/tool-gate";
 import { getAgentToolDefinition } from "../../src/lib/agent/tool-registry";
 import type { AgentRouterOutput } from "../../src/lib/agent/router/types";
 
-const saveEnv = (k: string) => ({ had: Object.hasOwn(process.env, k), value: process.env[k] });
-const restoreEnv = (k: string, p: ReturnType<typeof saveEnv>) => { if (p.had) process.env[k] = p.value; else delete process.env[k]; };
-
 /* Build a synthetic AgentRouterOutput for Policy Guard evaluation, mirroring R4D's buildSyntheticRouterOutput. */
 const buildTestRouterOutput = (
   toolName: string,
@@ -96,20 +93,6 @@ test("policy guard output does not contain preview-only marker", () => {
   const s = JSON.stringify(result);
   assert.ok(!s.includes("preview_only"));
   assert.ok(!s.includes("preview-only"));
-});
-
-/* ──── R4D feature flag independent from Policy Guard ──── */
-
-test("real Policy Guard functions work regardless of R4D feature flag", () => {
-  const prev = saveEnv("AGENT_LLM_TOOL_PLANNER_REAL_PENDING_ACTION");
-  delete process.env.AGENT_LLM_TOOL_PLANNER_REAL_PENDING_ACTION;
-  try {
-    const router = buildTestRouterOutput("create_schedule_items");
-    const result = evaluatePolicyGuard(router, { userContext: { userId: 1 } });
-    assert.equal(result.allowed, true);
-  } finally {
-    restoreEnv("AGENT_LLM_TOOL_PLANNER_REAL_PENDING_ACTION", prev);
-  }
 });
 
 /* ──── Allowlist tools have requiresConfirmation=true ──── */

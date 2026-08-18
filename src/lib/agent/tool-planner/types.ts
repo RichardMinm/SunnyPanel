@@ -48,43 +48,6 @@ export type LLMToolPlan = {
   userFacingSummary?: string;
 };
 
-/* ──── Planner input ──── */
-
-export type LLMToolPlannerInput = {
-  /** Raw user message. */
-  userMessage: string;
-  /** Current date (YYYY-MM-DD) for relative date resolution. */
-  currentDate?: string;
-  /** Optional timezone. */
-  timezone?: string;
-  /** Brief summary of recent conversation/workbench context. */
-  recentContextSummary?: string;
-  /** Maximum steps allowed in the plan. Default 8. */
-  maxSteps?: number;
-};
-
-/* ──── Planner result ──── */
-
-export type LLMToolPlannerResult =
-  | {
-      status: "planned";
-      source: "llm";
-      plan: LLMToolPlan;
-      validationWarnings: string[];
-    }
-  | {
-      status: "needs_clarification";
-      source: "llm" | "validator";
-      message: string;
-      missingInformation: string[];
-    }
-  | {
-      status: "failed";
-      source: "llm" | "validator" | "unavailable";
-      reason: string;
-      message: string;
-    };
-
 /* ──── Catalog entry ──── */
 
 export type LLMToolCatalogEntry = {
@@ -113,9 +76,3 @@ export type LLMToolPlanValidationResult =
       warnings: string[];
       missingInformation?: string[];
     };
-
-/* ──── Planner (definition for mock/testing) ──── */
-
-export type LLMToolPlannerFn = (
-  input: LLMToolPlannerInput,
-) => Promise<LLMToolPlannerResult>;

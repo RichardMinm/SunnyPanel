@@ -3,7 +3,6 @@ import { test } from "node:test";
 
 import {
   buildCognitiveAdvisoryAnswer,
-  buildCognitiveAdvisoryAnswerWithModel,
   buildAgentCognitiveFrame,
   checkAgentAnswerQuality,
   parseAgentAnswerPlan,
@@ -196,113 +195,6 @@ test("parseAgentAnswerPlan accepts a valid structured plan", () => {
 
   assert.equal(plan?.conclusion, "优先推进可评测的结构化咨询回答。");
   assert.deepEqual(plan?.steps, ["锁定问题", "选择证据", "生成回答计划"]);
-});
-
-test("buildCognitiveAdvisoryAnswerWithModel uses a valid LLM structured plan", async () => {
-  const result = await buildCognitiveAdvisoryAnswerWithModel({
-    completeStructuredFn: async ({ parse }) => {
-      const data = parse({
-        diagnostics: {
-          notes: ["只引用 Agent 相关 evidence，没有写入动作。"],
-        },
-        plan: {
-          basis: [
-            "Agent 智能化核心开发：把 SunnyPanel Agent 从功能点推进到真实咨询智能，先建立认知回答与评测。",
-            "Agent 开发偏好：智能程度必须用真实问题校验。",
-          ],
-          conclusion: "只有 30 分钟时，优先补一个能稳定暴露回答质量的真实问题评测。",
-          needsClarification: false,
-          nextActions: ["先写 failing eval，再接入结构化回答规划 trace。"],
-          steps: [
-            "选一个真实问题，例如 Agent 核心开发该推哪一步。",
-            "要求答案必须引用 Agent 智能化核心开发和真实问题评测。",
-            "把通过/回退结果写入 trace，便于 Review。",
-          ],
-        },
-      });
-
-      return data
-        ? {
-            data,
-            raw: "{}",
-            tokenUsage: {
-              contextTokens: 20,
-              inputTokens: 10,
-              outputTokens: 12,
-              source: "provider",
-              totalTokens: 42,
-            },
-          }
-        : null;
-    },
-    context: agentProjectContext,
-    history: [],
-    message: "我现在只有 30 分钟，Agent 核心开发该推哪一步？",
-    pendingAction: null,
-  });
-
-  assert.equal(result.source, "llm");
-  assert.match(result.answer, /只有 30 分钟/);
-  assert.match(result.answer, /真实问题评测/);
-  assert.match(result.answer, /Agent 智能化核心开发/);
-  assert.doesNotMatch(result.answer, /厨房收纳|已创建|已保存|已写入/);
-  assert.equal(result.diagnostics?.notes[0], "只引用 Agent 相关 evidence，没有写入动作。");
-  assert.equal(result.tokenUsage?.source, "provider");
-});
-
-test("buildCognitiveAdvisoryAnswerWithModel falls back when LLM plan crosses write or relevance boundaries", async () => {
-  const result = await buildCognitiveAdvisoryAnswerWithModel({
-    completeStructuredFn: async ({ parse }) => {
-      const data = parse({
-        diagnostics: {
-          notes: ["bad"],
-        },
-        plan: {
-          basis: ["厨房收纳：厨房台面需要换收纳盒。"],
-          conclusion: "已创建厨房收纳计划，并保存到工作台。",
-          needsClarification: false,
-          nextActions: ["确认后写入。"],
-          steps: ["整理厨房", "写入计划"],
-        },
-      });
-
-      return data
-        ? {
-            data,
-            raw: "{}",
-            tokenUsage: {
-              contextTokens: 20,
-              inputTokens: 10,
-              outputTokens: 12,
-              source: "provider",
-              totalTokens: 42,
-            },
-          }
-        : null;
-    },
-    context: agentProjectContext,
-    history: [],
-    message: "SunnyPanel Agent 泛化问题怎么推进？",
-    pendingAction: null,
-  });
-
-  assert.equal(result.source, "fallback");
-  assert.match(result.answer, /Agent 智能化核心开发/);
-  assert.doesNotMatch(result.answer, /厨房收纳|已创建|已保存|已写入|确认后写入/);
-  assert.ok(result.diagnostics?.rejectedReason?.length);
-});
-
-test("buildCognitiveAdvisoryAnswerWithModel falls back when LLM is disabled", async () => {
-  const result = await buildCognitiveAdvisoryAnswerWithModel({
-    context: agentProjectContext,
-    history: [],
-    message: "SunnyPanel Agent 泛化问题怎么推进？",
-    pendingAction: null,
-  });
-
-  assert.equal(result.source, "fallback");
-  assert.match(result.answer, /结论/);
-  assert.match(result.answer, /Agent 智能化核心开发/);
 });
 
 for (const evalCase of cognitiveEvalCases) {

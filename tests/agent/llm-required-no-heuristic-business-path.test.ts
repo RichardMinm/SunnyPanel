@@ -19,16 +19,10 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { isAgentRequireLLMEnabled } from "../../src/lib/agent/llm-required";
 import {
-  isAgentRequireLLMEnabled,
-  isAgentLLMDisabled,
-} from "../../src/lib/agent/llm-required";
-import {
-  isAgentToolPlannerGraphRuntimeEnabled,
-  isAgentToolPlannerWriteProposalsEnabled,
-  isAgentToolPlannerRealPendingActionEnabled,
   buildToolPlannerUnavailableAgentResponse,
-} from "../../src/lib/agent/tool-planner";
+} from "../../src/lib/agent/tool-planner/unavailable-response";
 
 /* ──── Env helpers ──── */
 
@@ -189,27 +183,7 @@ test("R4D write proposal allowlist is still 3 tools", async () => {
 });
 
 /* ═══════════════════════════════════════════════════════════════
-   6. Feature flag hierarchy
-   ═══════════════════════════════════════════════════════════════ */
-
-test("feature flag hierarchy: require mode does not auto-enable tool planner", () => {
-  const prevReq = saveEnv("AGENT_REQUIRE_LLM");
-  const prevGR = saveEnv("AGENT_LLM_TOOL_PLANNER_GRAPH_RUNTIME");
-
-  process.env.AGENT_REQUIRE_LLM = "1";
-  delete process.env.AGENT_LLM_TOOL_PLANNER_GRAPH_RUNTIME;
-
-  try {
-    assert.equal(isAgentRequireLLMEnabled(), true);
-    assert.equal(isAgentToolPlannerGraphRuntimeEnabled(), false);
-  } finally {
-    restoreEnv("AGENT_REQUIRE_LLM", prevReq);
-    restoreEnv("AGENT_LLM_TOOL_PLANNER_GRAPH_RUNTIME", prevGR);
-  }
-});
-
-/* ═══════════════════════════════════════════════════════════════
-   7. R5-A gate produces controlled response (not crash)
+   6. Controlled unavailable response remains fail-closed
    ═══════════════════════════════════════════════════════════════ */
 
 test("all 6 reason types produce non-null valid responses", () => {

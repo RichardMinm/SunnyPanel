@@ -1,36 +1,17 @@
-export {
-  isLLMToolPlannerEnabled,
-  isAgentToolPlannerTraceOnlyEnabled,
-  isAgentToolPlannerGraphRuntimeEnabled,
-  isAgentToolPlannerWriteProposalsEnabled,
-  isAgentToolPlannerRealPendingActionEnabled,
-} from "./feature-flag";
+/**
+ * Deterministic tool metadata retained for the authoritative Capability Manifest.
+ * The retired LLM Tool Planner runtime is intentionally not exported here.
+ */
 export { buildLLMToolCatalog } from "./build-tool-catalog";
 export type { BuildLLMToolCatalogOptions } from "./build-tool-catalog";
 export { validateLLMToolPlan } from "./validate-tool-plan";
 export type { ValidateLLMToolPlanOptions } from "./validate-tool-plan";
-export { planToolsWithLLM } from "./llm-tool-planner";
-export { runToolPlannerShadowGraph } from "./shadow-graph";
-export type { ShadowGraphError, ShadowGraphResult, ShadowGraphStatus } from "./shadow-graph";
-
-export { runToolPlannerGraphRuntime } from "./langgraph-runtime";
-export type {
-  ToolPlannerGraphState,
-  ToolPlannerGraphStatus,
-  ToolPlannerStepResult,
-  ToolPlannerWriteProposalResult,
-  ToolPlannerPolicyResult,
-  ToolPlannerRealPendingActionResult,
-} from "./langgraph-state";
 
 export type {
   LLMToolCatalogEntry,
   LLMToolPlan,
   LLMToolPlanMode,
   LLMToolPlanStep,
-  LLMToolPlannerFn,
-  LLMToolPlannerInput,
-  LLMToolPlannerResult,
   LLMToolPlanValidationResult,
 } from "./types";
 
