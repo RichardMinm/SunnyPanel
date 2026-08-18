@@ -202,10 +202,13 @@ Representative paths:
 - `tests/agent/schedule/*.test.ts`
 - `tests/agent/schedule/*.test.tsx`
 - `tests/agent/schedule/schedule-specialist-model-seam.test.ts`
+- `tests/agent/schedule/schedule-generic-specialist-retirement.test.ts`
 - `tests/agent/schedule/schedule-plan-frozen-proposal.test.ts`
 - `tests/agent/review/*.test.ts`
 - `tests/agent/writing/*.test.ts`
 - `tests/agent/content/*.test.ts`
+- `tests/agent/suggestions-deterministic-sync.test.ts`
+- `tests/agent/active-legacy-model-seams.test.ts`
 
 Required invariants:
 
@@ -221,6 +224,8 @@ Required invariants:
 - Schedule model enrichment uses strict shared schemas, isolates untrusted
   context, accounts for every logical call and Provider attempt, and falls
   back without writing when the Provider or schema fails.
+- Schedule intents bypass the retired generic Specialist completely; an
+  ambiguous date still clarifies deterministically before any time-model call.
 - Plan scheduling lets the model assign only trusted task keys and temporal
   fields; deterministic code rejects unknown/duplicate keys, invalid dates or
   times, and conflicts before a complete proposal can be frozen.
@@ -238,6 +243,12 @@ Required invariants:
 - Writing Assist uses action-specific strict schemas, isolates all user, style,
   and related-content text as untrusted data, accounts its specialist call, and
   never exposes Provider errors or secrets through chat or trace.
+- Agent Inbox sync persists the deterministic rule drafts without a model
+  rewrite, performs no Payload access for an empty candidate set, and never
+  reopens accepted, completed, or cooling-down dismissed suggestions.
+- Active Schedule and Suggestions entrypoints cannot import the quarantined
+  legacy `completeStructured` seams; dormant Cognitive Advisory and Tool
+  Planner retirement remains separate D6-B work.
 - Timeline composition and completion notes remain deterministic: complete or
   incomplete Content tasks use zero specialist model calls, ambiguous sources
   clarify before a proposal, and resource, visibility, and persistence choices

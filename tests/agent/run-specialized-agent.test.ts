@@ -160,7 +160,7 @@ test("calls the specialist exactly once for an open-ended incomplete task", asyn
   assert.equal(recorder.snapshot().unexpectedDuplicateCalls, 0);
 });
 
-test("bypasses legacy Query model ownership while keeping open-ended domain tasks on specialists", () => {
+test("bypasses retired Query and Schedule model ownership while keeping checklist drafting on its specialist", () => {
   assert.equal(
     evaluateSpecialistTaskCompleteness(task({ args: {}, intent: "query_progress" })).disposition,
     "bypassed_complete",
@@ -171,11 +171,15 @@ test("bypasses legacy Query model ownership while keeping open-ended domain task
   );
   assert.equal(
     evaluateSpecialistTaskCompleteness(task({ args: {}, intent: "compose_schedule_item" })).disposition,
-    "required_incomplete",
+    "bypassed_complete",
   );
   assert.equal(
     evaluateSpecialistTaskCompleteness(task({ args: {}, intent: "compose_plan" })).disposition,
     "bypassed_complete",
+  );
+  assert.equal(
+    evaluateSpecialistTaskCompleteness(task({ args: {}, intent: "compose_checklist" })).disposition,
+    "required_incomplete",
   );
 });
 

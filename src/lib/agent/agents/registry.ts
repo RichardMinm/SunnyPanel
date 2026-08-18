@@ -1,5 +1,4 @@
 import { enrichPlanIntent } from "./plan-agent";
-import { enrichScheduleIntent } from "./schedule-agent";
 import type { SpecializedAgentDefinition } from "./types";
 
 export const planAgentDefinition: SpecializedAgentDefinition = {
@@ -20,7 +19,6 @@ export const planAgentDefinition: SpecializedAgentDefinition = {
 };
 
 export const scheduleAgentDefinition: SpecializedAgentDefinition = {
-  enrichIntent: enrichScheduleIntent,
   id: "schedule",
   role: "schedule",
   supportedIntents: ["compose_schedule_item", "create_schedule_items", "reschedule_item", "cancel_schedule_item", "schedule_plan"],

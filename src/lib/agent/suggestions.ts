@@ -9,7 +9,6 @@ import {
   shouldResurfaceDismissedSuggestion,
   type AgentSuggestionDraft,
 } from "./suggestions-core";
-import { enhanceSuggestionsWithLLM } from "./suggestions-llm";
 import type { WorkspaceSnapshot } from "@/lib/payload/workspace";
 
 export {
@@ -29,6 +28,15 @@ export type AgentInboxSuggestion = Pick<
   AgentSuggestion,
   "id" | "reason" | "riskLevel" | "source" | "status" | "suggestedPrompt" | "title" | "uniqueKey"
 >;
+
+type SuggestionSyncPayload = Pick<
+  Awaited<ReturnType<typeof getPayloadClient>>,
+  "create" | "find" | "update"
+>;
+
+export type SyncAgentSuggestionsDeps = Readonly<{
+  getPayloadClient?: () => Promise<SuggestionSyncPayload>;
+}>;
 
 const toSuggestionData = (suggestion: AgentSuggestionDraft) => ({
   createdBy: suggestion.createdBy,
@@ -164,17 +172,17 @@ export const markSuggestionDone = async (id: number) => {
   });
 };
 
-export const syncAgentSuggestionsFromWorkspaceSnapshot = async (snapshot: WorkspaceSnapshot) => {
-  const ruleBased = generateSuggestionsFromWorkspaceSnapshot(snapshot);
+export const syncAgentSuggestionsFromWorkspaceSnapshot = async (
+  snapshot: WorkspaceSnapshot,
+  deps: SyncAgentSuggestionsDeps = {},
+) => {
+  const generated = generateSuggestionsFromWorkspaceSnapshot(snapshot);
 
-  if (ruleBased.length === 0) {
+  if (generated.length === 0) {
     return;
   }
 
-  // 规则候选之上叠加 LLM 重排/改写；LLM 不可用时原样返回规则草稿（兜底不回归）。
-  const generated = await enhanceSuggestionsWithLLM(ruleBased);
-
-  const payload = await getPayloadClient();
+  const payload = await (deps.getPayloadClient ?? getPayloadClient)();
   const uniqueKeys = generated.map((suggestion) => suggestion.uniqueKey);
   const existing = await payload.find({
     collection: "agent-suggestions",
