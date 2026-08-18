@@ -10,7 +10,9 @@ export const planAgentDefinition: SpecializedAgentDefinition = {
   id: "plan",
   role: "plan",
   supportedIntents: [
+    "create_checklist",
     "create_plan",
+    "compose_checklist",
     "compose_plan",
     "append_plan_item",
     "complete_plan_item",

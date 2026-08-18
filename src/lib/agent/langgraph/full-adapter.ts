@@ -1545,6 +1545,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
           conversationState: dryRunConversationState,
           emitStatus,
           emitToken,
+          modelCallRecorder,
           payload,
           persistAgentTurn: bufferAgentTurn,
           pushTrace,

@@ -36,8 +36,6 @@ import {
   isPlanComposerInputAmbiguous,
 } from "./workflows/plan-composer";
 import { decomposePlanRuleBased, inferDomain, normalizeComposePlanArgs, parsePlanSeedFromText } from "./workflows/plan-seed";
-import { decomposePlanForCompose } from "./workflows/plan-decomposer";
-import { getAgentModelConfig } from "./client";
 import type { AgentPromptContext } from "./prompts";
 import {
   composeScheduleProposalAsync,
@@ -623,11 +621,9 @@ const composePlanDryRun = async (
     });
   }
 
-  let decomposed = normalized.decomposed ?? decomposePlanRuleBased(normalized);
-
-  if (!decomposed && context.promptContext) {
-    decomposed = await decomposePlanForCompose(normalized, context.promptContext, getAgentModelConfig);
-  }
+  // Tool dry-runs are deterministic. Optional model decomposition is owned by
+  // the chat pipeline and must arrive as a validated `decomposed` draft.
+  const decomposed = normalized.decomposed ?? decomposePlanRuleBased(normalized);
 
   const domain = inferDomain(parsed.topic, normalized.sourceText ?? "");
 

@@ -112,9 +112,9 @@ test("bypasses the specialist and keeps a deterministically complete intent unch
 test("calls the specialist exactly once for an open-ended incomplete task", async () => {
   let enrichCalls = 0;
   const enriched = {
-    args: { goal: "完成迁移", title: "迁移计划" },
+    args: { goal: "完成迁移", items: [{ title: "盘点入口" }], title: "迁移清单" },
     confidence: 0.9,
-    intent: "compose_plan",
+    intent: "compose_checklist",
   } as AgentIntent;
   const definition: SpecializedAgentDefinition = {
     enrichIntent: async (_intent, _context, _message, _upstream, options) => {
@@ -124,15 +124,15 @@ test("calls the specialist exactly once for an open-ended incomplete task", asyn
     },
     id: "plan",
     role: "plan",
-    supportedIntents: ["compose_plan"],
+    supportedIntents: ["compose_checklist"],
     systemPromptHint: "plan",
   };
   const recorder = createModelCallBudgetRecorder();
   const incompleteTask = task({
     agentRole: "plan",
     args: {},
-    intent: "compose_plan",
-    label: "规划迁移",
+    intent: "compose_checklist",
+    label: "拆解迁移清单",
   });
 
   assert.equal(
@@ -145,7 +145,7 @@ test("calls the specialist exactly once for an open-ended incomplete task", asyn
     {
       dryRunContext: {} as never,
       intent: enriched,
-      message: "帮我规划迁移",
+      message: "帮我拆解迁移任务清单",
       modelCallRecorder: recorder,
       promptContext,
     },
@@ -153,7 +153,7 @@ test("calls the specialist exactly once for an open-ended incomplete task", asyn
   );
 
   assert.equal(enrichCalls, 1);
-  assert.equal(result.intent.intent, "compose_plan");
+  assert.equal(result.intent.intent, "compose_checklist");
   assert.equal(result.disposition, "required_incomplete");
   assert.equal(recorder.snapshot().specialistCalls, 1);
   assert.equal(recorder.snapshot().specialistProviderAttempts, 1);
@@ -172,6 +172,10 @@ test("bypasses legacy Query model ownership while keeping open-ended domain task
   assert.equal(
     evaluateSpecialistTaskCompleteness(task({ args: {}, intent: "compose_schedule_item" })).disposition,
     "required_incomplete",
+  );
+  assert.equal(
+    evaluateSpecialistTaskCompleteness(task({ args: {}, intent: "compose_plan" })).disposition,
+    "bypassed_complete",
   );
 });
 

@@ -3,6 +3,8 @@ import type { AgentIntent } from "../schemas";
 import type { AgentRole } from "../orchestration/types";
 import type { AgentToolDryRunContext } from "../tool-registry";
 import type { ModelCallBudgetRecorder } from "../orchestration/model-call-budget";
+import type { ModelConfig } from "../llm/model-config";
+import type { ModelFactory } from "../llm/model-factory";
 
 export type PlanAgentArtifact = {
   checklistId?: number;
@@ -66,6 +68,8 @@ export type SpecializedAgentDefinition = {
 };
 
 export type SpecializedAgentInvocationOptions = Readonly<{
+  modelConfig?: ModelConfig;
+  modelFactory?: ModelFactory;
   onProviderAttempt?: (attempt: number) => void;
 }>;
 

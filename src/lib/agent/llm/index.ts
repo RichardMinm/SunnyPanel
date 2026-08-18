@@ -4,8 +4,9 @@
  * output invocation, Zod-validated schemas for Router and Orchestrator
  * outputs, and message building with untrusted-context isolation.
  *
- * This is a NEW layer — it coexists alongside the legacy
- * complete-structured.ts / client.ts and does NOT switch production paths.
+ * Application features migrate onto this boundary one seam at a time while
+ * deterministic validation, authorization, and execution remain outside the
+ * model.
  */
 
 /* Model configuration */
@@ -20,6 +21,14 @@ export type { ModelApiProtocol, ModelConfig, ModelProvider } from "./model-confi
 /* Model factory */
 export { createChatModel } from "./model-factory";
 export type { ModelFactory } from "./model-factory";
+
+/* Application settings adapter */
+export { resolveAgentStructuredModelConfig } from "./resolve-agent-model-config";
+export type {
+  AgentModelSettings,
+  AgentModelSettingsResolver,
+  AgentStructuredModelOverrides,
+} from "./resolve-agent-model-config";
 
 /* Model errors */
 export {

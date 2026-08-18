@@ -5,6 +5,7 @@ import { applyPolicyGuard } from "@/lib/agent/policy/guard";
 import { attachCapabilityToProposedAction } from "@/lib/agent/capabilities/adapters";
 import { normalizeRouterOutput } from "@/lib/agent/router/normalize-router-output";
 import type { AgentTurnTrace } from "@/lib/agent/trace/agent-turn-trace";
+import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 import { recordDryRunTrace, recordPolicyGuardOutputTrace, recordPolicyTrace, recordResolverTrace, recordToolPlanTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type { AgentTraceRecorder } from "@/lib/agent/trace";
 import { resolveDeleteTarget, resolveModifyTarget } from "@/lib/agent/resolver/target-resolver";
@@ -24,7 +25,7 @@ import type { AgentThread } from "@/payload-types";
 import { detectScheduleConflicts, getScheduleForDateRange, getScheduleItemById } from "@/lib/schedule/items";
 import { decomposePlanForCompose } from "@/lib/agent/workflows/plan-decomposer";
 import type { DecomposedPlan } from "@/lib/agent/workflows/plan-decomposer";
-import { inferTopicWithLLM, normalizeComposePlanArgs, parsePlanSeedFromText } from "@/lib/agent/workflows/plan-seed";
+import { normalizeComposePlanArgs } from "@/lib/agent/workflows/plan-seed";
 import type { AgentStreamController } from "@/lib/agent/stream-events";
 
 import {
@@ -41,6 +42,7 @@ export type DryRunAndProposeStepParams = {
   conversationState?: unknown;
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
+  modelCallRecorder?: ModelCallBudgetRecorder;
   payload: Payload;
   persistAgentTurn: (args: {
     assistantMessage: string;
@@ -81,6 +83,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     conversationState,
     emitStatus,
     emitToken,
+    modelCallRecorder,
     payload,
     persistAgentTurn,
     pushTrace,
@@ -325,14 +328,6 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
       resolution.intent.args as Parameters<typeof normalizeComposePlanArgs>[0],
     );
 
-    const parsedSeed = parsePlanSeedFromText(normalizedArgs.sourceText || normalizedArgs.goal || "");
-    if (!parsedSeed.topic && normalizedArgs.sourceText) {
-      const llmTopic = await inferTopicWithLLM(normalizedArgs.sourceText);
-      if (llmTopic) {
-        (normalizedArgs as Record<string, unknown>).topic = llmTopic;
-      }
-    }
-
     emitStatus("正在分析你的目标并拆解阶段计划...");
     stream?.progress({
       detail: "compose_plan 需要先拆解目标、周期和阶段，再生成可确认草稿。",
@@ -348,7 +343,17 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     });
 
     let llmDecomposed: DecomposedPlan | null = null;
-    const decomposed = await decomposePlanForCompose(normalizedArgs, context, getAgentModelConfig);
+    const decomposed = await decomposePlanForCompose(
+      normalizedArgs,
+      context,
+      getAgentModelConfig,
+      {
+        logicalCallAuthorizer: () =>
+          modelCallRecorder?.record("specialist", "planning-decomposition"),
+        providerAttemptAuthorizer: () =>
+          modelCallRecorder?.recordProviderAttempt("specialist"),
+      },
+    );
 
     if (decomposed) {
       llmDecomposed = decomposed;

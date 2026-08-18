@@ -1,144 +1,120 @@
-import { completeStructured } from "@/lib/agent/llm/complete-structured";
-import type { StructuredLLMMessage } from "@/lib/agent/llm/complete-structured";
-import type { ClarificationComposerInput, ClarificationComposerOutput } from "./types";
+import { z } from "zod";
+
+import { invokeStructured } from "@/lib/agent/llm/invoke-structured";
+import { buildMessages } from "@/lib/agent/llm/message-builder";
+import type { ModelConfig } from "@/lib/agent/llm/model-config";
+import type { ModelFactory } from "@/lib/agent/llm/model-factory";
+import { resolveAgentStructuredModelConfig } from "@/lib/agent/llm/resolve-agent-model-config";
+import type {
+  ClarificationComposerInput,
+  ClarificationComposerOutput,
+} from "./types";
 import { composeClarificationFallback } from "./fallback-composer";
 import { validateClarificationOutput } from "./validate-output";
 import { isClarificationComposerLLMEnabled } from "./feature-flag";
 
-/* ──── LLM Output Schema (for structured parsing) ──── */
-
-type LLMClarificationOutput = {
-  message: string;
-  questions: string[];
-  safetyNote: string;
-  suggestedReply: string;
+const clarificationShape = {
+  message: z.string().trim().min(1).max(2_000),
+  questions: z.array(z.string().trim().min(1).max(300)).max(5),
+  safetyNote: z.string().trim().min(1).max(500),
+  suggestedReply: z.string().trim().max(1_000),
 };
 
-const parseLLMOutput = (raw: unknown): LLMClarificationOutput | null => {
-  if (!raw || typeof raw !== "object") return null;
-  const obj = raw as Record<string, unknown>;
+export const clarificationComposerBaseSchema = z.object(clarificationShape);
+export const clarificationComposerSchema = z.object(clarificationShape).strict();
 
-  const message = typeof obj.message === "string" ? obj.message.trim() : "";
-  if (!message) return null;
+export type ClarificationModelInvocationOptions = Readonly<{
+  modelConfig?: ModelConfig;
+  modelFactory?: ModelFactory;
+  providerAttemptAuthorizer?: (attempt: number) => void;
+  signal?: AbortSignal;
+}>;
 
-  const questions = Array.isArray(obj.questions)
-    ? obj.questions.filter((q): q is string => typeof q === "string" && q.trim().length > 0)
-    : [];
+const CLARIFICATION_SYSTEM_RULES = `你是 SunnyPanel 的 Clarification Wording Specialist，只负责把确定性 Readiness 结果表达为柔和、简洁的中文澄清文案。
+你不能改变缺失字段、Readiness 状态、用户目标或安全边界；不能创建计划或日程、调用工具或修改数据库。
+不得输出内部字段名、execute、receipt、rollback、toolCall、hidden reasoning 或 raw reasoning。
+只返回严格结构化对象，不要输出 Markdown 或额外说明。`;
 
-  const safetyNote = typeof obj.safetyNote === "string" ? obj.safetyNote.trim() : "";
-  if (!safetyNote) return null;
-
-  const suggestedReply = typeof obj.suggestedReply === "string" ? obj.suggestedReply.trim() : "";
-
-  return { message, questions, safetyNote, suggestedReply };
-};
-
-/* ──── Prompt Builder ──── */
-
-const buildLLMPrompt = (input: ClarificationComposerInput): StructuredLLMMessage[] => {
+const buildClarificationMessages = (
+  input: ClarificationComposerInput,
+) => {
   const entity = input.workflow === "schedule_creation" ? "日程" : "计划";
-  const goalLine = input.userGoalSummary
-    ? `用户目标：${input.userGoalSummary}`
-    : `用户消息：${input.userMessage.slice(0, 200)}`;
-
-  const knownBlock = input.knownFacts.length > 0
-    ? `\n已知信息：\n${input.knownFacts.map((f) => `- ${f}`).join("\n")}`
-    : "";
-
-  const needsBlock = input.missingNeeds
+  const needs = input.missingNeeds
     .slice(0, input.maxQuestions)
-    .map((n, i) => {
-      let line = `${i + 1}. ${n.label}`;
-      if (n.examples && n.examples.length > 0) {
-        line += `（比如：${n.examples.join("、")}）`;
-      }
-      return line;
+    .map((need, index) => {
+      const examples = need.examples?.length
+        ? `（例如：${need.examples.join("、")}）`
+        : "";
+      return `${index + 1}. ${need.label}${examples}`;
     })
     .join("\n");
 
-  const systemPrompt = [
-    `你是 Sunny，一个 AI 原生个人工作台的助手。用户正在请求创建${entity}，但信息还不足够。`,
-    "",
-    "你需要生成一段**柔和、简洁、有帮助感**的中文回复，帮助用户补充缺失的信息。",
-    "",
-    "回复要求：",
-    `1. 先说明当前不会直接写入${entity}（安全边界）`,
-    `2. 简要重述用户目标（让对方感到被理解）`,
-    `3. 提出最多 ${input.maxQuestions} 个核心问题（编号列表）`,
-    "4. 给一个用户可以直接复制的示例回复",
-    `5. 最后说明下一步会先生成${entity}草案，暂时不会写入`,
-    "",
-    "严格规则：",
-    "- 使用中文",
-    "- 不要使用表格",
-    "- 不要长篇解释",
-    "- 不要暴露内部字段名（sourceType, missingSlots, conflictPolicy 等）",
-    "- 不要承诺已经写入",
-    "- 不要展示推理过程",
-    "- 返回严格 JSON，格式：{\"message\": \"...\", \"questions\": [\"...\"], \"safetyNote\": \"...\", \"suggestedReply\": \"...\"}",
-    `- questions 最多 ${input.maxQuestions} 个`,
-  ].join("\n");
-
-  const userPrompt = [
-    goalLine,
-    knownBlock,
-    needsBlock ? `\n需要确认的问题：\n${needsBlock}` : "",
-    `\n请生成自然的澄清回复。JSON:`,
-  ].join("\n");
-
-  return [
-    { content: systemPrompt, role: "system" },
-    { content: userPrompt, role: "user" },
-  ];
+  return buildMessages({
+    domainContract: [
+      `为${entity}创建请求生成澄清文案。`,
+      `questions 最多 ${input.maxQuestions} 个。`,
+      `必须明确当前不会直接写入${entity}，下一步先生成草案。`,
+      "不得暴露 sourceType、missingSlots、conflictPolicy 等内部名称。",
+      "suggestedReply 必须是用户可直接复制的简短示例。",
+    ].join("\n"),
+    systemRules: CLARIFICATION_SYSTEM_RULES,
+    userMessage: [
+      input.userGoalSummary
+        ? `用户目标：${input.userGoalSummary}`
+        : `用户消息：${input.userMessage.slice(0, 500)}`,
+      input.knownFacts.length > 0
+        ? `已知信息：\n${input.knownFacts.map((fact) => `- ${fact}`).join("\n")}`
+        : null,
+      needs ? `需要确认：\n${needs}` : null,
+      `确定性安全边界：当前不写入；下一步=${input.safetyBoundary.nextStep}`,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join("\n\n"),
+  });
 };
 
-/* ──── Main Composer ──── */
-
 /**
- * Compose a clarification message using LLM.
- *
- * Falls back to the deterministic fallback composer when:
- * - AGENT_DISABLE_LLM=1
- * - AGENT_LLM_CLARIFICATION_COMPOSER=0
- * - LLM call fails
- * - LLM returns invalid JSON
- * - LLM output fails validation
+ * Optional wording-only enrichment. Readiness and write authority stay in
+ * deterministic code; every model/protocol/schema failure returns the same
+ * deterministic fallback response.
  */
 export const composeClarificationWithLLM = async (
   input: ClarificationComposerInput,
+  options: ClarificationModelInvocationOptions = {},
 ): Promise<ClarificationComposerOutput> => {
-  /* ── Feature flag check ── */
   if (!isClarificationComposerLLMEnabled()) {
     return composeClarificationFallback(input);
   }
 
-  /* ── Try LLM ── */
   try {
-    const messages = buildLLMPrompt(input);
-    const result = await completeStructured({
-      messages,
-      parse: parseLLMOutput,
-      temperature: 0.7,
+    const modelConfig = options.modelConfig
+      ?? await resolveAgentStructuredModelConfig(undefined, {
+        maxOutputTokens: 2_048,
+        maxRetries: 0,
+        temperature: 0.7,
+        timeoutMs: 30_000,
+      });
+    if (!modelConfig) return composeClarificationFallback(input);
+
+    const result = await invokeStructured({
+      maxSchemaRetries: 1,
+      maxTransportRetries: 1,
+      messages: buildClarificationMessages(input),
+      modelConfig,
+      modelFactory: options.modelFactory,
+      modelSchema: clarificationComposerBaseSchema,
+      providerAttemptAuthorizer: options.providerAttemptAuthorizer,
+      schema: clarificationComposerSchema,
+      schemaName: "ClarificationWording",
+      signal: options.signal,
+      tags: ["agent", "clarification", "wording"],
     });
+    if (!result.ok) return composeClarificationFallback(input);
 
-    if (!result?.data) {
-      return composeClarificationFallback(input);
-    }
-
-    /* ── Validate LLM output ── */
-    const validated = validateClarificationOutput(
-      {
-        ...result.data,
-        source: "llm",
-      },
+    return validateClarificationOutput(
+      { ...result.data, source: "llm" },
       input,
-    );
-
-    if (!validated) {
-      return composeClarificationFallback(input);
-    }
-
-    return validated;
+    ) ?? composeClarificationFallback(input);
   } catch {
     return composeClarificationFallback(input);
   }

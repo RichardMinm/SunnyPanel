@@ -102,6 +102,7 @@ Representative paths:
 - `tests/agent/orchestration/orchestrator-output-mapper.test.ts`
 - `tests/agent/orchestration/resource-readiness-guard.test.ts`
 - `tests/agent/orchestration/query-scope-*.test.ts`
+- `tests/agent/planning/planning-specialist-model-seam.test.ts`
 
 Required invariants:
 
@@ -110,6 +111,8 @@ Required invariants:
 - Capability metadata does not expose execute functions.
 - Query scope and resource provenance are deterministic.
 - Invalid schema, DAG, intent, or resource output fails closed.
+- Planning and Checklist draft specialists use the shared structured boundary,
+  retain their assigned intent, and reject execution or persistence fields.
 - DeepSeek Responses JSON Schema and terminal-status envelopes fail closed.
 - Streaming remains on a protocol with observable complete/partial terminals.
 - No raw prompt, response, secret, or reasoning is retained.
@@ -181,6 +184,10 @@ Representative paths:
 Required invariants:
 
 - Draft -> dry-run -> confirmation -> execution boundaries remain explicit.
+- Existing typed plan decomposition is reused without a duplicate model call;
+  otherwise schema/provider failure falls back to deterministic decomposition.
+- Complete plan/create-checklist work bypasses specialist calls; only an
+  incomplete compose-checklist draft may request typed Checklist facts.
 - Created plans, checklists, schedule items, and timeline events retain their
   cross-feature links.
 - Progress facts are deterministic.

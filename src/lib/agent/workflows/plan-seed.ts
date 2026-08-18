@@ -1,7 +1,6 @@
 import type { ComposePlanArgs } from "../schemas";
 
 import type { DecomposedPlan, DecomposedPhase } from "./plan-decomposer";
-import { fetchWithRetry, getAgentModelConfig } from "../client";
 
 export type ParsedPlanSeed = {
   dailyPace: string | null;
@@ -175,51 +174,6 @@ const inferTopic = (text: string): string | null => {
   }
 
   return null;
-};
-
-export const inferTopicWithLLM = async (text: string): Promise<string | null> => {
-  const hardcoded = inferTopic(text);
-  if (hardcoded) return hardcoded;
-
-  if (!text.trim() || text.length < 4) return null;
-
-  try {
-    const config = await getAgentModelConfig();
-    if (!config) return null;
-
-    const response = await fetchWithRetry(
-      `${config.baseUrl}/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${config.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: config.model,
-          messages: [
-            {
-              role: "system",
-              content: "从用户输入中提取计划的核心主题，输出为一个简短的中文名词短语（最多8个字）。如果无法确定主题，输出 null。只输出名词短语或 null，不要输出其他内容。",
-            },
-            { role: "user", content: text },
-          ],
-          temperature: 0,
-          max_tokens: 32,
-        }),
-      },
-      { maxRetries: 1, timeoutMs: 10_000 },
-    );
-
-    if (!response.ok) return null;
-    const data = await response.json();
-    const content: string | undefined = data?.choices?.[0]?.message?.content;
-    if (!content || content.trim() === "null" || content.trim().length === 0) return null;
-
-    return content.trim().slice(0, 16);
-  } catch {
-    return null;
-  }
 };
 
 const DOMAIN_KEYWORDS: Record<string, string[]> = {
