@@ -9,7 +9,7 @@
 - PostgreSQL
 - Tailwind CSS
 - LangGraph
-- OpenAI / LLM function calling
+- LangChain Structured Output and streaming model boundaries
 
 ---
 

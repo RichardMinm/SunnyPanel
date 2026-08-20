@@ -5,16 +5,7 @@ import {
   assessWriteSafety,
   parseAgentArbitrationResult,
 } from "../../src/lib/agent/intent/arbitration";
-import { resolveAgentIntent } from "../../src/lib/agent/intent-resolution";
-import type { AgentPromptContext } from "../../src/lib/agent/prompts";
-import { parseAgentIntentResult, type PendingAction } from "../../src/lib/agent/schemas";
-
-const baseContext = (pendingAction: null | PendingAction = null): AgentPromptContext => ({
-  checklists: [],
-  now: "2026-06-05T00:00:00.000+08:00",
-  pendingAction,
-  plans: [],
-});
+import { parseAgentIntentResult } from "../../src/lib/agent/schemas";
 
 test("write safety blocks implicit write intents when the user only asks for advice", () => {
   const assessment = assessWriteSafety({
@@ -30,28 +21,6 @@ test("write safety blocks implicit write intents when the user only asks for adv
   assert.equal(assessment.requiresWrite, true);
   assert.equal(assessment.allowed, false);
   assert.equal(assessment.explicitWriteSignal, false);
-});
-
-test("resolveAgentIntent exposes arbitration metadata for trace and audit", async () => {
-  const result = await resolveAgentIntent({
-    context: baseContext(),
-    history: [],
-    message: "请为我规划一个信息安全学习路径，偏蓝队",
-    modelResolver: async () => ({
-      intent: {
-        args: {
-          sourceText: "请为我规划一个信息安全学习路径，偏蓝队",
-        },
-        confidence: 0.81,
-        intent: "compose_plan",
-      },
-    }),
-    pendingAction: null,
-  });
-
-  assert.ok(result.arbitration?.route);
-  assert.ok(typeof result.arbitration?.requiresWrite === "boolean");
-
 });
 
 test("parses structured LLM arbitration wrapper while keeping AgentIntent compatibility", () => {

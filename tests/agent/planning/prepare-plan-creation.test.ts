@@ -280,8 +280,6 @@ test("LangGraph prepares draft creation through dry-run and does not execute", a
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
       conversationState: makeDraftingSession() as never,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "就按这个草案创建计划",
       payload: {} as never,
       pendingAction: null,

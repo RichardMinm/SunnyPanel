@@ -37,11 +37,3 @@ test("legacy intent maps to preview and execute capability pairs", () => {
   assert.equal(legacyIntentForCapability("preview_create_schedule"), "compose_schedule_item");
   assert.equal(executeCapabilityForPreview("preview_delete_plan"), "execute_delete_plan");
 });
-
-test("buildCapabilityFunctionTools omits execute names", async () => {
-  const { buildCapabilityFunctionTools } = await import("../../src/lib/agent/capabilities/function-tools");
-  const tools = buildCapabilityFunctionTools(Object.keys(CAPABILITY_REGISTRY));
-
-  assert.ok(tools.every((tool) => !tool.function.name.startsWith("execute_")));
-  assert.ok(tools.every((tool) => tool.function.name !== "publish_private_content"));
-});

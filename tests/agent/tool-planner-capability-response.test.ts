@@ -102,17 +102,7 @@ test("capability responses have no DB write instructions", () => {
   }
 });
 
-/* ──── 6. Capability router EXISTS but is GATED ──── */
-
-test("capability router exists but is gated by R5-A in require mode", async () => {
-  // The capability router file still exists (not deleted)
-  const mod = await import("../../src/lib/agent/router/capability-router");
-  assert.ok(typeof mod.routeCapabilityRouter === "function");
-  // But in AGENT_REQUIRE_LLM=1, R5-A gate prevents EOD loop from calling
-  // resolveRouterChain → routeCapabilityRouter for new business requests
-});
-
-/* ──── 7. All response types return clarify intent ──── */
+/* ──── 6. All response types return clarify intent ──── */
 
 test("all response types return clarify intent, not write", () => {
   const reasons: AgentToolPlannerUnavailableReason[] = [

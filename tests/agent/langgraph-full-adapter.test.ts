@@ -117,8 +117,6 @@ test("full adapter terminates cancelled orchestration before resolution or persi
         finalizerCount += 1;
         return response;
       },
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "安排计划",
       payload,
       pendingAction: null,
@@ -205,8 +203,6 @@ test("full adapter rejects an already-aborted request before context or checkpoi
         finalizerCount += 1;
         return response;
       },
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "安排计划",
       payload,
       pendingAction: null,
@@ -321,8 +317,6 @@ test("full adapter does not replay a cancelled checkpoint into the next healthy 
         baseTokenUsage: tokenUsage,
         contextPreferences: null,
         finalizeTurn: async ({ response }) => response,
-        generateIntentWithAgentModel: async () => null,
-        intentModelEngine: "heuristic",
         message: turnId === "cancelled-turn" ? "取消" : "重新开始",
         payload: {} as never,
         pendingAction,
@@ -486,8 +480,6 @@ test("full adapter reuses production steps and delegates persistence to the shar
           turnId: "turn-shared-finalizer",
         };
       },
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic" as const,
       message: "总结进度",
       payload: {} as never,
       pendingAction: null,
@@ -576,8 +568,6 @@ test("full adapter finalizes an ordinary graph failure exactly once", async () =
     {
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "继续",
       payload: {} as never,
       pendingAction,
@@ -783,8 +773,6 @@ test("full adapter resumes a checkpointed confirmation without duplicate writes"
       {
         baseTokenUsage: tokenUsage,
         contextPreferences: null,
-        generateIntentWithAgentModel: async () => null,
-        intentModelEngine: "heuristic",
         message,
         payload: {} as never,
         pendingAction:
@@ -932,8 +920,6 @@ test("full adapter claims an action receipt before orchestration auto-executes a
     {
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "自动创建计划",
       payload: {} as never,
       pendingAction: null,
@@ -1087,8 +1073,6 @@ test("full adapter imports a legacy pending projection when no checkpoint exists
     {
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "确认",
       payload: {} as never,
       pendingAction,
@@ -1200,8 +1184,6 @@ test("full adapter resets completed graph state before a new ordinary turn", asy
     {
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "查询进度",
       payload: {} as never,
       pendingAction: null,

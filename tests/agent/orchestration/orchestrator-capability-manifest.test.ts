@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   AGENT_INTENT_PARAMETER_HINTS,
   AGENT_INTENT_REQUIRED_FIELDS,
-} from "../../../src/lib/agent/function-tools";
+} from "../../../src/lib/agent/orchestration/intent-parameter-contract";
 import { ROUTER_INTENT_NAMES } from "../../../src/lib/agent/llm/schemas/router-output";
 import {
   buildLangChainOrchestratorMessages,

@@ -405,8 +405,6 @@ test("LangGraph suggestion selection returns draft response without dry-run or e
         ...response,
         threadId: 8841,
       }),
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: scheduleConflictSuggestionToUserMessage(moveSuggestion),
       payload: {} as never,
       pendingAction: makePendingAction(),

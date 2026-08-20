@@ -340,8 +340,6 @@ test("LangGraph prepares ChecklistDraft creation through dry-run and does not ex
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
       conversationState: makeChecklistDraftSession() as never,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "就按这个清单草案创建清单",
       payload: {} as never,
       pendingAction: null,

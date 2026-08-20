@@ -260,8 +260,6 @@ test("LangGraph revise_plan_draft returns draft response without dry-run or exec
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
       conversationState: makeDraftingSession() as never,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "调整一下，加上测试",
       payload: {} as never,
       pendingAction: null,

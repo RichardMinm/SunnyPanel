@@ -316,8 +316,6 @@ test("full LangGraph adapter returns draft response before dry-run and persists 
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
       conversationState: makePlanningSession() as never,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message:
         "第一版要包含登录和 Agent 对话；当前登录已完成；每天能投入 2 小时；上线标准是内测可用，必须包含测试和部署。",
       payload: {} as never,
@@ -425,8 +423,6 @@ test("full LangGraph adapter keeps old dry-run path for small explicit plans", a
     {
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "帮我创建一个计划：今天晚上 8 点到 10 点完成登录页修复",
       payload: {} as never,
       pendingAction: null,

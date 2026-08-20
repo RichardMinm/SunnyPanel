@@ -28,7 +28,6 @@ export function AgentCapabilityAuditPanel({ turnAudit }: AgentCapabilityAuditPan
     blocked.length > 0 ||
     turnAudit.writeRequired !== undefined ||
     turnAudit.resolverResult ||
-    turnAudit.toolPlan ||
     turnAudit.policyGuardOutput;
 
   if (!hasAuditContent) {
@@ -55,16 +54,6 @@ export function AgentCapabilityAuditPanel({ turnAudit }: AgentCapabilityAuditPan
               目标解析：<strong>{turnAudit.resolverResult.status}</strong>
             </span>
           ) : null}
-        {turnAudit.toolPlan?.blockedReason ? (
-          <span>
-            拦截原因：<strong>{turnAudit.toolPlan.blockedReason}</strong>
-          </span>
-        ) : null}
-        {turnAudit.toolPlan?.workflow ? (
-          <span>
-            Workflow：<strong>{turnAudit.toolPlan.workflow}</strong>
-          </span>
-        ) : null}
           {turnAudit.riskLevel ? (
             <span>
               风险：<strong>{turnAudit.riskLevel}</strong>

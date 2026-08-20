@@ -123,7 +123,7 @@ const NULL_RESULT: CoordinatorPipelineResult = {
 /**
  * Run the coordinator pipeline pre-Router step.
  *
- * Call this BEFORE resolveAgentIntent / resolveUnifiedIntent.
+ * Call this before authoritative Orchestrator classification.
  * Pass the returned sessionContext to the Router.
  * After Router returns finalIntent, call result.reconcile(finalResult).
  */

@@ -188,8 +188,6 @@ test("full pipeline corrects misrouted schedule creation query before dry-run or
         ...response,
         threadId: 940,
       }),
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "帮我查看最近的日程安排",
       payload: {} as never,
       pendingAction: null,

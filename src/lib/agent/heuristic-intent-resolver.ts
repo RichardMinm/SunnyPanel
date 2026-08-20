@@ -7,11 +7,11 @@
  * Current state (R6-Final):
  *  - Re-exports safety functions from intent-safety-signals (confirmation detection).
  *  - Provides retired stubs for business functions (always return null/empty).
- *  - Still imported by intent/arbitration.ts for backward type compatibility.
+ *  - Still imported by intent/arbitration.ts while deterministic safety helpers
+ *    are being separated from its historical arbitration contract.
  *
  * R6-Final status: keep-as-legacy-compat. The safety re-exports are active;
- * the business stubs are no-ops. Full removal requires arbitration.ts refactor
- * (deferred to post-R6).
+ * the business stubs are no-ops.
  *
  * Does NOT import from: intent/heuristics/index, intent/heuristics/*
  */
@@ -29,9 +29,8 @@ export {
 
 /* ──── Retired business heuristic stubs ──── */
 
-/* These stubs exist only to keep intent-resolution.ts (resolveAgentIntent)
- * compiling. resolveAgentIntent has been retired from the production path
- * since R6-C1-B. The stubs return safe no-op values. */
+/* These stubs preserve the deterministic arbitration contract while the
+ * retired business heuristic implementation remains unavailable. */
 
 export const cleanupText = (text: string): string => text.trim();
 

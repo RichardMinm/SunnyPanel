@@ -110,12 +110,8 @@ const resolveWriting = async ({
   emitStatus: () => undefined,
   emitToken: () => undefined,
   emitUsage: () => undefined,
-  intentModelEngine: "workflow",
   message: "请润色：这是用户正文。",
   modelCallRecorder,
-  modelResolver: async () => {
-    throw new Error("writing mode must not call the generic intent model");
-  },
   pendingAction: null,
   persistAgentTurn: async () => ({ id: 91 } as AgentThread),
   pushTrace,

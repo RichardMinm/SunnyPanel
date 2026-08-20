@@ -14,10 +14,7 @@
 import { recordAgentConfirmationDecision, recordBatchConfirmationDecision } from "@/lib/agent/audit";
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
 import type { ConfirmationSignals } from "@/lib/agent/chat-pipeline/confirmation-step";
-import type { AgentModelIntentResolver } from "@/lib/agent/intent-resolution";
 import type { AgentArbitrationDecision } from "@/lib/agent/intent/arbitration";
-import type { LLMRouterOutput } from "../router/llm-router-schema";
-import type { ToolPlan } from "../plan/tool-plan";
 import type { AgentRouterOutput } from "@/lib/agent/router/types";
 import type {
   AgentChatMessage,
@@ -51,9 +48,7 @@ export type IntentResolution = {
   arbitration?: AgentArbitrationDecision;
   engine: AgentEngine;
   intent: AgentIntent;
-  llmRouterOutput?: LLMRouterOutput;
   routerOutput?: AgentRouterOutput;
-  toolPlan?: ToolPlan;
   tokenUsage?: AgentChatResponse["tokenUsage"];
 };
 
@@ -65,10 +60,8 @@ export type ResolveIntentStepParams = {
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void;
-  intentModelEngine: AgentEngine;
   message: string;
   modelCallRecorder?: ModelCallBudgetRecorder;
-  modelResolver: AgentModelIntentResolver;
   orchestratorPlanSource?: null | OrchestratorPlanSource;
   orchestratorRuntime?: null | OrchestratorRuntimeMode;
   pendingAction: null | PendingAction;
@@ -128,10 +121,8 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     emitStatus,
     emitToken,
     emitUsage,
-    intentModelEngine,
     message,
     modelCallRecorder,
-    modelResolver,
     orchestratorPlanSource,
     orchestratorRuntime,
     pendingAction,
@@ -180,10 +171,8 @@ export const runResolveIntentStep = async (params: ResolveIntentStepParams): Pro
     emitStatus,
     emitToken,
     emitUsage,
-    intentModelEngine,
     message,
     modelCallRecorder,
-    modelResolver,
     orchestratorPlanSource,
     orchestratorRuntime,
     pendingAction,

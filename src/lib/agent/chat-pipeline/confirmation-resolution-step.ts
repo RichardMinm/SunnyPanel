@@ -8,7 +8,7 @@
  *
  * Does NOT contain:
  *  - Business intent guessing
- *  - resolveRouterChain / resolveAgentIntent
+ *  - Orchestrator or Query classification
  *  - Schedule intent boundary / regex slot extraction
  *  - Deterministic draft generation
  */

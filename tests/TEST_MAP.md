@@ -257,6 +257,10 @@ Required invariants:
   Tool Planner model/runtime/shadow/flag files remain absent; the retained
   Tool Planner facade exposes deterministic catalog, validator, types, and
   fail-closed response contracts only.
+- The retired direct intent-model, ReAct, function-calling Router V2, static
+  Router chain, and legacy ToolPlan/workflow bridge remain absent. Production
+  chat dependencies contain no second intent resolver, and the authoritative
+  Capability Manifest reads argument metadata from a neutral contract module.
 - Timeline composition and completion notes remain deterministic: complete or
   incomplete Content tasks use zero specialist model calls, ambiguous sources
   clarify before a proposal, and resource, visibility, and persistence choices
@@ -314,6 +318,11 @@ The 2026-08-05 cleanup removed tests that could not meet the quality bar:
   and Tool Planner flags/runtime/shadow graph. Deterministic Cognitive
   Advisory, Capability Catalog, validator, confirmation, Policy, Receipt, and
   rollback behavior remains covered through active contracts.
+- Tests for the retired direct function-tool parser, ReAct loop, Router V2
+  retry/parser, static root Router chain, and injected model-resolver facade.
+  Active LangChain Orchestrator, confirmation, query, and execution contracts
+  remain covered by production-path tests and the legacy-seam architecture
+  guard.
 
 The product-facing thread metadata requirement from the deleted sidebar phase
 snapshot was moved into an executable `formatThreadMeta` test in

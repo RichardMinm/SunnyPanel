@@ -223,8 +223,6 @@ test("full LangGraph adapter returns ScheduleDraft before dry-run", async () => 
           threadId: 931,
         };
       },
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "每天晚上 8 点到 10 点可以做，6 月 30 日前完成",
       payload: {} as never,
       pendingAction: null,

@@ -10,7 +10,7 @@ import {
   type ModelCallBudgetRecorder,
 } from "@/lib/agent/orchestration/model-call-budget";
 import { buildSafeExecutionTraceError } from "@/lib/agent/orchestration/safe-execution-failure";
-import { recordDryRunTrace, recordPolicyGuardOutputTrace, recordPolicyTrace, recordResolverTrace, recordToolPlanTrace } from "@/lib/agent/trace/agent-turn-trace";
+import { recordDryRunTrace, recordPolicyGuardOutputTrace, recordPolicyTrace, recordResolverTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type { AgentTraceRecorder } from "@/lib/agent/trace";
 import { resolveDeleteTarget, resolveModifyTarget } from "@/lib/agent/resolver/target-resolver";
 import type { BuildContextStepResult } from "@/lib/agent/chat-pipeline/build-context-step";
@@ -243,19 +243,6 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
     if (turnAudit) {
       Object.assign(turnAudit, recordPolicyTrace(turnAudit, policy));
       Object.assign(turnAudit, recordPolicyGuardOutputTrace(turnAudit, policyGuardOutput));
-      if (resolution.llmRouterOutput) {
-        const { buildToolPlan } = await import("@/lib/agent/plan/tool-plan");
-        const rebuiltPlan = buildToolPlan({
-          allowedCapabilities: policy.allowedCapabilities ?? [],
-          resolverResult:
-            resolverStatus && resolverStatus !== "unique"
-              ? { question: null, resolved: null, status: resolverStatus }
-              : undefined,
-          router: resolution.llmRouterOutput,
-        });
-        Object.assign(turnAudit, recordToolPlanTrace(turnAudit, rebuiltPlan));
-        resolution.toolPlan = rebuiltPlan;
-      }
     }
 
     if (!policy.allowed) {

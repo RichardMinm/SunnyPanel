@@ -4,7 +4,7 @@
  * Verifies:
  *  1. Confirmation path is importable
  *  2. Legacy heuristic path is importable
- *  3. Old facade exports unchanged
+ *  3. Retired direct model facade stays absent
  *  4. Confirm/cancel behavior unchanged
  *  5. Existing pendingAction confirmation works
  */
@@ -31,9 +31,9 @@ test("confirmation-step functions are importable", () => {
 
 /* ──── 2. Legacy heuristic path importable ──── */
 
-test("resolveAgentIntent is still importable", async () => {
+test("retired direct intent model facade is no longer exported", async () => {
   const mod = await import("../../../src/lib/agent/intent-resolution");
-  assert.ok(typeof mod.resolveAgentIntent === "function");
+  assert.equal("resolveAgentIntent" in mod, false);
 });
 
 test("resolve-intent-step is still importable", async () => {

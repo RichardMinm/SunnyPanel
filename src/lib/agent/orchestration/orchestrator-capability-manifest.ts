@@ -1,7 +1,7 @@
 import {
   AGENT_INTENT_PARAMETER_HINTS,
   AGENT_INTENT_REQUIRED_FIELDS,
-} from "../function-tools";
+} from "./intent-parameter-contract";
 import { ROUTER_INTENT_NAMES, type RouterIntentName } from "../llm/schemas/router-output";
 import type { AgentPromptContext } from "../prompts";
 import { buildLLMToolCatalog } from "../tool-planner/build-tool-catalog";

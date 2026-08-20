@@ -216,8 +216,6 @@ test("full LangGraph adapter returns schedule clarification before dry-run", asy
         ...response,
         threadId: 930,
       }),
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "帮我排到日程",
       payload: {} as never,
       pendingAction: null,

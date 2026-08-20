@@ -345,8 +345,6 @@ test("full LangGraph adapter persists planning session patch for insufficient fi
     {
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "帮我计划 SunnyPanel 6月30日前上线",
       payload: {} as never,
       pendingAction: null,
@@ -440,8 +438,6 @@ test("full LangGraph adapter returns draftable response for planning follow-up w
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
       conversationState: planningSession as never,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message:
         "第一版要包含登录和 Agent 对话；当前登录已完成；每天能投入 2 小时；上线标准是内测可用。",
       payload: {} as never,

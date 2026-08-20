@@ -79,9 +79,7 @@ test("runResolveIntentStep carries resume queue after confirming a pending propo
     emitStatus: () => undefined,
     emitToken: () => undefined,
     emitUsage: () => undefined,
-    intentModelEngine: "workflow",
     message: "确认",
-    modelResolver: async () => null,
     pendingAction,
     persistAgentTurn: async () => ({ id: 42 } as AgentThread),
     pushTrace: (step) => trace.push(step),
@@ -113,9 +111,7 @@ test("cancelled proposals are persisted as control flow rather than executed int
     emitStatus: () => undefined,
     emitToken: () => undefined,
     emitUsage: () => undefined,
-    intentModelEngine: "workflow",
     message: "取消",
-    modelResolver: async () => null,
     pendingAction: { action, type: "await_confirmation" },
     persistAgentTurn: async (args) => {
       persisted.push({ intent: args.intent, nextPendingAction: args.nextPendingAction });
@@ -150,9 +146,7 @@ test("batch confirmations derive a unique receipt action id from their actions",
       emitStatus: () => undefined,
       emitToken: () => undefined,
       emitUsage: () => undefined,
-      intentModelEngine: "workflow",
       message: "确认",
-      modelResolver: async () => null,
       pendingAction: {
         actions,
         orchestrationId,
@@ -208,9 +202,7 @@ test("runResolveIntentStep reuses the pre-resolved answer without a second model
     emitStatus: () => undefined,
     emitToken: (value) => emitted.push(value),
     emitUsage: () => undefined,
-    intentModelEngine: "workflow",
     message: "给我参谋一下线性代数的学习",
-    modelResolver: async () => null,
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 42 } as AgentThread),
     preResolvedIntent: {
@@ -235,7 +227,7 @@ test("runResolveIntentStep reuses the pre-resolved answer without a second model
   assert.deepEqual(emitted, [contextualAnswer]);
 });
 
-test("runResolveIntentStep emits an arbitration trace before the final intent trace", async () => {
+test("runResolveIntentStep keeps retired heuristic requests on the controlled path", async () => {
   const trace: AgentTraceStep[] = [];
 
   const result = await runResolveIntentStep({
@@ -244,17 +236,7 @@ test("runResolveIntentStep emits an arbitration trace before the final intent tr
     emitStatus: () => undefined,
     emitToken: () => undefined,
     emitUsage: () => undefined,
-    intentModelEngine: "workflow",
     message: "请为我规划一个信息安全学习路径，偏蓝队",
-    modelResolver: async () => ({
-      intent: {
-        args: {
-          sourceText: "请为我规划一个信息安全学习路径，偏蓝队",
-        },
-        confidence: 0.8,
-        intent: "compose_plan",
-      },
-    }),
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 43 } as AgentThread),
     pushTrace: (step) => trace.push(step),
@@ -328,9 +310,7 @@ test("runResolveIntentStep enriches conversational answers with cognitive adviso
     emitStatus: () => undefined,
     emitToken: () => undefined,
     emitUsage: () => undefined,
-    intentModelEngine: "workflow",
     message: "SunnyPanel Agent 泛化问题怎么推进？",
-    modelResolver: async () => null,
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 44 } as AgentThread),
     pushTrace: (step) => trace.push(step),

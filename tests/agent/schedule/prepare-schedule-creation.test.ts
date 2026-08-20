@@ -453,8 +453,6 @@ test("LangGraph prepares ScheduleDraft creation through dry-run and does not exe
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
       conversationState: makeScheduleDraftSession() as never,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "就按这个日程草案创建日程",
       payload: {} as never,
       pendingAction: null,

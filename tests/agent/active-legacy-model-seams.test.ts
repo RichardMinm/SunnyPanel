@@ -56,6 +56,7 @@ test("retired generic agents, prompts, suggestion enhancer, and Tool Planner run
     "src/lib/agent/agents/query-agent.ts",
     "src/lib/agent/agents/review-agent.ts",
     "src/lib/agent/agents/schedule-agent.ts",
+    "src/lib/agent/capabilities/function-tools.ts",
     "src/lib/agent/prompts/content.ts",
     "src/lib/agent/prompts/memory.ts",
     "src/lib/agent/prompts/query.ts",
@@ -67,12 +68,42 @@ test("retired generic agents, prompts, suggestion enhancer, and Tool Planner run
     "src/lib/agent/tool-planner/langgraph-state.ts",
     "src/lib/agent/tool-planner/llm-tool-planner.ts",
     "src/lib/agent/tool-planner/shadow-graph.ts",
+    "src/lib/agent/function-tools.ts",
+    "src/lib/agent/intent/llm-unified.ts",
+    "src/lib/agent/plan/tool-plan.ts",
+    "src/lib/agent/react-loop.ts",
+    "src/lib/agent/router/capability-router.ts",
+    "src/lib/agent/router/follow-up-router-output.ts",
+    "src/lib/agent/router/llm-router-schema.ts",
+    "src/lib/agent/router/llm-router-to-agent-router.ts",
+    "src/lib/agent/router/map-llm-router-to-intent.ts",
+    "src/lib/agent/router/resolve-router-chain.ts",
+    "src/lib/agent/workflow/router.ts",
   ];
 
   assert.deepEqual(
     retiredPaths.filter((path) => existsSync(resolve(repositoryRoot, path))),
     [],
   );
+});
+
+test("the production chat pipeline has no direct intent-model or ReAct transport", () => {
+  const client = source("src/lib/agent/client.ts");
+  const runtimeDeps = source("src/lib/agent/chat-pipeline/runtime-deps.ts");
+  const handler = source("src/lib/agent/chat-pipeline/handle-agent-chat-post.ts");
+  const fullAdapter = source("src/lib/agent/langgraph/full-adapter.ts");
+  const manifest = source("src/lib/agent/orchestration/orchestrator-capability-manifest.ts");
+  const prompt = source("src/lib/agent/prompts.ts");
+  const activeSources = `${client}\n${runtimeDeps}\n${handler}\n${fullAdapter}`;
+
+  assert.doesNotMatch(
+    activeSources,
+    /generateIntentWithAgentModel|getAgentIntentModelEngine|runReactToolLoop|fetchWithRetry|\/chat\/completions/u,
+  );
+  assert.doesNotMatch(activeSources, /AGENT_REACT_LOOP|AGENT_FUNCTION_CALLING/u);
+  assert.match(manifest, /intent-parameter-contract/u);
+  assert.doesNotMatch(manifest, /function-tools/u);
+  assert.doesNotMatch(prompt, /AGENT_LLM_ROUTER_V2|Router JSON/u);
 });
 
 test("the retained Tool Planner facade exposes deterministic contracts only", () => {

@@ -1,4 +1,3 @@
-import type { LLMRouterAction, LLMRouterTarget } from "../router/llm-router-schema";
 import type { ChecklistDraft } from "../planning/checklist-draft";
 import type { PlanDraft } from "../planning/draft";
 import type { PlanReadiness, PlanSlots } from "../planning/readiness";
@@ -58,8 +57,12 @@ export type CurrentTarget = {
 };
 
 export type RouteHint = {
-  suggestedAction?: LLMRouterAction;
-  suggestedTarget?: LLMRouterTarget;
+  suggestedAction?:
+    | "cancel" | "capability" | "chat" | "clarify" | "create" | "delete"
+    | "expand_answer" | "explain" | "query" | "summarize" | "update";
+  suggestedTarget?:
+    | "agent" | "checklist" | "last_topic" | "memory" | "plan"
+    | "schedule" | "timeline" | "unknown" | "writing";
   contextualClues: string[];
   expectedIntents: string[];
   confidence: number;

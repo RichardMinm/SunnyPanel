@@ -1,13 +1,11 @@
 import type { Payload } from "payload";
 
 import type { StructuredConfirmation } from "@/lib/agent/chat-pipeline/confirmation-step";
-import type { generateIntentWithAgentModel } from "@/lib/agent/client";
 import type { AgentConversationState } from "@/lib/agent/conversation/types";
 import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
 import type {
   AgentChatMessage,
   AgentChatResponse,
-  AgentEngine,
   PendingAction,
 } from "@/lib/agent/schemas";
 import type { AgentPerformanceTimer } from "@/lib/agent/trace/perf-trace";
@@ -26,8 +24,6 @@ export type RunAgentChatPipelineDeps = {
   contextPreferences?: ContextPreferences | null;
   conversationState?: AgentConversationState | null;
   finalizeTurn?: AgentTurnFinalizer;
-  generateIntentWithAgentModel: typeof generateIntentWithAgentModel;
-  intentModelEngine: AgentEngine;
   message: string;
   modelCallRecorder?: ModelCallBudgetRecorder;
   payload: Payload;

@@ -9,7 +9,6 @@ import {
   createAgentChatResponse,
   createAgentChatStream,
 } from "@/lib/agent/chat-pipeline/stream-envelope";
-import { generateIntentWithAgentModel, getAgentIntentModelEngine } from "@/lib/agent/client";
 import { buildLangGraphFailureResponse } from "@/lib/agent/langgraph/failure-response";
 import { createRunProductionLangGraphAgentChatPipeline } from "@/lib/agent/langgraph/production-adapter";
 import { logAgentEvent } from "@/lib/agent/logger";
@@ -235,7 +234,6 @@ export const handleAgentChatPost = async (input: {
     );
   }
 
-  const intentModelEngine = await getAgentIntentModelEngine();
   const userPreferences = await getUserPreferences(user.id);
   const modelCallRecorder = createModelCallBudgetRecorder();
   const finalizeTurn = createAgentTurnFinalizer({
@@ -268,8 +266,6 @@ export const handleAgentChatPost = async (input: {
     contextPreferences,
     conversationState: conversationState as never,
     finalizeTurn,
-    generateIntentWithAgentModel,
-    intentModelEngine,
     message,
     modelCallRecorder,
     payload: payload as unknown as Payload,

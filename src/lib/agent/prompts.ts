@@ -2,7 +2,6 @@ import type { PendingAction } from "./schemas";
 import type { AgentContextBudget, AgentContextMode } from "./context-builder";
 import type { AgentPromptThreadSummary } from "./thread-summary";
 import type { AgentWorkbenchMode } from "./workbench-mode";
-import { isLLMRouterV2Enabled } from "./router/llm-router-schema";
 
 export type AgentPromptContext = {
   agentRuns?: Array<{
@@ -466,10 +465,4 @@ ${formatNarrativeGaps(context.narrativeGaps ?? [])}
 
 待处理上下文：
 ${formatPendingAction(context.pendingAction)}
-${formatWorkbenchModeHint(context.workbenchMode)}
-${isLLMRouterV2Enabled() ? `
-
-## Router JSON（AGENT_LLM_ROUTER_V2）
-当启用时，你也可以直接输出 router JSON（不要输出 execute_* 工具名）：
-{"router":{"action":"query|create|update|delete|cancel|summarize|explain|expand_answer|capability|clarify|chat","target":"plan|schedule|checklist|memory|timeline|writing|agent|last_topic|unknown","writeRequired":false,"requiresConfirmation":false,"riskLevel":"none|low|medium|high","confidence":0.9,"topic":"可选","slots":{"sourceText":"用户原话","title":"","date":"","entityName":""},"needsClarification":false,"userVisibleReason":"一句话说明"}}
-` : ""}`;
+${formatWorkbenchModeHint(context.workbenchMode)}`;

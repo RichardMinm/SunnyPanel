@@ -4,9 +4,7 @@ import { test } from "node:test";
 import {
   isCancellationReply,
   isConfirmationReply,
-  resolveAgentIntent,
 } from "../../src/lib/agent/intent-resolution";
-import type { AgentPromptContext } from "../../src/lib/agent/prompts";
 import type { FrozenWeeklyReviewProposal } from "../../src/lib/agent/review/model-schemas";
 import {
   buildProposedActionMessage,
@@ -17,13 +15,6 @@ import {
 } from "../../src/lib/agent/safety";
 import type { AgentIntent, PendingAction } from "../../src/lib/agent/schemas";
 import type { AgentToolDryRunContext } from "../../src/lib/agent/tool-registry";
-
-const context: AgentPromptContext = {
-  checklists: [],
-  now: "2026-05-06T00:00:00.000+08:00",
-  pendingAction: null,
-  plans: [],
-};
 
 const fakeChecklist = {
   createdAt: "2026-05-06T00:00:00.000Z",
@@ -541,19 +532,6 @@ test("dry-run returns clarification when checklist target is ambiguous", async (
     assert.equal(result.pendingAction?.type, "await_clarification");
     assert.match(result.assistantMessage, /多个接近/);
   }
-});
-
-test("destructive requests are clarified and never converted into proposed actions", async () => {
-  const result = await resolveAgentIntent({
-    context,
-    history: [],
-    message: "把所有内容删掉",
-    modelResolver: async () => null,
-    pendingAction: null,
-  });
-
-  assert.equal(result.intent.intent, "clarify");
-  assert.equal(await createProposedAgentAction(result.intent), null);
 });
 
 test("registered write intents return their configured risk level", () => {

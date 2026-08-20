@@ -237,11 +237,7 @@ describe("writing assist through Agent chat", () => {
       emitStatus: () => undefined,
       emitToken: (token) => tokens.push(token),
       emitUsage: () => undefined,
-      intentModelEngine: "workflow",
       message: "请润色：今天写得很散，但我还是想保留一点温度。",
-      modelResolver: async () => {
-        throw new Error("writing mode should not call the generic intent model");
-      },
       pendingAction: null,
       persistAgentTurn: async () => ({ id: 77 } as AgentThread),
       pushTrace: (step) => trace.push(step),
@@ -281,11 +277,7 @@ describe("writing assist through Agent chat", () => {
       emitStatus: () => undefined,
       emitToken: () => undefined,
       emitUsage: () => undefined,
-      intentModelEngine: "workflow",
       message: "帮我改写这段文字：原文",
-      modelResolver: async () => {
-        throw new Error("disabled writing mode should not call the generic intent model");
-      },
       pendingAction: null,
       persistAgentTurn: async () => ({ id: 78 } as AgentThread),
       pushTrace: (step) => trace.push(step),

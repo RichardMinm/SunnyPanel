@@ -1,7 +1,5 @@
 import type { PolicyGuardResult } from "../policy/tool-gate";
 import type { PolicyGuardOutput } from "../policy/guard";
-import type { ToolPlan } from "../plan/tool-plan";
-import type { LLMRouterOutput } from "../router/llm-router-schema";
 import type { AgentRouterOutput } from "../router/types";
 import { capabilityForLegacyIntent, executeCapabilityForPreview } from "../capabilities/adapters";
 import type { AgentWriteIntentName } from "../schemas";
@@ -14,7 +12,6 @@ export type AgentTurnTrace = {
   blockedCapabilities?: Array<{ name: string; reason: string }>;
   confirmationState: "approved" | "auto_approved" | "none" | "pending" | "rejected";
   dryRunResult?: AgentDryRunResult["type"];
-  llmRouterOutput?: LLMRouterOutput;
   plannedTools: string[];
   policyGuard?: PolicyGuardResult;
   policyGuardOutput?: PolicyGuardOutput;
@@ -23,7 +20,6 @@ export type AgentTurnTrace = {
   resolverResult?: Pick<TargetResolutionResult<unknown>, "status"> & { question?: null | string };
   riskLevel?: PolicyGuardOutput["riskLevel"];
   routerOutput?: AgentRouterOutput;
-  toolPlan?: ToolPlan;
   turnId?: string;
   writeRequired?: boolean;
 };
@@ -50,27 +46,16 @@ export const capabilityNameForIntent = (intent: AgentWriteIntentName, phase: "ex
 export const recordRouterTrace = (
   trace: AgentTurnTrace,
   routerOutput: AgentRouterOutput,
-  options?: { llmRouterOutput?: LLMRouterOutput; toolPlan?: ToolPlan },
 ): AgentTurnTrace => {
   const previewCapability = routerOutput.requiresWrite
     ? capabilityNameForIntent(routerOutput.intent.intent as AgentWriteIntentName, "preview")
     : null;
-  const plannedFromToolPlan = options?.toolPlan?.plannedCapabilities ?? [];
-
   return {
     ...trace,
-    llmRouterOutput: options?.llmRouterOutput,
-    plannedTools: plannedFromToolPlan.length > 0 ? plannedFromToolPlan : previewCapability ? [previewCapability] : [],
+    plannedTools: previewCapability ? [previewCapability] : [],
     routerOutput,
-    toolPlan: options?.toolPlan,
   };
 };
-
-export const recordToolPlanTrace = (trace: AgentTurnTrace, toolPlan: ToolPlan): AgentTurnTrace => ({
-  ...trace,
-  plannedTools: toolPlan.plannedCapabilities,
-  toolPlan,
-});
 
 export const recordPolicyTrace = (
   trace: AgentTurnTrace,

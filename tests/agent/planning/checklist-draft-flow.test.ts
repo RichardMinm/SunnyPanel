@@ -247,8 +247,6 @@ test("LangGraph ChecklistDraft generation returns before dry-run or execute", as
       baseTokenUsage: tokenUsage,
       contextPreferences: null,
       conversationState: makeDraftingSession() as never,
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "请把这个计划草案拆成清单草案",
       payload: {} as never,
       pendingAction: null,

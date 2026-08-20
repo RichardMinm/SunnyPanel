@@ -259,8 +259,6 @@ test("LangGraph revise_schedule_draft returns draft response without dry-run or 
           threadId: 8841,
         };
       },
-      generateIntentWithAgentModel: async () => null,
-      intentModelEngine: "heuristic",
       message: "把冲突的改到明天下午",
       payload: {} as never,
       pendingAction: makePendingAction(),

@@ -18,7 +18,6 @@ import {
   type StreamTokenCallback,
 } from "@/lib/agent/client";
 import type { ConfirmationSignals } from "@/lib/agent/chat-pipeline/confirmation-step";
-import type { AgentModelIntentResolver } from "@/lib/agent/intent-resolution";
 import {
   shouldTrustOrchestratorPreResolve,
   type OrchestratorPlanSource,
@@ -67,10 +66,8 @@ export type LegacyResolutionParams = {
   emitStatus: (status: string) => void;
   emitToken: StreamTokenCallback;
   emitUsage: (tokenUsage: AgentChatResponse["tokenUsage"]) => void;
-  intentModelEngine: AgentEngine;
   message: string;
   modelCallRecorder?: ModelCallBudgetRecorder;
-  modelResolver: AgentModelIntentResolver;
   orchestratorPlanSource?: null | OrchestratorPlanSource;
   orchestratorRuntime?: null | OrchestratorRuntimeMode;
   pendingAction: null | PendingAction;
@@ -159,10 +156,8 @@ export const resolveLegacyHeuristicStep = async (
     emitStatus,
     emitToken,
     emitUsage: _emitUsage,
-    intentModelEngine: _intentModelEngine,
     message,
     modelCallRecorder,
-    modelResolver: _modelResolver,
     orchestratorPlanSource,
     pendingAction: _pendingAction,
     preResolvedIntent,
