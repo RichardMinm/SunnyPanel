@@ -102,6 +102,8 @@ Representative paths:
 - `tests/agent/orchestration/orchestrator-output-mapper.test.ts`
 - `tests/agent/orchestration/resource-readiness-guard.test.ts`
 - `tests/agent/orchestration/query-scope-*.test.ts`
+- `tests/agent/orchestration/safe-execution-failure.test.ts`
+- `tests/agent/orchestration/native-execution-error-boundary.test.ts`
 - `tests/agent/planning/planning-specialist-model-seam.test.ts`
 - `tests/agent/memory-learning-model-seam.test.ts`
 - `tests/agent/memory-embedding-boundary.test.ts`
@@ -113,6 +115,10 @@ Required invariants:
 - Capability metadata does not expose execute functions.
 - Query scope and resource provenance are deterministic.
 - Invalid schema, DAG, intent, or resource output fails closed.
+- Raw runtime, task, rollback, database, path, and credential errors never enter
+  assistant text, observations, client-visible trace, serialized responses, or
+  Provider replan messages; those boundaries use one phase-only typed safe
+  failure projection.
 - Planning and Checklist draft specialists use the shared structured boundary,
   retain their assigned intent, and reject execution or persistence fields.
 - Learning extraction uses the shared strict structured boundary, treats turn

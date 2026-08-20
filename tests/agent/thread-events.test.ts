@@ -293,6 +293,17 @@ test("projection failure preserves events and appends a projection_failed event"
     ),
     true,
   );
+  const projectionFailure = events.find(
+    (event) => event.eventType === "projection_failed",
+  );
+  const projectionFailurePayload = projectionFailure?.payload as
+    | { error?: string }
+    | undefined;
+  assert.equal(
+    projectionFailurePayload?.error,
+    "projection_failed: 业务结果整理未完成，原执行结果已保留。",
+  );
+  assert.doesNotMatch(JSON.stringify(projectionFailure), /database unavailable/u);
   const state = await hydrateAgentThreadState({
     store,
     threadId: 42,

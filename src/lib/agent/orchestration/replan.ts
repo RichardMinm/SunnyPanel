@@ -7,6 +7,10 @@ import {
 } from "./orchestrator-dispatcher";
 import type { OrchestratorFailureReason } from "./langchain-orchestrator";
 import type { ModelCallBudgetRecorder } from "./model-call-budget";
+import {
+  coerceSafeReplanReason,
+  getSafeExecutionFailure,
+} from "./safe-execution-failure";
 import type { AgentTaskObservation, ExecutionQueueState, OrchestratorPlan, TaskNode } from "./types";
 
 export type { OrchestratorService } from "./orchestrator-dispatcher";
@@ -43,6 +47,43 @@ const FAILURE_TYPE_LABELS: Record<ReplanInput["failureType"], string> = {
   parse_error: "解析错误",
   timeout: "执行超时",
   tool_error: "工具执行错误",
+};
+
+const getSafeReplanFailureReason = (input: ReplanInput): string => {
+  if (input.failureType === "tool_error") {
+    const failedObservation = input.observations?.find(
+      (observation) =>
+        observation.taskId === input.failedTask.id && observation.status === "failed",
+    );
+    return failedObservation?.errorCode
+      ? getSafeExecutionFailure(failedObservation.errorCode).safeReplanReason
+      : coerceSafeReplanReason(input.failureReason);
+  }
+
+  const reasons: Record<Exclude<ReplanInput["failureType"], "tool_error">, string> = {
+    dependency_failure: "dependency_failure: 子任务依赖未满足，未继续执行。",
+    missing_info: "missing_info: 执行所需信息不足，需要补充后继续。",
+    parse_error: "parse_error: 子任务无法安全解析，未执行后续操作。",
+    timeout: "timeout: 子任务未在限定时间内完成，当前状态已保留。",
+  };
+
+  return reasons[input.failureType];
+};
+
+const projectObservationForReplan = (
+  observation: AgentTaskObservation,
+): AgentTaskObservation => {
+  if (observation.status !== "failed") {
+    return observation;
+  }
+
+  const failure = getSafeExecutionFailure(observation.errorCode);
+  return {
+    ...observation,
+    error: failure.safeReplanReason,
+    errorCode: failure.code,
+    message: failure.safeObservationMessage,
+  };
 };
 
 const formatQueueState = (state?: ExecutionQueueState) => {
@@ -83,7 +124,7 @@ const formatProposals = (proposals?: ProposedAgentAction[]) => {
 
 export const buildReplanExecutionSnapshot = (input: ReplanInput) => {
   const observations = input.observations?.length
-    ? formatTaskObservations(input.observations)
+    ? formatTaskObservations(input.observations.map(projectObservationForReplan))
     : "暂无执行观察。";
 
   return [
@@ -128,6 +169,7 @@ export const decideReplanStrategy = (input: ReplanInput): ReplanStrategy => {
 const replanLocal = (input: ReplanInput): OrchestratorPlan => {
   const tasks = [...input.originalPlan.tasks];
   const failedIndex = tasks.findIndex((t) => t.id === input.failedTask.id);
+  const failureReason = getSafeReplanFailureReason(input);
 
   if (failedIndex === -1) {
     return input.originalPlan;
@@ -137,14 +179,14 @@ const replanLocal = (input: ReplanInput): OrchestratorPlan => {
     ...input.originalPlan.tasks[failedIndex],
     args: {
       ...input.originalPlan.tasks[failedIndex].args,
-      _errorContext: input.failureReason.slice(0, 500),
+      _errorContext: failureReason,
       _replanAttempt: true,
     },
   };
 
   return {
     mode: input.originalPlan.mode,
-    reasoning: `局部重试「${input.failedTask.label}」：${input.failureReason.slice(0, 80)}`,
+    reasoning: `局部重试「${input.failedTask.label}」：${failureReason.slice(0, 80)}`,
     tasks,
   };
 };
@@ -152,6 +194,7 @@ const replanLocal = (input: ReplanInput): OrchestratorPlan => {
 export const buildIncrementalReplanMessage = (input: ReplanInput) => {
   const failedLabel = input.failedTask.label;
   const failureLabel = FAILURE_TYPE_LABELS[input.failureType];
+  const failureReason = getSafeReplanFailureReason(input);
   const completedLabels = input.originalPlan.tasks
     .slice(0, input.failedTaskIndex)
     .map((t) => t.label);
@@ -160,7 +203,7 @@ export const buildIncrementalReplanMessage = (input: ReplanInput) => {
     `原始用户请求：${input.message}`,
     `原计划：${input.originalPlan.reasoning}`,
     `失败类型：${failureLabel}`,
-    `失败子任务「${failedLabel}」失败原因：${input.failureReason}`,
+    `失败子任务「${failedLabel}」失败原因：${failureReason}`,
     buildReplanExecutionSnapshot(input),
     input.strategyNote ? `策略约束：${input.strategyNote}` : null,
     completedLabels.length > 0
@@ -234,10 +277,11 @@ const replanGlobal = async (
     input.originalPlan.tasks.slice(0, input.failedTaskIndex).map((t) => t.id),
   );
   const failureLabel = FAILURE_TYPE_LABELS[input.failureType];
+  const failureReason = getSafeReplanFailureReason(input);
 
   const replanMessage = [
     `原始用户请求：${input.message}`,
-    `原计划在执行中遇到问题：${input.failureReason}`,
+    `原计划在执行中遇到问题：${failureReason}`,
     `失败类型：${failureLabel}`,
     `失败发生在「${input.failedTask.label}」`,
     buildReplanExecutionSnapshot(input),

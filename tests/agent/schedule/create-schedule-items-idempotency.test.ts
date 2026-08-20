@@ -135,6 +135,7 @@ test("partial failure deletes already created schedule items", async () => {
   assert.equal(result.compensationStatus, "completed");
   assert.deepEqual(result.createdScheduleItemIds, [1101]);
   assert.match(result.assistantMessage, /已回滚|已删除|补偿/);
+  assert.doesNotMatch(result.assistantMessage, /second item failed/);
   assert.deepEqual(
     getPayloadStubOperations()
       .filter((operation) => operation.type === "delete")
@@ -172,6 +173,7 @@ test("partial failure reports indeterminate state when compensation deletion fai
   assert.equal(result.compensationStatus, "failed");
   assert.deepEqual(result.createdScheduleItemIds, [1201]);
   assert.match(result.assistantMessage, /部分|未能完成补偿|需要人工检查/);
+  assert.doesNotMatch(result.assistantMessage, /second item failed|delete failed/);
   assert.deepEqual(result.rollbackPayload, {
     strategy: "delete_created_documents",
     target: {

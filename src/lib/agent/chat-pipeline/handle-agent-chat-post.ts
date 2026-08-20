@@ -335,7 +335,7 @@ export const handleAgentChatPost = async (input: {
           coordinatorEnabled: isSessionCoordinatorEnabled(),
         });
         logAgentEvent("error", "chat.runtime_failure", {
-          error: error instanceof Error ? error.message : String(error),
+          errorCode: "runtime_failed",
           threadId: thread.id,
           userId: user.id,
           perfRequestId: perfTrace.requestId,
@@ -343,7 +343,7 @@ export const handleAgentChatPost = async (input: {
         });
       } else {
         logAgentEvent("error", "chat.runtime_failure", {
-          error: error instanceof Error ? error.message : String(error),
+          errorCode: "runtime_failed",
           threadId: thread.id,
           userId: user.id,
         });
@@ -377,9 +377,9 @@ export const handleAgentChatPost = async (input: {
 
   try {
     return createAgentChatResponse(await runPipeline(), false);
-  } catch (error) {
+  } catch {
     logAgentEvent("error", "chat.pipeline_error", {
-      error: error instanceof Error ? error.message : String(error),
+      errorCode: "runtime_failed",
       threadId: thread.id,
       userId: user.id,
     });

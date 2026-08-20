@@ -26,6 +26,7 @@ import type {
 } from "@/lib/agent/schemas";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
 import type { ExecutionGraphResult } from "@/lib/agent/orchestration/types";
+import { projectSafeExecutionFailure } from "@/lib/agent/orchestration/safe-execution-failure";
 
 export type FullGraphResponseOutcome = {
   response: AgentChatResponse;
@@ -192,8 +193,10 @@ const routeResponse = (state: FullSunnyAgentGraphState) =>
   state.response?.pendingAction ? "await_user" : "finalize";
 
 const toFailureUpdate = (error: unknown) => {
-  const msg = error instanceof Error ? error.message : String(error);
-  return { failureMessage: msg };
+  void error;
+  return {
+    failureMessage: projectSafeExecutionFailure("runtime").safeReplanReason,
+  };
 };
 
 export const compileFullSunnyAgentGraph = (

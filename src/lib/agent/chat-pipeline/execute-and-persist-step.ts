@@ -24,6 +24,7 @@ import type { AgentStreamController } from "@/lib/agent/stream-events";
 import { resolveCreatedPlanConversationState } from "@/lib/agent/planning/created-plan-lifecycle";
 import type { AgentTraceRecorder } from "@/lib/agent/trace";
 import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
+import { buildSafeExecutionTraceError } from "@/lib/agent/orchestration/safe-execution-failure";
 
 export type ExecuteAndPersistStepParams = {
   batchExecuteIntents?: AgentIntent[];
@@ -108,10 +109,6 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   } = params;
 
   let tokenUsage = tokenUsageIn;
-  const errorSummaryForTrace = (error: unknown) => ({
-    message: error instanceof Error ? error.message : String(error),
-    ...(error instanceof Error && error.name ? { name: error.name } : {}),
-  });
 
   // #region agent log
   if (process.env.AGENT_DEBUG_LOG) {
@@ -522,7 +519,7 @@ export const runExecuteAndPersistStep = async (params: ExecuteAndPersistStepPara
   } catch (error) {
     if (shouldTraceWriteExecution) {
       const latencyMs = Date.now() - executeStartedAt;
-      const errorSummary = errorSummaryForTrace(error);
+      const errorSummary = buildSafeExecutionTraceError("execute");
       recordBackendTrace?.({
         actionId: confirmedActionId ?? undefined,
         error: errorSummary,

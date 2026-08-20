@@ -84,6 +84,11 @@ import {
   projectConfirmedOrchestrationToPlan,
 } from "@/lib/agent/orchestration/projection";
 import { replanAfterTaskFailure } from "@/lib/agent/orchestration/replan";
+import {
+  buildSafeExecutionTraceError,
+  getSafeExecutionFailure,
+  projectSafeExecutionFailure,
+} from "@/lib/agent/orchestration/safe-execution-failure";
 import { buildToolFailureRepairPlan } from "@/lib/agent/orchestration/tool-failure-repair";
 import type {
   AgentChatResponse,
@@ -374,12 +379,16 @@ export const createRunFullLangGraphAgentChatPipeline = (
             plan,
             result,
           });
-        } catch (error) {
+        } catch {
+          const failure = projectSafeExecutionFailure("projection");
+          recordBackendTrace({
+            error: buildSafeExecutionTraceError("projection"),
+            phase: "error",
+            status: "failed",
+            title: "编排业务投影失败",
+          });
           pushTrace({
-            detail:
-              error instanceof Error
-                ? error.message
-                : String(error),
+            detail: `${failure.code} · ${failure.safeObservationMessage}`,
             id: `orchestration-projection-${turnId}`,
             kind: "error",
             status: "error",
@@ -504,13 +513,17 @@ export const createRunFullLangGraphAgentChatPipeline = (
             messages.push(
               `↩ 已补偿「${outcome.observation.label}」。`,
             );
-          } catch (error) {
+          } catch {
+            const failure = projectSafeExecutionFailure("rollback");
+            recordBackendTrace({
+              actionId,
+              error: buildSafeExecutionTraceError("rollback"),
+              phase: "rollback",
+              status: "failed",
+              title: "补偿状态无法确认",
+            });
             messages.push(
-              `⚠️「${outcome.observation.label}」补偿状态不确定：${
-                error instanceof Error
-                  ? error.message
-                  : String(error)
-              }`,
+              `⚠️「${outcome.observation.label}」：${failure.safeUserMessage}`,
             );
 
             return { indeterminate: true, messages };
@@ -544,10 +557,11 @@ export const createRunFullLangGraphAgentChatPipeline = (
 
         return (
           buildToolFailureRepairPlan({
+            failureCode: failedObservation.errorCode,
             failedTask,
-            failureReason:
-              failedObservation.error ??
-              failedObservation.message,
+            failureReason: getSafeExecutionFailure(
+              failedObservation.errorCode,
+            ).safeReplanReason,
             message: state.input?.message ?? message,
           })?.plan ?? null
         );
@@ -577,9 +591,9 @@ export const createRunFullLangGraphAgentChatPipeline = (
             failedTaskIndex >= 0
               ? failedTaskIndex
               : state.plan.tasks.length - 1,
-          failureReason:
-            failedObservation.error ??
-            failedObservation.message,
+          failureReason: getSafeExecutionFailure(
+            failedObservation.errorCode,
+          ).safeReplanReason,
           failureType: "tool_error",
           message: state.input?.message ?? message,
           observations: state.outcomes.map(
@@ -931,10 +945,7 @@ export const createRunFullLangGraphAgentChatPipeline = (
           });
         } catch (error) {
           recordBackendTrace({
-            error: {
-              message: error instanceof Error ? error.message : String(error),
-              ...(error instanceof Error && error.name ? { name: error.name } : {}),
-            },
+            error: buildSafeExecutionTraceError("runtime"),
             latencyMs: Date.now() - routerStartedAt,
             phase: "router",
             status: "failed",
@@ -1663,12 +1674,16 @@ export const createRunFullLangGraphAgentChatPipeline = (
             payload,
             pendingAction: graphInput.pendingAction,
           });
-        } catch (error) {
+        } catch {
+          const failure = projectSafeExecutionFailure("projection");
+          recordBackendTrace({
+            error: buildSafeExecutionTraceError("projection"),
+            phase: "error",
+            status: "failed",
+            title: "确认后的编排投影失败",
+          });
           pushTrace({
-            detail:
-              error instanceof Error
-                ? error.message
-                : String(error),
+            detail: `${failure.code} · ${failure.safeObservationMessage}`,
             id: `orchestration-confirmed-projection-${graphInput.turnId}`,
             kind: "error",
             status: "error",

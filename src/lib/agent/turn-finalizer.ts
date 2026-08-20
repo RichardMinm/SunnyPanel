@@ -26,6 +26,7 @@ import {
   ModelCallAuthorizationError,
   type ModelCallBudgetRecorder,
 } from "@/lib/agent/orchestration/model-call-budget";
+import { projectSafeExecutionFailure } from "@/lib/agent/orchestration/safe-execution-failure";
 
 type LearningInput = Parameters<typeof runAgentLearningLoop>[0];
 
@@ -176,6 +177,7 @@ export const createAgentTurnFinalizer = ({
       workbenchMode: workbenchMode ?? undefined,
     };
     const learningTrace: AgentTraceStep[] = [];
+    const runtimeFailure = projectSafeExecutionFailure("runtime");
     const pushLearningTrace = (step: AgentTraceStep) => {
       const index = learningTrace.findIndex(
         (existingStep) => existingStep.id === step.id,
@@ -202,10 +204,7 @@ export const createAgentTurnFinalizer = ({
         eventType: failure ? "turn_failed" : "assistant_completed",
         payload: failure
           ? {
-              error:
-                failure instanceof Error
-                  ? failure.message
-                  : String(failure),
+              error: runtimeFailure.safeReplanReason,
               pendingAfter: completedResponse.pendingAction,
               ...(projectFailureAssistantMessage === false
                 ? { projectAssistantMessage: false }
@@ -284,9 +283,10 @@ export const createAgentTurnFinalizer = ({
     if (!failure && completedResponse.pendingAction === null && suggestionSource) {
       try {
         await markSuggestionDone(suggestionSource.suggestionId);
-      } catch (error) {
+      } catch {
+        const syncFailure = projectSafeExecutionFailure("projection");
         pushTrace({
-          detail: error instanceof Error ? error.message : String(error),
+          detail: `${syncFailure.code} · ${syncFailure.safeObservationMessage}`,
           id: "turn-suggestion-done-failure",
           kind: "error",
           status: "error",

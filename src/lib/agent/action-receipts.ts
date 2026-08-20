@@ -1,6 +1,7 @@
 import type {
   AgentIntent,
 } from "@/lib/agent/schemas";
+import { projectSafeExecutionFailure } from "@/lib/agent/orchestration/safe-execution-failure";
 
 export type AgentActionReceiptClaim =
   | {
@@ -213,11 +214,13 @@ export const createPayloadActionReceiptStore = (
     });
   },
   markIndeterminate: async (receiptId, error) => {
+    void error;
+    const failure = projectSafeExecutionFailure("runtime");
     await payload.update({
       collection: "agent-action-receipts",
       data: {
         completedAt: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error),
+        error: failure.safeReplanReason,
         status: "indeterminate",
       },
       id: receiptId,

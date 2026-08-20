@@ -9,6 +9,7 @@ import {
   ModelCallAuthorizationError,
   type ModelCallBudgetRecorder,
 } from "@/lib/agent/orchestration/model-call-budget";
+import { buildSafeExecutionTraceError } from "@/lib/agent/orchestration/safe-execution-failure";
 import { recordDryRunTrace, recordPolicyGuardOutputTrace, recordPolicyTrace, recordResolverTrace, recordToolPlanTrace } from "@/lib/agent/trace/agent-turn-trace";
 import type { AgentTraceRecorder } from "@/lib/agent/trace";
 import { resolveDeleteTarget, resolveModifyTarget } from "@/lib/agent/resolver/target-resolver";
@@ -103,10 +104,6 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
   } = params;
 
   let tokenUsage = tokenUsageIn;
-  const errorSummaryForTrace = (error: unknown) => ({
-    message: error instanceof Error ? error.message : String(error),
-    ...(error instanceof Error && error.name ? { name: error.name } : {}),
-  });
   const persistDryRunTurn = (args: {
     assistantMessage: string;
     confidence?: number;
@@ -528,7 +525,7 @@ export const runDryRunAndProposeStep = async (params: DryRunAndProposeStepParams
           return result;
         } catch (error) {
           const latencyMs = Date.now() - dryRunStartedAt;
-          const errorSummary = errorSummaryForTrace(error);
+          const errorSummary = buildSafeExecutionTraceError("prepare");
 
           recordBackendTrace?.({
             error: errorSummary,

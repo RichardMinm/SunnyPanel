@@ -8,6 +8,10 @@ import type {
   TaskNode,
   TaskObservationStatus,
 } from "./types";
+import {
+  getSafeExecutionFailure,
+  type SafeExecutionFailureCode,
+} from "./safe-execution-failure";
 
 const statusLabelMap: Record<TaskObservationStatus, string> = {
   answered: "已回答",
@@ -78,11 +82,15 @@ export const buildTaskObservation = (
     action?: ProposedAgentAction;
     affectedDocuments?: AgentTaskObservation["affectedDocuments"];
     error?: string;
+    errorCode?: SafeExecutionFailureCode;
     message: string;
     rollbackPayload?: unknown;
     status: TaskObservationStatus;
   },
 ): AgentTaskObservation => {
+  const failure = input.status === "failed"
+    ? getSafeExecutionFailure(input.errorCode)
+    : null;
   const affectedDocuments =
     input.affectedDocuments ??
     (input.rollbackPayload ? deriveAffectedDocumentsFromRollbackPayload(input.rollbackPayload) : []);
@@ -98,10 +106,14 @@ export const buildTaskObservation = (
     ...(affectedDocuments.length > 0 ? { affectedDocuments } : {}),
     agentRole: task.agentRole,
     ...(collections.length > 0 ? { collections } : {}),
-    ...(input.error ? { error: input.error } : {}),
+    ...(failure
+      ? { error: failure.safeReplanReason, errorCode: failure.code }
+      : input.error
+        ? { error: input.error }
+        : {}),
     intent: task.intent,
     label: task.label,
-    message: input.message,
+    message: failure?.safeObservationMessage ?? input.message,
     ...(input.action ? { riskLevel: input.action.riskLevel } : {}),
     ...(affectedDocuments.length > 0 ? { rollbackAvailable: true } : {}),
     status: input.status,
@@ -110,6 +122,9 @@ export const buildTaskObservation = (
 };
 
 export const formatTaskObservation = (observation: AgentTaskObservation): string => {
+  const failure = observation.status === "failed"
+    ? getSafeExecutionFailure(observation.errorCode)
+    : null;
   const collections = observation.collections?.length ? ` · ${observation.collections.join(",")}` : "";
   const risk = observation.riskLevel ? ` · ${observation.riskLevel}` : "";
   const affected = observation.affectedDocuments?.length
@@ -117,9 +132,13 @@ export const formatTaskObservation = (observation: AgentTaskObservation): string
         .map((document) => `${document.collection}#${document.documentId ?? "?"} ${document.operation}`)
         .join("；")}`
     : "";
-  const error = observation.error ? ` · ${observation.error}` : "";
+  const error = failure
+    ? ` · ${failure.safeReplanReason}`
+    : observation.error
+      ? ` · ${observation.error}`
+      : "";
 
-  return `${statusLabelMap[observation.status]}「${observation.label}」${collections}${risk}${affected}：${observation.message}${error}`;
+  return `${statusLabelMap[observation.status]}「${observation.label}」${collections}${risk}${affected}：${failure?.safeObservationMessage ?? observation.message}${error}`;
 };
 
 export const formatTaskObservations = (observations: AgentTaskObservation[]): string =>
@@ -221,7 +240,9 @@ export const decideNextActionFromObservations = (
 
   return {
     failedTaskId: blockingObservation.taskId,
-    reason: blockingObservation.error ?? blockingObservation.message,
+    reason: getSafeExecutionFailure(
+      blockingObservation.errorCode,
+    ).safeReplanReason,
     type: "replan",
   };
 };

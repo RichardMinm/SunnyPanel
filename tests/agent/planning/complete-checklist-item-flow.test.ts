@@ -188,11 +188,13 @@ test("missing checklist clarifies and does not write", async () => {
   const result = await executeAgentIntent(completionIntent, undefined, { userId: 1 });
 
   assert.match(result.assistantMessage, /没找到/);
+  assert.equal(result.errorCode, undefined);
+  assert.equal(result.pendingAction?.type, "await_clarification");
   assert.equal(operationsByType("update").length, 0);
   assert.equal(operationsByType("create").length, 0);
 });
 
-test("missing item clarifies and does not write", async () => {
+test("missing item returns a typed repair signal and does not write", async () => {
   setupCompletionPayload();
 
   const result = await executeAgentIntent(
@@ -208,6 +210,8 @@ test("missing item clarifies and does not write", async () => {
   );
 
   assert.match(result.assistantMessage, /没找到/);
+  assert.equal(result.status, "failed");
+  assert.equal(result.errorCode, "checklist_item_not_found");
   assert.equal(operationsByType("update").length, 0);
   assert.equal(operationsByType("create").length, 0);
 });

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   AgentActionReceiptBlockedError,
   buildAgentActionReceiptKey,
+  createPayloadActionReceiptStore,
   runIdempotentAgentAction,
   type AgentActionReceiptStore,
 } from "../../src/lib/agent/action-receipts";
@@ -145,4 +146,27 @@ test("failed execution marks the receipt indeterminate", async () => {
     /write failed/,
   );
   assert.equal(marked, true);
+});
+
+test("payload receipt persists only a typed safe failure reason", async () => {
+  let updateData: Record<string, unknown> | undefined;
+  const store = createPayloadActionReceiptStore({
+    create: async () => ({ id: 1 }),
+    find: async () => ({ docs: [] }),
+    update: async (input) => {
+      updateData = input.data;
+      return { id: input.id, ...input.data };
+    },
+  });
+
+  await store.markIndeterminate(
+    9,
+    new Error("postgres://user:password@10.0.0.1/private?token=secret"),
+  );
+
+  assert.equal(
+    updateData?.error,
+    "runtime_failed: Agent 运行未完成，会话状态已保留。",
+  );
+  assert.doesNotMatch(JSON.stringify(updateData), /postgres|password|10\.0\.0\.1|secret/u);
 });

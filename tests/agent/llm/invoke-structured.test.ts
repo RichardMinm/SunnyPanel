@@ -931,7 +931,9 @@ describe("invokeStructured (L1-A contract)", () => {
     it("config error is NOT retried", async () => {
       /* Factory throws on construction — no retry possible */
       const factory: ModelFactory = () => {
-        throw new Error("Cannot create model");
+        throw new Error(
+          "Cannot create model for postgres://agent:password@10.0.0.1?token=secret",
+        );
       };
       const result = await invokeStructured({
         schema: testSchema,
@@ -946,6 +948,10 @@ describe("invokeStructured (L1-A contract)", () => {
       if (!result.ok) {
         assert.equal(result.error.code, "MODEL_NOT_CONFIGURED");
         assert.equal(result.error.retryable, false);
+        assert.doesNotMatch(
+          result.error.safeMessage,
+          /postgres|password|10\.0\.0\.1|token|secret/u,
+        );
       }
     });
   });

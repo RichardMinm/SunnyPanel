@@ -102,7 +102,8 @@ test("transactional batch rolls back completed executable actions in reverse ord
   assert.equal(result.status, "failed");
   assert.equal(result.pendingAction, null);
   assert.match(result.assistantMessage, /批量执行在第 3\/3 步失败/);
-  assert.match(result.assistantMessage, /第三步写入失败/);
+  assert.doesNotMatch(result.assistantMessage, /第三步写入失败/);
+  assert.match(result.assistantMessage, /当前状态已保留/);
   assert.match(result.assistantMessage, /已自动回滚 2 项/);
   assert.match(result.assistantMessage, /timeline-events#202/);
   assert.match(result.assistantMessage, /plans#101/);

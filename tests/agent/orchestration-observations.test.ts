@@ -14,6 +14,7 @@ import type { AgentPromptContext } from "../../src/lib/agent/prompts";
 import { parsePendingAction } from "../../src/lib/agent/schemas";
 import type { ProposedAgentAction } from "../../src/lib/agent/schemas";
 import type { ReplanInput } from "../../src/lib/agent/orchestration/replan";
+import { SafeExecutionError } from "../../src/lib/agent/orchestration/safe-execution-failure";
 import type { OrchestratorPlan, TaskNode } from "../../src/lib/agent/orchestration/types";
 
 const sampleTask = (overrides: Partial<TaskNode> = {}): TaskNode => ({
@@ -135,7 +136,7 @@ test("decideNextActionFromObservations replans before confirming stale proposals
 
   assert.deepEqual(decision, {
     failedTaskId: "task-failed",
-    reason: "resolver offline",
+    reason: "task_execute_failed: 子任务执行未完成，已保留当前状态。",
     type: "replan",
   });
 });
@@ -612,7 +613,7 @@ test("executeOrchestrationGraph prefers semantic repair over generic replan for 
         },
       }),
       resolveChecklistItem: async () => {
-        throw new Error("找不到清单项：矩阵习题");
+        throw new SafeExecutionError("checklist_item_not_found");
       },
     },
     {

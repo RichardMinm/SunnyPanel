@@ -1,6 +1,7 @@
 import type { AgentPromptContext } from "../prompts";
 import type { PendingAction, ProposedAgentAction } from "../schemas";
 import type { AgentExecutionEvaluation, AgentTaskObservation, ExecutionQueueState } from "./types";
+import { getSafeExecutionFailure } from "./safe-execution-failure";
 import { applyExecutionStrategy, selectExecutionStrategy } from "./strategy";
 
 export type ExecutionEvaluationInput = {
@@ -69,8 +70,8 @@ export const buildExecutionEvaluation = (input: ExecutionEvaluationInput): Agent
       deferredTaskIds: input.queueState.deferredTaskIds,
       failedTaskId: blocking.taskId,
       nextStep: "根据失败原因和执行观察重规划剩余任务。",
-      reason: blocking.error ?? blocking.message,
-      summary: `需要重规划「${blocking.label}」：${blocking.error ?? blocking.message}`,
+      reason: getSafeExecutionFailure(blocking.errorCode).safeReplanReason,
+      summary: `需要重规划「${blocking.label}」：${getSafeExecutionFailure(blocking.errorCode).safeObservationMessage}`,
     });
   }
 
@@ -111,8 +112,8 @@ export const buildExecutionEvaluation = (input: ExecutionEvaluationInput): Agent
       deferredTaskIds: input.queueState.deferredTaskIds,
       failedTaskId: blocking.taskId,
       nextStep: "向用户说明失败原因，并等待用户提供更明确的信息或手动处理。",
-      reason: blocking.error ?? blocking.message,
-      summary: `需要用户处理「${blocking.label}」：${blocking.error ?? blocking.message}`,
+      reason: getSafeExecutionFailure(blocking.errorCode).safeReplanReason,
+      summary: `需要用户处理「${blocking.label}」：${getSafeExecutionFailure(blocking.errorCode).safeObservationMessage}`,
     });
   }
 

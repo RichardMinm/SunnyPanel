@@ -96,7 +96,11 @@ test("appendAgentTraceEvent keeps the main flow non-blocking when persistence fa
   assert.equal(result.writeFailed, true);
   assert.equal(collector.length, 1);
   assert.equal((collector[0].inputPreview as Record<string, unknown>).token, "[redacted]");
-  assert.match(result.errorMessage ?? "", /trace store unavailable/u);
+  assert.equal(
+    result.errorMessage,
+    "trace_write_failed: 追踪记录未能保存。",
+  );
+  assert.doesNotMatch(result.errorMessage ?? "", /trace store unavailable/u);
 });
 
 test("backend trace events map to developer activity steps", () => {

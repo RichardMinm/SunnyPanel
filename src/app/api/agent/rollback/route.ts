@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 
 import { executeTrustedRollbackRequest } from "@/lib/agent/rollback-request";
 import {
+  buildSafeExecutionTraceError,
+  projectSafeExecutionFailure,
+} from "@/lib/agent/orchestration/safe-execution-failure";
+import {
   appendAgentTraceEvent,
   type AgentTraceEventInput,
   type AgentTraceEventPayload,
@@ -79,12 +83,10 @@ export async function POST(request: Request) {
       result: rollback.result,
       sourceRunId: rollback.sourceRunId,
     });
-  } catch (error) {
+  } catch {
+    const failure = projectSafeExecutionFailure("rollback");
     recordBackendTrace({
-      error: {
-        message: error instanceof Error ? error.message : "回滚失败",
-        ...(error instanceof Error && error.name ? { name: error.name } : {}),
-      },
+      error: buildSafeExecutionTraceError("rollback"),
       phase: "rollback",
       status: "failed",
       title: "rollback 执行失败",
@@ -94,7 +96,8 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         backendTraceEvents,
-        message: error instanceof Error ? error.message : "回滚失败",
+        errorCode: failure.code,
+        message: failure.safeUserMessage,
       },
       { status: 400 },
     );

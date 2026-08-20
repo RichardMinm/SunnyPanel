@@ -41,6 +41,12 @@ import type {
   TaskNode,
 } from "@/lib/agent/orchestration/types";
 import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
+import {
+  classifySafeExecutionFailure,
+  getSafeExecutionFailure,
+  projectSafeExecutionFailure,
+  type SafeExecutionFailure,
+} from "@/lib/agent/orchestration/safe-execution-failure";
 
 type NativePreparedPayload =
   | {
@@ -57,7 +63,7 @@ type NativePreparedPayload =
     }
   | {
       busMessages: AgentBusMessage[];
-      error: string;
+      failure: SafeExecutionFailure;
       type: "failed";
     }
   | {
@@ -453,13 +459,10 @@ export const createNativeOrchestrationTaskExecutor = (
           isWrite: false,
           type: "execute",
         });
-      } catch (error) {
+      } catch {
         return toPreparedTask(task, "read", {
           busMessages,
-          error:
-            error instanceof Error
-              ? error.message
-              : String(error),
+          failure: projectSafeExecutionFailure("prepare"),
           type: "failed",
         });
       }
@@ -476,10 +479,11 @@ export const createNativeOrchestrationTaskExecutor = (
       if (payload.type === "failed") {
         return {
           ...base,
-          assistantMessage: `❌「${task.label}」执行失败：${payload.error}`,
+          assistantMessage: `「${task.label}」：${payload.failure.safeUserMessage}`,
           observation: buildTaskObservation(task, {
-            error: payload.error,
-            message: "执行失败，等待重规划或用户处理。",
+            error: payload.failure.safeReplanReason,
+            errorCode: payload.failure.code,
+            message: payload.failure.safeObservationMessage,
             status: "failed",
           }),
         };
@@ -551,6 +555,24 @@ export const createNativeOrchestrationTaskExecutor = (
           : await executeIntent(payload.intent);
         const message = executed.assistantMessage;
 
+        if (executed.status === "failed") {
+          const failure = getSafeExecutionFailure(executed.errorCode);
+
+          return {
+            ...base,
+            assistantMessage: message || failure.safeUserMessage,
+            observation: buildTaskObservation(task, {
+              action: payload.action,
+              error: failure.safeReplanReason,
+              errorCode: failure.code,
+              message: failure.safeObservationMessage,
+              rollbackPayload: executed.rollbackPayload,
+              status: "failed",
+            }),
+            rollbackPayload: executed.rollbackPayload,
+          };
+        }
+
         if (
           payload.autoApprovalReason &&
           options.autoApproval
@@ -586,15 +608,15 @@ export const createNativeOrchestrationTaskExecutor = (
           rollbackPayload: executed.rollbackPayload,
         };
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const failure = classifySafeExecutionFailure(error, "execute");
 
         return {
           ...base,
-          assistantMessage: `❌「${task.label}」执行失败：${errorMessage}`,
+          assistantMessage: `「${task.label}」：${failure.safeUserMessage}`,
           observation: buildTaskObservation(task, {
-            error: errorMessage,
-            message: "执行失败，等待重规划或用户处理。",
+            error: failure.safeReplanReason,
+            errorCode: failure.code,
+            message: failure.safeObservationMessage,
             status: "failed",
           }),
         };

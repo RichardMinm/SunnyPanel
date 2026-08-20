@@ -844,6 +844,7 @@ test("full graph interrupts on pending work and resumes with the new request", a
 });
 
 test("full graph routes ordinary node failures through controlled finalize", async () => {
+  const rawError = "postgres://agent:private-password@10.0.1.5:5432/sunny | sk-d6c-private-provider-token | /Users/private/runtime.ts:27";
   const order: string[] = [];
   const pendingInput = {
     ...input,
@@ -859,7 +860,7 @@ test("full graph routes ordinary node failures through controlled finalize", asy
     {
       buildContext: async () => {
         order.push("build_context");
-        throw new Error("context unavailable");
+        throw new Error(rawError);
       },
       dryRun: async () => {
         throw new Error("dry_run should not run");
@@ -895,6 +896,8 @@ test("full graph routes ordinary node failures through controlled finalize", asy
   assert.match(result.response?.assistantMessage ?? "", /处理请求时遇到问题/);
   assert.match(
     result.response?.trace?.[0]?.detail ?? "",
-    /context unavailable/,
+    /runtime_failed/,
   );
+  assert.equal(JSON.stringify(result.response).includes(rawError), false);
+  assert.doesNotMatch(JSON.stringify(result.response), /private-password|sk-d6c|\/Users\/private/u);
 });

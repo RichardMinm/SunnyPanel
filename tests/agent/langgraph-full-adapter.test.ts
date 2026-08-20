@@ -523,6 +523,7 @@ test("full adapter reuses production steps and delegates persistence to the shar
 });
 
 test("full adapter finalizes an ordinary graph failure exactly once", async () => {
+  const rawError = "postgres://agent:private-password@10.0.1.5:5432/sunny | sk-d6c-private-provider-token | /Users/private/runtime.ts:19";
   let appendCount = 0;
   let learningCount = 0;
   const pendingAction = {
@@ -556,7 +557,7 @@ test("full adapter finalizes an ordinary graph failure exactly once", async () =
       };
     },
     runBuildContextStep: async () => {
-      throw new Error("context unavailable");
+      throw new Error(rawError);
     },
     runDryRunAndProposeStep: async () => {
       throw new Error("dry_run should not run");
@@ -598,7 +599,9 @@ test("full adapter finalizes an ordinary graph failure exactly once", async () =
   assert.equal(response.intent, "clarify");
   assert.equal(response.pendingAction?.type, "await_clarification");
   assert.match(response.assistantMessage, /处理请求时遇到问题/);
-  assert.match(response.trace?.[0]?.detail ?? "", /context unavailable/);
+  assert.match(response.trace?.[0]?.detail ?? "", /runtime_failed/);
+  assert.equal(JSON.stringify(response).includes(rawError), false);
+  assert.doesNotMatch(JSON.stringify(response), /private-password|sk-d6c|\/Users\/private/u);
 });
 
 test("full adapter resumes a checkpointed confirmation without duplicate writes", async () => {

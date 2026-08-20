@@ -46,6 +46,7 @@ const sampleContext = (overrides: Partial<AgentPromptContext> = {}): AgentPrompt
 test("buildStrategyFeedbackMemoryDraft distills avoid-recent-failure into workflow rule memory", () => {
   const observation = buildTaskObservation(sampleTask(), {
     error: "找不到清单项：矩阵习题",
+    errorCode: "checklist_item_not_found",
     message: "执行失败，等待重规划或用户处理。",
     status: "failed",
   });

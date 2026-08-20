@@ -137,8 +137,8 @@ export const runReactToolLoop = async ({
 
       try {
         observationContent = await executeReadTool(call);
-      } catch (error) {
-        observationContent = `工具 ${call.name} 执行失败：${error instanceof Error ? error.message : String(error)}`;
+      } catch {
+        observationContent = `工具 ${call.name} 执行未完成。`;
       }
 
       const observation: ReactObservation = {

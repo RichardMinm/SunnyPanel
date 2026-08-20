@@ -209,7 +209,8 @@ test("createScheduleItemsFromIntent compensates schedule items when AgentRun aud
   assert.equal(result.status, "failed");
   assert.equal(result.compensationStatus, "completed");
   assert.deepEqual(result.createdScheduleItemIds, [821, 822]);
-  assert.match(result.assistantMessage, /记录批量日程审计失败/);
+  assert.match(result.assistantMessage, /审计记录未能完成/);
+  assert.doesNotMatch(result.assistantMessage, /agent run unavailable/);
   assert.deepEqual(
     deleteOperations.map((operation) => (operation.args as { id: number }).id),
     [822, 821],

@@ -1,18 +1,11 @@
 import type { AppendPlanItemArgs } from "../schemas";
+import type { SafeExecutionFailureCode } from "./safe-execution-failure";
 import type { OrchestratorPlan, TaskNode } from "./types";
-
-const MISSING_CHECKLIST_ITEM_PATTERNS = [
-  "找不到清单项",
-  "没定位到要完成的清单条目",
-  "还没定位到要完成的清单条目",
-  "missing checklist item",
-  "checklist item not found",
-  "item not found",
-];
 
 export type ToolFailureRepairKind = "missing_checklist_item";
 
 export type ToolFailureRepairInput = {
+  failureCode?: SafeExecutionFailureCode;
   failedTask: TaskNode;
   failureReason: string;
   message?: string;
@@ -31,17 +24,15 @@ const textArg = (args: Record<string, unknown>, key: string): null | string => {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 };
 
-const matchesMissingChecklistItem = (failureReason: string) => {
-  const normalized = failureReason.trim().toLowerCase();
-
-  return MISSING_CHECKLIST_ITEM_PATTERNS.some((pattern) => normalized.includes(pattern.toLowerCase()));
-};
-
 const buildMissingChecklistItemRepair = ({
+  failureCode,
   failedTask,
   failureReason,
 }: ToolFailureRepairInput): ToolFailureRepairPlan | null => {
-  if (failedTask.intent !== "complete_plan_item" || !matchesMissingChecklistItem(failureReason)) {
+  if (
+    failedTask.intent !== "complete_plan_item" ||
+    failureCode !== "checklist_item_not_found"
+  ) {
     return null;
   }
 

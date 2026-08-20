@@ -227,9 +227,6 @@ const buildValidationFailure = (
   type: "create_schedule_items",
 });
 
-const errorMessageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
 const deleteCreatedItems = async (
   payload: Pick<ScheduleCreatePayload, "delete">,
   createdItems: Array<Pick<ScheduleItemRecord, "id">>,
@@ -243,8 +240,8 @@ const deleteCreatedItems = async (
         id: item.id,
         overrideAccess: true,
       });
-    } catch (error) {
-      errors.push(`schedule-items#${item.id}: ${errorMessageOf(error)}`);
+    } catch {
+      errors.push(`schedule-items#${item.id}: 补偿状态无法确认`);
     }
   }
 
@@ -351,11 +348,11 @@ export const createScheduleItemsFromIntent = async (
         status: "done",
         title: `已创建日程 #${created.id}`,
       });
-    } catch (error) {
+    } catch {
       return buildCompensatedFailure({
         createdItems,
         dateRange,
-        failedMessage: `创建第 ${index + 1} 个日程项失败：${errorMessageOf(error)}。`,
+        failedMessage: `创建第 ${index + 1} 个日程项未完成。`,
         itemsCount: args.items.length,
         payload,
       });
@@ -399,11 +396,11 @@ export const createScheduleItemsFromIntent = async (
         overrideAccess: true,
         depth: 0,
       });
-    } catch (error) {
+    } catch {
       return buildCompensatedFailure({
         createdItems,
         dateRange,
-        failedMessage: `创建日程后关联计划 #${planId} 失败：${errorMessageOf(error)}。`,
+        failedMessage: `创建日程后未能完成计划 #${planId} 的关联。`,
         itemsCount: args.items.length,
         payload,
       });
@@ -460,11 +457,11 @@ export const createScheduleItemsFromIntent = async (
       workflow: "planning",
     });
     rollbackSourceRunId = agentRun.id;
-  } catch (error) {
+  } catch {
     return buildCompensatedFailure({
       createdItems,
       dateRange,
-      failedMessage: `记录批量日程审计失败：${errorMessageOf(error)}。`,
+      failedMessage: "批量日程已经创建，但审计记录未能完成。",
       itemsCount: args.items.length,
       payload,
     });

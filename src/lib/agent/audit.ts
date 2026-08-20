@@ -3,6 +3,7 @@ import type { AgentIntent, ProposedAgentAction } from "./schemas";
 import { getPayloadClient } from "@/lib/payload/client";
 
 import { validateAgentRunData } from "./write-schemas";
+import { projectSafeExecutionFailure } from "./orchestration/safe-execution-failure";
 
 const workflowByIntent: Record<AgentIntent["intent"], "planning" | "readiness-audit" | "sync" | "weekly-review"> = {
   add_completion_note: "sync",
@@ -55,10 +56,13 @@ export const recordAgentFailure = async ({
 }) => {
   const payload = await getPayloadClient();
   const recordedAt = new Date().toISOString();
-  const errorMessage = error instanceof Error ? error.message : "Unknown Agent failure";
+  void error;
+  void message;
+  const failure = projectSafeExecutionFailure("runtime");
+  const errorMessage = failure.safeReplanReason;
   const data = validateAgentRunData({
     completedAt: recordedAt,
-    goal: `Agent 处理失败：${message.slice(0, 120)}`,
+    goal: "Agent 请求处理失败。",
     startedAt: recordedAt,
     status: "failed",
     steps: [

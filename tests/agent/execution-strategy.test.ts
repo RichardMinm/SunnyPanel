@@ -8,6 +8,7 @@ import {
   executeOrchestrationGraph,
 } from "../../src/lib/agent/execution-graph";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
+import { SafeExecutionError } from "../../src/lib/agent/orchestration/safe-execution-failure";
 import type { ExecutionQueueState, OrchestratorPlan, TaskNode } from "../../src/lib/agent/orchestration/types";
 
 const sampleTask = (overrides: Partial<TaskNode> = {}): TaskNode => ({
@@ -296,7 +297,7 @@ test("executeOrchestrationGraph pauses replan when repeated history predicts the
     plan,
     {
       resolveChecklistItem: async () => {
-        throw new Error("找不到清单项");
+        throw new SafeExecutionError("checklist_item_not_found");
       },
     },
     {

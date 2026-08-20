@@ -323,17 +323,24 @@ export const completePlanItemFromIntent = async (
   if (!target.resolved) {
     const assistantMessage = target.question ?? "我还没定位到要完成的清单条目。";
 
+    if (target.reason === "item_not_found" && args.groupTitle) {
+      return {
+        assistantMessage,
+        errorCode: "checklist_item_not_found",
+        pendingAction: null,
+        status: "failed",
+      };
+    }
+
     return {
       assistantMessage,
-      pendingAction: args.groupTitle
-        ? null
-        : {
-            args,
-            intent: "complete_plan_item",
-            missingFields: ["groupTitle"],
-            question: assistantMessage,
-            type: "await_clarification",
-          },
+      pendingAction: {
+        args,
+        intent: "complete_plan_item",
+        missingFields: ["groupTitle"],
+        question: assistantMessage,
+        type: "await_clarification",
+      },
     };
   }
 

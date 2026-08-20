@@ -451,12 +451,12 @@ export const createChecklistFromIntent = async (
         overrideAccess: true,
       });
       linkedPlanId = sourcePlan.id;
-    } catch (error) {
+    } catch {
       try {
         await deleteCreatedChecklistForCompensation(payload, createdChecklist.id);
-      } catch (compensationError) {
+      } catch {
         throw new ChecklistCreateValidationError(
-          `清单已创建但关联计划失败，且补偿删除清单也失败：${error instanceof Error ? error.message : String(error)}；补偿失败：${compensationError instanceof Error ? compensationError.message : String(compensationError)}`,
+          "清单已创建，但计划关联和补偿删除的状态无法确认，需要人工核查。",
           {
             code: "plan_link_failed_partial",
             missingFields: ["sourcePlanId"],
@@ -465,7 +465,7 @@ export const createChecklistFromIntent = async (
       }
 
       throw new ChecklistCreateValidationError(
-        `清单创建后关联计划失败，已删除刚创建的清单作为回滚补偿：${error instanceof Error ? error.message : String(error)}`,
+        "清单创建后未能关联计划，已删除刚创建的清单作为补偿。",
         {
           code: "plan_link_failed_rolled_back",
           missingFields: ["sourcePlanId"],

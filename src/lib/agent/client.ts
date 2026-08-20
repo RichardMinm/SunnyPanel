@@ -948,7 +948,7 @@ export const generateStreamingReply = async ({
     // #endregion
 
     return { failureHttpStatus, text: "", tokenUsage: estimatedUsage };
-  } catch (error) {
+  } catch {
     // #region agent log
     if (process.env.AGENT_DEBUG_LOG) {
       try {
@@ -958,9 +958,7 @@ export const generateStreamingReply = async ({
             sessionId: "961715",
             location: "client.ts:generateStreamingReply",
             message: "streaming reply threw",
-            data: {
-              error: error instanceof Error ? error.message : String(error),
-            },
+            data: { errorCode: "streaming_reply_failed" },
             timestamp: Date.now(),
             hypothesisId: "H19",
             runId: "post-fix-7",

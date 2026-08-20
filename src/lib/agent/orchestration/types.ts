@@ -1,4 +1,5 @@
 import type { AgentIntent } from "../schemas";
+import type { SafeExecutionFailureCode } from "./safe-execution-failure";
 
 export type AgentRole = "content" | "memory" | "plan" | "query" | "review" | "schedule";
 
@@ -41,6 +42,7 @@ export type AgentTaskObservation = {
   agentRole: AgentRole;
   collections?: string[];
   error?: string;
+  errorCode?: SafeExecutionFailureCode;
   intent: AgentIntent["intent"];
   label: string;
   message: string;

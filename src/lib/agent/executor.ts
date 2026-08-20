@@ -25,6 +25,12 @@ import {
   type ModelCallBudgetRecorder,
 } from "./orchestration/model-call-budget";
 import {
+  classifySafeExecutionFailure,
+  getSafeExecutionFailure,
+  projectSafeExecutionFailure,
+  type SafeExecutionFailure,
+} from "./orchestration/safe-execution-failure";
+import {
   addCompletionNoteFromIntent,
   appendPlanItemFromIntent,
   cancelScheduleItemFromIntent,
@@ -76,6 +82,7 @@ export type AgentIntentExecutionResult = {
   affectedDocuments?: import("./tool-shared").AffectedDocumentSummary[];
   assistantMessage: string;
   createdPlanId?: number;
+  errorCode?: import("./orchestration/safe-execution-failure").SafeExecutionFailureCode;
   pendingAction: null | import("./schemas").PendingAction;
   planId?: number;
   rollbackPayload?: unknown;
@@ -101,10 +108,8 @@ const toolExecutors = {
   weeklyReview: executeWeeklyReviewFromIntent,
 };
 
-const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
 const formatRollbackResult = (result: RollbackExecutionResult) =>
-  `${result.collection}#${result.documentIds?.join(",") ?? result.documentId} (${result.strategy})${result.auditWarning ? `，审计提示：${result.auditWarning}` : ""}`;
+  `${result.collection}#${result.documentIds?.join(",") ?? result.documentId} (${result.strategy})${result.auditWarning ? "，审计记录未完整保存" : ""}`;
 
 type BatchRollbackEvidence =
   | {
@@ -192,8 +197,9 @@ export const executeAgentIntentsTransactional = async (
 
   const failBatch = async (input: {
     compensationEvidence: BatchRollbackEvidence[];
-    failureMessage: string;
+    failure: SafeExecutionFailure;
     failureType: "invariant" | "returned" | "thrown";
+    safeFailureMessage?: string;
     stepNumber: number;
   }): Promise<AgentIntentExecutionResult> => {
     const rollbackResults: RollbackExecutionResult[] = [];
@@ -202,10 +208,10 @@ export const executeAgentIntentsTransactional = async (
     onTrace?.({
       detail:
         input.failureType === "returned"
-          ? "子操作返回失败回执，批量执行已停止。"
+          ? input.failure.safeObservationMessage
           : input.failureType === "invariant"
-            ? "成功子操作缺少受信 AgentRun 回滚来源，批量执行已失败关闭。"
-          : input.failureMessage,
+            ? input.failure.safeObservationMessage
+            : input.failure.safeObservationMessage,
       id: `batch-transaction-step-${input.stepNumber}`,
       kind: "error",
       status: "error",
@@ -256,10 +262,10 @@ export const executeAgentIntentsTransactional = async (
       assistantMessage: [
         ...messages,
         input.failureType === "returned"
-          ? `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步失败：${input.failureMessage}`
+          ? `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步失败：${input.safeFailureMessage ?? input.failure.safeUserMessage}`
           : input.failureType === "invariant"
-            ? `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步触发安全不变量：${input.failureMessage}`
-            : `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步失败（抛出异常）：${input.failureMessage}`,
+            ? `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步触发安全不变量：${input.failure.safeUserMessage}`
+            : `❌ 批量执行在第 ${input.stepNumber}/${intents.length} 步失败：${input.failure.safeUserMessage}`,
         rollbackSummary,
       ]
         .filter(Boolean)
@@ -329,8 +335,11 @@ export const executeAgentIntentsTransactional = async (
                 : []),
             ...rollbackEvidence.slice().reverse(),
           ],
-          failureMessage: result.assistantMessage || "子操作返回失败回执。",
+          failure: result.errorCode
+            ? getSafeExecutionFailure(result.errorCode)
+            : projectSafeExecutionFailure("execute"),
           failureType: "returned",
+          safeFailureMessage: result.assistantMessage || undefined,
           stepNumber,
         });
       }
@@ -338,8 +347,7 @@ export const executeAgentIntentsTransactional = async (
       if (hasExecutableRollback && !ownedRollbackEvidence) {
         return failBatch({
           compensationEvidence: rollbackEvidence.slice().reverse(),
-          failureMessage:
-            "成功子操作返回了可执行回滚载荷，但没有正安全整数 rollbackSourceRunId；当前子操作未做裸补偿，结果需要人工核查。",
+          failure: projectSafeExecutionFailure("rollback"),
           failureType: "invariant",
           stepNumber,
         });
@@ -376,7 +384,7 @@ export const executeAgentIntentsTransactional = async (
     } catch (error) {
       return failBatch({
         compensationEvidence: rollbackEvidence.slice().reverse(),
-        failureMessage: getErrorMessage(error),
+        failure: classifySafeExecutionFailure(error, "execute"),
         failureType: "thrown",
         stepNumber,
       });

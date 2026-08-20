@@ -21,8 +21,9 @@ const completeTask = (overrides: Partial<TaskNode> = {}): TaskNode => ({
 
 test("buildToolFailureRepairPlan turns missing checklist item failures into a safe append proposal", () => {
   const repair = buildToolFailureRepairPlan({
+    failureCode: "checklist_item_not_found",
     failedTask: completeTask(),
-    failureReason: "找不到清单项：矩阵习题",
+    failureReason: "任意安全文案",
     message: "我已经完成矩阵习题",
   });
 
@@ -53,6 +54,16 @@ test("buildToolFailureRepairPlan ignores unrelated tool failures", () => {
     }),
     failureReason: "resolver offline",
     message: "创建一个复盘计划",
+  });
+
+  assert.equal(repair, null);
+});
+
+test("buildToolFailureRepairPlan does not infer repair authority from matching text", () => {
+  const repair = buildToolFailureRepairPlan({
+    failedTask: completeTask(),
+    failureReason: "找不到清单项：矩阵习题",
+    message: "我已经完成矩阵习题",
   });
 
   assert.equal(repair, null);

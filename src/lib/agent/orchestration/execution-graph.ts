@@ -50,6 +50,11 @@ import type {
   TaskNode,
 } from "./types";
 import type { ModelCallBudgetRecorder } from "./model-call-budget";
+import {
+  classifySafeExecutionFailure,
+  type SafeExecutionFailure,
+  type SafeExecutionFailureCode,
+} from "./safe-execution-failure";
 
 const MAX_REPLAN_ATTEMPTS = 2;
 const MAX_TOOL_REPAIR_ATTEMPTS = 1;
@@ -338,7 +343,7 @@ export const executeOrchestrationGraph = async (
     proposals.push(action);
   };
 
-  const taskErrors: Array<{ error: string; task: TaskNode }> = [];
+  const taskErrors: Array<{ failure: SafeExecutionFailure; task: TaskNode }> = [];
   const buildQueueState = () => summarizeExecutionQueue(plan.tasks, observations);
   const buildEvaluationForResult = (result: Omit<ExecutionGraphResult, "evaluation">) =>
     buildExecutionEvaluation({
@@ -375,8 +380,9 @@ export const executeOrchestrationGraph = async (
       observations: result.observations,
       originalMessage: message,
     }).catch((error) => {
+      void error;
       logAgentEvent("warn", "memory.strategy_feedback_failed", {
-        error: error instanceof Error ? error.message : String(error),
+        errorCode: "strategy_feedback_write_failed",
         strategy: evaluation.strategy.mode,
       });
     });
@@ -530,8 +536,9 @@ export const executeOrchestrationGraph = async (
               reason: decision.reason,
               threadId: autoApproval.threadId,
             }).catch((error) => {
+              void error;
               logAgentEvent("error", "permission.auto_approval_audit_failed", {
-                error: error instanceof Error ? error.message : String(error),
+                errorCode: "auto_approval_audit_write_failed",
                 threadId: autoApproval.threadId,
               });
             });
@@ -627,17 +634,18 @@ export const executeOrchestrationGraph = async (
 
       return null;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      taskErrors.push({ error: errorMessage, task });
-      readOnlyMessages.push(`❌「${task.label}」执行失败：${errorMessage.slice(0, 120)}`);
+      const failure = classifySafeExecutionFailure(error, "execute");
+      taskErrors.push({ failure, task });
+      readOnlyMessages.push(`「${task.label}」：${failure.safeUserMessage}`);
       observations.push(buildTaskObservation(task, {
-        error: errorMessage,
-        message: "执行失败，等待重规划或用户处理。",
+        error: failure.safeReplanReason,
+        errorCode: failure.code,
+        message: failure.safeObservationMessage,
         status: "failed",
       }));
 
       logAgentEvent("error", "orchestrator.task_error", {
-        error: errorMessage,
+        errorCode: failure.code,
         taskId: task.id,
         taskLabel: task.label,
       });
@@ -820,6 +828,7 @@ export const executeOrchestrationGraph = async (
     });
   };
   const repairFromToolFailure = async (args: {
+    failureCode?: SafeExecutionFailureCode;
     failedTask: TaskNode;
     failureReason: string;
   }): Promise<ExecutionGraphResult | null> => {
@@ -828,6 +837,7 @@ export const executeOrchestrationGraph = async (
     }
 
     const repair = buildToolFailureRepairPlan({
+      failureCode: args.failureCode,
       failedTask: args.failedTask,
       failureReason: args.failureReason,
       message,
@@ -891,6 +901,9 @@ export const executeOrchestrationGraph = async (
       }
 
       const repairedResult = await repairFromToolFailure({
+        failureCode: observations.find(
+          (observation) => observation.taskId === failedTask.id,
+        )?.errorCode,
         failedTask,
         failureReason: observationDecision.reason.slice(0, 200),
       });
@@ -927,7 +940,11 @@ export const executeOrchestrationGraph = async (
       promptContext &&
       message &&
       replanAttempts < MAX_REPLAN_ATTEMPTS &&
-      (orphanedTaskIds.length > 0 || readOnlyMessages.some((line) => line.includes("无法解析") || line.includes("执行失败")))
+      (
+        orphanedTaskIds.length > 0 ||
+        taskErrors.length > 0 ||
+        readOnlyMessages.some((line) => line.includes("无法解析"))
+      )
     ) {
       const firstError = taskErrors[0];
       const failedTask = firstError
@@ -936,7 +953,7 @@ export const executeOrchestrationGraph = async (
 
       if (failedTask) {
         const failureReason = firstError
-          ? firstError.error.slice(0, 200)
+          ? firstError.failure.safeReplanReason
           : orphanedTaskIds.length > 0
             ? `依赖未解析：${orphanedTaskIds.join("、")}`
             : "部分子任务无法解析或跳过";
@@ -949,6 +966,7 @@ export const executeOrchestrationGraph = async (
 
         const repairedResult = firstError
           ? await repairFromToolFailure({
+            failureCode: firstError.failure.code,
             failedTask,
             failureReason,
           })

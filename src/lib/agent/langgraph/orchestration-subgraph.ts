@@ -39,6 +39,10 @@ import {
   summarizeExecutionQueue,
 } from "@/lib/agent/orchestration/observations";
 import {
+  getSafeExecutionFailure,
+  projectSafeExecutionFailure,
+} from "@/lib/agent/orchestration/safe-execution-failure";
+import {
   buildResumedOrchestratorPlan,
   buildStrategyResumeOrchestratorPlan,
 } from "@/lib/agent/execution-graph";
@@ -1284,10 +1288,11 @@ export const runOrchestrationSubgraph = async (
 
             return (
               buildToolFailureRepairPlan({
+                failureCode: failedObservation.errorCode,
                 failedTask,
-                failureReason:
-                  failedObservation.error ??
-                  failedObservation.message,
+                failureReason: getSafeExecutionFailure(
+                  failedObservation.errorCode,
+                ).safeReplanReason,
                 message: executionOptions.message ?? "",
               })?.plan ?? null
             );
@@ -1315,13 +1320,10 @@ export const runOrchestrationSubgraph = async (
                 messages.push(
                   `↩ 已补偿「${outcome.observation.label}」。`,
                 );
-              } catch (error) {
+              } catch {
+                const failure = projectSafeExecutionFailure("rollback");
                 messages.push(
-                  `⚠️「${outcome.observation.label}」补偿状态不确定：${
-                    error instanceof Error
-                      ? error.message
-                      : String(error)
-                  }`,
+                  `⚠️「${outcome.observation.label}」：${failure.safeUserMessage}`,
                 );
 
                 return {
@@ -1364,9 +1366,9 @@ export const runOrchestrationSubgraph = async (
                 failedTaskIndex >= 0
                   ? failedTaskIndex
                   : state.plan.tasks.length - 1,
-              failureReason:
-                failedObservation.error ??
-                failedObservation.message,
+              failureReason: getSafeExecutionFailure(
+                failedObservation.errorCode,
+              ).safeReplanReason,
               failureType: "tool_error",
               message: executionOptions.message ?? "",
               modelCallRecorder: executionOptions.modelCallRecorder,

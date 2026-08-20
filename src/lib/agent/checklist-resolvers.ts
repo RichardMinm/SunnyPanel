@@ -37,6 +37,7 @@ export const findChecklist = async (checklistTitle: string) => {
     return {
       checklist: null,
       question: `我没找到「${checklistTitle}」这份清单。你可以告诉我更准确的清单名。`,
+      reason: "not_found" as const,
     };
   }
 
@@ -47,12 +48,14 @@ export const findChecklist = async (checklistTitle: string) => {
         .slice(0, 3)
         .map((item) => item.doc.title)
         .join("、")}。你想操作哪一份？`,
+      reason: "ambiguous" as const,
     };
   }
 
   return {
     checklist: scoredMatches[0]?.doc ?? null,
     question: null,
+    reason: null,
   };
 };
 
@@ -70,6 +73,9 @@ export const resolveChecklistItem = async ({
   if (!checklistResult.checklist) {
     return {
       question: checklistResult.question ?? "我还没找到对应的清单。",
+      reason: checklistResult.reason === "ambiguous"
+        ? "checklist_ambiguous" as const
+        : "checklist_not_found" as const,
       resolved: null,
     };
   }
@@ -100,6 +106,7 @@ export const resolveChecklistItem = async ({
 
     return {
       question: `我在「${checklist.title}」里没找到「${groupHint}${itemTitle}」这个条目。你可以告诉我更准确的分组名或条目名。`,
+      reason: "item_not_found" as const,
       resolved: null,
     };
   }
@@ -110,12 +117,14 @@ export const resolveChecklistItem = async ({
         .slice(0, 3)
         .map((candidate) => `${candidate.group.title} / ${candidate.item.title}`)
         .join("、")}。你想操作哪一个？`,
+      reason: "item_ambiguous" as const,
       resolved: null,
     };
   }
 
   return {
     question: null,
+    reason: null,
     resolved: {
       checklist,
       group: filtered[0]!.group,

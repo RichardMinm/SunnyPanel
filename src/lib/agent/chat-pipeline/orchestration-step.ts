@@ -44,6 +44,10 @@ import {
 } from "@/lib/agent/orchestration/model-call-budget";
 import type { OrchestratorPlan } from "@/lib/agent/orchestration/types";
 import { projectCompletedOrchestrationToPlan } from "@/lib/agent/orchestration/projection";
+import {
+  coerceSafeReplanReason,
+  projectSafeExecutionFailure,
+} from "@/lib/agent/orchestration/safe-execution-failure";
 import { logAgentEvent } from "@/lib/agent/logger";
 import {
   isCancellationReply,
@@ -415,12 +419,10 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
         plan: planToProject,
         result: graphResult,
       });
-    } catch (error) {
+    } catch {
+      const failure = projectSafeExecutionFailure("projection");
       pushTrace({
-        detail:
-          error instanceof Error
-            ? error.message
-            : String(error),
+        detail: `${failure.code} · ${failure.safeObservationMessage}`,
         id: `orchestration-projection-${orchestrationId}`,
         kind: "error",
         status: "error",
@@ -540,7 +542,7 @@ export const runOrchestrationStep = async (params: OrchestrationStepParams): Pro
       detail: [
         `原策略：${pendingAction.strategyMode}`,
         `最近失败 Run：${pendingAction.recentRunIds.join("、") || "无"}`,
-        `失败原因：${pendingAction.failureReason}`,
+        `失败原因：${coerceSafeReplanReason(pendingAction.failureReason)}`,
       ].join("\n"),
       id: "orchestrator-strategy-resume",
       kind: "analysis",

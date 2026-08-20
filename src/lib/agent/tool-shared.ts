@@ -13,6 +13,7 @@ import type {
   PendingAction,
 } from "./schemas";
 import { validateAgentRunData } from "./write-schemas";
+import type { SafeExecutionFailureCode } from "./orchestration/safe-execution-failure";
 
 export {
   sanitizeAffectedDocuments,
@@ -28,6 +29,7 @@ export type AgentToolResult = {
   assistantMessage: string;
   pendingAction: null | PendingAction;
   createdPlanId?: number;
+  errorCode?: SafeExecutionFailureCode;
   planId?: number;
   rollbackPayload?: unknown;
   rollbackSourceRunId?: number;

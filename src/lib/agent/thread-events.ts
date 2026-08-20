@@ -9,6 +9,7 @@ import {
   type PendingAction,
 } from "@/lib/agent/schemas";
 import { buildAgentThreadSummary } from "@/lib/agent/thread-summary";
+import { projectSafeExecutionFailure } from "@/lib/agent/orchestration/safe-execution-failure";
 import type { AgentThread } from "@/payload-types";
 
 export const AGENT_THREAD_EVENT_SCHEMA_VERSION = 1;
@@ -430,6 +431,7 @@ export const projectAgentThreadFromEvents = async ({
 
     return { state, status: "projected" as const };
   } catch (error) {
+    const failure = projectSafeExecutionFailure("projection");
     const sourceEventKey =
       eventKeyFor(threadId, turnId, "assistant");
     const eventKey = `projection:${turnId}:failed`;
@@ -441,8 +443,7 @@ export const projectAgentThreadFromEvents = async ({
           eventKey,
           eventType: "projection_failed",
           payload: {
-            error:
-              error instanceof Error ? error.message : String(error),
+            error: failure.safeReplanReason,
             sourceEventKey,
           },
           recordedAt: now(),

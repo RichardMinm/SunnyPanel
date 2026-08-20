@@ -446,6 +446,7 @@ test("turn finalizer marks accepted inbox suggestion done only after successful 
 });
 
 test("non-projecting failure appends one failed event, skips learning, and projects no assistant", async () => {
+  const rawError = "postgres://agent:private@10.0.0.1/sunny | sk-private-token | /Users/private/turn.ts:42";
   const { events, store } = createMemoryStore();
   let learningRuns = 0;
   let projectedMessages: unknown[] = [];
@@ -458,12 +459,19 @@ test("non-projecting failure appends one failed event, skips learning, and proje
   });
   await store.append({ eventKey: "turn:query:user", eventType: "user_received", payload: { message: "查询进展" }, recordedAt: "2026-07-13T08:00:00.000Z", schemaVersion: 1, threadId: 45, turnId: "turn-query-failed", userId: 7 });
   await finalize({
-    existingMemories: [], failure: new Error("safe"), projectFailureAssistantMessage: false,
+    existingMemories: [], failure: new Error(rawError), projectFailureAssistantMessage: false,
     pushTrace: () => undefined,
     response: { assistantMessage: "只读查询暂时不可用，请稍后重试。", engine: "workflow", intent: "clarify", pendingAction: null, tokenUsage }, tokenUsage,
   });
   assert.equal(learningRuns, 0);
   assert.equal(events.filter((event) => event.eventType === "turn_failed").length, 1);
-  assert.equal((events.find((event) => event.eventType === "turn_failed")?.payload as { projectAssistantMessage?: boolean }).projectAssistantMessage, false);
+  const failedPayload = events.find((event) => event.eventType === "turn_failed")?.payload as {
+    error?: string;
+    projectAssistantMessage?: boolean;
+  };
+  assert.equal(failedPayload.projectAssistantMessage, false);
+  assert.match(failedPayload.error ?? "", /runtime_failed/u);
+  assert.equal(JSON.stringify(failedPayload).includes(rawError), false);
+  assert.doesNotMatch(JSON.stringify(failedPayload), /private@|sk-private|\/Users\/private/u);
   assert.deepEqual(projectedMessages, [{ content: "查询进展", role: "user" }]);
 });

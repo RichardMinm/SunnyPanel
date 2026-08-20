@@ -234,12 +234,10 @@ export const invokeStructured = async <TSchema extends z.ZodType>(
         emitStage("providerResponseReceived");
       },
     });
-  } catch (error) {
+  } catch {
     return {
       ok: false,
-      error: modelNotConfigured(
-        `Failed to create chat model: ${error instanceof Error ? error.message : String(error)}`,
-      ),
+      error: modelNotConfigured("模型配置不可用，请检查 Agent 设置。"),
     };
   }
 

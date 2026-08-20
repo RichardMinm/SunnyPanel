@@ -4,10 +4,11 @@ import type {
 } from "@/lib/agent/schemas";
 import { estimateTokenCount } from "@/lib/agent/token-usage";
 import type { AgentWorkbenchMode } from "@/lib/agent/workbench-mode";
+import { projectSafeExecutionFailure } from "@/lib/agent/orchestration/safe-execution-failure";
 
 /** User-safe controlled failure message — no internal architecture details. */
 const USER_FAILURE_MESSAGE =
-  "处理请求时遇到问题，你的会话状态已保留，请稍后重试。";
+  projectSafeExecutionFailure("runtime").safeUserMessage;
 
 export const buildLangGraphFailureResponse = ({
   baseTokenUsage,
@@ -22,7 +23,9 @@ export const buildLangGraphFailureResponse = ({
   threadId: number;
   workbenchMode?: AgentWorkbenchMode | null;
 }): AgentChatResponse => {
+  void error;
   const assistantMessage = USER_FAILURE_MESSAGE;
+  const failure = projectSafeExecutionFailure("runtime");
   const outputTokens = estimateTokenCount(assistantMessage);
 
   return {
@@ -42,11 +45,11 @@ export const buildLangGraphFailureResponse = ({
     },
     trace: [
       {
-        detail: error instanceof Error ? error.message : String(error),
+        detail: `${failure.code} · ${failure.safeObservationMessage}`,
         id: "langgraph-runtime-failure",
         kind: "error",
         status: "error",
-        title: "运行时错误（已脱敏记录）",
+        title: "运行未完成",
       },
     ],
     workbenchMode: workbenchMode ?? undefined,

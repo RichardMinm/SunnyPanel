@@ -251,7 +251,7 @@ test("plan update failure deletes the created checklist as compensation", async 
       undefined,
       { userId: 7 },
     ),
-    /plan update failed|已回滚|rolled back/i,
+    /未能关联计划|已删除刚创建的清单|补偿/i,
   );
 
   assert.deepEqual(

@@ -44,6 +44,7 @@ test("buildExecutionEvaluation recommends replanning when a failed observation c
         label: "完成清单项",
       }), {
         error: "找不到清单项",
+        errorCode: "checklist_item_not_found",
         message: "执行失败，等待重规划或用户处理。",
         status: "failed",
       }),

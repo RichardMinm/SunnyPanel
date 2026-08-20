@@ -4,8 +4,7 @@ import type {
   AppendAgentTraceEventResult,
 } from "./types";
 
-const errorMessageFor = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+const TRACE_WRITE_FAILURE_MESSAGE = "trace_write_failed: 追踪记录未能保存。";
 
 export const appendAgentTraceEvent = async ({
   alreadySanitized = false,
@@ -38,7 +37,7 @@ export const appendAgentTraceEvent = async ({
     onWarning?.(error);
 
     return {
-      errorMessage: errorMessageFor(error),
+      errorMessage: TRACE_WRITE_FAILURE_MESSAGE,
       event: sanitizedEvent,
       persisted: false,
       writeFailed: true,

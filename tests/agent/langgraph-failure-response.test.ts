@@ -74,8 +74,14 @@ test("LangGraph failure response preserves pending action (write path safety)", 
   assert.ok(response.assistantMessage.length > 0);
 });
 
-test("LangGraph failure response records technical details in trace (not user message)", () => {
-  const error = new Error("Postgres checkpoint connection refused at 10.0.1.5:5432");
+test("LangGraph failure response keeps raw technical details out of the whole client response", () => {
+  const rawMarkers = [
+    "postgres://agent:private-password@10.0.1.5:5432/sunny",
+    "SELECT secret_value FROM private_agent_state",
+    "sk-d6c-private-provider-token",
+    "/Users/private/SunnyPanel/checkpointer.ts:41",
+  ];
+  const error = new Error(rawMarkers.join(" | "));
   const response = buildLangGraphFailureResponse({
     baseTokenUsage,
     error,
@@ -83,20 +89,19 @@ test("LangGraph failure response records technical details in trace (not user me
     threadId: 1,
   });
 
-  // Trace records the technical error for developer observability
+  // AgentChatResponse.trace is returned to the client and must therefore be
+  // safe too. Raw diagnostics belong only in the sanitized backend trace.
   assert.ok(response.trace);
   assert.equal(response.trace[0]?.status, "error");
   assert.equal(response.trace[0]?.id, "langgraph-runtime-failure");
-  assert.match(response.trace[0]?.detail ?? "", /checkpoint/);
+  assert.match(response.trace[0]?.detail ?? "", /runtime_failed/);
 
-  // But the user-facing message must NOT contain the technical error
-  assert.doesNotMatch(response.assistantMessage, /checkpoint/);
-  assert.doesNotMatch(response.assistantMessage, /Postgres/);
-  assert.doesNotMatch(response.assistantMessage, /10\.0\.1\.5/);
-  assert.doesNotMatch(response.assistantMessage, /connection refused/);
+  const serialized = JSON.stringify(response);
+  for (const marker of rawMarkers) {
+    assert.equal(serialized.includes(marker), false, marker);
+  }
 
-  // Trace title is developer-safe (no raw secrets, no env var advice for users)
-  assert.match(response.trace[0]?.title ?? "", /已脱敏记录/);
+  assert.match(response.trace[0]?.title ?? "", /运行未完成/);
 });
 
 test("LangGraph failure response without pending action returns null pendingAction", () => {
