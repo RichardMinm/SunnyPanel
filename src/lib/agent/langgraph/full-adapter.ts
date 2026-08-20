@@ -541,6 +541,10 @@ export const createRunFullLangGraphAgentChatPipeline = (
       prepareTask: (args) =>
         createMountedTaskExecutor(args).prepareTask(args),
       repair: async ({ failedObservation, state }) => {
+        if (state.input?.pendingAction?.type === "await_strategy_resume") {
+          return null;
+        }
+
         const failedTask =
           state.taskCatalog.find(
             (task) => task.id === failedObservation.taskId,
@@ -574,6 +578,10 @@ export const createRunFullLangGraphAgentChatPipeline = (
           );
         const promptContext =
           state.context as BuildContextStepResult["context"];
+        const strategyResume =
+          state.input?.pendingAction?.type === "await_strategy_resume"
+            ? state.input.pendingAction
+            : null;
 
         if (!failedTask || !promptContext) {
           return null;
@@ -593,7 +601,10 @@ export const createRunFullLangGraphAgentChatPipeline = (
             failedObservation.errorCode,
           ).safeReplanReason,
           failureType: "tool_error",
-          message: state.input?.message ?? message,
+          message:
+            strategyResume?.originalMessage ??
+            state.input?.message ??
+            message,
           observations: state.outcomes.map(
             (outcome) => outcome.observation,
           ),
@@ -609,6 +620,13 @@ export const createRunFullLangGraphAgentChatPipeline = (
               (outcome) => outcome.observation,
             ),
           ),
+          ...(strategyResume
+            ? {
+                strategyNote:
+                  "用户已明确要求继续。避免重复同一个失败工具调用，优先改为前置核对、澄清目标或生成替代步骤。",
+                strategyOverride: "incremental" as const,
+              }
+            : {}),
         });
 
         return result.status === "success" ? result.plan : null;
@@ -811,17 +829,12 @@ export const createRunFullLangGraphAgentChatPipeline = (
         }
 
         const result = await steps.runOrchestrationStep({
-          autoApproval,
           context: context as BuildContextStepResult["context"],
           conversationState,
-          deferCompoundExecution: true,
           emitStatus,
           emitToken,
-          executeAction: executeOrchestrationAction,
-          executeRollback: executeOrchestrationRollback,
           message: graphInput.message,
           modelCallRecorder,
-          payload,
           pendingAction: graphInput.pendingAction,
           persistAgentTurn: bufferAgentTurn,
           pushTrace,

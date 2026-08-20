@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getRelationId } from "@/lib/agent/run-access";
+import { deleteAgentThreadWithCheckpoint } from "@/lib/agent/langgraph/checkpoint-lifecycle";
+import { getSunnyAgentPostgresSaver } from "@/lib/agent/langgraph/checkpointer";
 import { getPayloadAuthResult } from "@/lib/payload/auth";
 import { getPayloadClient } from "@/lib/payload/client";
 
@@ -18,9 +20,15 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ message: "请求格式错误" }, { status: 400 });
   }
 
-  if (!body.id || typeof body.id !== "number") {
+  if (
+    typeof body.id !== "number"
+    || !Number.isSafeInteger(body.id)
+    || body.id <= 0
+  ) {
     return NextResponse.json({ message: "缺少 id" }, { status: 400 });
   }
+
+  const threadId = body.id;
 
   const payload = await getPayloadClient();
 
@@ -28,7 +36,7 @@ export async function DELETE(request: NextRequest) {
     .findByID({
       collection: "agent-threads",
       depth: 0,
-      id: body.id,
+      id: threadId,
       overrideAccess: true,
     })
     .catch(() => null);
@@ -40,11 +48,23 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  await payload.delete({
-    collection: "agent-threads",
-    id: body.id,
-    overrideAccess: true,
-  });
+  try {
+    await deleteAgentThreadWithCheckpoint({
+      checkpointer: getSunnyAgentPostgresSaver(),
+      deleteBusinessThread: () => payload.delete({
+        collection: "agent-threads",
+        id: threadId,
+        overrideAccess: true,
+      }).then(() => undefined),
+      threadId,
+      userId: authResult.user.id,
+    });
+  } catch {
+    return NextResponse.json(
+      { message: "暂时无法安全删除对话，请稍后重试" },
+      { status: 503 },
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

@@ -15,7 +15,6 @@ import { normalizeChecklistProgressArgs } from "../../src/lib/agent/progress";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
 import type { AgentChatResponse } from "../../src/lib/agent/schemas";
 import type { AgentThread } from "../../src/payload-types";
-import type { Payload } from "payload";
 
 const context: AgentPromptContext = {
   checklists: [{
@@ -129,7 +128,6 @@ test("orchestration runtime forwards recent history to the LangChain call", asyn
     emitStatus: () => undefined,
     emitToken: () => undefined,
     message: "今天的计划吧",
-    payload: {} as Payload,
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 36 }) as AgentThread,
     pushTrace: () => undefined,
@@ -181,7 +179,6 @@ test("workspace catalog query bypasses the Provider orchestrator", async () => {
     emitStatus: () => undefined,
     emitToken: () => undefined,
     message: "有哪些清单和计划呢？",
-    payload: {} as Payload,
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 36 }) as AgentThread,
     pushTrace: () => undefined,

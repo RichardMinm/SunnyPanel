@@ -129,30 +129,26 @@ test("only named deterministic services own policy, execution, persistence, and 
   );
 });
 
-test("production composition mounts one compound graph and never selects the inline compatibility runner", () => {
+test("production composition mounts one compound graph without an inline compatibility runner", () => {
   const adapter = read("src/lib/agent/langgraph/full-adapter.ts");
+  const orchestrationStep = read("src/lib/agent/chat-pipeline/orchestration-step.ts");
+  const compatibilitySurface = read("src/lib/agent/orchestration/execution-graph.ts");
   const production = read("src/lib/agent/langgraph/production-adapter.ts");
   const handler = read("src/lib/agent/chat-pipeline/handle-agent-chat-post.ts");
 
   assert.match(handler, /createRunProductionLangGraphAgentChatPipeline\(pipelineDeps\)/);
   assert.equal((production.match(/createRunFullLangGraphAgentChatPipeline/g) ?? []).length, 2);
-  assert.match(adapter, /deferCompoundExecution:\s*true/);
   assert.match(adapter, /compileMountedOrchestrationSubgraph/);
   assert.doesNotMatch(adapter, /executeOrchestrationGraph/);
+  assert.doesNotMatch(adapter, /deferCompoundExecution/);
+  assert.doesNotMatch(orchestrationStep, /runOrchestrationSubgraph|deferCompoundExecution/);
+  assert.doesNotMatch(compatibilitySurface, /executeOrchestrationGraph/);
 });
 
-test("E2 candidates remain classified and cannot be mistaken for active alternate runtimes", () => {
+test("E2 inventory contains only active production ownership surfaces", () => {
   assert.deepEqual(
     LANGGRAPH_CONSOLIDATION_CANDIDATES.map(({ id, runtimeStatus }) => ({ id, runtimeStatus })),
     [
-      {
-        id: "imperative_execution_graph",
-        runtimeStatus: "test_only_compatibility",
-      },
-      {
-        id: "inline_compound_runner",
-        runtimeStatus: "production_bypassed_compatibility",
-      },
       {
         id: "full_adapter",
         runtimeStatus: "active_dependency_adapter",

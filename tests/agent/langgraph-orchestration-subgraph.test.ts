@@ -138,6 +138,109 @@ test("mounted orchestration subgraph publishes a serializable compound result", 
   assert.equal(actual.layerIndex, 2);
 });
 
+test("mounted strategy resume changes path instead of immediately pausing on the same failure history", async () => {
+  let replanCalls = 0;
+  const retryPlan: OrchestratorPlan = {
+    mode: "single",
+    reasoning: "换策略继续失败任务",
+    tasks: [{
+      agentRole: "plan",
+      args: { title: "失败计划" },
+      dependsOn: [],
+      id: "failed-task",
+      intent: "create_plan",
+      label: "创建计划",
+    }],
+  };
+  const graph = compileMountedOrchestrationSubgraph({
+    prepareTask: async ({ task }) => ({ kind: "read", task }),
+    executePreparedTask: async ({ prepared }) => ({
+      assistantMessage:
+        prepared.task.id === "replacement" ? "已换策略处理" : "执行失败",
+      observation: {
+        agentRole: prepared.task.agentRole,
+        ...(prepared.task.id === "replacement"
+          ? {}
+          : { errorCode: "task_execute_failed" as const }),
+        intent: prepared.task.intent,
+        label: prepared.task.label,
+        message:
+          prepared.task.id === "replacement" ? "已换策略处理" : "执行失败",
+        status: prepared.task.id === "replacement" ? "answered" : "failed",
+        taskId: prepared.task.id,
+      },
+      taskId: prepared.task.id,
+    }),
+    replan: async () => {
+      replanCalls += 1;
+      return {
+        mode: "single",
+        reasoning: "先解释并核对目标",
+        tasks: [{
+          agentRole: "query",
+          args: { answer: "已换策略处理" },
+          dependsOn: [],
+          id: "replacement",
+          intent: "answer_question",
+          label: "核对目标",
+        }],
+      };
+    },
+  });
+  const tokenUsage = {
+    contextTokens: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    source: "estimate" as const,
+    totalTokens: 0,
+  };
+  const actual = await graph.invoke({
+    compoundPlan: retryPlan,
+    context: {
+      agentRuns: [
+        { id: 1, status: "failed", summary: "create_plan failed", title: "失败", workflow: "create_plan" },
+        { id: 2, status: "failed", summary: "create_plan failed", title: "失败", workflow: "create_plan" },
+      ],
+      checklists: [],
+      memories: [],
+      now: "2026-08-20T12:00:00.000+08:00",
+      plans: [],
+    },
+    input: {
+      baseTokenUsage: tokenUsage,
+      message: "继续",
+      pendingAction: {
+        failedTaskId: "failed-task",
+        failureReason: "task_execute_failed",
+        mode: "single",
+        originalMessage: "创建失败计划",
+        reason: "同类任务最近失败过",
+        reasoning: retryPlan.reasoning,
+        recentRunIds: [1, 2],
+        strategyMode: "avoid_recent_failure",
+        tasks: retryPlan.tasks,
+        type: "await_strategy_resume",
+      },
+      resolvedHistory: [],
+      structuredConfirmation: null,
+      threadId: 1,
+      turnId: "strategy-resume-mounted",
+      userId: 1,
+    },
+    tokenUsage,
+    trace: [],
+  });
+
+  assert.equal(replanCalls, 1);
+  assert.equal(actual.compoundResult?.pendingAction?.type, undefined);
+  assert.equal(
+    actual.compoundResult?.observations.some(
+      (observation) => observation.taskId === "replacement" && observation.status === "answered",
+    ),
+    true,
+  );
+});
+
 test("orchestration subgraph rejects circular or orphaned task dependencies", async () => {
   const invalidPlan: OrchestratorPlan = {
     ...plan,

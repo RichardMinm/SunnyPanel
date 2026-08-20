@@ -214,6 +214,20 @@ npm run verify:migrations
 
 此命令需要 `DATABASE_URL`，且必须显式执行；HTTP 请求不会自动运行 checkpoint DDL。
 
+Checkpoint 生命周期与 Agent 对话一致：删除对话时先删除对应的 LangGraph
+checkpoint，checkpoint 删除失败则保留对话并返回安全错误。定期维护先运行只读预览，
+确认后再执行删除；已关闭或归档会话默认保留 30 天，也会清理已不存在业务对话的
+孤儿 checkpoint。仍在使用且未归档的会话不会因时间到期被清理：
+
+```bash
+npm run agent:checkpoint:cleanup
+npm run agent:checkpoint:cleanup -- --apply
+```
+
+可通过 `AGENT_CHECKPOINT_RETENTION_DAYS` 或
+`--retention-days=<1-3650>` 调整保留天数。拓扑不兼容时必须升级 namespace
+版本；旧版本只按同一保留/孤儿策略清理，绝不按新图恢复。
+
 ### Agent 状态与持久化
 
 - PostgreSQL LangGraph checkpoint 是工作流节点、复合任务层和 interrupt 恢复的真相源。

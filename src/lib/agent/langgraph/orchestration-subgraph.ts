@@ -35,7 +35,9 @@ import type { AgentPromptContext } from "@/lib/agent/prompts";
 import {
   buildExecutionEvaluation,
 } from "@/lib/agent/orchestration/evaluation";
+import { buildExecutionLoopDirective } from "@/lib/agent/orchestration/loop-directive";
 import {
+  buildTaskObservation,
   summarizeExecutionQueue,
 } from "@/lib/agent/orchestration/observations";
 import {
@@ -44,8 +46,9 @@ import {
 } from "@/lib/agent/orchestration/safe-execution-failure";
 import {
   buildResumedOrchestratorPlan,
+  buildStrategyResumePendingAction,
   buildStrategyResumeOrchestratorPlan,
-} from "@/lib/agent/execution-graph";
+} from "@/lib/agent/orchestration/resume-contract";
 import {
   isCancellationReply,
   isConfirmationReply,
@@ -69,6 +72,10 @@ import {
 } from "@/lib/agent/chat-pipeline/confirmation-step";
 import type { AgentChatResponse, AgentTraceStep } from "@/lib/agent/schemas";
 import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-call-budget";
+import {
+  autoArchiveStrategyFeedbackMemory,
+  type StrategyFeedbackMemoryInput,
+} from "@/lib/agent/orchestration/strategy-feedback";
 
 type ExecuteOrchestrationGraphOptions = {
   autoApproval?: AutoApprovalContext;
@@ -87,11 +94,19 @@ type ExecuteOrchestrationGraphOptions = {
   modelCallRecorder?: ModelCallBudgetRecorder;
   orchestrationId?: string;
   promptContext?: AgentPromptContext;
+  recordAutoApproval?: NativeOrchestrationTaskExecutorOptions["recordAutoApproval"];
+  recordStrategyFeedbackMemory?: (
+    input: StrategyFeedbackMemoryInput,
+  ) => Promise<unknown>;
   runnableConfig?: RunnableConfig;
   replanAttempts?: number;
   replanTaskFailure?: (input: ReplanInput) => Promise<ReplanResult>;
   toolRepairAttempts?: number;
 };
+
+type OrchestrationGraphTransition =
+  | OrchestratorPlan
+  | { pausedResult: ExecutionGraphResult };
 
 export type OrchestrationSubgraphNode =
   | "collect"
@@ -203,7 +218,7 @@ export type NativeOrchestrationSubgraphDependencies = {
   replan?: (args: {
     failedObservation: AgentTaskObservation;
     state: NativeOrchestrationSubgraphState;
-  }) => Promise<OrchestratorPlan | null>;
+  }) => Promise<OrchestrationGraphTransition | null>;
 };
 
 const mergeOutcomes = (
@@ -382,6 +397,27 @@ const hasConfirmationBoundary = (
           outcome.proposal.riskLevel !== "low")),
   );
 
+const closeSupersededProposalOutcomes = (
+  outcomes: OrchestrationTaskOutcome[],
+  failedTaskId: string,
+  repairedByTaskId: string,
+  suffix: string,
+) =>
+  outcomes.map((outcome) => ({
+    ...outcome,
+    pendingAction: null,
+    proposal: undefined,
+    stopBeforeWrites: false,
+    observation:
+      outcome.taskId === failedTaskId
+        ? {
+            ...outcome.observation,
+            message: `${outcome.observation.message} ${suffix}`,
+            repairedByTaskId,
+          }
+        : outcome.observation,
+  }));
+
 const buildMountedResultOptions = (
   state: NativeOrchestrationSubgraphState,
 ): ExecuteOrchestrationGraphOptions => ({
@@ -395,6 +431,23 @@ const buildMountedResultOptions = (
       ? (state.context as AgentPromptContext)
       : undefined,
 });
+
+const resolveGraphResultOptions = (
+  state: NativeOrchestrationSubgraphState,
+  overrides?: ExecuteOrchestrationGraphOptions,
+): ExecuteOrchestrationGraphOptions => {
+  const mounted = buildMountedResultOptions(state);
+
+  return {
+    ...mounted,
+    ...overrides,
+    message: overrides?.message ?? mounted.message,
+    orchestrationId:
+      overrides?.orchestrationId ?? mounted.orchestrationId,
+    promptContext:
+      overrides?.promptContext ?? mounted.promptContext,
+  };
+};
 
 const getResumeSignals = (
   pendingAction: PendingAction,
@@ -458,8 +511,13 @@ const compileNativeOrchestrationGraph = (
   dependencies: NativeOrchestrationSubgraphDependencies,
   options: {
     checkpointer?: BaseCheckpointSaver;
+    disabledLoopDirectiveModes?: AgentExecutionStrategy["mode"][];
     maxTasksPerRun?: number;
     mounted?: boolean;
+    recordStrategyFeedbackMemory?: (
+      input: StrategyFeedbackMemoryInput,
+    ) => Promise<unknown>;
+    resultOptions?: ExecuteOrchestrationGraphOptions;
   } = {},
 ) =>
   new StateGraph(NativeStateAnnotation)
@@ -624,6 +682,68 @@ const compileNativeOrchestrationGraph = (
           ),
         );
 
+      if (failedObservation && dependencies.replan) {
+        const resultOptions = resolveGraphResultOptions(
+          state,
+          options.resultOptions,
+        );
+        const currentResult = buildNativeResult(
+          { ...state, outcomes },
+          resultOptions,
+        );
+        const evaluation = buildExecutionEvaluation({
+          canReplan: true,
+          context: resultOptions.promptContext,
+          observations: currentResult.observations,
+          pendingAction: currentResult.pendingAction,
+          proposals: currentResult.proposals,
+          queueState: currentResult.queueState,
+        });
+        const directive = buildExecutionLoopDirective(evaluation);
+        const disabledModes = new Set(
+          options.disabledLoopDirectiveModes ?? [],
+        );
+        const resumingAlternateStrategy =
+          state.input?.pendingAction?.type === "await_strategy_resume";
+
+        if (
+          directive.action === "pause_for_user" &&
+          !disabledModes.has(evaluation.strategy.mode) &&
+          !resumingAlternateStrategy
+        ) {
+          const pendingAction = buildStrategyResumePendingAction({
+            evaluation,
+            message: resultOptions.message ?? "",
+            orchestrationId:
+              resultOptions.orchestrationId ?? `orch-${Date.now()}`,
+            plan: state.plan,
+          });
+
+          if (pendingAction) {
+            await (
+              options.recordStrategyFeedbackMemory ??
+              autoArchiveStrategyFeedbackMemory
+            )({
+              evaluation,
+              observations: currentResult.observations,
+              originalMessage: resultOptions.message ?? "",
+            }).catch(() => undefined);
+
+            return {
+              compoundResult: {
+                ...currentResult,
+                assistantMessage: directive.assistantMessage,
+                evaluation,
+                pendingAction,
+                proposals: [],
+              },
+              outcomes,
+              route: "complete" as const,
+            };
+          }
+        }
+      }
+
       if (
         failedObservation &&
         dependencies.repair &&
@@ -648,17 +768,11 @@ const compileNativeOrchestrationGraph = (
             currentLayer: [],
             layerIndex: 0,
             layers: [],
-            outcomes: outcomes.map((outcome) =>
-              outcome.taskId === failedObservation.taskId
-                ? {
-                    ...outcome,
-                    observation: {
-                      ...outcome.observation,
-                      message: `${outcome.observation.message} 已转入语义修复。`,
-                      repairedByTaskId: repairTaskId,
-                    },
-                  }
-                : outcome,
+            outcomes: closeSupersededProposalOutcomes(
+              outcomes,
+              failedObservation.taskId,
+              repairTaskId,
+              "已转入语义修复。",
             ),
             plan: repaired,
             preparedTasks: [],
@@ -689,22 +803,24 @@ const compileNativeOrchestrationGraph = (
           },
         });
 
+        if (replanned && "pausedResult" in replanned) {
+          return {
+            compoundResult: replanned.pausedResult,
+            outcomes,
+            route: "complete" as const,
+          };
+        }
+
         if (replanned && replanned.tasks.length > 0) {
           const existingTaskIds = new Set(
             state.taskCatalog.map((task) => task.id),
           );
           const repairTaskId = replanned.tasks[0].id;
-          const repairedOutcomes = outcomes.map((outcome) =>
-            outcome.taskId === failedObservation.taskId
-              ? {
-                  ...outcome,
-                  observation: {
-                    ...outcome.observation,
-                    message: `${outcome.observation.message} 已转入重规划。`,
-                    repairedByTaskId: repairTaskId,
-                  },
-                }
-              : outcome,
+          const repairedOutcomes = closeSupersededProposalOutcomes(
+            outcomes,
+            failedObservation.taskId,
+            repairTaskId,
+            "已转入重规划。",
           );
 
           return {
@@ -767,10 +883,12 @@ const compileNativeOrchestrationGraph = (
       };
     })
     .addNode(COMPOUND_GRAPH_NODES.AWAIT_COMPOUND_USER, async (state) => {
-      const result = buildNativeResult(
-        state,
-        buildMountedResultOptions(state),
-      );
+      const result =
+        state.compoundResult ??
+        buildNativeResult(
+          state,
+          buildMountedResultOptions(state),
+        );
       const pendingAction = result.pendingAction;
 
       if (!pendingAction) {
@@ -1048,10 +1166,14 @@ const compileNativeOrchestrationGraph = (
           return END;
         }
 
-        return buildNativeResult(
-          state,
-          buildMountedResultOptions(state),
-        ).pendingAction
+        const result =
+          state.compoundResult ??
+          buildNativeResult(
+            state,
+            buildMountedResultOptions(state),
+          );
+
+        return result.pendingAction
           ? COMPOUND_GRAPH_NODES.AWAIT_COMPOUND_USER
           : COMPOUND_GRAPH_NODES.PUBLISH_RESULT;
       },
@@ -1084,7 +1206,12 @@ export const compileOrchestrationSubgraph = (
   dependencies: NativeOrchestrationSubgraphDependencies,
   options: {
     checkpointer?: BaseCheckpointSaver;
+    disabledLoopDirectiveModes?: AgentExecutionStrategy["mode"][];
     maxTasksPerRun?: number;
+    recordStrategyFeedbackMemory?: (
+      input: StrategyFeedbackMemoryInput,
+    ) => Promise<unknown>;
+    resultOptions?: ExecuteOrchestrationGraphOptions;
   } = {},
 ) =>
   compileNativeOrchestrationGraph(dependencies, options);
@@ -1092,7 +1219,11 @@ export const compileOrchestrationSubgraph = (
 export const compileMountedOrchestrationSubgraph = (
   dependencies: NativeOrchestrationSubgraphDependencies,
   options: {
+    disabledLoopDirectiveModes?: AgentExecutionStrategy["mode"][];
     maxTasksPerRun?: number;
+    recordStrategyFeedbackMemory?: (
+      input: StrategyFeedbackMemoryInput,
+    ) => Promise<unknown>;
   } = {},
 ) =>
   compileNativeOrchestrationGraph(dependencies, {
@@ -1115,24 +1246,38 @@ const buildNativeQueueResume = ({
   orchestrationId,
   plan,
   queueState,
+  tasks,
 }: {
   message: string;
   orchestrationId: string;
   plan: OrchestratorPlan;
   queueState: ReturnType<typeof summarizeExecutionQueue>;
+  tasks: TaskNode[];
 }): AgentQueueResumePendingAction | null => {
-  if (queueState.pendingTaskIds.length === 0) {
+  const deferredTaskIds = Array.from(
+    new Set([
+      ...queueState.deferredTaskIds,
+      ...queueState.pendingTaskIds,
+    ]),
+  );
+
+  if (deferredTaskIds.length === 0) {
     return null;
   }
 
   return {
-    completedTaskIds: queueState.completedTaskIds,
-    deferredTaskIds: queueState.pendingTaskIds,
+    completedTaskIds: Array.from(
+      new Set([
+        ...queueState.completedTaskIds,
+        ...queueState.proposedTaskIds,
+      ]),
+    ),
+    deferredTaskIds,
     mode: plan.mode,
     orchestrationId,
     originalMessage: message,
     reasoning: plan.reasoning,
-    tasks: serializeTasksForPendingAction(plan.tasks),
+    tasks: serializeTasksForPendingAction(tasks),
     type: "await_queue_resume",
   };
 };
@@ -1141,18 +1286,39 @@ const buildNativeResult = (
   state: NativeOrchestrationSubgraphState,
   options: ExecuteOrchestrationGraphOptions,
 ): ExecutionGraphResult => {
-  const observations = state.outcomes.map(
+  const baseObservations = state.outcomes.map(
     (outcome) => outcome.observation,
   );
   const proposals = state.outcomes.flatMap((outcome) =>
     outcome.proposal ? [outcome.proposal] : [],
   );
-  const queueState = summarizeExecutionQueue(
+  const taskCatalog =
     state.taskCatalog.length > 0
       ? state.taskCatalog
-      : state.plan.tasks,
-    observations,
+      : state.plan.tasks;
+  const initialQueueState = summarizeExecutionQueue(
+    taskCatalog,
+    baseObservations,
   );
+  const deferredObservations = initialQueueState.pendingTaskIds.flatMap(
+    (taskId) => {
+      const task = taskCatalog.find((candidate) => candidate.id === taskId);
+
+      return task
+        ? [
+            buildTaskObservation(task, {
+              message: "前置步骤尚未完成，当前子任务已延后。",
+              status: "deferred",
+            }),
+          ]
+        : [];
+    },
+  );
+  const observations = [
+    ...baseObservations,
+    ...deferredObservations,
+  ];
+  const queueState = summarizeExecutionQueue(taskCatalog, observations);
   const orchestrationId =
     options.orchestrationId ?? `orch-${Date.now()}`;
   const resumeQueue = buildNativeQueueResume({
@@ -1160,6 +1326,7 @@ const buildNativeResult = (
     orchestrationId,
     plan: state.plan,
     queueState,
+    tasks: taskCatalog,
   });
   const explicitPending =
     state.outcomes.find(
@@ -1284,6 +1451,7 @@ export const runOrchestrationSubgraph = async (
         modelCallRecorder: executionOptions.modelCallRecorder,
         plan,
         promptContext: executionOptions.promptContext,
+        recordAutoApproval: executionOptions.recordAutoApproval,
       });
   const replanTaskFailure =
     executionOptions.replanTaskFailure ??
@@ -1409,14 +1577,43 @@ export const runOrchestrationSubgraph = async (
               ),
             });
 
-            return result.status === "success" ? result.plan : null;
+            if (result.status === "success") {
+              return result.plan;
+            }
+
+            const currentResult = buildNativeResult(
+              state,
+              executionOptions,
+            );
+
+            return {
+              pausedResult: {
+                ...currentResult,
+                assistantMessage: result.safeMessage,
+                evaluation: buildExecutionEvaluation({
+                  canReplan: false,
+                  context: executionOptions.promptContext,
+                  observations: currentResult.observations,
+                  pendingAction: null,
+                  proposals: [],
+                  queueState: currentResult.queueState,
+                }),
+                pendingAction: null,
+                proposals: [],
+              },
+            };
           }
         : undefined),
   }, {
     checkpointer,
+    disabledLoopDirectiveModes:
+      executionOptions.disabledLoopDirectiveModes,
     maxTasksPerRun: executionOptions.maxTasksPerRun,
+    recordStrategyFeedbackMemory:
+      executionOptions.recordStrategyFeedbackMemory,
+    resultOptions: executionOptions,
   });
   const state = await graph.invoke({ plan }, runnableConfig);
 
-  return buildNativeResult(state, executionOptions);
+  return state.compoundResult ?? buildNativeResult(state, executionOptions);
 };

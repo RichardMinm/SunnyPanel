@@ -6,10 +6,10 @@ import {
   buildObservationTraceStep,
   buildTaskObservation,
   decideNextActionFromObservations,
-  executeOrchestrationGraph,
   formatTaskObservation,
   summarizeExecutionQueue,
 } from "../../src/lib/agent/execution-graph";
+import { runOrchestrationSubgraph } from "../../src/lib/agent/langgraph/orchestration-subgraph";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
 import { parsePendingAction } from "../../src/lib/agent/schemas";
 import type { ProposedAgentAction } from "../../src/lib/agent/schemas";
@@ -244,7 +244,7 @@ test("summarizeExecutionQueue reports completed, proposed, failed, and remaining
   });
 });
 
-test("executeOrchestrationGraph returns observations for direct answers", async () => {
+test("runOrchestrationSubgraph returns observations for direct answers", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "只需回答用户问题。",
@@ -260,7 +260,7 @@ test("executeOrchestrationGraph returns observations for direct answers", async 
     ],
   };
 
-  const result = await executeOrchestrationGraph(plan, {});
+  const result = await runOrchestrationSubgraph(plan, {});
 
   assert.equal(result.pendingAction, null);
   assert.equal(result.observations.length, 1);
@@ -268,7 +268,7 @@ test("executeOrchestrationGraph returns observations for direct answers", async 
   assert.equal(result.observations[0]?.message, "当前没有需要写入的动作。");
 });
 
-test("executeOrchestrationGraph keeps low-risk writes behind confirmation", async () => {
+test("runOrchestrationSubgraph keeps low-risk writes behind confirmation", async () => {
   let executions = 0;
   let executedActionId: string | null = null;
   const plan: OrchestratorPlan = {
@@ -286,7 +286,7 @@ test("executeOrchestrationGraph keeps low-risk writes behind confirmation", asyn
     ],
   };
 
-  const result = await executeOrchestrationGraph(
+  const result = await runOrchestrationSubgraph(
     plan,
     {
       createActionId: () => "cancel-action-88",
@@ -327,14 +327,14 @@ test("executeOrchestrationGraph keeps low-risk writes behind confirmation", asyn
   assert.match(result.assistantMessage, /确认/);
 });
 
-test("executeOrchestrationGraph returns observations for proposed writes", async () => {
+test("runOrchestrationSubgraph returns observations for proposed writes", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "需要先 dry-run 计划创建。",
     tasks: [sampleTask()],
   };
 
-  const result = await executeOrchestrationGraph(plan, {
+  const result = await runOrchestrationSubgraph(plan, {
     createActionId: () => "create-plan-action",
   });
 
@@ -346,7 +346,7 @@ test("executeOrchestrationGraph returns observations for proposed writes", async
   assert.deepEqual(result.observations[0]?.collections, ["plans"]);
 });
 
-test("executeOrchestrationGraph observes real affected documents after auto execution", async () => {
+test("runOrchestrationSubgraph observes real affected documents after auto execution", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "把计划阶段排入日程。",
@@ -363,7 +363,7 @@ test("executeOrchestrationGraph observes real affected documents after auto exec
     ],
   };
 
-  const result = await executeOrchestrationGraph(
+  const result = await runOrchestrationSubgraph(
     plan,
     {
       createActionId: () => "schedule-plan-action",
@@ -446,10 +446,10 @@ test("executeOrchestrationGraph observes real affected documents after auto exec
     },
   ]);
   assert.equal(result.observations[0]?.rollbackAvailable, true);
-  assert.match(result.assistantMessage, /已自动执行/);
+  assert.match(result.assistantMessage, /已生成 2 条日程/);
 });
 
-test("executeOrchestrationGraph replans failed compound work before returning stale proposals", async () => {
+test("runOrchestrationSubgraph replans failed compound work before returning stale proposals", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "先完成清单项，再创建后续计划。",
@@ -472,7 +472,7 @@ test("executeOrchestrationGraph replans failed compound work before returning st
   let replannedFromTaskId: string | null = null;
   let observedBeforeReplan: ReplanInput["observations"];
 
-  const result = await executeOrchestrationGraph(
+  const result = await runOrchestrationSubgraph(
     plan,
     {
       createActionId: () => "stale-create-plan-action",
@@ -535,7 +535,7 @@ test("typed replan failure preserves observations and returns no replacement pro
   };
   let replanCalls = 0;
 
-  const result = await executeOrchestrationGraph(
+  const result = await runOrchestrationSubgraph(
     plan,
     {
       createActionId: () => "stale-create-plan-action",
@@ -565,7 +565,7 @@ test("typed replan failure preserves observations and returns no replacement pro
   assert.equal(result.observations.some((item) => item.status === "answered"), false);
 });
 
-test("executeOrchestrationGraph prefers semantic repair over generic replan for missing checklist items", async () => {
+test("runOrchestrationSubgraph prefers semantic repair over generic replan for missing checklist items", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "完成用户刚刚提到的清单项。",
@@ -584,7 +584,7 @@ test("executeOrchestrationGraph prefers semantic repair over generic replan for 
   };
   let genericReplanCalled = false;
 
-  const result = await executeOrchestrationGraph(
+  const result = await runOrchestrationSubgraph(
     plan,
     {
       createActionId: () => "semantic-repair-append-action",
@@ -647,7 +647,7 @@ test("executeOrchestrationGraph prefers semantic repair over generic replan for 
   assert.equal(result.evaluation.action, "wait_for_confirmation");
 });
 
-test("executeOrchestrationGraph pauses remaining tasks when max task budget is reached", async () => {
+test("runOrchestrationSubgraph pauses remaining tasks when max task budget is reached", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "先回答，再创建计划。",
@@ -668,7 +668,7 @@ test("executeOrchestrationGraph pauses remaining tasks when max task budget is r
     ],
   };
 
-  const result = await executeOrchestrationGraph(plan, {}, {
+  const result = await runOrchestrationSubgraph(plan, {}, {
     message: "先说明状态，然后创建计划",
     maxTasksPerRun: 1,
   });
@@ -679,7 +679,7 @@ test("executeOrchestrationGraph pauses remaining tasks when max task budget is r
   assert.deepEqual(result.pendingAction.completedTaskIds, ["task-answer"]);
   assert.equal(result.pendingAction.tasks.length, 2);
   assert.equal(parsePendingAction(result.pendingAction)?.type, "await_queue_resume");
-  assert.match(result.assistantMessage, /执行预算/);
+  assert.match(result.assistantMessage, /1 个子任务已延后/);
   assert.match(result.assistantMessage, /回复「继续」/);
   assert.equal(result.observations.some((item) => item.taskId === "task-create-plan" && item.status === "deferred"), true);
   assert.deepEqual(result.queueState.completedTaskIds, ["task-answer"]);
@@ -687,7 +687,7 @@ test("executeOrchestrationGraph pauses remaining tasks when max task budget is r
   assert.deepEqual(result.queueState.pendingTaskIds, []);
 });
 
-test("executeOrchestrationGraph preserves deferred queue behind pending proposals", async () => {
+test("runOrchestrationSubgraph preserves deferred queue behind pending proposals", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "先创建计划，再说明后续安排。",
@@ -708,7 +708,7 @@ test("executeOrchestrationGraph preserves deferred queue behind pending proposal
     ],
   };
 
-  const result = await executeOrchestrationGraph(plan, {
+  const result = await runOrchestrationSubgraph(plan, {
     createActionId: () => "create-plan-action",
   }, {
     message: "创建计划并说明后续安排",
@@ -725,7 +725,7 @@ test("executeOrchestrationGraph preserves deferred queue behind pending proposal
   assert.equal(parsed?.type === "await_confirmation" ? parsed.resumeQueue?.type : null, "await_queue_resume");
 });
 
-test("executeOrchestrationGraph pauses dependent tasks after a confirmation proposal", async () => {
+test("runOrchestrationSubgraph pauses dependent tasks after a confirmation proposal", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "先创建计划，确认写入后再说明后续安排。",
@@ -747,7 +747,7 @@ test("executeOrchestrationGraph pauses dependent tasks after a confirmation prop
     ],
   };
 
-  const result = await executeOrchestrationGraph(plan, {
+  const result = await runOrchestrationSubgraph(plan, {
     createActionId: () => "create-plan-action",
   }, {
     message: "创建计划后说明后续安排",

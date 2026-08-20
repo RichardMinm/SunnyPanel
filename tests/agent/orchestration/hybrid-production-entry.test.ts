@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { Payload } from "payload";
 
 import {
   runOrchestrationStep,
@@ -62,7 +61,6 @@ const runStepForFixture = async (
     emitStatus: () => undefined,
     emitToken: () => undefined,
     message: fixture.message,
-    payload: {} as Payload,
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 1 }) as AgentThread,
     pushTrace: () => undefined,
@@ -131,7 +129,6 @@ test("production compound path validates the candidate before Mapper", async () 
         title: "考研数学复习计划",
       }],
     },
-    deferCompoundExecution: true,
     emitStatus: () => undefined,
     emitToken: () => undefined,
     mapStructuredOutputToPlanFn: () => {
@@ -139,7 +136,6 @@ test("production compound path validates the candidate before Mapper", async () 
       throw new Error("Mapper must not run after candidate rejection");
     },
     message: "检查项目进度，记录未完成的作为新任务",
-    payload: {} as Payload,
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 1 }) as AgentThread,
     pushTrace: () => undefined,
@@ -184,11 +180,9 @@ test("passes the Residual structured observer through unchanged", async () => {
 
   await runOrchestrationStep({
     context: focusedFixture("cmp-4").context,
-    deferCompoundExecution: true,
     emitStatus: () => undefined,
     emitToken: () => undefined,
     message: focusedFixture("cmp-4").message,
-    payload: {} as Payload,
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 1 }) as AgentThread,
     pushTrace: () => undefined,

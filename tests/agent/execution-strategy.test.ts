@@ -5,8 +5,8 @@ import {
   buildExecutionLoopDirective,
   buildExecutionEvaluation,
   buildTaskObservation,
-  executeOrchestrationGraph,
 } from "../../src/lib/agent/execution-graph";
+import { runOrchestrationSubgraph } from "../../src/lib/agent/langgraph/orchestration-subgraph";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
 import { SafeExecutionError } from "../../src/lib/agent/orchestration/safe-execution-failure";
 import type { ExecutionQueueState, OrchestratorPlan, TaskNode } from "../../src/lib/agent/orchestration/types";
@@ -242,14 +242,14 @@ test("buildExecutionLoopDirective pauses automatic replan for repeated historica
   assert.match(directive.assistantMessage, /避免继续重复失败路径/);
 });
 
-test("executeOrchestrationGraph carries memory-based strategy into evaluation", async () => {
+test("runOrchestrationSubgraph carries memory-based strategy into evaluation", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "需要创建计划。",
     tasks: [sampleTask()],
   };
 
-  const result = await executeOrchestrationGraph(
+  const result = await runOrchestrationSubgraph(
     plan,
     {
       createActionId: () => "create-plan-action",
@@ -274,7 +274,7 @@ test("executeOrchestrationGraph carries memory-based strategy into evaluation", 
   assert.deepEqual(result.evaluation.strategy.memoryIds, [91]);
 });
 
-test("executeOrchestrationGraph pauses replan when repeated history predicts the same failure", async () => {
+test("runOrchestrationSubgraph pauses replan when repeated history predicts the same failure", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "完成清单项。",
@@ -293,7 +293,7 @@ test("executeOrchestrationGraph pauses replan when repeated history predicts the
   let replanCalled = false;
   let feedbackMemoryCalls = 0;
 
-  const result = await executeOrchestrationGraph(
+  const result = await runOrchestrationSubgraph(
     plan,
     {
       resolveChecklistItem: async () => {

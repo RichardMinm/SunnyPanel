@@ -173,21 +173,9 @@ export const PRODUCTION_NODE_OWNERSHIP = Object.freeze([
 
 export type LangGraphConsolidationRuntimeStatus =
   | "active_dependency_adapter"
-  | "active_domain_services"
-  | "production_bypassed_compatibility"
-  | "test_only_compatibility";
+  | "active_domain_services";
 
 export const LANGGRAPH_CONSOLIDATION_CANDIDATES = Object.freeze([
-  {
-    id: "imperative_execution_graph",
-    runtimeStatus: "test_only_compatibility",
-    target: "src/lib/agent/orchestration/execution-graph.ts::executeOrchestrationGraph",
-  },
-  {
-    id: "inline_compound_runner",
-    runtimeStatus: "production_bypassed_compatibility",
-    target: "src/lib/agent/chat-pipeline/orchestration-step.ts::runOrchestrationSubgraph branches",
-  },
   {
     id: "full_adapter",
     runtimeStatus: "active_dependency_adapter",

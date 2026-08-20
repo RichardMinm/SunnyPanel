@@ -44,7 +44,6 @@ import type { ModelCallBudgetRecorder } from "@/lib/agent/orchestration/model-ca
 import {
   classifySafeExecutionFailure,
   getSafeExecutionFailure,
-  projectSafeExecutionFailure,
   type SafeExecutionFailure,
 } from "@/lib/agent/orchestration/safe-execution-failure";
 
@@ -459,10 +458,10 @@ export const createNativeOrchestrationTaskExecutor = (
           isWrite: false,
           type: "execute",
         });
-      } catch {
+      } catch (error) {
         return toPreparedTask(task, "read", {
           busMessages,
-          failure: projectSafeExecutionFailure("prepare"),
+          failure: classifySafeExecutionFailure(error, "prepare"),
           type: "failed",
         });
       }

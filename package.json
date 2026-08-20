@@ -10,6 +10,7 @@
     "lint": "eslint . && npm run check:typography",
     "check:typography": "node scripts/check-typography.mjs",
     "agent:checkpoint:setup": "node --import tsx scripts/setup-langgraph-checkpoints.ts",
+    "agent:checkpoint:cleanup": "node --import tsx scripts/cleanup-langgraph-checkpoints.ts",
     "agent:e2e-provider": "node scripts/agent-e2e-provider.mjs",
     "verify:migrations": "node --import tsx scripts/ensure-migrations-for-build.mjs",
     "release:prepare": "npm run migrate && npm run agent:checkpoint:setup && npm run verify:migrations",

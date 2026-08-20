@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { Payload } from "payload";
 
 import { runOrchestrationStep } from "../../src/lib/agent/chat-pipeline/orchestration-step";
 import type { AgentPromptContext } from "../../src/lib/agent/prompts";
@@ -61,7 +60,6 @@ test("runOrchestrationStep resumes saved deferred queue on continue reply", asyn
     emitStatus: () => undefined,
     emitToken: () => undefined,
     message: "继续",
-    payload: {} as Payload,
     pendingAction,
     persistAgentTurn: async (args) => {
       persisted.push({ nextPendingAction: args.nextPendingAction });
@@ -108,7 +106,6 @@ test("runOrchestrationStep bypasses write orchestration for learning consultatio
     emitStatus: () => undefined,
     emitToken: () => undefined,
     message: "给我参谋一下线性代数的学习",
-    payload: {} as Payload,
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 44 }) as AgentThread,
     pushTrace: (step) => trace.push(step),
@@ -137,10 +134,10 @@ test("runOrchestrationStep bypasses write orchestration for learning consultatio
 
   // R6-C1-D-B: heuristic learning consult retired.
   assert.equal(result.outcome, "continue");
+  assert.equal(orchestratorCalled, true);
 });
 
-test("runOrchestrationStep performs no business projection write before confirmation", async () => {
-  let businessWrites = 0;
+test("runOrchestrationStep delegates compound confirmation and all writes to mounted LangGraph", async () => {
   const result = await runOrchestrationStep({
     context: {
       ...promptContext,
@@ -156,12 +153,6 @@ test("runOrchestrationStep performs no business projection write before confirma
     emitStatus: () => undefined,
     emitToken: () => undefined,
     message: "为迁移计划创建下一阶段",
-    payload: {
-      update: async () => {
-        businessWrites += 1;
-        throw new Error("confirmation preview must not update Plan");
-      },
-    } as unknown as Payload,
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 45 }) as AgentThread,
     pushTrace: () => undefined,
@@ -195,9 +186,9 @@ test("runOrchestrationStep performs no business projection write before confirma
     user: { id: 1 },
   });
 
-  assert.equal(result.outcome, "early_exit");
-  assert.equal(result.response.pendingAction?.type, "await_confirmation");
-  assert.equal(businessWrites, 0);
+  assert.equal(result.outcome, "compound");
+  if (result.outcome !== "compound") return;
+  assert.deepEqual(result.data.plan.tasks.map((task) => task.id), ["task-create", "task-answer"]);
 });
 
 test("parsePendingAction preserves strategy pause resume context", () => {
@@ -263,9 +254,6 @@ test("runOrchestrationStep resumes a strategy pause with alternate replan on con
     type: "await_strategy_resume",
   } as unknown as PendingAction;
   const trace: AgentTraceStep[] = [];
-  const persisted: Array<{ nextPendingAction: null | PendingAction }> = [];
-  let replanCalled = false;
-
   const result = await runOrchestrationStep({
     context: {
       ...promptContext,
@@ -292,52 +280,20 @@ test("runOrchestrationStep resumes a strategy pause with alternate replan on con
         },
       ],
     },
-    dryRunContextOverrides: {
-      resolveChecklistItem: async () => {
-        throw new Error("找不到清单项");
-      },
-    },
     emitStatus: () => undefined,
     emitToken: () => undefined,
     message: "继续",
-    payload: {} as Payload,
     pendingAction,
-    persistAgentTurn: async (args) => {
-      persisted.push({ nextPendingAction: args.nextPendingAction });
-
-      return { id: 43 } as AgentThread;
-    },
+    persistAgentTurn: async () => assert.fail("mounted LangGraph owns strategy resume execution"),
     pushTrace: (step) => trace.push(step),
-    replanTaskFailure: async () => {
-      replanCalled = true;
-
-      return {
-        plan: {
-          mode: "single",
-          reasoning: "改为先核对清单项。",
-          tasks: [
-            {
-              agentRole: "query",
-              args: {
-                answer: "我会先核对清单项，再继续完成。",
-              },
-              dependsOn: [],
-              id: "task-check-first",
-              intent: "answer_question",
-              label: "先核对清单项",
-            },
-          ],
-        },
-        status: "success",
-      };
-    },
     tokenUsage,
     trace,
     user: { id: 1 },
   });
 
-  // R6-C1-D-B-Fix-3: heuristic orchestrator retired.
-  assert.ok(result.outcome);
+  assert.equal(result.outcome, "compound");
+  if (result.outcome !== "compound") return;
+  assert.equal(result.data.plan.tasks[0]?.intent, "complete_plan_item");
 });
 
 test("LangChain runtime resolves a pure progress query before the full Orchestrator", async () => {
@@ -357,7 +313,6 @@ test("LangChain runtime resolves a pure progress query before the full Orchestra
       emitStatus: () => undefined,
       emitToken: () => undefined,
       message: "看看我的工作计划进度",
-      payload: {} as Payload,
       pendingAction: null,
       persistAgentTurn: async () => assert.fail("pure query must continue to the existing Query Dispatcher"),
       pushTrace: () => undefined,
@@ -394,7 +349,6 @@ test("LangChain runtime does not let a generic possessive mask an unresolved tit
       emitStatus: () => undefined,
       emitToken: () => undefined,
       message: "查看我的计划里数学的进度",
-      payload: {} as Payload,
       pendingAction: null,
       persistAgentTurn: async () => assert.fail("clarify must continue to the existing deterministic response path"),
       pushTrace: () => undefined,
@@ -428,11 +382,9 @@ test("LangChain runtime composes a fixed Query with an injected residual plan be
           title: "考研数学复习计划",
         }],
       },
-      deferCompoundExecution: true,
       emitStatus: () => undefined,
       emitToken: () => undefined,
       message: "检查项目进度，记录未完成的作为新任务",
-      payload: {} as Payload,
       pendingAction: null,
       persistAgentTurn: async () => assert.fail("deferred hybrid plan must not persist before graph processing"),
       pushTrace: () => undefined,
@@ -491,11 +443,9 @@ test("LangChain hybrid residual planning propagates caller cancellation as a ter
           title: "考研数学复习计划",
         }],
       },
-      deferCompoundExecution: true,
       emitStatus: () => undefined,
       emitToken: () => undefined,
       message: "检查项目进度，记录未完成的作为新任务",
-      payload: {} as Payload,
       pendingAction: null,
       persistAgentTurn: async () =>
         assert.fail("cancelled residual planning must not persist"),
@@ -547,7 +497,6 @@ test("LangChain runtime pre-resolves an exact schedule completion without an LLM
       emitStatus: () => undefined,
       emitToken: () => undefined,
       message: "将日程 #41「完成核心链路验收」标记为完成",
-      payload: {} as Payload,
       pendingAction: null,
       persistAgentTurn: async () =>
         assert.fail("the exact boundary must continue to the existing dry-run path"),
@@ -604,7 +553,6 @@ test("LangChain runtime keeps an exact-looking schedule title conflict fail-clos
       emitStatus: () => undefined,
       emitToken: () => undefined,
       message: "将日程 #41「另一个日程」标记为完成",
-      payload: {} as Payload,
       pendingAction: null,
       persistAgentTurn: async () =>
         assert.fail("the LLM-unavailable guard must not persist a fabricated action"),

@@ -148,19 +148,19 @@ ordering. It delegates protected behavior to existing services:
 - `createAgentTurnFinalizer` owns terminal turn persistence.
 
 The graph does not reimplement policy, resource validation, Executor, Receipt,
-Rollback, or business persistence. The active production adapter always defers
-compound execution to the mounted subgraph.
-
-Two compatibility implementations remain classified for L3-E2 parity work:
-
-- the imperative `executeOrchestrationGraph()` runner is test-only;
-- inline `runOrchestrationSubgraph()` branches inside `orchestration-step.ts`
-  are bypassed by production through `deferCompoundExecution: true`.
+Rollback, or business persistence. The active production adapter mounts one
+compound subgraph; the orchestration decision step only returns a plan and has
+no domain execution dependency. The former imperative runner and inline
+compatibility branches have been retired.
 
 The checkpoint namespace remains `sunny-agent:v1:<userId>:<threadId>`. Node
-renames or topology-breaking changes require a new version plus an explicit
-drain, expiry, or version-routing decision; v1 state must not be reinterpreted
-as a newer topology.
+renames or topology-breaking changes require a new version. A version is never
+reinterpreted as another topology. Deleting an Agent conversation first removes
+its checkpoint and fails closed if that step is unavailable. The maintenance
+command defaults to a 30-day retention window for closed or archived threads,
+removes orphaned checkpoints, and deletes expired incompatible versions without
+exposing thread identifiers in its report. Active, unarchived conversations do
+not expire.
 
 ---
 

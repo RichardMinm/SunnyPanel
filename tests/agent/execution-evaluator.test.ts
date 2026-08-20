@@ -5,8 +5,8 @@ import {
   buildExecutionDecisionTraceStep,
   buildExecutionEvaluation,
   buildTaskObservation,
-  executeOrchestrationGraph,
 } from "../../src/lib/agent/execution-graph";
+import { runOrchestrationSubgraph } from "../../src/lib/agent/langgraph/orchestration-subgraph";
 import type { ExecutionQueueState, OrchestratorPlan, TaskNode } from "../../src/lib/agent/orchestration/types";
 
 const sampleTask = (overrides: Partial<TaskNode> = {}): TaskNode => ({
@@ -130,14 +130,14 @@ test("buildExecutionEvaluation waits for confirmation and preserves resume conte
   assert.match(evaluation.nextStep, /确认后继续恢复 1 个延后子任务/);
 });
 
-test("executeOrchestrationGraph returns an execution evaluation for proposed writes", async () => {
+test("runOrchestrationSubgraph returns an execution evaluation for proposed writes", async () => {
   const plan: OrchestratorPlan = {
     mode: "compound",
     reasoning: "需要先 dry-run 计划创建。",
     tasks: [sampleTask()],
   };
 
-  const result = await executeOrchestrationGraph(plan, {
+  const result = await runOrchestrationSubgraph(plan, {
     createActionId: () => "create-plan-action",
   });
 

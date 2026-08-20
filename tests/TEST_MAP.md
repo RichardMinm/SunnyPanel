@@ -89,10 +89,13 @@ Required invariants:
 - Node ordering and interrupt/resume semantics remain deterministic.
 - The executable topology has one ownership entry for every Full and compound
   node; only named services own execution, resume, and turn persistence.
-- Production mounts the compound subgraph and keeps inline/imperative compound
-  runners classified as compatibility code until parity and checkpoint gates
-  authorize their E2 removal.
-- Checkpoint keys isolate users and threads.
+- Production mounts one compound subgraph; the decision step cannot execute
+  domain actions, and no inline or imperative alternate runner remains.
+- Checkpoint keys isolate users and threads. Conversation deletion removes the
+  checkpoint first and fails closed before deleting the business thread.
+- Cleanup ignores foreign namespaces, removes orphaned rows, applies a bounded
+  30-day default only to closed/archived threads, preserves active threads, and
+  never reinterprets an old graph version.
 - Resume does not duplicate dry-run, execution, receipt, or persistence.
 - Cancellation and typed failures terminate safely.
 

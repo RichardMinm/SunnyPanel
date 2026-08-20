@@ -813,30 +813,12 @@ test("full adapter resumes a checkpointed confirmation without duplicate writes"
   assert.equal(receiptCompletions, 1);
 });
 
-test("full adapter claims an action receipt before orchestration auto-executes a write", async () => {
-  let receiptClaims = 0;
-  let receiptCompletions = 0;
-  let executions = 0;
+test("full adapter never exposes domain execution to the orchestration decision step", async () => {
   const thread = {
     id: 88,
     messages: [],
     pendingAction: null,
   } as unknown as AgentThread;
-  const action: ProposedAgentAction = {
-    args: { title: "自动计划" },
-    changes: [
-      {
-        collection: "plans",
-        operation: "create",
-        preview: "创建自动计划",
-      },
-    ],
-    id: "orchestration-auto-action",
-    intent: "create_plan",
-    requiresConfirmation: false,
-    riskLevel: "low",
-    summary: "自动创建计划",
-  };
   const steps: FullLangGraphAdapterSteps = {
     appendAgentThreadTurn: async ({ pendingAction }) =>
       ({ ...thread, pendingAction } as AgentThread),
@@ -863,58 +845,25 @@ test("full adapter claims an action receipt before orchestration auto-executes a
     runExecuteAndPersistStep: async () => {
       throw new Error("orchestration early exit should skip ordinary execute");
     },
-    runOrchestrationStep: async ({
-      executeAction,
-      persistAgentTurn,
-      tokenUsage: usage,
-    }) => {
-      assert.ok(executeAction);
-      const executed = await executeAction(
-        {
-          args: { title: "自动计划" },
-          intent: "create_plan",
-        },
-        action,
-      );
-      const updated = await persistAgentTurn({
-        assistantMessage: executed.assistantMessage,
-        confidence: 1,
-        engine: "workflow",
-        intent: "create_plan",
-        nextPendingAction: null,
-      });
-
+    runOrchestrationStep: async (input) => {
+      assert.equal("executeAction" in input, false);
+      assert.equal("executeRollback" in input, false);
       return {
         outcome: "early_exit",
         response: {
-          assistantMessage: executed.assistantMessage,
+          assistantMessage: "编排已安全结束",
           confidence: 1,
           engine: "workflow",
-          intent: "create_plan",
+          intent: "answer_question",
           pendingAction: null,
-          threadId: updated.id,
-          tokenUsage: usage,
+          threadId: thread.id,
+          tokenUsage: input.tokenUsage,
         },
       };
     },
     runResolveIntentStep: async () => {
       throw new Error("orchestration early exit should skip intent resolution");
     },
-  };
-  const receiptStore: AgentActionReceiptStore = {
-    claim: async ({ actionId }) => {
-      assert.equal(actionId, action.id);
-      receiptClaims += 1;
-      return { receiptId: 22, status: "claimed" };
-    },
-    complete: async (_receiptId, response) => {
-      assert.equal(
-        (response as { assistantMessage?: string }).assistantMessage,
-        "自动计划已创建",
-      );
-      receiptCompletions += 1;
-    },
-    markIndeterminate: async () => undefined,
   };
   const run = createRunFullLangGraphAgentChatPipeline(
     {
@@ -931,29 +880,12 @@ test("full adapter claims an action receipt before orchestration auto-executes a
       workbenchMode: "plan",
     },
     steps,
-    {
-      checkpointer: new MemorySaver(),
-      executeIntent: async () => {
-        executions += 1;
-        return {
-          assistantMessage: "自动计划已创建",
-          pendingAction: null,
-          rollbackPayload: {
-            strategy: "delete_created_document",
-            target: { collection: "plans", documentId: 99 },
-          },
-        };
-      },
-      receiptStore,
-    },
+    { checkpointer: new MemorySaver() },
   );
 
   const response = await run();
 
-  assert.equal(response.assistantMessage, "自动计划已创建");
-  assert.equal(executions, 1);
-  assert.equal(receiptClaims, 1);
-  assert.equal(receiptCompletions, 1);
+  assert.equal(response.assistantMessage, "编排已安全结束");
 });
 
 test("full adapter imports a legacy pending projection when no checkpoint exists", async () => {

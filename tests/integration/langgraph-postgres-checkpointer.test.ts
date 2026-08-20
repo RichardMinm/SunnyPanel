@@ -12,6 +12,7 @@ import {
 import { Pool } from "pg";
 
 import { buildSunnyAgentCheckpointConfig } from "../../src/lib/agent/langgraph/checkpointer";
+import { deleteAgentThreadWithCheckpoint } from "../../src/lib/agent/langgraph/checkpoint-lifecycle";
 import {
   compileFullSunnyAgentGraph,
   getInterruptedCompoundResult,
@@ -81,6 +82,43 @@ test("PostgresSaver restores across independent instances and isolates user/thre
     if (firstThreadId) await firstSaver.deleteThread(firstThreadId);
     if (isolatedThreadId) await firstSaver.deleteThread(isolatedThreadId);
     await Promise.all([firstPool.end(), secondPool.end()]);
+  }
+});
+
+test("thread lifecycle deletion removes its PostgreSQL checkpoint before the business record", async () => {
+  const databaseUrl = process.env.DATABASE_URL;
+  assert.ok(databaseUrl, "DATABASE_URL is required for the PostgreSQL checkpoint integration test.");
+
+  const pool = new Pool({ connectionString: databaseUrl });
+  const saver = new PostgresSaver(pool);
+  const suffix = (Date.now() % 1_000_000_000) + Math.floor(Math.random() * 1_000);
+  const config = buildSunnyAgentCheckpointConfig({
+    threadId: suffix,
+    userId: suffix + 1,
+  });
+  let businessDeleted = false;
+
+  try {
+    await saver.setup();
+    const graph = buildCounterGraph(saver);
+    await graph.invoke({ value: 1 }, config);
+    assert.ok(await saver.getTuple(config));
+
+    await deleteAgentThreadWithCheckpoint({
+      checkpointer: saver,
+      deleteBusinessThread: async () => {
+        assert.equal(await saver.getTuple(config), undefined);
+        businessDeleted = true;
+      },
+      threadId: suffix,
+      userId: suffix + 1,
+    });
+
+    assert.equal(businessDeleted, true);
+    assert.equal(await saver.getTuple(config), undefined);
+  } finally {
+    await saver.deleteThread(String(config.configurable?.thread_id ?? ""));
+    await pool.end();
   }
 });
 

@@ -1,6 +1,7 @@
 import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
 
 import { PRODUCTION_GRAPH_VERSION } from "@/lib/agent/langgraph/topology";
+import { buildSunnyAgentCheckpointThreadId } from "@/lib/agent/langgraph/checkpoint-lifecycle";
 
 export const buildSunnyAgentCheckpointConfig = ({
   threadId,
@@ -10,7 +11,11 @@ export const buildSunnyAgentCheckpointConfig = ({
   userId: number;
 }) => ({
   configurable: {
-    thread_id: `sunny-agent:${PRODUCTION_GRAPH_VERSION}:${userId}:${threadId}`,
+    thread_id: buildSunnyAgentCheckpointThreadId({
+      threadId,
+      userId,
+      version: PRODUCTION_GRAPH_VERSION,
+    }),
   },
   durability: "sync" as const,
 });

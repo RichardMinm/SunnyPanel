@@ -63,22 +63,6 @@ const terminalResponse = (value: unknown): AgentChatResponse | null => {
     : null;
 };
 
-const mergeTrace = (
-  current: AgentTraceStep[] | undefined,
-  additions: AgentTraceStep[],
-) => {
-  const merged = new Map<string, AgentTraceStep>();
-
-  for (const step of [...(current ?? []), ...additions]) {
-    merged.set(step.id, {
-      ...(merged.get(step.id) ?? {}),
-      ...step,
-    } as AgentTraceStep);
-  }
-
-  return [...merged.values()];
-};
-
 const resolveTopicForStateUpdate = (
   intent: AgentChatResponse["intent"],
   message: string,
@@ -176,24 +160,7 @@ export const createAgentTurnFinalizer = ({
       turnId,
       workbenchMode: workbenchMode ?? undefined,
     };
-    const learningTrace: AgentTraceStep[] = [];
     const runtimeFailure = projectSafeExecutionFailure("runtime");
-    const pushLearningTrace = (step: AgentTraceStep) => {
-      const index = learningTrace.findIndex(
-        (existingStep) => existingStep.id === step.id,
-      );
-
-      if (index === -1) {
-        learningTrace.push(step);
-      } else {
-        learningTrace[index] = {
-          ...learningTrace[index],
-          ...step,
-        };
-      }
-
-      pushTrace(step);
-    };
 
     // Persist the authoritative terminal response before optional post-turn
     // learning. A slow or failed enhancement must never make a completed turn
@@ -259,26 +226,18 @@ export const createAgentTurnFinalizer = ({
           message,
           pendingActionAfter: completedResponse.pendingAction,
           pendingActionBefore: pendingBefore,
-          pushTrace: pushLearningTrace,
+          // Learning runs after the authoritative terminal event. Its optional
+          // diagnostics must not mutate the returned response, otherwise a
+          // replay of the persisted terminal would differ from the first call.
+          pushTrace: () => undefined,
           sourceThread: thread.id,
           tokenUsage: completedResponse.tokenUsage ?? tokenUsage,
           user,
         });
       } catch {
-        pushLearningTrace({
-          detail: "LEARNING_POST_TURN_FAILED",
-          id: "turn-learning-failure",
-          kind: "error",
-          status: "error",
-          title: "学习循环未完成",
-        });
+        // Best-effort post-turn learning cannot revoke or rewrite completion.
       }
     }
-
-    completedResponse.trace = mergeTrace(
-      completedResponse.trace,
-      learningTrace,
-    );
 
     if (!failure && completedResponse.pendingAction === null && suggestionSource) {
       try {

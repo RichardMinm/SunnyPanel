@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { Payload } from "payload";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import {
@@ -71,12 +70,10 @@ test("production compound turn shares its recorder with the Residual Planner", a
           title: "考研数学复习计划",
         }],
       },
-      deferCompoundExecution: true,
       emitStatus: () => undefined,
       emitToken: () => undefined,
       message: "检查项目进度，记录未完成的作为新任务",
       modelCallRecorder: recorder,
-      payload: {} as Payload,
       pendingAction: null,
       persistAgentTurn: async () => ({ id: 1 }) as AgentThread,
       pushTrace: () => undefined,
@@ -149,7 +146,6 @@ test("clarify production turn leaves every model role at zero", async () => {
       emitToken: () => undefined,
       message: "检查不存在的计划 999 的完成情况",
       modelCallRecorder: recorder,
-      payload: {} as Payload,
       pendingAction: null,
       persistAgentTurn: async () => ({ id: 1 }) as AgentThread,
       pushTrace: () => undefined,

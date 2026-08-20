@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import type { Payload } from "payload";
 
 import {
   runOrchestrationStep,
@@ -42,17 +41,9 @@ test("caller cancellation reaches the production orchestration seam exactly once
   const caller = new AbortController();
   const providerEvents: StructuredProviderAttemptEvent[] = [];
   let providerAttempts = 0;
-  let payloadAccesses = 0;
   let proposalOrPersistenceCalls = 0;
-  let taskExecutionCalls = 0;
   let propagatedSignal: AbortSignal | undefined;
   let structuredResult: OrchestratorInvocationResult | undefined;
-  const payload = new Proxy({} as Payload, {
-    get() {
-      payloadAccesses += 1;
-      throw new Error("Payload access is forbidden after caller cancellation.");
-    },
-  });
   const modelFactory: ModelFactory = () => ({
     withConfig: () => ({
       invoke: async (
@@ -71,13 +62,8 @@ test("caller cancellation reaches the production orchestration seam exactly once
     context,
     emitStatus: () => undefined,
     emitToken: () => undefined,
-    executeAction: async () => {
-      taskExecutionCalls += 1;
-      throw new Error("Task execution is forbidden after cancellation.");
-    },
     hybridBoundaryMode: "disabled",
     message: "帮我制定发布计划",
-    payload,
     pendingAction: null,
     persistAgentTurn: async () => {
       proposalOrPersistenceCalls += 1;
@@ -151,21 +137,12 @@ test("caller cancellation reaches the production orchestration seam exactly once
     assert.equal(result.data.safeMessage, "请求已被取消。");
   }
   assert.equal(proposalOrPersistenceCalls, 0);
-  assert.equal(taskExecutionCalls, 0);
-  assert.equal(payloadAccesses, 0);
 });
 
 // Mutation caught: accepting a just-completed Provider result after the caller
 // disconnects would re-open intent resolution and persistence.
 test("caller cancellation wins a race with a successful orchestration result", async () => {
   const caller = new AbortController();
-  let payloadAccesses = 0;
-  const payload = new Proxy({} as Payload, {
-    get() {
-      payloadAccesses += 1;
-      throw new Error("Payload access is forbidden after caller cancellation.");
-    },
-  });
   const safePlan: OrchestratorPlan = {
     mode: "single",
     reasoning: "A valid result arrived as the caller disconnected.",
@@ -186,7 +163,6 @@ test("caller cancellation wins a race with a successful orchestration result", a
     emitToken: () => undefined,
     hybridBoundaryMode: "disabled",
     message: "如何安排发布？",
-    payload,
     pendingAction: null,
     persistAgentTurn: async () => {
       throw new Error("Persistence is forbidden after caller cancellation.");
@@ -207,7 +183,6 @@ test("caller cancellation wins a race with a successful orchestration result", a
   });
 
   assert.equal(result.outcome, "cancelled");
-  assert.equal(payloadAccesses, 0);
 });
 
 // Mutation caught: changing the injected service contract to require a signal
@@ -235,7 +210,6 @@ test("historical two-argument orchestration fakes remain compatible", async () =
     emitToken: () => undefined,
     hybridBoundaryMode: "disabled",
     message: "需要帮助",
-    payload: {} as Payload,
     pendingAction: null,
     persistAgentTurn: async () => ({ id: 1 }) as AgentThread,
     pushTrace: () => undefined,

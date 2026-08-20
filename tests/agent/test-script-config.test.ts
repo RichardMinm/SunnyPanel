@@ -45,6 +45,19 @@ test("checkpoint setup is an explicit deployment command", () => {
   assert.match(script, /setup-langgraph-checkpoints\.ts/);
 });
 
+test("checkpoint cleanup is an explicit dry-run-first maintenance command", () => {
+  const command = packageJson.scripts?.["agent:checkpoint:cleanup"] ?? "";
+  const script = readFileSync(
+    resolve(process.cwd(), "scripts/cleanup-langgraph-checkpoints.ts"),
+    "utf8",
+  );
+
+  assert.match(command, /cleanup-langgraph-checkpoints\.ts/);
+  assert.match(script, /args\.has\("--apply"\)/);
+  assert.match(script, /action:\s*apply \? "deleted" : "dry_run"/);
+  assert.doesNotMatch(script, /console\.(?:info|log)\([^\n]*threadId/);
+});
+
 test("Agent runtime E2E covers the remaining migration-critical HTTP paths", () => {
   const command = packageJson.scripts?.["test:agent:e2e"] ?? "";
   const script = readFileSync(

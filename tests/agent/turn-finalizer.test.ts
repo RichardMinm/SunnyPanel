@@ -132,7 +132,7 @@ test("turn finalizer writes one terminal event and runs learning once", async ()
   assert.equal(projections, 1);
 });
 
-test("turn finalizer commits the terminal event before optional learning starts", async () => {
+test("turn finalizer commits one replay-stable terminal before optional learning starts", async () => {
   const { events, store } = createMemoryStore();
   const emittedTrace: NonNullable<AgentChatResponse["trace"]> = [];
   const thread = {
@@ -204,8 +204,8 @@ test("turn finalizer commits the terminal event before optional learning starts"
     }
   ).response;
 
-  assert.equal(emittedTrace.at(-1)?.id, "learning-loop");
-  assert.equal(response.trace?.at(-1)?.id, "learning-loop");
+  assert.equal(emittedTrace.some((step) => step.id === "learning-loop"), false);
+  assert.equal(response.trace?.some((step) => step.id === "learning-loop"), false);
   assert.equal(persistedResponse?.assistantMessage, "进度正常");
   assert.equal(persistedResponse?.trace?.some((step) => step.id === "learning-loop"), false);
   assert.equal(

@@ -6,7 +6,6 @@
  * candidate-validation result from its caller.
  */
 
-import type { Payload } from "payload";
 
 import {
   runOrchestrationStep,
@@ -299,9 +298,9 @@ export const evaluateHybridProductionCase = async (
       residualRejectionReason: null,
       residualStatus: "not_called",
     };
-    let databaseConnections = 0;
+    const databaseConnections = 0;
     let businessMutations = 0;
-    let taskExecutions = 0;
+    const taskExecutions = 0;
     let fixedQueryIntent: string | null = null;
     let fixedTaskOwnership:
       HybridProductionEvaluationObservation["fixedTaskOwnership"] = null;
@@ -330,13 +329,6 @@ export const evaluateHybridProductionCase = async (
         mapperReached = observation.reached;
       }
     };
-    const payload = new Proxy({} as Payload, {
-      get: () => {
-        databaseConnections += 1;
-        throw new Error("Hybrid evaluation forbids database access.");
-      },
-    });
-
     let terminalFailure = false;
     let result: Awaited<ReturnType<typeof runOrchestrationStep>> | null =
       null;
@@ -344,17 +336,11 @@ export const evaluateHybridProductionCase = async (
     try {
       result = await runOrchestrationStep({
         context: input.context,
-        deferCompoundExecution: true,
         emitStatus: () => undefined,
         emitToken: () => undefined,
-        executeAction: async () => {
-          taskExecutions += 1;
-          throw new Error("Hybrid evaluation forbids task execution.");
-        },
         message: input.message,
         modelCallRecorder: recorder,
         onHybridObservation: observeHybrid,
-        payload,
         pendingAction: null,
         persistAgentTurn: async () => {
           businessMutations += 1;
@@ -712,9 +698,9 @@ export const evaluateProductionGateCase = async (
       residualStatus: "not_called",
     };
     let mapperReached = false;
-    let databaseConnections = 0;
+    const databaseConnections = 0;
     let businessMutations = 0;
-    let taskExecutions = 0;
+    const taskExecutions = 0;
     let terminalFailure = false;
     let queryDispatcherDecision:
       | "complete"
@@ -722,24 +708,13 @@ export const evaluateProductionGateCase = async (
       | "not_adopted"
       | "unavailable" = "not_called";
 
-    const payload = new Proxy({} as Payload, {
-      get: () => {
-        databaseConnections += 1;
-        throw new Error("Production gate forbids database access.");
-      },
-    });
     const startedAt = clock();
     let result: Awaited<ReturnType<typeof runOrchestrationStep>> | null = null;
     try {
       result = await runOrchestrationStep({
         context: input.fixture.context,
-        deferCompoundExecution: true,
         emitStatus: () => undefined,
         emitToken: () => undefined,
-        executeAction: async () => {
-          taskExecutions += 1;
-          throw new Error("Production gate forbids task execution.");
-        },
         hybridBoundaryMode: "runtime",
         message: input.fixture.message,
         modelCallRecorder: recorder,
@@ -756,7 +731,6 @@ export const evaluateProductionGateCase = async (
             gateState.residualStatus = observation.status;
           }
         },
-        payload,
         pendingAction: null,
         persistAgentTurn: async () => {
           businessMutations += 1;

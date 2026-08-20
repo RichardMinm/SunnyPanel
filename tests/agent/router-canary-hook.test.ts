@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import type { Payload } from "payload";
 
 import { runOrchestrationStep } from "../../src/lib/agent/chat-pipeline/orchestration-step";
 import type { RouterCanaryDecision } from "../../src/lib/agent/router/router-canary";
@@ -50,7 +49,6 @@ const baseParams = {
   emitStatus: () => undefined,
   emitToken: () => undefined,
   message: "解释线性代数",
-  payload: {} as Payload,
   pendingAction: null,
   persistAgentTurn: async () => ({ id: 1 }) as AgentThread,
   pushTrace: () => undefined,
@@ -109,25 +107,9 @@ describe("Router Canary production hook", () => {
     }
   });
 
-  it("does not call execution, receipt, rollback, or database mutations", async () => {
-    let executionCalls = 0;
-    let payloadCalls = 0;
+  it("does not receive execution, receipt, rollback, or database dependencies", async () => {
     const result = await runOrchestrationStep({
       ...baseParams,
-      executeAction: async () => {
-        executionCalls += 1;
-        throw new Error("must not execute");
-      },
-      executeRollback: async () => {
-        executionCalls += 1;
-        throw new Error("must not rollback");
-      },
-      payload: new Proxy({} as Payload, {
-        get: () => {
-          payloadCalls += 1;
-          throw new Error("must not access database");
-        },
-      }),
       resolveRouterCanaryRoutingFn: async (input) => ({
         adopted: true,
         decision: { ...input.primary, confidence: 0.93 },
@@ -137,8 +119,6 @@ describe("Router Canary production hook", () => {
     });
 
     assert.equal(result.outcome, "continue");
-    assert.equal(executionCalls, 0);
-    assert.equal(payloadCalls, 0);
   });
 
   it("passes only IDs from the already-loaded workspace context", async () => {
