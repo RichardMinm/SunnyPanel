@@ -61,6 +61,7 @@ import {
 } from "@/lib/agent/orchestration/replan";
 import { buildToolFailureRepairPlan } from "@/lib/agent/orchestration/tool-failure-repair";
 import type { SunnyAgentGraphInput } from "@/lib/agent/langgraph/state";
+import { COMPOUND_GRAPH_NODES } from "@/lib/agent/langgraph/topology";
 import type { StructuredConfirmation } from "@/lib/agent/chat-pipeline/confirmation-step";
 import {
   confirmationMatchesBatchPending,
@@ -323,7 +324,7 @@ const NativeStateAnnotation = Annotation.Root({
   resumeRoute: Annotation<
     NativeOrchestrationSubgraphState["resumeRoute"]
   >({
-    default: () => "publish_result",
+    default: () => COMPOUND_GRAPH_NODES.PUBLISH_RESULT,
     reducer: (_left, right) => right,
   }),
   route: Annotation<NativeOrchestrationSubgraphState["route"]>({
@@ -462,7 +463,7 @@ const compileNativeOrchestrationGraph = (
   } = {},
 ) =>
   new StateGraph(NativeStateAnnotation)
-    .addNode("prepare", (state) => {
+    .addNode(COMPOUND_GRAPH_NODES.PREPARE, (state) => {
       const plan = state.compoundPlan ?? state.plan;
 
       if (!plan) {
@@ -494,7 +495,7 @@ const compileNativeOrchestrationGraph = (
         writeQueue: [],
       };
     })
-    .addNode("select_ready", async (state) => {
+    .addNode(COMPOUND_GRAPH_NODES.SELECT_READY, async (state) => {
       const layer = state.layers[state.layerIndex] ?? [];
       const remainingBudget =
         typeof options.maxTasksPerRun === "number"
@@ -530,7 +531,7 @@ const compileNativeOrchestrationGraph = (
         ),
       };
     })
-    .addNode("execute_read_task", async (state) => {
+    .addNode(COMPOUND_GRAPH_NODES.EXECUTE_READ_TASK, async (state) => {
       const prepared = state.preparedTasks[0];
 
       if (!prepared) {
@@ -550,7 +551,7 @@ const compileNativeOrchestrationGraph = (
         ],
       };
     })
-    .addNode("execute_write_task", async (state) => {
+    .addNode(COMPOUND_GRAPH_NODES.EXECUTE_WRITE_TASK, async (state) => {
       const [prepared, ...writeQueue] = state.writeQueue;
 
       if (!prepared) {
@@ -571,7 +572,7 @@ const compileNativeOrchestrationGraph = (
         writeQueue,
       };
     })
-    .addNode("collect", (state) => {
+    .addNode(COMPOUND_GRAPH_NODES.COLLECT, (state) => {
       const currentIds = new Set(
         state.currentLayer.map((task) => task.id),
       );
@@ -583,7 +584,7 @@ const compileNativeOrchestrationGraph = (
         bus: appendBusMessages(state.bus, currentOutcomes),
       };
     })
-    .addNode("advance_layer", (state) => {
+    .addNode(COMPOUND_GRAPH_NODES.ADVANCE_LAYER, (state) => {
       const layer = state.layers[state.layerIndex] ?? [];
       const hasBudgetRemainder =
         state.currentLayer.length < layer.length;
@@ -605,7 +606,7 @@ const compileNativeOrchestrationGraph = (
         writeQueue: [],
       };
     })
-    .addNode("evaluate", async (state) => {
+    .addNode(COMPOUND_GRAPH_NODES.EVALUATE, async (state) => {
       const order = new Map(
         state.taskCatalog.map((task, index) => [task.id, index]),
       );
@@ -765,7 +766,7 @@ const compileNativeOrchestrationGraph = (
         route: "complete" as const,
       };
     })
-    .addNode("await_compound_user", async (state) => {
+    .addNode(COMPOUND_GRAPH_NODES.AWAIT_COMPOUND_USER, async (state) => {
       const result = buildNativeResult(
         state,
         buildMountedResultOptions(state),
@@ -775,7 +776,7 @@ const compileNativeOrchestrationGraph = (
       if (!pendingAction) {
         return {
           compoundResult: result,
-          resumeRoute: "publish_result" as const,
+          resumeRoute: COMPOUND_GRAPH_NODES.PUBLISH_RESULT,
         };
       }
 
@@ -804,7 +805,7 @@ const compileNativeOrchestrationGraph = (
       if (signals.cancel) {
         return {
           compoundResult: buildCanceledCompoundResult(result),
-          resumeRoute: "publish_result" as const,
+          resumeRoute: COMPOUND_GRAPH_NODES.PUBLISH_RESULT,
         };
       }
 
@@ -860,8 +861,8 @@ const compileNativeOrchestrationGraph = (
           outcomes: confirmedOutcomes,
           resumeRoute:
             state.writeQueue.length > 0
-              ? "execute_write_task" as const
-              : "advance_layer" as const,
+              ? COMPOUND_GRAPH_NODES.EXECUTE_WRITE_TASK
+              : COMPOUND_GRAPH_NODES.ADVANCE_LAYER,
         };
       }
 
@@ -901,10 +902,10 @@ const compileNativeOrchestrationGraph = (
           processedBaseline: state.outcomes.length,
           resumeRoute:
             hasCheckpointedRemainder
-              ? "select_ready" as const
+              ? COMPOUND_GRAPH_NODES.SELECT_READY
               : resumedPlan.tasks.length > 0
-                ? "prepare" as const
-                : "publish_result" as const,
+                ? COMPOUND_GRAPH_NODES.PREPARE
+                : COMPOUND_GRAPH_NODES.PUBLISH_RESULT,
         };
       }
 
@@ -941,8 +942,8 @@ const compileNativeOrchestrationGraph = (
           readQueue: [],
           resumeRoute:
             resumedPlan.tasks.length > 0
-              ? "prepare" as const
-              : "publish_result" as const,
+              ? COMPOUND_GRAPH_NODES.PREPARE
+              : COMPOUND_GRAPH_NODES.PUBLISH_RESULT,
           taskCatalog: [
             ...state.taskCatalog,
             ...resumedPlan.tasks.filter(
@@ -958,10 +959,10 @@ const compileNativeOrchestrationGraph = (
 
       return {
         compoundResult: result,
-        resumeRoute: "publish_result" as const,
+        resumeRoute: COMPOUND_GRAPH_NODES.PUBLISH_RESULT,
       };
     })
-    .addNode("publish_result", (state) => ({
+    .addNode(COMPOUND_GRAPH_NODES.PUBLISH_RESULT, (state) => ({
       compoundResult:
         state.compoundResult ??
         buildNativeResult(
@@ -969,33 +970,43 @@ const compileNativeOrchestrationGraph = (
           buildMountedResultOptions(state),
         ),
     }))
-    .addEdge(START, "prepare")
-    .addEdge("prepare", "select_ready")
+    .addEdge(START, COMPOUND_GRAPH_NODES.PREPARE)
+    .addEdge(COMPOUND_GRAPH_NODES.PREPARE, COMPOUND_GRAPH_NODES.SELECT_READY)
     .addConditionalEdges(
-      "select_ready",
+      COMPOUND_GRAPH_NODES.SELECT_READY,
       (state) => {
         if (state.currentLayer.length === 0) {
-          return "evaluate";
+          return COMPOUND_GRAPH_NODES.EVALUATE;
         }
 
         if (state.readQueue.length > 0) {
           return state.readQueue.map(
             (prepared) =>
-              new Send("execute_read_task", {
+              new Send(COMPOUND_GRAPH_NODES.EXECUTE_READ_TASK, {
                 ...state,
                 preparedTasks: [prepared],
               }),
           );
         }
 
-        return "execute_write_task";
+        return COMPOUND_GRAPH_NODES.EXECUTE_WRITE_TASK;
       },
-      ["evaluate", "execute_read_task", "execute_write_task"],
+      [
+        COMPOUND_GRAPH_NODES.EVALUATE,
+        COMPOUND_GRAPH_NODES.EXECUTE_READ_TASK,
+        COMPOUND_GRAPH_NODES.EXECUTE_WRITE_TASK,
+      ],
     )
-    .addEdge("execute_read_task", "collect")
-    .addEdge("execute_write_task", "collect")
+    .addEdge(
+      COMPOUND_GRAPH_NODES.EXECUTE_READ_TASK,
+      COMPOUND_GRAPH_NODES.COLLECT,
+    )
+    .addEdge(
+      COMPOUND_GRAPH_NODES.EXECUTE_WRITE_TASK,
+      COMPOUND_GRAPH_NODES.COLLECT,
+    )
     .addConditionalEdges(
-      "collect",
+      COMPOUND_GRAPH_NODES.COLLECT,
       (state) => {
         const currentIds = new Set(
           state.currentLayer.map((task) => task.id),
@@ -1005,28 +1016,32 @@ const compileNativeOrchestrationGraph = (
         );
 
         if (hasConfirmationBoundary(currentOutcomes)) {
-          return "evaluate";
+          return COMPOUND_GRAPH_NODES.EVALUATE;
         }
 
         return state.writeQueue.length > 0
-          ? "execute_write_task"
-          : "advance_layer";
+          ? COMPOUND_GRAPH_NODES.EXECUTE_WRITE_TASK
+          : COMPOUND_GRAPH_NODES.ADVANCE_LAYER;
       },
-      ["advance_layer", "evaluate", "execute_write_task"],
+      [
+        COMPOUND_GRAPH_NODES.ADVANCE_LAYER,
+        COMPOUND_GRAPH_NODES.EVALUATE,
+        COMPOUND_GRAPH_NODES.EXECUTE_WRITE_TASK,
+      ],
     )
     .addConditionalEdges(
-      "advance_layer",
+      COMPOUND_GRAPH_NODES.ADVANCE_LAYER,
       (state) =>
         state.layerIndex >= state.layers.length
-          ? "evaluate"
-          : "select_ready",
-      ["evaluate", "select_ready"],
+          ? COMPOUND_GRAPH_NODES.EVALUATE
+          : COMPOUND_GRAPH_NODES.SELECT_READY,
+      [COMPOUND_GRAPH_NODES.EVALUATE, COMPOUND_GRAPH_NODES.SELECT_READY],
     )
     .addConditionalEdges(
-      "evaluate",
+      COMPOUND_GRAPH_NODES.EVALUATE,
       (state) => {
         if (state.route === "replan") {
-          return "prepare";
+          return COMPOUND_GRAPH_NODES.PREPARE;
         }
 
         if (!options.mounted) {
@@ -1037,23 +1052,28 @@ const compileNativeOrchestrationGraph = (
           state,
           buildMountedResultOptions(state),
         ).pendingAction
-          ? "await_compound_user"
-          : "publish_result";
+          ? COMPOUND_GRAPH_NODES.AWAIT_COMPOUND_USER
+          : COMPOUND_GRAPH_NODES.PUBLISH_RESULT;
       },
-      ["await_compound_user", "prepare", "publish_result", END],
-    )
-    .addConditionalEdges(
-      "await_compound_user",
-      (state) => state.resumeRoute,
       [
-        "advance_layer",
-        "execute_write_task",
-        "prepare",
-        "publish_result",
-        "select_ready",
+        COMPOUND_GRAPH_NODES.AWAIT_COMPOUND_USER,
+        COMPOUND_GRAPH_NODES.PREPARE,
+        COMPOUND_GRAPH_NODES.PUBLISH_RESULT,
+        END,
       ],
     )
-    .addEdge("publish_result", END)
+    .addConditionalEdges(
+      COMPOUND_GRAPH_NODES.AWAIT_COMPOUND_USER,
+      (state) => state.resumeRoute,
+      [
+        COMPOUND_GRAPH_NODES.ADVANCE_LAYER,
+        COMPOUND_GRAPH_NODES.EXECUTE_WRITE_TASK,
+        COMPOUND_GRAPH_NODES.PREPARE,
+        COMPOUND_GRAPH_NODES.PUBLISH_RESULT,
+        COMPOUND_GRAPH_NODES.SELECT_READY,
+      ],
+    )
+    .addEdge(COMPOUND_GRAPH_NODES.PUBLISH_RESULT, END)
     .compile(
       options.checkpointer
         ? { checkpointer: options.checkpointer }

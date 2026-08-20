@@ -1,6 +1,6 @@
 # SunnyPanel test map
 
-Updated: 2026-08-16
+Updated: 2026-08-20
 
 This map describes the current product test boundaries. Historical rollout
 phases and one-time Provider Gates belong in Git history or evaluation docs,
@@ -87,6 +87,11 @@ Representative paths:
 Required invariants:
 
 - Node ordering and interrupt/resume semantics remain deterministic.
+- The executable topology has one ownership entry for every Full and compound
+  node; only named services own execution, resume, and turn persistence.
+- Production mounts the compound subgraph and keeps inline/imperative compound
+  runners classified as compatibility code until parity and checkpoint gates
+  authorize their E2 removal.
 - Checkpoint keys isolate users and threads.
 - Resume does not duplicate dry-run, execution, receipt, or persistence.
 - Cancellation and typed failures terminate safely.

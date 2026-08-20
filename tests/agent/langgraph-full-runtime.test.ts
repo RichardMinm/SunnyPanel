@@ -13,6 +13,7 @@ import {
   compileMountedOrchestrationSubgraph,
 } from "../../src/lib/agent/langgraph/orchestration-subgraph";
 import { buildSunnyAgentCheckpointConfig } from "../../src/lib/agent/langgraph/checkpointer";
+import { FULL_GRAPH_NODES } from "../../src/lib/agent/langgraph/topology";
 import type {
   AgentChatResponse,
   ProposedAgentAction,
@@ -56,7 +57,7 @@ test("full graph directly mounts a compiled compound subgraph", () => {
 
   assert.match(
     source,
-    /\.addNode\("compound_subgraph",\s*compoundSubgraph(?:\s+as\s+never)?\)/,
+    /\.addNode\(FULL_GRAPH_NODES\.COMPOUND_SUBGRAPH,\s*compoundSubgraph(?:\s+as\s+never)?\)/,
   );
   assert.doesNotMatch(
     source,
@@ -64,6 +65,7 @@ test("full graph directly mounts a compiled compound subgraph", () => {
   );
   assert.doesNotMatch(source, /dependencies\.executeCompound/);
   assert.doesNotMatch(source, /compileCompoundSubgraph/);
+  assert.equal(FULL_GRAPH_NODES.COMPOUND_SUBGRAPH, "compound_subgraph");
 });
 
 test("full graph traverses explicit runtime nodes in order", async () => {

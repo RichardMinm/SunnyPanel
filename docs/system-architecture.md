@@ -128,7 +128,43 @@ Local-first write model:
 
 ---
 
-## 4. Guarded Query Runtime
+## 4. LangGraph Topology Ownership
+
+Production uses one Full LangGraph and one directly mounted compound subgraph.
+The checkpoint-visible node names and their service owners come from
+`src/lib/agent/langgraph/topology.ts`; the real graph builders consume the same
+constants.
+
+LangGraph owns sequencing, state transition, interruption, resume, and terminal
+ordering. It delegates protected behavior to existing services:
+
+- `runBuildContextStep` owns context loading;
+- `runOrchestrationStep` owns Orchestrator dispatch;
+- `runResolveIntentStep` owns deterministic resolution boundaries;
+- `runDryRunAndProposeStep` owns draft, dry-run, and confirmation preparation;
+- `runExecuteAndPersistStep` plus `runIdempotentAgentAction` own single-action
+  execution and Receipt idempotency;
+- `NativeOrchestrationTaskExecutor` owns compound task preparation and execution;
+- `createAgentTurnFinalizer` owns terminal turn persistence.
+
+The graph does not reimplement policy, resource validation, Executor, Receipt,
+Rollback, or business persistence. The active production adapter always defers
+compound execution to the mounted subgraph.
+
+Two compatibility implementations remain classified for L3-E2 parity work:
+
+- the imperative `executeOrchestrationGraph()` runner is test-only;
+- inline `runOrchestrationSubgraph()` branches inside `orchestration-step.ts`
+  are bypassed by production through `deferCompoundExecution: true`.
+
+The checkpoint namespace remains `sunny-agent:v1:<userId>:<threadId>`. Node
+renames or topology-breaking changes require a new version plus an explicit
+drain, expiry, or version-routing decision; v1 state must not be reinterpreted
+as a newer topology.
+
+---
+
+## 5. Guarded Query Runtime
 
 The Query runtime is a read-only branch inside the existing trusted `preResolvedIntent` production seam. It is not a new Router, LangGraph node, or workflow graph.
 

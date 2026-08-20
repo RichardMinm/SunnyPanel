@@ -19,6 +19,7 @@ import type {
   SunnyAgentGraphInput,
   SunnyAgentGraphResolution,
 } from "@/lib/agent/langgraph/state";
+import { FULL_GRAPH_NODES } from "@/lib/agent/langgraph/topology";
 import type {
   AgentChatResponse,
   AgentIntent,
@@ -190,7 +191,9 @@ const appendTrace = (
 ): AgentTraceStep[] => [...trace, step];
 
 const routeResponse = (state: FullSunnyAgentGraphState) =>
-  state.response?.pendingAction ? "await_user" : "finalize";
+  state.response?.pendingAction
+    ? FULL_GRAPH_NODES.AWAIT_USER
+    : FULL_GRAPH_NODES.FINALIZE;
 
 const toFailureUpdate = (error: unknown) => {
   void error;
@@ -211,7 +214,7 @@ export const compileFullSunnyAgentGraph = (
   const compoundSubgraph = options.compoundSubgraph;
 
   return new StateGraph(StateAnnotation)
-    .addNode("build_context", async (state) => {
+    .addNode(FULL_GRAPH_NODES.BUILD_CONTEXT, async (state) => {
       try {
         const result = await dependencies.buildContext({
           input: state.input,
@@ -233,7 +236,7 @@ export const compileFullSunnyAgentGraph = (
         return toFailureUpdate(error);
       }
     })
-    .addNode("orchestrate_plan", async (state, config) => {
+    .addNode(FULL_GRAPH_NODES.ORCHESTRATE_PLAN, async (state, config) => {
       try {
         const result = await dependencies.orchestrate({
           config,
@@ -273,8 +276,8 @@ export const compileFullSunnyAgentGraph = (
         return toFailureUpdate(error);
       }
     })
-    .addNode("compound_subgraph", compoundSubgraph as never)
-    .addNode("finalize_compound", async (state) => {
+    .addNode(FULL_GRAPH_NODES.COMPOUND_SUBGRAPH, compoundSubgraph as never)
+    .addNode(FULL_GRAPH_NODES.FINALIZE_COMPOUND, async (state) => {
       try {
         if (!state.compoundPlan || !state.compoundResult) {
           throw new Error(
@@ -311,7 +314,7 @@ export const compileFullSunnyAgentGraph = (
         return toFailureUpdate(error);
       }
     })
-    .addNode("resolve_intent", async (state) => {
+    .addNode(FULL_GRAPH_NODES.RESOLVE_INTENT, async (state) => {
       try {
         const result = await dependencies.resolveIntent({
           context: state.context,
@@ -344,7 +347,7 @@ export const compileFullSunnyAgentGraph = (
         return toFailureUpdate(error);
       }
     })
-    .addNode("dry_run", async (state) => {
+    .addNode(FULL_GRAPH_NODES.DRY_RUN, async (state) => {
       try {
         if (!state.resolution || !state.resolutionData) {
           throw new Error(
@@ -375,7 +378,7 @@ export const compileFullSunnyAgentGraph = (
         return toFailureUpdate(error);
       }
     })
-    .addNode("execute", async (state) => {
+    .addNode(FULL_GRAPH_NODES.EXECUTE, async (state) => {
       try {
         if (
           !state.resolution ||
@@ -409,7 +412,7 @@ export const compileFullSunnyAgentGraph = (
         return toFailureUpdate(error);
       }
     })
-    .addNode("refresh_evaluate", (state) => {
+    .addNode(FULL_GRAPH_NODES.REFRESH_EVALUATE, (state) => {
       try {
         if (!state.response) {
           throw new Error(
@@ -431,7 +434,7 @@ export const compileFullSunnyAgentGraph = (
         return toFailureUpdate(error);
       }
     })
-    .addNode("await_user", (state) => {
+    .addNode(FULL_GRAPH_NODES.AWAIT_USER, (state) => {
       if (!state.response?.pendingAction) {
         throw new Error("LangGraph await_user requires pending work.");
       }
@@ -466,7 +469,7 @@ export const compileFullSunnyAgentGraph = (
         trace: [],
       };
     })
-    .addNode("finalize", async (state) => {
+    .addNode(FULL_GRAPH_NODES.FINALIZE, async (state) => {
       if (!state.response) {
         throw new Error("LangGraph response is missing before finalize.");
       }
@@ -486,7 +489,7 @@ export const compileFullSunnyAgentGraph = (
 
       return { response };
     })
-    .addNode("failure", (state) => ({
+    .addNode(FULL_GRAPH_NODES.FAILURE, (state) => ({
       response: buildLangGraphFailureResponse({
         baseTokenUsage:
           state.tokenUsage ?? state.input.baseTokenUsage,
@@ -497,89 +500,113 @@ export const compileFullSunnyAgentGraph = (
         threadId: state.input.threadId,
       }),
     }))
-    .addEdge(START, "build_context")
+    .addEdge(START, FULL_GRAPH_NODES.BUILD_CONTEXT)
     .addConditionalEdges(
-      "build_context",
-      (state) =>
-        state.failureMessage ? "failure" : "orchestrate_plan",
-      ["failure", "orchestrate_plan"],
-    )
-    .addConditionalEdges(
-      "orchestrate_plan",
+      FULL_GRAPH_NODES.BUILD_CONTEXT,
       (state) =>
         state.failureMessage
-          ? "failure"
+          ? FULL_GRAPH_NODES.FAILURE
+          : FULL_GRAPH_NODES.ORCHESTRATE_PLAN,
+      [FULL_GRAPH_NODES.FAILURE, FULL_GRAPH_NODES.ORCHESTRATE_PLAN],
+    )
+    .addConditionalEdges(
+      FULL_GRAPH_NODES.ORCHESTRATE_PLAN,
+      (state) =>
+        state.failureMessage
+          ? FULL_GRAPH_NODES.FAILURE
           : state.cancelled
             ? END
           : state.response
             ? routeResponse(state)
             : state.compoundPlan
-              ? "compound_subgraph"
-            : "resolve_intent",
+              ? FULL_GRAPH_NODES.COMPOUND_SUBGRAPH
+            : FULL_GRAPH_NODES.RESOLVE_INTENT,
       [
-        "await_user",
-        "compound_subgraph",
-        "failure",
-        "finalize",
-        "resolve_intent",
+        FULL_GRAPH_NODES.AWAIT_USER,
+        FULL_GRAPH_NODES.COMPOUND_SUBGRAPH,
+        FULL_GRAPH_NODES.FAILURE,
+        FULL_GRAPH_NODES.FINALIZE,
+        FULL_GRAPH_NODES.RESOLVE_INTENT,
         END,
       ],
     )
     .addConditionalEdges(
-      "compound_subgraph",
+      FULL_GRAPH_NODES.COMPOUND_SUBGRAPH,
       (state) =>
         state.failureMessage
-          ? "failure"
+          ? FULL_GRAPH_NODES.FAILURE
           : state.compoundResult
-            ? "finalize_compound"
-            : "failure",
-      ["failure", "finalize_compound"],
+            ? FULL_GRAPH_NODES.FINALIZE_COMPOUND
+            : FULL_GRAPH_NODES.FAILURE,
+      [FULL_GRAPH_NODES.FAILURE, FULL_GRAPH_NODES.FINALIZE_COMPOUND],
     )
     .addConditionalEdges(
-      "finalize_compound",
+      FULL_GRAPH_NODES.FINALIZE_COMPOUND,
       (state) =>
         state.failureMessage
-          ? "failure"
+          ? FULL_GRAPH_NODES.FAILURE
           : state.response
             ? routeResponse(state)
-            : "failure",
-      ["await_user", "failure", "finalize"],
+            : FULL_GRAPH_NODES.FAILURE,
+      [
+        FULL_GRAPH_NODES.AWAIT_USER,
+        FULL_GRAPH_NODES.FAILURE,
+        FULL_GRAPH_NODES.FINALIZE,
+      ],
     )
     .addConditionalEdges(
-      "resolve_intent",
+      FULL_GRAPH_NODES.RESOLVE_INTENT,
       (state) =>
         state.failureMessage
-          ? "failure"
+          ? FULL_GRAPH_NODES.FAILURE
           : state.response
             ? routeResponse(state)
-            : "dry_run",
-      ["await_user", "dry_run", "failure", "finalize"],
+            : FULL_GRAPH_NODES.DRY_RUN,
+      [
+        FULL_GRAPH_NODES.AWAIT_USER,
+        FULL_GRAPH_NODES.DRY_RUN,
+        FULL_GRAPH_NODES.FAILURE,
+        FULL_GRAPH_NODES.FINALIZE,
+      ],
     )
     .addConditionalEdges(
-      "dry_run",
+      FULL_GRAPH_NODES.DRY_RUN,
       (state) =>
         state.failureMessage
-          ? "failure"
+          ? FULL_GRAPH_NODES.FAILURE
           : state.response
             ? routeResponse(state)
-            : "execute",
-      ["await_user", "execute", "failure", "finalize"],
+            : FULL_GRAPH_NODES.EXECUTE,
+      [
+        FULL_GRAPH_NODES.AWAIT_USER,
+        FULL_GRAPH_NODES.EXECUTE,
+        FULL_GRAPH_NODES.FAILURE,
+        FULL_GRAPH_NODES.FINALIZE,
+      ],
     )
     .addConditionalEdges(
-      "execute",
+      FULL_GRAPH_NODES.EXECUTE,
       (state) =>
-        state.failureMessage ? "failure" : "refresh_evaluate",
-      ["failure", "refresh_evaluate"],
+        state.failureMessage
+          ? FULL_GRAPH_NODES.FAILURE
+          : FULL_GRAPH_NODES.REFRESH_EVALUATE,
+      [FULL_GRAPH_NODES.FAILURE, FULL_GRAPH_NODES.REFRESH_EVALUATE],
     )
     .addConditionalEdges(
-      "refresh_evaluate",
+      FULL_GRAPH_NODES.REFRESH_EVALUATE,
       (state) =>
-        state.failureMessage ? "failure" : routeResponse(state),
-      ["await_user", "failure", "finalize"],
+        state.failureMessage
+          ? FULL_GRAPH_NODES.FAILURE
+          : routeResponse(state),
+      [
+        FULL_GRAPH_NODES.AWAIT_USER,
+        FULL_GRAPH_NODES.FAILURE,
+        FULL_GRAPH_NODES.FINALIZE,
+      ],
     )
-    .addEdge("await_user", "build_context")
-    .addEdge("failure", "finalize")
-    .addEdge("finalize", END)
+    .addEdge(FULL_GRAPH_NODES.AWAIT_USER, FULL_GRAPH_NODES.BUILD_CONTEXT)
+    .addEdge(FULL_GRAPH_NODES.FAILURE, FULL_GRAPH_NODES.FINALIZE)
+    .addEdge(FULL_GRAPH_NODES.FINALIZE, END)
     .compile({ checkpointer: options.checkpointer });
 };
 
